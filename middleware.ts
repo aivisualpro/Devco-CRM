@@ -33,7 +33,7 @@ export function middleware(request: NextRequest) {
     if (!authToken?.value) {
         // Return 401 JSON for API routes
         if (pathname.startsWith('/api/')) {
-             return NextResponse.json({ success: false, message: 'Authentication failed' }, { status: 401 });
+            return NextResponse.json({ success: false, message: 'Authentication failed' }, { status: 401 });
         }
         // Redirect to login if not authenticated
         const loginUrl = new URL('/login', request.url);
@@ -48,7 +48,7 @@ export function middleware(request: NextRequest) {
         if (!authToken.value || authToken.value === 'undefined' || authToken.value === 'null') {
             throw new Error('Invalid token');
         }
-        
+
         // Rolling session renewal: re-issue the cookie with a fresh 30-day maxAge
         // This resets the expiration clock on every page visit
         const response = NextResponse.next();
@@ -63,9 +63,9 @@ export function middleware(request: NextRequest) {
     } catch {
         // Invalid token
         if (pathname.startsWith('/api/')) {
-             const response = NextResponse.json({ success: false, message: 'Invalid token' }, { status: 401 });
-             response.cookies.delete('devco_auth_token');
-             return response;
+            const response = NextResponse.json({ success: false, message: 'Invalid token' }, { status: 401 });
+            response.cookies.delete('devco_auth_token');
+            return response;
         }
 
         // Redirect to login

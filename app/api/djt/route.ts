@@ -3,19 +3,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import { DailyJobTicket, Schedule, Activity, DJTSignature, Constant, OverheadItem, EquipmentItem } from '@/lib/models';
 import mongoose from 'mongoose';
+import { robustNormalizeISO } from '@/lib/timeCardUtils';
 
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
         const { action, payload } = body;
-        
+
         await connectToDatabase();
 
         switch (action) {
-// ...
+            // ...
             case 'saveDJT': {
                 const djtData = payload;
-                
+
                 // CRITICAL: Prevent duplicate DJTs per schedule.
                 // If no _id is provided, check if a DJT already exists for this schedule_id.
                 // This prevents creating a new document every time a new DJT form is saved.
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
 
                 // Calculate Cost - Sum of owned equipment costs only
                 let totalCost = 0;
-                
+
                 // Fetch equipment items to get official rates
                 const equipmentItems = await EquipmentItem.find().lean();
 
@@ -37,8 +38,8 @@ export async function POST(request: NextRequest) {
                 if (djtData.equipmentUsed && Array.isArray(djtData.equipmentUsed)) {
                     djtData.equipmentUsed = djtData.equipmentUsed.map((eq: any) => {
                         // Find matching equipment item in DB to get official rate
-                        const dbItem = equipmentItems.find((i: any) => 
-                            String(i._id) === String(eq.equipment) || 
+                        const dbItem = equipmentItems.find((i: any) =>
+                            String(i._id) === String(eq.equipment) ||
                             String(i.equipmentMachine) === String(eq.equipment) ||
                             String(i.value) === String(eq.equipment)
                         );
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
                         if (eq.type?.toLowerCase() === 'owned' && Number(eq.qty) > 0) {
                             totalCost += (Number(eq.qty) || 0) * dailyRate;
                         }
-                        
+
                         // Preserve the cost in the saved record for historical accuracy
                         return { ...eq, cost: dailyRate };
                     });
@@ -62,9 +63,9 @@ export async function POST(request: NextRequest) {
                 // 1. Upsert DailyJobTicket
                 const updatedDJT = await DailyJobTicket.findOneAndUpdate(
                     { _id: idToUse },
-                    { 
-                        $set: { ...rest }, 
-                        $setOnInsert: { createdAt: new Date() } 
+                    {
+                        $set: { ...rest },
+                        $setOnInsert: { createdAt: new Date() }
                     },
                     { upsert: true, new: true }
                 );
@@ -106,28 +107,28 @@ export async function POST(request: NextRequest) {
             case 'getDJT': {
                 const { schedule_id, id } = payload || {};
                 if (!schedule_id && !id) return NextResponse.json({ success: false, error: 'Missing schedule_id or id' });
-                
-                const query = schedule_id 
+
+                const query = schedule_id
                     ? { $or: [{ schedule_id }, { _id: schedule_id }] }
                     : { _id: id };
-                
+
                 const djt = await DailyJobTicket.findOne(query).lean();
                 if (!djt) return NextResponse.json({ success: false, error: 'DJT not found' });
-                
+
                 // Also fetch the schedule for context
                 const scheduleId = (djt as any).schedule_id || schedule_id;
                 let scheduleDoc = null;
                 if (scheduleId) {
                     scheduleDoc = await Schedule.findById(scheduleId).lean();
                 }
-                
-                return NextResponse.json({ 
-                    success: true, 
-                    result: { 
-                        ...djt, 
+
+                return NextResponse.json({
+                    success: true,
+                    result: {
+                        ...djt,
                         signatures: (scheduleDoc as any)?.DJTSignatures || (djt as any).signatures || [],
-                        scheduleRef: scheduleDoc 
-                    } 
+                        scheduleRef: scheduleDoc
+                    }
                 });
             }
 
@@ -163,7 +164,7 @@ export async function POST(request: NextRequest) {
 
                     const scheduleIds = djts.map((d: any) => d.schedule_id).filter(Boolean);
                     const schedules = await Schedule.find({ _id: { $in: scheduleIds } }).lean();
-                    
+
                     const djtsWithSchedule = djts.map((d: any) => {
                         const schedule = schedules.find((s: any) => String(s._id) === String(d.schedule_id));
                         return { ...d, scheduleRef: schedule || null };
@@ -197,8 +198,8 @@ export async function POST(request: NextRequest) {
                         { $unwind: { path: '$clientDocs', preserveNullAndEmptyArrays: true } },
                         {
                             $addFields: {
-                                computedCustomerName: { 
-                                    $ifNull: ['$scheduleDocs.customerName', '$clientDocs.name', '-'] 
+                                computedCustomerName: {
+                                    $ifNull: ['$scheduleDocs.customerName', '$clientDocs.name', '-']
                                 },
                                 computedEstimate: { $ifNull: ['$scheduleDocs.estimate', 'No Est'] },
                                 dateStr: { $dateToString: { format: "%m/%d/%Y", date: "$date" } }
@@ -281,7 +282,7 @@ export async function POST(request: NextRequest) {
 
                 return NextResponse.json({ success: true });
             }
-            
+
             case 'saveDJTSignature': {
                 const { schedule_id, employee, signature, lunchStart, lunchEnd, createdBy, clientNow } = payload;
                 if (!schedule_id || !employee || !signature) {
@@ -289,14 +290,14 @@ export async function POST(request: NextRequest) {
                 }
 
                 // Find DJT by schedule_id or _id
-                let djt = await DailyJobTicket.findOne({ 
-                    $or: [{ _id: schedule_id }, { schedule_id: schedule_id }] 
+                let djt = await DailyJobTicket.findOne({
+                    $or: [{ _id: schedule_id }, { schedule_id: schedule_id }]
                 });
 
                 if (!djt) {
-                     // If standard save hasn't happened yet, we might have an issue.
-                     // But usually DJT is created before signing.
-                     return NextResponse.json({ success: false, error: 'Daily Job Ticket not found. Please save the ticket content first.' }, { status: 404 });
+                    // If standard save hasn't happened yet, we might have an issue.
+                    // But usually DJT is created before signing.
+                    return NextResponse.json({ success: false, error: 'Daily Job Ticket not found. Please save the ticket content first.' }, { status: 404 });
                 }
 
                 // Patch missing createdBy if needed (legacy docs or incomplete creations)
@@ -304,9 +305,23 @@ export async function POST(request: NextRequest) {
                     djt.createdBy = createdBy || employee || 'system';
                 }
 
-                // Use the client's local time (timezone-agnostic) if provided, otherwise fall back to server time
-                // The clientNow is an ISO string representing the user's literal local time
-                const clockOutTime = clientNow ? new Date(clientNow) : new Date();
+                // TIMEZONE-SAFE: Use robustNormalizeISO for all date handling
+                // Never use new Date() to parse schedule dates — it converts to UTC,
+                // shifting times by the server's timezone offset.
+                // clientNow should already be a nominal ISO string from the client.
+                const clockOutISO = clientNow
+                    ? robustNormalizeISO(clientNow)
+                    : (() => {
+                        // Fallback: use server's local time AS-IS (nominal, no UTC conversion)
+                        const now = new Date();
+                        const y = now.getFullYear();
+                        const mo = String(now.getMonth() + 1).padStart(2, '0');
+                        const d = String(now.getDate()).padStart(2, '0');
+                        const h = String(now.getHours()).padStart(2, '0');
+                        const mi = String(now.getMinutes()).padStart(2, '0');
+                        const s = String(now.getSeconds()).padStart(2, '0');
+                        return `${y}-${mo}-${d}T${h}:${mi}:${s}.000Z`;
+                    })();
 
                 // Create signature object with all required fields
                 const newSignature = {
@@ -314,8 +329,8 @@ export async function POST(request: NextRequest) {
                     signature,          // signature base64 image
                     lunchStart: lunchStart || null,
                     lunchEnd: lunchEnd || null,
-                    clockOut: clockOutTime.toISOString(),
-                    date: clockOutTime,
+                    clockOut: clockOutISO,
+                    date: new Date(clockOutISO),
                     signedBy: createdBy || employee
                 };
 
@@ -329,21 +344,26 @@ export async function POST(request: NextRequest) {
 
                 // Fetch the schedule to get fromDate for clockIn
                 const schedule = await Schedule.findById(djt.schedule_id).lean();
-                
-                if (schedule) {
-                    // Create clockIn from schedule's fromDate
-                    const clockInTime = schedule.fromDate ? new Date(schedule.fromDate) : clockOutTime;
 
-                    // Combine date from schedule with lunch times if provided
-                    const scheduleDate = clockInTime.toISOString().split('T')[0];
+                if (schedule) {
+                    // TIMEZONE-SAFE: Use robustNormalizeISO to get the nominal ISO string
+                    // This ensures "2026-02-04T07:00" stays as "2026-02-04T07:00:00.000Z"
+                    // instead of being shifted by new Date() parsing
+                    const clockInISO = schedule.fromDate
+                        ? robustNormalizeISO(String(schedule.fromDate))
+                        : clockOutISO;
+
+                    // Extract date part from the normalized ISO string (YYYY-MM-DD)
+                    const scheduleDate = clockInISO.split('T')[0];
                     let lunchStartDateTime = null;
                     let lunchEndDateTime = null;
-                    
+
+                    // TIMEZONE-SAFE: Build lunch ISO strings via string concatenation, not new Date()
                     if (lunchStart) {
-                        lunchStartDateTime = new Date(`${scheduleDate}T${lunchStart}:00`).toISOString();
+                        lunchStartDateTime = `${scheduleDate}T${lunchStart}:00.000Z`;
                     }
                     if (lunchEnd) {
-                        lunchEndDateTime = new Date(`${scheduleDate}T${lunchEnd}:00`).toISOString();
+                        lunchEndDateTime = `${scheduleDate}T${lunchEnd}:00.000Z`;
                     }
 
                     // Create "Site Time" timesheet record for this employee
@@ -352,50 +372,50 @@ export async function POST(request: NextRequest) {
                         scheduleId: djt.schedule_id,
                         employee: employee,
                         type: 'Site Time',
-                        clockIn: clockInTime.toISOString(),
-                        clockOut: clockOutTime.toISOString(),
+                        clockIn: clockInISO,
+                        clockOut: clockOutISO,
                         lunchStart: lunchStartDateTime,
                         lunchEnd: lunchEndDateTime,
                         status: 'Pending',
-                        createdAt: clockOutTime.toISOString(),
+                        createdAt: clockOutISO,
                         createdBy: createdBy || employee
                     };
 
                     // Check if a "Site Time" record already exists for this employee on this schedule
                     const existingTimesheets = (schedule as any).timesheet || [];
-                    const existingIndex = existingTimesheets.findIndex((ts: any) => 
-                        ts.employee?.toLowerCase() === employee.toLowerCase() && 
+                    const existingIndex = existingTimesheets.findIndex((ts: any) =>
+                        ts.employee?.toLowerCase() === employee.toLowerCase() &&
                         ts.type === 'Site Time'
                     );
 
                     if (existingIndex > -1) {
                         // Update existing timesheet
                         const updateObj: any = {};
-                        updateObj[`timesheet.${existingIndex}.clockOut`] = clockOutTime.toISOString();
+                        updateObj[`timesheet.${existingIndex}.clockOut`] = clockOutISO;
                         if (lunchStartDateTime) updateObj[`timesheet.${existingIndex}.lunchStart`] = lunchStartDateTime;
                         if (lunchEndDateTime) updateObj[`timesheet.${existingIndex}.lunchEnd`] = lunchEndDateTime;
-                        updateObj[`timesheet.${existingIndex}.updatedAt`] = clockOutTime.toISOString();
+                        updateObj[`timesheet.${existingIndex}.updatedAt`] = clockOutISO;
 
                         await Schedule.updateOne(
                             { _id: djt.schedule_id },
-                            { 
-                                $set: { 
+                            {
+                                $set: {
                                     ...updateObj,
                                     'djt.signatures': updatedSignatures,
-                                    'DJTSignatures': updatedSignatures 
-                                } 
+                                    'DJTSignatures': updatedSignatures
+                                }
                             }
                         );
                     } else {
                         // Push new timesheet record
                         await Schedule.updateOne(
                             { _id: djt.schedule_id },
-                            { 
+                            {
                                 $push: { timesheet: timesheetRecord },
-                                $set: { 
+                                $set: {
                                     'djt.signatures': updatedSignatures,
-                                    'DJTSignatures': updatedSignatures 
-                                } 
+                                    'DJTSignatures': updatedSignatures
+                                }
                             }
                         );
                     }
@@ -404,10 +424,12 @@ export async function POST(request: NextRequest) {
                     if (djt.schedule_id) {
                         await Schedule.updateOne(
                             { _id: djt.schedule_id },
-                            { $set: { 
-                                'djt.signatures': updatedSignatures,
-                                'DJTSignatures': updatedSignatures 
-                            } }
+                            {
+                                $set: {
+                                    'djt.signatures': updatedSignatures,
+                                    'DJTSignatures': updatedSignatures
+                                }
+                            }
                         );
                     }
                 }
@@ -415,7 +437,7 @@ export async function POST(request: NextRequest) {
                 // Return the updated DJT with signatures
                 const resultDJT = djt.toObject ? djt.toObject() : djt;
                 resultDJT.signatures = updatedSignatures;
-                
+
                 return NextResponse.json({ success: true, result: resultDJT });
             }
 
