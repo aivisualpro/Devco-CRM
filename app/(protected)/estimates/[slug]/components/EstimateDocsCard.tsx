@@ -1511,8 +1511,10 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             titleDescriptions: cleanedTitleDescriptions
         };
 
+        const isNew = editingBillingTicketIndex === null;
+
         let updated;
-        if (editingBillingTicketIndex !== null) {
+        if (!isNew) {
             updated = billingTickets.map((item: any, idx: number) =>
                 idx === editingBillingTicketIndex ? { ...item, ...ticketData } : item
             );
@@ -1533,7 +1535,50 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         onUpdate('billingTickets', sanitized);
         setIsBillingTicketModalOpen(false);
         setEditingBillingTicketIndex(null);
-        toast.success(editingBillingTicketIndex !== null ? 'Billing ticket updated' : 'Billing ticket added');
+        toast.success(isNew ? 'Billing ticket added' : 'Billing ticket updated');
+
+        // Auto-create ToDo for new billing tickets only
+        if (isNew) {
+            (async () => {
+                try {
+                    const todayStr = new Date().toLocaleDateString('en-US');
+                    const titlesList = (cleanedTitleDescriptions || [])
+                        .filter((td: any) => td.title?.trim())
+                        .map((td: any) => td.title.trim())
+                        .join(', ');
+                    const lumpSumFormatted = ticketData.lumpSum
+                        ? `$${parseFloat(String(ticketData.lumpSum).replace(/[^0-9.-]+/g, '')).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+                        : '';
+
+                    const taskDescription = [
+                        `Billing Ticket Created`,
+                        `Date: ${ticketData.date || todayStr}`,
+                        `Estimate: ${formData?.estimate || 'N/A'}`,
+                        `Customer: ${formData?.customerName || 'N/A'}`,
+                        `Job Address: ${formData?.jobAddress || 'N/A'}`,
+                        ticketData.billingTerms ? `Billing Terms: ${ticketData.billingTerms === 'Other' ? (ticketData.otherBillingTerms || 'Other') : ticketData.billingTerms}` : '',
+                        lumpSumFormatted ? `Lump Sum: ${lumpSumFormatted}` : '',
+                        titlesList ? `Titles: ${titlesList}` : '',
+                    ].filter(Boolean).join('\n');
+
+                    await fetch('/api/tasks', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            task: taskDescription,
+                            assignees: ['dt@devco-inc.com'],
+                            status: 'todo',
+                            dueDate: new Date(new Date().toLocaleDateString('en-US')),
+                            estimate: formData?.estimate || '',
+                            customerName: formData?.customerName || '',
+                            jobAddress: formData?.jobAddress || '',
+                        })
+                    });
+                } catch (todoErr) {
+                    console.error('Failed to create billing ticket todo:', todoErr);
+                }
+            })();
+        }
     };
 
     const confirmRemoveBillingTicket = () => {

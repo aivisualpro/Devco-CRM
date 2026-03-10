@@ -526,6 +526,47 @@ export default function BillingTicketsPage() {
                 toast.success(editingTicket ? 'Billing Ticket updated' : 'Billing Ticket added');
                 setIsModalOpen(false);
                 fetchEstimates();
+
+                // Auto-create ToDo for new billing tickets only
+                if (!editingTicket) {
+                    try {
+                        const todayStr = new Date().toLocaleDateString('en-US');
+                        const titlesList = (data.titleDescriptions || [])
+                            .filter(td => td.title?.trim())
+                            .map(td => td.title.trim())
+                            .join(', ');
+                        const lumpSumFormatted = data.lumpSum
+                            ? `$${parseFloat(String(data.lumpSum).replace(/[^0-9.-]+/g, '')).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+                            : '';
+
+                        const taskDescription = [
+                            `Billing Ticket Created`,
+                            `Date: ${data.date || todayStr}`,
+                            `Estimate: ${targetEstimate.estimate || 'N/A'}`,
+                            `Customer: ${targetEstimate.customerName || 'N/A'}`,
+                            `Job Address: ${targetEstimate.jobAddress || 'N/A'}`,
+                            data.billingTerms ? `Billing Terms: ${data.billingTerms === 'Other' ? (data.otherBillingTerms || 'Other') : data.billingTerms}` : '',
+                            lumpSumFormatted ? `Lump Sum: ${lumpSumFormatted}` : '',
+                            titlesList ? `Titles: ${titlesList}` : '',
+                        ].filter(Boolean).join('\n');
+
+                        await fetch('/api/tasks', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                task: taskDescription,
+                                assignees: ['dt@devco-inc.com'],
+                                status: 'todo',
+                                dueDate: new Date(new Date().toLocaleDateString('en-US')),
+                                estimate: targetEstimate.estimate || '',
+                                customerName: targetEstimate.customerName || '',
+                                jobAddress: targetEstimate.jobAddress || '',
+                            })
+                        });
+                    } catch (todoErr) {
+                        console.error('Failed to create billing ticket todo:', todoErr);
+                    }
+                }
             } else {
                 toast.error('Failed to save ticket');
             }
@@ -836,7 +877,7 @@ export default function BillingTicketsPage() {
                                                             </div>
                                                         ) : (
                                                             <Tooltip>
-                                                                <TooltipTrigger>
+                                                                <TooltipTrigger asChild>
                                                                     <button
                                                                         onClick={(e) => { e.stopPropagation(); handleOpenSentDateDialog(ticket); }}
                                                                         disabled={markingSent === ticket.uniqueId}
@@ -876,7 +917,7 @@ export default function BillingTicketsPage() {
                                                                 </a>
                                                             ) : (
                                                                 <Popover>
-                                                                    <PopoverTrigger>
+                                                                    <PopoverTrigger asChild>
                                                                         <div className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-600 cursor-pointer hover:bg-slate-200 transition-colors relative">
                                                                             <FileText size={14} />
                                                                             <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-slate-500 text-[8px] text-white">
