@@ -80,6 +80,7 @@ const FIELDS_BY_TAB: Record<string, { key: string; label: string; type?: string;
         { key: 'typeOfServiceRequired', label: 'Type of Service' },
         { key: 'wetUtilities', label: 'Wet Utilities' },
         { key: 'dryUtilities', label: 'Dry Utilities' },
+        { key: 'prelimAmount', label: 'Prelims Amount', placeholder: 'Enter prelims amount...' },
         { key: 'projectDescription', label: 'Project Description', type: 'textarea', span: 2 }
     ]
 };
@@ -184,7 +185,7 @@ export function EstimateDetailsModal({ isOpen, onClose, formData, customerId, on
                                     className={`space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-300 ${field.span === 2 ? 'col-span-2' : field.span === 3 ? 'col-span-3' : ''}`}
                                     style={{ animationDelay: `${idx * 50}ms` }}
                                 >
-                                    <label className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">
+                                    <label className="flex items-center gap-2 text-[10px] font-bold text-slate-700 uppercase tracking-wider px-1">
                                         {field.label}
                                     </label>
 
