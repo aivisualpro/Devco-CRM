@@ -361,12 +361,12 @@ export default function FringeBenefitsPage() {
     const allRecords = useMemo(() => {
         const flat: TimesheetRecord[] = [];
 
-        // Ensure end date includes the full day
-        const filterStart = new Date(startDate);
-        filterStart.setHours(0, 0, 0, 0);
-
-        const filterEnd = new Date(endDate);
-        filterEnd.setHours(23, 59, 59, 999);
+        // Timezone-safe: Compare dates as YYYY-MM-DD strings only (no Date objects for filtering)
+        // This ensures raw data is never shifted by browser timezone
+        const pad2 = (n: number) => String(n).padStart(2, '0');
+        const toYMD = (d: Date) => `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+        const filterStartStr = toYMD(startDate);
+        const filterEndStr = toYMD(endDate);
 
         rawSchedules.forEach(sched => {
             if (!sched.timesheet || !Array.isArray(sched.timesheet)) return;
@@ -380,11 +380,12 @@ export default function FringeBenefitsPage() {
                 if (!isSite && !isDrive) return; // Skip unhandled types
                 if (isDrive && !includeDriveTime) return; // Skip drive if disabled
 
-                const clockInDate = new Date(robustNormalizeISO(ts.clockIn));
-                if (isNaN(clockInDate.getTime())) return;
+                const normalized = robustNormalizeISO(ts.clockIn);
+                if (!normalized) return;
 
-                // Date Filter
-                if (clockInDate < filterStart || clockInDate > filterEnd) return;
+                // Timezone-safe date filter: extract YYYY-MM-DD from the normalized ISO string
+                const clockInDateStr = normalized.split('T')[0];
+                if (clockInDateStr < filterStartStr || clockInDateStr > filterEndStr) return;
 
                 const { hours } = calculateTimesheetData(ts, sched.fromDate);
                 const reg = Math.min(8, hours);

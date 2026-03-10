@@ -445,17 +445,21 @@ function TimeCardContent() {
             if (!estMap.has(base)) estMap.set(base, e.projectTitle);
         });
 
-        // Filter boundaries for the selected week (not the extended fetch range)
-        const weekStart = weekRange.start;
-        const weekEnd = weekRange.end;
+        // Timezone-safe: Compare dates as YYYY-MM-DD strings (no Date objects for filtering)
+        // This ensures raw data is never shifted by browser timezone
+        const pad2 = (n: number) => String(n).padStart(2, '0');
+        const toYMD = (d: Date) => `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+        const weekStartStr = toYMD(weekRange.start);
+        const weekEndStr = toYMD(weekRange.end);
 
         rawSchedules.forEach(sched => {
             if (sched.timesheet && Array.isArray(sched.timesheet)) {
                 sched.timesheet.forEach(ts => {
                     // Filter: Only include timesheets with clockIn within the selected week
                     if (ts.clockIn) {
-                        const clockInDate = new Date(robustNormalizeISO(ts.clockIn));
-                        if (clockInDate < weekStart || clockInDate > weekEnd) {
+                        const normalized = robustNormalizeISO(ts.clockIn);
+                        const clockInDateStr = normalized.split('T')[0];
+                        if (clockInDateStr < weekStartStr || clockInDateStr > weekEndStr) {
                             return; // Skip timesheets outside the selected week
                         }
                     }

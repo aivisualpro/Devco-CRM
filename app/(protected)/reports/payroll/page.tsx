@@ -2,23 +2,23 @@
 
 import { useEffect, useState, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import { 
+import {
     Printer, Download,
     Users, Calendar as CalendarIcon, MapPin,
     FileText, Briefcase, Info, ChevronDown, Search,
     Clock, Truck, BadgeDollarSign
 } from 'lucide-react';
-import { 
+import {
     Header, Loading, Modal, Tooltip, TooltipTrigger, TooltipContent,
     SearchableSelect
 } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { pdf } from '@react-pdf/renderer';
 import { PayrollPDF } from './PayrollPDF';
-import { 
-    calculateTimesheetData, 
-    formatDateOnly, 
-    formatTimeOnly, 
+import {
+    calculateTimesheetData,
+    formatDateOnly,
+    formatTimeOnly,
     robustNormalizeISO,
     SPEED_MPH,
     EARTH_RADIUS_MI,
@@ -88,7 +88,7 @@ const generateWeeks = (year: number) => {
     if (d.getUTCFullYear() > year) {
         d = startOfWeek(new Date(Date.UTC(year, 11, 31)));
     }
-    
+
     for (let i = 0; i < 20; i++) {
         const start = d;
         const end = endOfWeek(d);
@@ -170,9 +170,9 @@ function PayrollReportContent() {
     const [isEstimateDropdownOpen, setIsEstimateDropdownOpen] = useState(false);
     const [employeeSearch, setEmployeeSearch] = useState('');
     const [estimateSearch, setEstimateSearch] = useState('');
-    const [selectedDetail, setSelectedDetail] = useState<{ 
-        employee: EmployeeReport, 
-        type: 'Regular' | 'Overtime' | 'Double Time' | 'Travel' | 'Per Diem' | 'General' 
+    const [selectedDetail, setSelectedDetail] = useState<{
+        employee: EmployeeReport,
+        type: 'Regular' | 'Overtime' | 'Double Time' | 'Travel' | 'Per Diem' | 'General'
     } | null>(null);
 
     // Sync only employee filter with URL (removed week to avoid date parsing issues)
@@ -201,7 +201,7 @@ function PayrollReportContent() {
     const [editForm, setEditForm] = useState<any>({});
 
     const weekOptions = useMemo(() => generateWeeks(currentWeekStart.getFullYear()), [currentWeekStart]);
-    
+
     const estimatesOptions = useMemo(() => {
         return Object.entries(estimatesMap).map(([id, e]: [string, any]) => ({
             value: id,
@@ -214,13 +214,13 @@ function PayrollReportContent() {
         if (!editingRecord) return { hours: 0, distance: 0 };
         return calculateTimesheetData(editForm, editingRecord.clockIn);
     }, [editForm, editingRecord]);
-    
+
     const employeeOptions = useMemo(() => {
         const emps = Object.values(employeesMap).map(e => ({
             label: e.label || e.value,
             value: e.value,
             image: e.image,
-            initials: e.initials || (e.label ? e.label.split(' ').map((n:string)=>n[0]).join('').substring(0,2) : '??')
+            initials: e.initials || (e.label ? e.label.split(' ').map((n: string) => n[0]).join('').substring(0, 2) : '??')
         })).sort((a, b) => a.label.localeCompare(b.label));
         return emps;
     }, [employeesMap]);
@@ -256,7 +256,7 @@ function PayrollReportContent() {
         const estIds = new Set<string>();
         rawSchedules.forEach(sched => {
             if (!sched.timesheet) return;
-            
+
             // Check if this estimate should be included based on CP filter
             if (filterCertified) {
                 const estData = estimatesMap[sched.estimate];
@@ -274,7 +274,7 @@ function PayrollReportContent() {
                 return false;
             });
         });
-        
+
         return Array.from(estIds).map(id => {
             const e = estimatesMap[id];
             return {
@@ -288,14 +288,14 @@ function PayrollReportContent() {
     const filteredEmployeeOptions = useMemo(() => {
         const base = employeeOptions.filter(e => employeesWhoWorkedThisWeek.has(e.value.toLowerCase()));
         if (!employeeSearch) return base;
-        return base.filter(e => 
+        return base.filter(e =>
             e.label.toLowerCase().includes(employeeSearch.toLowerCase())
         );
     }, [employeeOptions, employeeSearch, employeesWhoWorkedThisWeek]);
 
     const filteredEstimateOptions = useMemo(() => {
         if (!estimateSearch) return estimatesForThisWeek;
-        return estimatesForThisWeek.filter(e => 
+        return estimatesForThisWeek.filter(e =>
             e.label.toLowerCase().includes(estimateSearch.toLowerCase())
         );
     }, [estimatesForThisWeek, estimateSearch]);
@@ -303,7 +303,7 @@ function PayrollReportContent() {
     const fetchData = async (weekStart: Date) => {
         setLoading(true);
         const weekEnd = endOfWeek(weekStart);
-        
+
         // Extend date range by 1 week in each direction to capture timesheets
         // whose schedule fromDate might be in adjacent weeks but clockIn is in selected week
         const extendedStartDate = subWeeks(weekStart, 1);
@@ -313,7 +313,7 @@ function PayrollReportContent() {
             const res = await fetch('/api/schedules', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
+                body: JSON.stringify({
                     action: 'getSchedulesPage',
                     payload: {
                         startDate: extendedStartDate.toISOString(),
@@ -364,20 +364,20 @@ function PayrollReportContent() {
 
     const handleSaveEdit = async () => {
         if (!editingRecord || !editForm.scheduleId) return;
-        
+
         try {
             setLoading(true);
             // 1. Get Schedule
             const resGet = await fetch('/api/schedules', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'getScheduleById', payload: { id: editingRecord.scheduleId } })
             });
             const dataGet = await resGet.json();
             if (!dataGet.success) throw new Error("Schedule not found");
-            
+
             const schedule = dataGet.result;
-            
+
             // 2. Update the specific timesheet in the array
             const updatedTimesheets = (schedule.timesheet || []).map((t: any) => {
                 if ((t._id || t.recordId) === (editingRecord._id || editingRecord.recordId)) {
@@ -386,23 +386,23 @@ function PayrollReportContent() {
                 }
                 return t;
             });
-            
+
             // 3. Save
             const resSave = await fetch('/api/schedules', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ 
-                    action: 'updateSchedule', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'updateSchedule',
                     payload: { id: editingRecord.scheduleId, timesheet: updatedTimesheets }
                 })
             });
-            
+
             const saveResult = await resSave.json();
             if (saveResult.success) {
                 toastSuccess("Timesheet updated");
                 setEditingRecord(null);
                 setEditForm({});
-                fetchData(currentWeekStart); 
+                fetchData(currentWeekStart);
             } else {
                 throw new Error("Failed to save");
             }
@@ -422,102 +422,123 @@ function PayrollReportContent() {
     const reportData = useMemo(() => {
         const weekEnd = endOfWeek(currentWeekStart);
 
+        // Timezone-safe: Compare dates as YYYY-MM-DD strings only (no Date objects for filtering)
+        // This ensures raw data is never shifted by browser timezone
+        const pad2 = (n: number) => String(n).padStart(2, '0');
+        const toYMD = (d: Date) => `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+        const weekStartStr = toYMD(currentWeekStart);
+        const weekEndStr = toYMD(weekEnd);
+
+        // Pre-compute day strings for the week (Mon-Sun) for dayIdx lookup
+        const weekDayStrs: string[] = [];
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(currentWeekStart);
+            d.setUTCDate(d.getUTCDate() + i);
+            weekDayStrs.push(toYMD(d));
+        }
+
         const employeesWork: Record<string, any> = {};
 
         rawSchedules.forEach(sched => {
             if (!sched.timesheet) return;
-            
+
             sched.timesheet.forEach((ts: any) => {
-                const clockInDate = new Date(robustNormalizeISO(ts.clockIn));
-                if (clockInDate >= currentWeekStart && clockInDate <= weekEnd) {
-                    const empEmail = String(ts.employee || '').toLowerCase();
-                    
-                    // Improved Certified Check
-                    const certValue = String(estimatesMap[sched.estimate]?.certifiedPayroll || '').trim().toLowerCase();
-                    const estCertified = (certValue === 'yes' || certValue === 'true' || estimatesMap[sched.estimate]?.certifiedPayroll === true);
+                const normalized = robustNormalizeISO(ts.clockIn);
+                if (!normalized) return;
 
-                    if (filterCertified && !estCertified) return;
-                    if (filterEstimate !== 'all' && sched.estimate !== filterEstimate) return;
+                // Timezone-safe date filter: extract YYYY-MM-DD from the normalized ISO string
+                const clockInDateStr = normalized.split('T')[0];
+                if (clockInDateStr < weekStartStr || clockInDateStr > weekEndStr) return;
 
-                    if (!employeesWork[empEmail]) {
-                        employeesWork[empEmail] = {
-                            email: empEmail,
-                            days: Array.from({ length: 7 }, (_, i) => {
-                                const d = new Date(currentWeekStart);
-                                d.setUTCDate(d.getUTCDate() + i);
-                                return {
-                                    date: d,
-                                    estimates: new Set<string>(),
-                                    projectNames: new Set<string>(),
-                                    certified: false,
-                                    siteHrs: 0,
-                                    driveHrs: 0,
-                                    travelHrs: 0,
-                                    diem: 0,
-                                    dayRateSite: null as number | null,
-                                    dayRateDrive: null as number | null,
-                                    entries: []
-                                };
-                            })
-                        };
-                    }
+                const empEmail = String(ts.employee || '').toLowerCase();
 
-                    const dayIdx = (clockInDate.getUTCDay() + 6) % 7; 
-                    const { hours, distance } = calculateTimesheetData(ts, sched.fromDate);
-                    
-                    const enrichedTs = { ...ts, scheduleId: sched._id, calcHours: hours, calcDistance: distance, estimate: sched.estimate };
-                    employeesWork[empEmail].days[dayIdx].entries.push(enrichedTs);
-                    employeesWork[empEmail].days[dayIdx].estimates.add(sched.estimate);
-                    
-                    const pName = estimatesMap[sched.estimate]?.projectTitle || sched.title;
-                    if (pName) employeesWork[empEmail].days[dayIdx].projectNames.add(pName);
-                    if (estCertified) employeesWork[empEmail].days[dayIdx].certified = true;
+                // Improved Certified Check
+                const certValue = String(estimatesMap[sched.estimate]?.certifiedPayroll || '').trim().toLowerCase();
+                const estCertified = (certValue === 'yes' || certValue === 'true' || estimatesMap[sched.estimate]?.certifiedPayroll === true);
 
-                    if (ts.type?.toLowerCase().includes('site')) {
-                        employeesWork[empEmail].days[dayIdx].siteHrs += hours;
-                    } else if (ts.type?.toLowerCase().includes('drive')) {
-                        employeesWork[empEmail].days[dayIdx].travelHrs += hours;
-                    }
+                if (filterCertified && !estCertified) return;
+                if (filterEstimate !== 'all' && sched.estimate !== filterEstimate) return;
 
-                    // Handle Per Diem if present
-                    if (ts.perDiem) {
-                        employeesWork[empEmail].days[dayIdx].diem = (employeesWork[empEmail].days[dayIdx].diem || 0) + (parseFloat(ts.perDiem) || 0);
-                    }
-
-                    // Capture daily rates from entries if present
-                    const rateS = parseRate(ts.hourlyRateSITE);
-                    const rateD = parseRate(ts.hourlyRateDrive);
-                    if (rateS !== null) employeesWork[empEmail].days[dayIdx].dayRateSite = rateS;
-                    if (rateD !== null) employeesWork[empEmail].days[dayIdx].dayRateDrive = rateD;
+                if (!employeesWork[empEmail]) {
+                    employeesWork[empEmail] = {
+                        email: empEmail,
+                        days: Array.from({ length: 7 }, (_, i) => {
+                            const d = new Date(currentWeekStart);
+                            d.setUTCDate(d.getUTCDate() + i);
+                            return {
+                                date: d,
+                                estimates: new Set<string>(),
+                                projectNames: new Set<string>(),
+                                certified: false,
+                                siteHrs: 0,
+                                driveHrs: 0,
+                                travelHrs: 0,
+                                diem: 0,
+                                dayRateSite: null as number | null,
+                                dayRateDrive: null as number | null,
+                                entries: []
+                            };
+                        })
+                    };
                 }
+
+                // Timezone-safe dayIdx: find which day of the week this date falls on
+                const dayIdx = weekDayStrs.indexOf(clockInDateStr);
+                if (dayIdx === -1) return; // Should not happen since we filtered above
+                const { hours, distance } = calculateTimesheetData(ts, sched.fromDate);
+
+                const enrichedTs = { ...ts, scheduleId: sched._id, calcHours: hours, calcDistance: distance, estimate: sched.estimate };
+                employeesWork[empEmail].days[dayIdx].entries.push(enrichedTs);
+                employeesWork[empEmail].days[dayIdx].estimates.add(sched.estimate);
+
+                const pName = estimatesMap[sched.estimate]?.projectTitle || sched.title;
+                if (pName) employeesWork[empEmail].days[dayIdx].projectNames.add(pName);
+                if (estCertified) employeesWork[empEmail].days[dayIdx].certified = true;
+
+                if (ts.type?.toLowerCase().includes('site')) {
+                    employeesWork[empEmail].days[dayIdx].siteHrs += hours;
+                } else if (ts.type?.toLowerCase().includes('drive')) {
+                    employeesWork[empEmail].days[dayIdx].travelHrs += hours;
+                }
+
+                // Handle Per Diem if present
+                if (ts.perDiem) {
+                    employeesWork[empEmail].days[dayIdx].diem = (employeesWork[empEmail].days[dayIdx].diem || 0) + (parseFloat(ts.perDiem) || 0);
+                }
+
+                // Capture daily rates from entries if present
+                const rateS = parseRate(ts.hourlyRateSITE);
+                const rateD = parseRate(ts.hourlyRateDrive);
+                if (rateS !== null) employeesWork[empEmail].days[dayIdx].dayRateSite = rateS;
+                if (rateD !== null) employeesWork[empEmail].days[dayIdx].dayRateDrive = rateD;
             });
         });
 
         const filtered = Object.values(employeesWork).filter((ew: any) => {
             if (filterEmployee !== 'all' && ew.email !== filterEmployee) return false;
-            
+
             if (filterEstimate !== 'all') {
                 const hasEstimate = ew.days.some((d: any) => d.estimates.has(filterEstimate));
                 if (!hasEstimate) return false;
             }
-            
+
             if (filterCertified) {
                 // If CP filter is ON, only include employees who have AT LEAST ONE certified day in this week
                 const hasCertifiedDay = ew.days.some((d: any) => d.certified);
                 if (!hasCertifiedDay) return false;
             }
-            
+
             return true;
         });
 
         return filtered.map((ew: any) => {
             const empInfo = employeesMap[ew.email] || {};
-            
+
             // Robust rate parsing
 
 
             // Use employee profile rate, but check for zero accurately
-            const rateSite = parseRate(empInfo.hourlyRateSITE) ?? 45; 
+            const rateSite = parseRate(empInfo.hourlyRateSITE) ?? 45;
             const rateTravel = parseRate(empInfo.hourlyRateDrive) ?? (rateSite * 0.75);
 
             let totalReg = 0, totalOt = 0, totalDt = 0, totalTravel = 0, totalDiem = 0;
@@ -544,7 +565,7 @@ function PayrollReportContent() {
                 totalDt += dt;
                 totalTravel += travel;
                 totalDiem += d.diem;
-                
+
                 const dayRateSite = d.dayRateSite ?? rateSite;
                 const dayRateTravel = d.dayRateDrive ?? rateTravel;
 
@@ -555,7 +576,7 @@ function PayrollReportContent() {
 
                 // Sort entries to ensure progressive tallying for Reg/OT attribution
                 d.entries.sort((a: any, b: any) => new Date(robustNormalizeISO(a.clockIn)).getTime() - new Date(robustNormalizeISO(b.clockIn)).getTime());
-                
+
                 let dayTally = 0;
                 d.entries.forEach((ent: any) => {
                     if (ent.type?.toLowerCase().includes('site')) {
@@ -634,7 +655,7 @@ function PayrollReportContent() {
         const weekHeaders = weekDays.map(d => `${formatDate(d, 'EEEE')} ${formatDate(d, 'MM/dd/yy')}`).join(',');
         // Removed Position column, Added Category column
         const headers = `Employee,Category,${weekHeaders},Total,Rate,Subtotal`;
-        
+
         const rows: string[] = [];
         const safe = (str: any) => `"${String(str || '').replace(/"/g, '""')}"`;
 
@@ -673,60 +694,60 @@ function PayrollReportContent() {
             // 3. Regular Row
             const regValues = emp.days.map(d => d.reg > 0 ? d.reg.toFixed(2) : '');
             rows.push(createRow(
-                'Regular', 
-                regValues, 
-                emp.totalReg.toFixed(2), 
-                emp.totalReg > 0 ? `$${(emp.totalRegAmount / emp.totalReg).toFixed(2)}` : `$${emp.rateSite.toFixed(2)}`, 
+                'Regular',
+                regValues,
+                emp.totalReg.toFixed(2),
+                emp.totalReg > 0 ? `$${(emp.totalRegAmount / emp.totalReg).toFixed(2)}` : `$${emp.rateSite.toFixed(2)}`,
                 `$${emp.totalRegAmount.toFixed(2)}`
             ));
 
             // 4. Overtime Row
             const otValues = emp.days.map(d => d.ot > 0 ? d.ot.toFixed(2) : '');
             rows.push(createRow(
-                'Overtime', 
-                otValues, 
-                emp.totalOt.toFixed(2), 
-                emp.totalOt > 0 ? `$${(emp.totalOtAmount / emp.totalOt).toFixed(2)}` : `$${(emp.rateSite * 1.5).toFixed(2)}`, 
+                'Overtime',
+                otValues,
+                emp.totalOt.toFixed(2),
+                emp.totalOt > 0 ? `$${(emp.totalOtAmount / emp.totalOt).toFixed(2)}` : `$${(emp.rateSite * 1.5).toFixed(2)}`,
                 `$${emp.totalOtAmount.toFixed(2)}`
             ));
 
             // 5. Double Time Row
             const dtValues = emp.days.map(d => d.dt > 0 ? d.dt.toFixed(2) : '');
             rows.push(createRow(
-                'Double Time', 
-                dtValues, 
-                emp.totalDt.toFixed(2), 
-                emp.totalDt > 0 ? `$${(emp.totalDtAmount / emp.totalDt).toFixed(2)}` : `$${(emp.rateSite * 2.0).toFixed(2)}`, 
+                'Double Time',
+                dtValues,
+                emp.totalDt.toFixed(2),
+                emp.totalDt > 0 ? `$${(emp.totalDtAmount / emp.totalDt).toFixed(2)}` : `$${(emp.rateSite * 2.0).toFixed(2)}`,
                 `$${emp.totalDtAmount.toFixed(2)}`
             ));
 
             // 6. Travel Row
             const travelValues = emp.days.map(d => d.travel > 0 ? d.travel.toFixed(2) : '');
             rows.push(createRow(
-                'Travel', 
-                travelValues, 
-                emp.totalTravel.toFixed(2), 
-                emp.totalTravel > 0 ? `$${(emp.totalTravelAmount / emp.totalTravel).toFixed(2)}` : `$${emp.rateTravel.toFixed(2)}`, 
+                'Travel',
+                travelValues,
+                emp.totalTravel.toFixed(2),
+                emp.totalTravel > 0 ? `$${(emp.totalTravelAmount / emp.totalTravel).toFixed(2)}` : `$${emp.rateTravel.toFixed(2)}`,
                 `$${emp.totalTravelAmount.toFixed(2)}`
             ));
 
             // 7. Per Diem Row
             const diemValues = emp.days.map(d => d.diem > 0 ? `$${d.diem.toFixed(2)}` : '');
             rows.push(createRow(
-                'Per Diem', 
-                diemValues, 
-                `$${emp.totalDiem.toFixed(2)}`, 
-                '', 
+                'Per Diem',
+                diemValues,
+                `$${emp.totalDiem.toFixed(2)}`,
+                '',
                 `$${emp.totalDiem.toFixed(2)}`
             ));
 
             // 8. Total Net Row (Hours and Amounts)
             const totalValues = emp.days.map(d => d.total > 0 ? d.total.toFixed(2) : ''); // Daily Total Hours
             rows.push(createRow(
-                'Total Net', 
-                totalValues, 
+                'Total Net',
+                totalValues,
                 emp.totalHrs.toFixed(2), // Total Hours for week
-                '', 
+                '',
                 `$${emp.totalAmount.toFixed(2)}` // Total Amount for week
             ));
         });
@@ -749,8 +770,8 @@ function PayrollReportContent() {
         }
 
         if (!filterCertified || filterEstimate === 'all') {
-             toastError("Please select an Estimate and enable Certified Payroll filter to generate this report.");
-             return;
+            toastError("Please select an Estimate and enable Certified Payroll filter to generate this report.");
+            return;
         }
 
         try {
@@ -760,8 +781,8 @@ function PayrollReportContent() {
             const weekEnd = endOfWeek(currentWeekStart);
 
             const blob = await pdf(
-                <PayrollPDF 
-                    data={reportData} 
+                <PayrollPDF
+                    data={reportData}
                     weekRange={`${formatDate(currentWeekStart, 'MM/dd/yy')}-${formatDate(weekEnd, 'MM/dd/yy')}`}
                     startDate={formatDate(currentWeekStart, 'MM/dd/yy')}
                     endDate={formatDate(weekEnd, 'MM/dd/yy')}
@@ -795,18 +816,17 @@ function PayrollReportContent() {
         <div className="flex flex-col h-full bg-[#F4F7FA]">
             {/* Minimal Header */}
             <div className="flex-none relative z-[310]">
-                <Header 
+                <Header
                     leftContent={null}
                     rightContent={
                         <div className="flex items-center gap-4">
                             {/* Certified Payroll (CP) Toggle */}
                             <button
                                 onClick={() => setFilterCertified(!filterCertified)}
-                                className={`px-4 py-2.5 rounded-2xl text-xs font-black transition-all active:scale-95 border-2 ${
-                                    filterCertified 
-                                        ? 'bg-[#00CC00] text-white border-[#00CC00] shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)]' 
-                                        : 'bg-[#F4F7FA] text-slate-400 border-transparent neu-outset'
-                                }`}
+                                className={`px-4 py-2.5 rounded-2xl text-xs font-black transition-all active:scale-95 border-2 ${filterCertified
+                                    ? 'bg-[#00CC00] text-white border-[#00CC00] shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)]'
+                                    : 'bg-[#F4F7FA] text-slate-400 border-transparent neu-outset'
+                                    }`}
                                 title="Filter Certified Payroll Only"
                             >
                                 CP
@@ -814,7 +834,7 @@ function PayrollReportContent() {
 
                             {/* Week Selection - Neumorphic Dropdown */}
                             <div className="relative">
-                                <button 
+                                <button
                                     onClick={() => {
                                         setIsWeekDropdownOpen(!isWeekDropdownOpen);
                                         setIsEmployeeDropdownOpen(false);
@@ -853,7 +873,7 @@ function PayrollReportContent() {
 
                             {/* Employee Selection - Neumorphic Search Dropdown */}
                             <div className="relative">
-                                <button 
+                                <button
                                     onClick={() => {
                                         setIsEmployeeDropdownOpen(!isEmployeeDropdownOpen);
                                         setIsWeekDropdownOpen(false);
@@ -878,7 +898,7 @@ function PayrollReportContent() {
                                                 <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
                                                     <Search size={16} className="text-slate-400" />
                                                 </div>
-                                                <input 
+                                                <input
                                                     autoFocus
                                                     type="text"
                                                     placeholder="Search Employees..."
@@ -901,7 +921,7 @@ function PayrollReportContent() {
                                                     </div>
                                                     All Employees
                                                 </button>
-                                                
+
                                                 {filteredEmployeeOptions.map((emp, idx) => {
                                                     const isActive = emp.value === filterEmployee;
                                                     return (
@@ -924,7 +944,7 @@ function PayrollReportContent() {
                                                         </button>
                                                     );
                                                 })}
-                                                
+
                                                 {filteredEmployeeOptions.length === 0 && (
                                                     <div className="p-8 text-center text-xs font-bold text-slate-400">No results found</div>
                                                 )}
@@ -936,7 +956,7 @@ function PayrollReportContent() {
 
                             {/* Estimate Selection - Neumorphic Search Dropdown */}
                             <div className="relative">
-                                <button 
+                                <button
                                     onClick={() => {
                                         setIsEstimateDropdownOpen(!isEstimateDropdownOpen);
                                         setIsWeekDropdownOpen(false);
@@ -961,7 +981,7 @@ function PayrollReportContent() {
                                                 <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
                                                     <Search size={16} className="text-slate-400" />
                                                 </div>
-                                                <input 
+                                                <input
                                                     autoFocus
                                                     type="text"
                                                     placeholder="Search Estimates..."
@@ -984,7 +1004,7 @@ function PayrollReportContent() {
                                                     </div>
                                                     All Estimates
                                                 </button>
-                                                
+
                                                 {filteredEstimateOptions.map((est, idx) => {
                                                     const isActive = est.value === filterEstimate;
                                                     return (
@@ -1003,7 +1023,7 @@ function PayrollReportContent() {
                                                         </button>
                                                     );
                                                 })}
-                                                
+
                                                 {filteredEstimateOptions.length === 0 && (
                                                     <div className="p-8 text-center text-xs font-bold text-slate-400">No estimates found for this week</div>
                                                 )}
@@ -1030,14 +1050,13 @@ function PayrollReportContent() {
 
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <button 
-                                        onClick={handleExportPDF} 
+                                    <button
+                                        onClick={handleExportPDF}
                                         disabled={!filterCertified || filterEstimate === 'all'}
-                                        className={`p-3 rounded-2xl transition-all neu-outset active:scale-95 ${
-                                            (!filterCertified || filterEstimate === 'all') 
-                                            ? 'bg-slate-100 text-slate-300 cursor-not-allowed' 
+                                        className={`p-3 rounded-2xl transition-all neu-outset active:scale-95 ${(!filterCertified || filterEstimate === 'all')
+                                            ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
                                             : 'bg-[#F4F7FA] text-red-500 hover:neu-pressed'
-                                        }`}
+                                            }`}
                                     >
                                         <Printer size={18} />
                                     </button>
@@ -1059,205 +1078,205 @@ function PayrollReportContent() {
                     </div>
                 ) : (
                     <>
-                {/* Payroll Content Container */}
-                <div className="neu-outset rounded-[32px] p-4 bg-[#F4F7FA]">
-                    {reportData.length === 0 ? (
-                        <div className="h-[50vh] flex flex-col items-center justify-center">
-                            <FileText className="w-16 h-16 text-slate-300 mb-6" />
-                            <h3 className="text-xl font-black text-slate-500">No Records Found</h3>
-                        </div>
-                    ) : (
-                        <div className="relative">
-                            <table className="w-full border-collapse">
-                                <thead className="z-[100]">
-                                    <tr className="bg-[#F4F7FA]">
-                                        <th className="sticky top-[-10px] left-[-16px] z-[110] bg-[#F4F7FA] text-left px-4 py-4 min-w-[170px] shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
-                                            <span className="text-[9px] font-black text-[#0F4C75] uppercase tracking-[0.2em] opacity-60">Identity</span>
-                                        </th>
-                                        <th className="sticky top-[-10px] z-[100] bg-[#F4F7FA] text-left px-4 py-4 min-w-[80px] shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
-                                            <span className="text-[9px] font-black text-[#0F4C75] uppercase tracking-[0.2em] opacity-60">Category</span>
-                                        </th>
-                                        {weekDays.map((date, idx) => (
-                                            <th key={idx} className="sticky top-[-10px] z-[100] bg-[#F4F7FA] px-2 py-4 text-center min-w-[80px] shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
-                                                <p className="text-[9px] font-black text-[#0F4C75] uppercase tracking-tighter leading-none">{formatDate(date, 'EEEE')}</p>
-                                                <p className="text-[10px] font-black text-slate-700 mt-1">{formatDate(date, 'MM/dd/yy')}</p>
-                                            </th>
-                                        ))}
-                                        <th className="sticky top-[-10px] z-[100] bg-[#F4F7FA] px-4 py-4 text-center min-w-[85px] shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
-                                            <span className="text-[9px] font-black text-[#0F4C75] uppercase tracking-[0.2em] opacity-60">Total</span>
-                                        </th>
-                                        <th className="sticky top-[-10px] z-[100] bg-[#F4F7FA] px-4 py-4 text-right min-w-[85px] shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
-                                            <span className="text-[9px] font-black text-[#0F4C75] uppercase tracking-[0.2em] opacity-60">Rate</span>
-                                        </th>
-                                        <th className="sticky top-[-10px] z-[100] bg-[#F4F7FA] px-4 py-4 text-right min-w-[100px] shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
-                                            <span className="text-[9px] font-black text-[#0F4C75] uppercase tracking-[0.2em] opacity-60">Subtotal</span>
-                                        </th>
-                                    </tr>
-                                </thead>
-                                
-                                {reportData.map((emp) => (
-                                    <tbody key={emp.employee} className="border-t-[10px] border-transparent">
-                                        {/* Compact Identity Row Block */}
-                                        <tr className="hover:bg-white/30 transition-colors group cursor-pointer" onClick={() => setSelectedDetail({ employee: emp, type: 'General' })}>
-                                            <td rowSpan={8} className="sticky left-[-16px] z-[60] bg-[#F4F7FA] px-2 py-4 align-top border-r border-slate-100/50 shadow-[2px_0_10px_rgba(0,0,0,0.02)]">
-                                                <div className="space-y-2 max-w-[155px]">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="w-8 h-8 rounded-full bg-white shadow-sm border border-slate-100 flex items-center justify-center shrink-0">
-                                                            <span className="text-[10px] font-black text-[#0F4C75]">
-                                                                {emp.name.split(' ').map((n:string)=>n[0]).join('').substring(0,2).toUpperCase()}
-                                                            </span>
-                                                        </div>
-                                                        <h3 className="text-xs font-black text-slate-900 leading-tight truncate" title={emp.name}>{emp.name}</h3>
-                                                    </div>
-                                                    
-                                                    <div className="flex flex-col gap-1 pl-1">
-                                                        <div className="flex items-center gap-2 text-[8px] font-bold text-slate-400 uppercase tracking-tight" title={emp.address}>
-                                                            <MapPin size={10} className="text-[#0F4C75] opacity-50 shrink-0" />
-                                                            <span className="truncate">{emp.address}</span>
-                                                        </div>
-                                                        <div className="flex items-center gap-2 text-[8px] font-bold text-slate-400 uppercase tracking-tight">
-                                                            <Info size={10} className="text-[#0F4C75] opacity-50 shrink-0" />
-                                                            <span>***-**-6020</span>
-                                                        </div>
-                                                        <div className="flex items-center gap-2 text-[8px] font-bold text-slate-400 uppercase tracking-tight truncate">
-                                                            <Briefcase size={10} className="text-[#0F4C75] opacity-50 shrink-0" />
-                                                            <span className="truncate">{emp.classification}</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            
-                                            <td className="px-4 py-2 font-black text-[9px] uppercase tracking-wider text-[#0F4C75]/60 border-b border-white/40">Project</td>
-                                            {emp.days.map((d, i) => (
-                                                <td key={i} className="px-2 py-2 text-center border-b border-white/40">
-                                                    <div className="flex flex-col gap-0.5">
-                                                        <span className="text-[9px] font-black text-[#0F4C75] leading-tight">
-                                                            {d.estimates.length > 0 ? d.estimates.join(', ') : ''}
-                                                        </span>
-                                                        <span className="text-[8px] font-bold text-[#0F4C75]/70 italic leading-tight">
-                                                            {d.projectNames.length > 0 ? d.projectNames.join(', ') : ''}
-                                                        </span>
-                                                    </div>
-                                                </td>
-                                            ))}
-                                            <td colSpan={2} className="border-b border-white/40"></td>
-                                            <td className="px-4 py-2 border-b border-white/40"></td>
-                                        </tr>
+                        {/* Payroll Content Container */}
+                        <div className="neu-outset rounded-[32px] p-4 bg-[#F4F7FA]">
+                            {reportData.length === 0 ? (
+                                <div className="h-[50vh] flex flex-col items-center justify-center">
+                                    <FileText className="w-16 h-16 text-slate-300 mb-6" />
+                                    <h3 className="text-xl font-black text-slate-500">No Records Found</h3>
+                                </div>
+                            ) : (
+                                <div className="relative">
+                                    <table className="w-full border-collapse">
+                                        <thead className="z-[100]">
+                                            <tr className="bg-[#F4F7FA]">
+                                                <th className="sticky top-[-10px] left-[-16px] z-[110] bg-[#F4F7FA] text-left px-4 py-4 min-w-[170px] shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
+                                                    <span className="text-[9px] font-black text-[#0F4C75] uppercase tracking-[0.2em] opacity-60">Identity</span>
+                                                </th>
+                                                <th className="sticky top-[-10px] z-[100] bg-[#F4F7FA] text-left px-4 py-4 min-w-[80px] shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
+                                                    <span className="text-[9px] font-black text-[#0F4C75] uppercase tracking-[0.2em] opacity-60">Category</span>
+                                                </th>
+                                                {weekDays.map((date, idx) => (
+                                                    <th key={idx} className="sticky top-[-10px] z-[100] bg-[#F4F7FA] px-2 py-4 text-center min-w-[80px] shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
+                                                        <p className="text-[9px] font-black text-[#0F4C75] uppercase tracking-tighter leading-none">{formatDate(date, 'EEEE')}</p>
+                                                        <p className="text-[10px] font-black text-slate-700 mt-1">{formatDate(date, 'MM/dd/yy')}</p>
+                                                    </th>
+                                                ))}
+                                                <th className="sticky top-[-10px] z-[100] bg-[#F4F7FA] px-4 py-4 text-center min-w-[85px] shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
+                                                    <span className="text-[9px] font-black text-[#0F4C75] uppercase tracking-[0.2em] opacity-60">Total</span>
+                                                </th>
+                                                <th className="sticky top-[-10px] z-[100] bg-[#F4F7FA] px-4 py-4 text-right min-w-[85px] shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
+                                                    <span className="text-[9px] font-black text-[#0F4C75] uppercase tracking-[0.2em] opacity-60">Rate</span>
+                                                </th>
+                                                <th className="sticky top-[-10px] z-[100] bg-[#F4F7FA] px-4 py-4 text-right min-w-[100px] shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
+                                                    <span className="text-[9px] font-black text-[#0F4C75] uppercase tracking-[0.2em] opacity-60">Subtotal</span>
+                                                </th>
+                                            </tr>
+                                        </thead>
 
-                                        <tr>
-                                            <td className={`px-4 py-2 font-black text-[9px] uppercase tracking-wider text-[#0F4C75]/60 border-b border-white/40`}>Certified</td>
-                                            {emp.days.map((d, i) => {
-                                                const hasProject = d.estimates.length > 0 || d.projectNames.length > 0;
-                                                return (
-                                                    <td key={i} className={`px-2 py-2 text-[9px] font-black text-center tracking-[0.2em] border-b border-white/40 ${hasProject ? (d.certified ? 'text-[#00CC00]' : 'text-red-400') : 'text-slate-300'}`}>
-                                                        {hasProject ? (d.certified ? 'YES' : 'NO') : '--'}
+                                        {reportData.map((emp) => (
+                                            <tbody key={emp.employee} className="border-t-[10px] border-transparent">
+                                                {/* Compact Identity Row Block */}
+                                                <tr className="hover:bg-white/30 transition-colors group cursor-pointer" onClick={() => setSelectedDetail({ employee: emp, type: 'General' })}>
+                                                    <td rowSpan={8} className="sticky left-[-16px] z-[60] bg-[#F4F7FA] px-2 py-4 align-top border-r border-slate-100/50 shadow-[2px_0_10px_rgba(0,0,0,0.02)]">
+                                                        <div className="space-y-2 max-w-[155px]">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-8 h-8 rounded-full bg-white shadow-sm border border-slate-100 flex items-center justify-center shrink-0">
+                                                                    <span className="text-[10px] font-black text-[#0F4C75]">
+                                                                        {emp.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()}
+                                                                    </span>
+                                                                </div>
+                                                                <h3 className="text-xs font-black text-slate-900 leading-tight truncate" title={emp.name}>{emp.name}</h3>
+                                                            </div>
+
+                                                            <div className="flex flex-col gap-1 pl-1">
+                                                                <div className="flex items-center gap-2 text-[8px] font-bold text-slate-400 uppercase tracking-tight" title={emp.address}>
+                                                                    <MapPin size={10} className="text-[#0F4C75] opacity-50 shrink-0" />
+                                                                    <span className="truncate">{emp.address}</span>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 text-[8px] font-bold text-slate-400 uppercase tracking-tight">
+                                                                    <Info size={10} className="text-[#0F4C75] opacity-50 shrink-0" />
+                                                                    <span>***-**-6020</span>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 text-[8px] font-bold text-slate-400 uppercase tracking-tight truncate">
+                                                                    <Briefcase size={10} className="text-[#0F4C75] opacity-50 shrink-0" />
+                                                                    <span className="truncate">{emp.classification}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
                                                     </td>
-                                                );
-                                            })}
-                                            <td colSpan={2} className="border-b border-white/40"></td>
-                                            <td className="border-b border-white/40 px-4 py-2"></td>
-                                        </tr>
 
-                                        <tr className="hover:bg-blue-50/50 transition-colors cursor-help" onClick={() => setSelectedDetail({ employee: emp, type: 'Regular' })}>
-                                            <td className="px-4 py-2 font-black text-[9px] uppercase tracking-wider text-orange-500/80 border-b border-white/40">Regular</td>
-                                            {emp.days.map((d, i) => (
-                                                <td key={i} className="px-2 py-2 text-[11px] font-black text-slate-700 text-center border-b border-white/40">
-                                                    {d.reg > 0 ? d.reg.toFixed(2) : '--'}
-                                                </td>
-                                            ))}
-                                            <td className="px-4 py-2 text-center text-[11px] font-black text-slate-900 bg-white/40 border-b border-white/40">{emp.totalReg.toFixed(2)}</td>
-                                            <td className="px-4 py-2 text-right text-[11px] font-bold text-slate-400 bg-white/40 border-b border-white/40">
-                                                ${emp.totalReg > 0 ? (emp.totalRegAmount / emp.totalReg).toFixed(2) : emp.rateSite.toFixed(2)}
-                                            </td>
-                                            <td className="px-4 py-2 text-right text-[12px] font-black text-slate-900 bg-white/40 border-b border-white/40">
-                                                ${emp.totalRegAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                            </td>
-                                        </tr>
+                                                    <td className="px-4 py-2 font-black text-[9px] uppercase tracking-wider text-[#0F4C75]/60 border-b border-white/40">Project</td>
+                                                    {emp.days.map((d, i) => (
+                                                        <td key={i} className="px-2 py-2 text-center border-b border-white/40">
+                                                            <div className="flex flex-col gap-0.5">
+                                                                <span className="text-[9px] font-black text-[#0F4C75] leading-tight">
+                                                                    {d.estimates.length > 0 ? d.estimates.join(', ') : ''}
+                                                                </span>
+                                                                <span className="text-[8px] font-bold text-[#0F4C75]/70 italic leading-tight">
+                                                                    {d.projectNames.length > 0 ? d.projectNames.join(', ') : ''}
+                                                                </span>
+                                                            </div>
+                                                        </td>
+                                                    ))}
+                                                    <td colSpan={2} className="border-b border-white/40"></td>
+                                                    <td className="px-4 py-2 border-b border-white/40"></td>
+                                                </tr>
 
-                                        <tr className="hover:bg-blue-50/50 transition-colors cursor-help" onClick={() => setSelectedDetail({ employee: emp, type: 'Overtime' })}>
-                                            <td className="px-4 py-2 font-black text-[9px] uppercase tracking-wider text-amber-500/80 border-b border-white/40">Overtime</td>
-                                            {emp.days.map((d, i) => (
-                                                <td key={i} className="px-2 py-2 text-[11px] font-black text-slate-400 text-center border-b border-white/40">
-                                                    {d.ot > 0 ? d.ot.toFixed(2) : '--'}
-                                                </td>
-                                            ))}
-                                            <td className="px-4 py-2 text-center text-[11px] font-black text-slate-700 border-b border-white/40">{emp.totalOt.toFixed(2)}</td>
-                                            <td className="px-4 py-2 text-right text-[11px] font-bold text-slate-400 border-b border-white/40">
-                                                ${emp.totalOt > 0 ? (emp.totalOtAmount / emp.totalOt).toFixed(2) : (emp.rateSite * 1.5).toFixed(2)}
-                                            </td>
-                                            <td className="px-4 py-2 text-right text-[12px] font-black text-slate-800 border-b border-white/40">
-                                                ${emp.totalOtAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                            </td>
-                                        </tr>
+                                                <tr>
+                                                    <td className={`px-4 py-2 font-black text-[9px] uppercase tracking-wider text-[#0F4C75]/60 border-b border-white/40`}>Certified</td>
+                                                    {emp.days.map((d, i) => {
+                                                        const hasProject = d.estimates.length > 0 || d.projectNames.length > 0;
+                                                        return (
+                                                            <td key={i} className={`px-2 py-2 text-[9px] font-black text-center tracking-[0.2em] border-b border-white/40 ${hasProject ? (d.certified ? 'text-[#00CC00]' : 'text-red-400') : 'text-slate-300'}`}>
+                                                                {hasProject ? (d.certified ? 'YES' : 'NO') : '--'}
+                                                            </td>
+                                                        );
+                                                    })}
+                                                    <td colSpan={2} className="border-b border-white/40"></td>
+                                                    <td className="border-b border-white/40 px-4 py-2"></td>
+                                                </tr>
 
-                                        <tr className="hover:bg-blue-50/50 transition-colors cursor-help" onClick={() => setSelectedDetail({ employee: emp, type: 'Double Time' })}>
-                                            <td className="px-4 py-2 font-black text-[9px] uppercase tracking-wider text-teal-500/80 border-b border-white/40">Double Time</td>
-                                            {emp.days.map((d, i) => (
-                                                <td key={i} className="px-2 py-2 text-[11px] font-black text-slate-400 text-center border-b border-white/40">
-                                                    {d.dt > 0 ? d.dt.toFixed(2) : '--'}
-                                                </td>
-                                            ))}
-                                            <td className="px-4 py-2 text-center text-[11px] font-black text-slate-700 border-b border-white/40">{emp.totalDt.toFixed(2)}</td>
-                                            <td className="px-4 py-2 text-right text-[11px] font-bold text-slate-400 border-b border-white/40">
-                                                ${emp.totalDt > 0 ? (emp.totalDtAmount / emp.totalDt).toFixed(2) : (emp.rateSite * 2.0).toFixed(2)}
-                                            </td>
-                                            <td className="px-4 py-2 text-right text-[12px] font-black text-slate-800 border-b border-white/40">
-                                                ${emp.totalDtAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                            </td>
-                                        </tr>
+                                                <tr className="hover:bg-blue-50/50 transition-colors cursor-help" onClick={() => setSelectedDetail({ employee: emp, type: 'Regular' })}>
+                                                    <td className="px-4 py-2 font-black text-[9px] uppercase tracking-wider text-orange-500/80 border-b border-white/40">Regular</td>
+                                                    {emp.days.map((d, i) => (
+                                                        <td key={i} className="px-2 py-2 text-[11px] font-black text-slate-700 text-center border-b border-white/40">
+                                                            {d.reg > 0 ? d.reg.toFixed(2) : '--'}
+                                                        </td>
+                                                    ))}
+                                                    <td className="px-4 py-2 text-center text-[11px] font-black text-slate-900 bg-white/40 border-b border-white/40">{emp.totalReg.toFixed(2)}</td>
+                                                    <td className="px-4 py-2 text-right text-[11px] font-bold text-slate-400 bg-white/40 border-b border-white/40">
+                                                        ${emp.totalReg > 0 ? (emp.totalRegAmount / emp.totalReg).toFixed(2) : emp.rateSite.toFixed(2)}
+                                                    </td>
+                                                    <td className="px-4 py-2 text-right text-[12px] font-black text-slate-900 bg-white/40 border-b border-white/40">
+                                                        ${emp.totalRegAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </td>
+                                                </tr>
 
-                                        <tr className="hover:bg-blue-50/50 transition-colors cursor-help" onClick={() => setSelectedDetail({ employee: emp, type: 'Travel' })}>
-                                            <td className="px-4 py-2 font-black text-[9px] uppercase tracking-wider text-blue-500/80 border-b border-white/40">Travel</td>
-                                            {emp.days.map((d, i) => (
-                                                <td key={i} className="px-2 py-2 text-[11px] font-black text-slate-400 text-center border-b border-white/40">
-                                                    {d.travel > 0 ? d.travel.toFixed(2) : '--'}
-                                                </td>
-                                            ))}
-                                            <td className="px-4 py-2 text-center text-[11px] font-black text-slate-700 border-b border-white/40">{emp.totalTravel.toFixed(2)}</td>
-                                            <td className="px-4 py-2 text-right text-[11px] font-bold text-slate-400 border-b border-white/40">
-                                                ${emp.totalTravel > 0 ? (emp.totalTravelAmount / emp.totalTravel).toFixed(2) : emp.rateTravel.toFixed(2)}
-                                            </td>
-                                            <td className="px-4 py-2 text-right text-[12px] font-black text-slate-800 border-b border-white/40">
-                                                ${emp.totalTravelAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                            </td>
-                                        </tr>
+                                                <tr className="hover:bg-blue-50/50 transition-colors cursor-help" onClick={() => setSelectedDetail({ employee: emp, type: 'Overtime' })}>
+                                                    <td className="px-4 py-2 font-black text-[9px] uppercase tracking-wider text-amber-500/80 border-b border-white/40">Overtime</td>
+                                                    {emp.days.map((d, i) => (
+                                                        <td key={i} className="px-2 py-2 text-[11px] font-black text-slate-400 text-center border-b border-white/40">
+                                                            {d.ot > 0 ? d.ot.toFixed(2) : '--'}
+                                                        </td>
+                                                    ))}
+                                                    <td className="px-4 py-2 text-center text-[11px] font-black text-slate-700 border-b border-white/40">{emp.totalOt.toFixed(2)}</td>
+                                                    <td className="px-4 py-2 text-right text-[11px] font-bold text-slate-400 border-b border-white/40">
+                                                        ${emp.totalOt > 0 ? (emp.totalOtAmount / emp.totalOt).toFixed(2) : (emp.rateSite * 1.5).toFixed(2)}
+                                                    </td>
+                                                    <td className="px-4 py-2 text-right text-[12px] font-black text-slate-800 border-b border-white/40">
+                                                        ${emp.totalOtAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </td>
+                                                </tr>
 
-                                        <tr className="hover:bg-blue-50/50 transition-colors cursor-help" onClick={() => setSelectedDetail({ employee: emp, type: 'Per Diem' })}>
-                                            <td className="px-4 py-2 font-black text-[9px] uppercase tracking-wider text-slate-500/80 border-b border-white/40">Per Diem</td>
-                                            {emp.days.map((d, i) => (
-                                                <td key={i} className="px-2 py-2 text-[11px] font-black text-slate-400 text-center border-b border-white/40">
-                                                    {d.diem > 0 ? d.diem.toFixed(2) : '--'}
-                                                </td>
-                                            ))}
-                                            <td className="px-4 py-2 border-b border-white/40"></td>
-                                            <td className="px-4 py-2 border-b border-white/40"></td>
-                                            <td className="px-4 py-2 text-right text-[12px] font-black text-slate-800 border-b border-white/40">
-                                                ${emp.totalDiem.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                            </td>
-                                        </tr>
+                                                <tr className="hover:bg-blue-50/50 transition-colors cursor-help" onClick={() => setSelectedDetail({ employee: emp, type: 'Double Time' })}>
+                                                    <td className="px-4 py-2 font-black text-[9px] uppercase tracking-wider text-teal-500/80 border-b border-white/40">Double Time</td>
+                                                    {emp.days.map((d, i) => (
+                                                        <td key={i} className="px-2 py-2 text-[11px] font-black text-slate-400 text-center border-b border-white/40">
+                                                            {d.dt > 0 ? d.dt.toFixed(2) : '--'}
+                                                        </td>
+                                                    ))}
+                                                    <td className="px-4 py-2 text-center text-[11px] font-black text-slate-700 border-b border-white/40">{emp.totalDt.toFixed(2)}</td>
+                                                    <td className="px-4 py-2 text-right text-[11px] font-bold text-slate-400 border-b border-white/40">
+                                                        ${emp.totalDt > 0 ? (emp.totalDtAmount / emp.totalDt).toFixed(2) : (emp.rateSite * 2.0).toFixed(2)}
+                                                    </td>
+                                                    <td className="px-4 py-2 text-right text-[12px] font-black text-slate-800 border-b border-white/40">
+                                                        ${emp.totalDtAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </td>
+                                                </tr>
 
-                                        <tr className="bg-[#F4F7FA]">
-                                            <td className="px-4 py-4 font-black text-[11px] uppercase tracking-[0.2em] italic text-[#0F4C75] border-b-[20px] border-transparent">Total Net</td>
-                                            {emp.days.map((d, i) => (
-                                                <td key={i} className="px-2 py-4 text-[12px] font-black text-center text-slate-900 border-b-[20px] border-transparent">
-                                                    {(d.reg + d.ot + d.dt + d.travel + d.diem) > 0 ? (d.reg + d.ot + d.dt + d.travel + d.diem).toFixed(2) : '--'}
-                                                </td>
-                                            ))}
-                                            <td className="px-4 py-4 text-center text-[13px] font-black text-slate-900 bg-white/20 border-b-[20px] border-transparent">{emp.totalHrs.toFixed(2)}</td>
-                                            <td className="px-4 py-4 bg-white/20 border-b-[20px] border-transparent"></td>
-                                            <td className="px-4 py-4 text-right text-xl font-black bg-white/40 text-[#00CC00] tracking-tighter italic border-b-[20px] border-transparent">
-                                                ${emp.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                ))}
-                            </table>
+                                                <tr className="hover:bg-blue-50/50 transition-colors cursor-help" onClick={() => setSelectedDetail({ employee: emp, type: 'Travel' })}>
+                                                    <td className="px-4 py-2 font-black text-[9px] uppercase tracking-wider text-blue-500/80 border-b border-white/40">Travel</td>
+                                                    {emp.days.map((d, i) => (
+                                                        <td key={i} className="px-2 py-2 text-[11px] font-black text-slate-400 text-center border-b border-white/40">
+                                                            {d.travel > 0 ? d.travel.toFixed(2) : '--'}
+                                                        </td>
+                                                    ))}
+                                                    <td className="px-4 py-2 text-center text-[11px] font-black text-slate-700 border-b border-white/40">{emp.totalTravel.toFixed(2)}</td>
+                                                    <td className="px-4 py-2 text-right text-[11px] font-bold text-slate-400 border-b border-white/40">
+                                                        ${emp.totalTravel > 0 ? (emp.totalTravelAmount / emp.totalTravel).toFixed(2) : emp.rateTravel.toFixed(2)}
+                                                    </td>
+                                                    <td className="px-4 py-2 text-right text-[12px] font-black text-slate-800 border-b border-white/40">
+                                                        ${emp.totalTravelAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </td>
+                                                </tr>
+
+                                                <tr className="hover:bg-blue-50/50 transition-colors cursor-help" onClick={() => setSelectedDetail({ employee: emp, type: 'Per Diem' })}>
+                                                    <td className="px-4 py-2 font-black text-[9px] uppercase tracking-wider text-slate-500/80 border-b border-white/40">Per Diem</td>
+                                                    {emp.days.map((d, i) => (
+                                                        <td key={i} className="px-2 py-2 text-[11px] font-black text-slate-400 text-center border-b border-white/40">
+                                                            {d.diem > 0 ? d.diem.toFixed(2) : '--'}
+                                                        </td>
+                                                    ))}
+                                                    <td className="px-4 py-2 border-b border-white/40"></td>
+                                                    <td className="px-4 py-2 border-b border-white/40"></td>
+                                                    <td className="px-4 py-2 text-right text-[12px] font-black text-slate-800 border-b border-white/40">
+                                                        ${emp.totalDiem.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </td>
+                                                </tr>
+
+                                                <tr className="bg-[#F4F7FA]">
+                                                    <td className="px-4 py-4 font-black text-[11px] uppercase tracking-[0.2em] italic text-[#0F4C75] border-b-[20px] border-transparent">Total Net</td>
+                                                    {emp.days.map((d, i) => (
+                                                        <td key={i} className="px-2 py-4 text-[12px] font-black text-center text-slate-900 border-b-[20px] border-transparent">
+                                                            {(d.reg + d.ot + d.dt + d.travel + d.diem) > 0 ? (d.reg + d.ot + d.dt + d.travel + d.diem).toFixed(2) : '--'}
+                                                        </td>
+                                                    ))}
+                                                    <td className="px-4 py-4 text-center text-[13px] font-black text-slate-900 bg-white/20 border-b-[20px] border-transparent">{emp.totalHrs.toFixed(2)}</td>
+                                                    <td className="px-4 py-4 bg-white/20 border-b-[20px] border-transparent"></td>
+                                                    <td className="px-4 py-4 text-right text-xl font-black bg-white/40 text-[#00CC00] tracking-tighter italic border-b-[20px] border-transparent">
+                                                        ${emp.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        ))}
+                                    </table>
+                                </div>
+                            )}
                         </div>
-                    )}
-                </div>
-            </>
-        )}
-    </main>
+                    </>
+                )}
+            </main>
 
             {/* Fixed Footer Summary */}
             {!loading && reportData.length > 0 && (
@@ -1302,10 +1321,10 @@ function PayrollReportContent() {
                                 <p className="text-[10px] font-black text-[#0F4C75] uppercase tracking-widest opacity-40">Base Rate</p>
                                 <p className="text-2xl font-black text-[#00CC00] tracking-tighter italic">
                                     ${(
-                                        selectedDetail.type === 'Travel' ? selectedDetail.employee.rateTravel : 
-                                        selectedDetail.type === 'Overtime' ? selectedDetail.employee.rateSite * 1.5 :
-                                        selectedDetail.type === 'Double Time' ? selectedDetail.employee.rateSite * 2.0 :
-                                        selectedDetail.employee.rateSite
+                                        selectedDetail.type === 'Travel' ? selectedDetail.employee.rateTravel :
+                                            selectedDetail.type === 'Overtime' ? selectedDetail.employee.rateSite * 1.5 :
+                                                selectedDetail.type === 'Double Time' ? selectedDetail.employee.rateSite * 2.0 :
+                                                    selectedDetail.employee.rateSite
                                     ).toFixed(2)}
                                 </p>
                             </div>
@@ -1335,14 +1354,14 @@ function PayrollReportContent() {
                                             </thead>
                                             <tbody className="divide-y divide-white/20">
                                                 {selectedDetail.employee.rawEntries.site.map((ent, i) => (
-                                                    <tr key={i} 
+                                                    <tr key={i}
                                                         onClick={() => handleEditClick(ent)}
                                                         className="text-[11px] font-bold text-slate-700 hover:bg-white/50 cursor-pointer transition-colors"
                                                     >
                                                         <td className="px-4 py-3">{new Date(ent.clockIn).toLocaleDateString('en-US', { timeZone: 'UTC' })}</td>
                                                         <td className="px-4 py-3 font-black text-[#0F4C75]">{ent.estimate}</td>
                                                         <td className="px-4 py-3 opacity-60">
-                                                            {new Date(ent.clockIn).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', timeZone: 'UTC'})} - {ent.clockOut ? new Date(ent.clockOut).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', timeZone: 'UTC'}) : '--'}
+                                                            {new Date(ent.clockIn).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })} - {ent.clockOut ? new Date(ent.clockOut).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) : '--'}
                                                         </td>
                                                         <td className="px-4 py-3 text-center opacity-40">
                                                             {ent.lunchStart ? '30m' : '--'}
@@ -1353,14 +1372,14 @@ function PayrollReportContent() {
                                                         </td>
                                                         <td className="px-4 py-3 text-right font-medium text-slate-400 italic">
                                                             ${(
-                                                                (parseRate(ent.hourlyRateSITE) || 0) * 
+                                                                (parseRate(ent.hourlyRateSITE) || 0) *
                                                                 (selectedDetail.type === 'Overtime' ? 1.5 : selectedDetail.type === 'Double Time' ? 2.0 : 1.0)
                                                             ).toFixed(2)}
                                                         </td>
                                                         <td className="px-4 py-3 text-right font-black text-slate-900">
                                                             ${(
-                                                                (selectedDetail.type === 'Overtime' ? ent.attrOt : selectedDetail.type === 'Double Time' ? ent.attrDt : ent.attrReg) * 
-                                                                (parseRate(ent.hourlyRateSITE) || 0) * 
+                                                                (selectedDetail.type === 'Overtime' ? ent.attrOt : selectedDetail.type === 'Double Time' ? ent.attrDt : ent.attrReg) *
+                                                                (parseRate(ent.hourlyRateSITE) || 0) *
                                                                 (selectedDetail.type === 'Overtime' ? 1.5 : selectedDetail.type === 'Double Time' ? 2.0 : 1.0)
                                                             ).toFixed(2)}
                                                         </td>
@@ -1394,7 +1413,7 @@ function PayrollReportContent() {
                                             </thead>
                                             <tbody className="divide-y divide-white/20">
                                                 {selectedDetail.employee.rawEntries.drive.map((ent, i) => (
-                                                    <tr key={i} 
+                                                    <tr key={i}
                                                         onClick={() => handleEditClick(ent)}
                                                         className="text-[11px] font-bold text-slate-700 hover:bg-white/50 cursor-pointer transition-colors"
                                                     >
@@ -1442,18 +1461,18 @@ function PayrollReportContent() {
                                     </div>
                                     <div>
                                         <p className="text-[10px] font-black uppercase tracking-widest opacity-60">
-                                            {selectedDetail.type === 'Regular' ? 'Regular Total' : 
-                                             selectedDetail.type === 'Overtime' ? 'Overtime Total' :
-                                             selectedDetail.type === 'Double Time' ? 'Double Time Total' :
-                                             selectedDetail.type === 'Travel' ? 'Travel Total' : 'Breakdown Total'}
+                                            {selectedDetail.type === 'Regular' ? 'Regular Total' :
+                                                selectedDetail.type === 'Overtime' ? 'Overtime Total' :
+                                                    selectedDetail.type === 'Double Time' ? 'Double Time Total' :
+                                                        selectedDetail.type === 'Travel' ? 'Travel Total' : 'Breakdown Total'}
                                         </p>
                                         <p className="text-xl font-black text-white italic">
                                             ${(
                                                 selectedDetail.type === 'Regular' ? selectedDetail.employee.totalRegAmount :
-                                                selectedDetail.type === 'Overtime' ? selectedDetail.employee.totalOtAmount :
-                                                selectedDetail.type === 'Double Time' ? selectedDetail.employee.totalDtAmount :
-                                                selectedDetail.type === 'Travel' ? selectedDetail.employee.totalTravelAmount :
-                                                selectedDetail.type === 'Per Diem' ? selectedDetail.employee.totalDiem : 0
+                                                    selectedDetail.type === 'Overtime' ? selectedDetail.employee.totalOtAmount :
+                                                        selectedDetail.type === 'Double Time' ? selectedDetail.employee.totalDtAmount :
+                                                            selectedDetail.type === 'Travel' ? selectedDetail.employee.totalTravelAmount :
+                                                                selectedDetail.type === 'Per Diem' ? selectedDetail.employee.totalDiem : 0
                                             ).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                         </p>
                                     </div>
@@ -1479,13 +1498,13 @@ function PayrollReportContent() {
                 noBlur={true}
                 footer={
                     <>
-                        <button 
+                        <button
                             onClick={() => setEditingRecord(null)}
                             className="px-4 py-2 rounded-xl text-slate-500 hover:bg-slate-100 font-bold text-sm"
                         >
                             Cancel
                         </button>
-                        <button 
+                        <button
                             onClick={handleSaveEdit}
                             className="px-6 py-2 rounded-xl bg-[#0F4C75] text-white font-bold text-sm shadow-lg hover:shadow-xl hover:bg-[#0b3c5d] transition-all"
                         >
@@ -1498,24 +1517,24 @@ function PayrollReportContent() {
                     <div className="grid grid-cols-2 gap-x-4 gap-y-3 py-2">
                         <div className="col-span-2">
                             <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Select Employee</label>
-                            <SearchableSelect 
+                            <SearchableSelect
                                 options={employeeOptions}
                                 value={editForm.employee || ''}
-                                onChange={(val) => setEditForm((prev:any) => ({...prev, employee: val}))}
+                                onChange={(val) => setEditForm((prev: any) => ({ ...prev, employee: val }))}
                                 placeholder="Search & Select Employee"
                             />
                         </div>
 
                         <div>
                             <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Estimate #</label>
-                            <SearchableSelect 
+                            <SearchableSelect
                                 options={estimatesOptions}
                                 value={editForm.estimate || ''}
                                 onChange={(val) => {
-                                    setEditForm((prev:any) => ({
-                                        ...prev, 
+                                    setEditForm((prev: any) => ({
+                                        ...prev,
                                         estimate: val,
-                                        scheduleId: '' 
+                                        scheduleId: ''
                                     }));
                                 }}
                                 placeholder="Select Estimate"
@@ -1524,7 +1543,7 @@ function PayrollReportContent() {
 
                         <div>
                             <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Schedule Date</label>
-                            <SearchableSelect 
+                            <SearchableSelect
                                 options={(() => {
                                     if (!editForm.estimate) return [];
                                     const estNorm = normalizeEst(editForm.estimate);
@@ -1538,7 +1557,7 @@ function PayrollReportContent() {
                                         }));
                                 })()}
                                 value={editForm.scheduleId || ''}
-                                onChange={(val) => setEditForm((prev:any) => ({...prev, scheduleId: val}))}
+                                onChange={(val) => setEditForm((prev: any) => ({ ...prev, scheduleId: val }))}
                                 placeholder={editForm.estimate ? "Select Schedule Date" : "Select Estimate First"}
                             />
                         </div>
@@ -1550,12 +1569,11 @@ function PayrollReportContent() {
                                     <button
                                         key={t}
                                         type="button"
-                                        onClick={() => setEditForm((prev:any) => ({...prev, type: t}))}
-                                        className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all border-2 ${
-                                            editForm.type?.trim().toLowerCase() === t.trim().toLowerCase()
-                                            ? 'bg-[#0F4C75] border-[#0F4C75] text-white shadow-lg' 
+                                        onClick={() => setEditForm((prev: any) => ({ ...prev, type: t }))}
+                                        className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all border-2 ${editForm.type?.trim().toLowerCase() === t.trim().toLowerCase()
+                                            ? 'bg-[#0F4C75] border-[#0F4C75] text-white shadow-lg'
                                             : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
-                                        }`}
+                                            }`}
                                     >
                                         {t}
                                     </button>
@@ -1575,7 +1593,7 @@ function PayrollReportContent() {
                                             // Store the value directly with Z suffix to preserve exact time (timezone-agnostic)
                                             const val = e.target.value;
                                             if (val) {
-                                                setEditForm((prev:any) => ({...prev, clockIn: val + ':00.000Z'}));
+                                                setEditForm((prev: any) => ({ ...prev, clockIn: val + ':00.000Z' }));
                                             }
                                         }}
                                     />
@@ -1591,7 +1609,7 @@ function PayrollReportContent() {
                                             // Store the value directly with Z suffix to preserve exact time (timezone-agnostic)
                                             const val = e.target.value;
                                             if (val) {
-                                                setEditForm((prev:any) => ({...prev, lunchStart: val + ':00.000Z'}));
+                                                setEditForm((prev: any) => ({ ...prev, lunchStart: val + ':00.000Z' }));
                                             }
                                         }}
                                     />
@@ -1607,7 +1625,7 @@ function PayrollReportContent() {
                                             // Store the value directly with Z suffix to preserve exact time (timezone-agnostic)
                                             const val = e.target.value;
                                             if (val) {
-                                                setEditForm((prev:any) => ({...prev, lunchEnd: val + ':00.000Z'}));
+                                                setEditForm((prev: any) => ({ ...prev, lunchEnd: val + ':00.000Z' }));
                                             }
                                         }}
                                     />
@@ -1623,7 +1641,7 @@ function PayrollReportContent() {
                                             // Store the value directly with Z suffix to preserve exact time (timezone-agnostic)
                                             const val = e.target.value;
                                             if (val) {
-                                                setEditForm((prev:any) => ({...prev, clockOut: val + ':00.000Z'}));
+                                                setEditForm((prev: any) => ({ ...prev, clockOut: val + ':00.000Z' }));
                                             }
                                         }}
                                     />
@@ -1636,38 +1654,36 @@ function PayrollReportContent() {
                                 <div className="col-span-2 grid grid-cols-3 gap-3">
                                     <div>
                                         <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Distance (Mi)</label>
-                                        <input 
+                                        <input
                                             type="number"
                                             placeholder="Manual"
                                             className="w-full px-4 py-3 rounded-xl bg-blue-50/50 border border-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700"
                                             value={editForm.manualDistance || ''}
-                                            onChange={e => setEditForm((prev:any) => ({...prev, manualDistance: e.target.value}))}
+                                            onChange={e => setEditForm((prev: any) => ({ ...prev, manualDistance: e.target.value }))}
                                         />
                                     </div>
                                     <div>
                                         <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Location In</label>
-                                        <input 
+                                        <input
                                             type="text"
                                             placeholder="Start loc"
                                             disabled={!!editForm.manualDistance}
-                                            className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${
-                                                editForm.manualDistance ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200'
-                                            }`}
+                                            className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${editForm.manualDistance ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200'
+                                                }`}
                                             value={editForm.locationIn || ''}
-                                            onChange={e => setEditForm((prev:any) => ({...prev, locationIn: e.target.value}))}
+                                            onChange={e => setEditForm((prev: any) => ({ ...prev, locationIn: e.target.value }))}
                                         />
                                     </div>
                                     <div>
                                         <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Location Out</label>
-                                        <input 
+                                        <input
                                             type="text"
                                             placeholder="End loc"
                                             disabled={!!editForm.manualDistance}
-                                            className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${
-                                                editForm.manualDistance ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200'
-                                            }`}
+                                            className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${editForm.manualDistance ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200'
+                                                }`}
                                             value={editForm.locationOut || ''}
-                                            onChange={e => setEditForm((prev:any) => ({...prev, locationOut: e.target.value}))}
+                                            onChange={e => setEditForm((prev: any) => ({ ...prev, locationOut: e.target.value }))}
                                         />
                                     </div>
                                 </div>
@@ -1675,7 +1691,7 @@ function PayrollReportContent() {
                                 <div className="col-span-2 grid grid-cols-2 gap-3">
                                     <div className="p-3 rounded-xl bg-orange-50/50 border border-orange-100">
                                         <label className="block text-[10px] font-black text-orange-400 uppercase mb-1 tracking-widest pl-1">Washout Qty</label>
-                                        <input 
+                                        <input
                                             type="number"
                                             className="w-full px-2 py-1.5 rounded-lg bg-white border border-orange-200 font-black text-slate-700 text-sm"
                                             placeholder="0"
@@ -1686,17 +1702,17 @@ function PayrollReportContent() {
                                             onChange={e => {
                                                 const qty = parseFloat(e.target.value);
                                                 if (isNaN(qty) || qty <= 0) {
-                                                    setEditForm((prev:any) => ({...prev, dumpWashout: ""}));
+                                                    setEditForm((prev: any) => ({ ...prev, dumpWashout: "" }));
                                                 } else {
                                                     const val = `${(qty * 0.5).toFixed(2)} hrs (${qty} qty)`;
-                                                    setEditForm((prev:any) => ({...prev, dumpWashout: val}));
+                                                    setEditForm((prev: any) => ({ ...prev, dumpWashout: val }));
                                                 }
                                             }}
                                         />
                                     </div>
                                     <div className="p-3 rounded-xl bg-amber-50/50 border border-amber-100">
                                         <label className="block text-[10px] font-black text-amber-400 uppercase mb-1 tracking-widest pl-1">Shop Qty</label>
-                                        <input 
+                                        <input
                                             type="number"
                                             className="w-full px-2 py-1.5 rounded-lg bg-white border border-amber-200 font-black text-slate-700 text-sm"
                                             placeholder="0"
@@ -1707,10 +1723,10 @@ function PayrollReportContent() {
                                             onChange={e => {
                                                 const qty = parseFloat(e.target.value);
                                                 if (isNaN(qty) || qty <= 0) {
-                                                    setEditForm((prev:any) => ({...prev, shopTime: ""}));
+                                                    setEditForm((prev: any) => ({ ...prev, shopTime: "" }));
                                                 } else {
                                                     const val = `${(qty * 0.25).toFixed(2)} hrs (${qty} qty)`;
-                                                    setEditForm((prev:any) => ({...prev, shopTime: val}));
+                                                    setEditForm((prev: any) => ({ ...prev, shopTime: val }));
                                                 }
                                             }}
                                         />
@@ -1740,12 +1756,12 @@ function PayrollReportContent() {
 
                         <div className="col-span-2">
                             <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Comments</label>
-                            <textarea 
+                            <textarea
                                 rows={2}
                                 placeholder="Add any notes here..."
                                 className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 resize-none transition-all"
                                 value={editForm.comments || ''}
-                                onChange={e => setEditForm((prev:any) => ({...prev, comments: e.target.value}))}
+                                onChange={e => setEditForm((prev: any) => ({ ...prev, comments: e.target.value }))}
                             />
                         </div>
                     </div>

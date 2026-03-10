@@ -367,10 +367,12 @@ export default function WorkersCompPage() {
     // Flatten and Filter Records - MATCH PAYROLL EXACTLY
     // Key insight: OT/DT is calculated per EMPLOYEE per DAY, not per entry
     const allRecords = useMemo(() => {
-        const filterStart = new Date(startDate);
-        filterStart.setHours(0, 0, 0, 0);
-        const filterEnd = new Date(endDate);
-        filterEnd.setHours(23, 59, 59, 999);
+        // Timezone-safe: Compare dates as YYYY-MM-DD strings only (no Date objects for filtering)
+        // This ensures raw data is never shifted by browser timezone
+        const pad2 = (n: number) => String(n).padStart(2, '0');
+        const toYMD = (d: Date) => `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+        const filterStartStr = toYMD(startDate);
+        const filterEndStr = toYMD(endDate);
 
         const parseRate = (val: any): number | null => {
             if (val === null || val === undefined) return null;
@@ -385,9 +387,12 @@ export default function WorkersCompPage() {
             if (!sched.timesheet || !Array.isArray(sched.timesheet)) return;
 
             sched.timesheet.forEach((ts: any) => {
-                const clockInDate = new Date(robustNormalizeISO(ts.clockIn));
-                if (isNaN(clockInDate.getTime())) return;
-                if (clockInDate < filterStart || clockInDate > filterEnd) return;
+                const normalized = robustNormalizeISO(ts.clockIn);
+                if (!normalized) return;
+
+                // Timezone-safe date filter: extract YYYY-MM-DD from the normalized ISO string
+                const clockInDateStr = normalized.split('T')[0];
+                if (clockInDateStr < filterStartStr || clockInDateStr > filterEndStr) return;
 
                 const typeLower = ts.type?.trim().toLowerCase() || '';
                 // Relaxed check to match Payroll's includes('site') logic
@@ -398,7 +403,7 @@ export default function WorkersCompPage() {
 
                 const { hours } = calculateTimesheetData(ts, sched.fromDate);
                 const empKey = (ts.employee || '').toLowerCase();
-                const dateKey = clockInDate.toISOString().split('T')[0];
+                const dateKey = clockInDateStr; // Already YYYY-MM-DD, no Date conversion needed
                 const dayKey = `${empKey}|${dateKey}`;
 
                 if (!employeeDays[dayKey]) {
