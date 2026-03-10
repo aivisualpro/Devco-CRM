@@ -199,6 +199,16 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         files: [] as any[]
     });
 
+    // 20 Day Prelim State
+    const [prelimDocRecords, setPrelimDocRecords] = useState<any[]>([]);
+    const [loadingPrelimDocs, setLoadingPrelimDocs] = useState(false);
+    const [isGeneratingPrelim, setIsGeneratingPrelim] = useState(false);
+    const [isPrelimUploading, setIsPrelimUploading] = useState(false);
+    const [prelimUploadingDocId, setPrelimUploadingDocId] = useState<string | null>(null);
+    const [prelimDocToDelete, setPrelimDocToDelete] = useState<string | null>(null);
+    const [isPrelimAccordionOpen, setIsPrelimAccordionOpen] = useState(true);
+    const prelimUploadRef = React.useRef<HTMLInputElement>(null);
+
     useEffect(() => {
         const fetchAllVersions = async () => {
             if (!formData?.estimate) return;
@@ -499,6 +509,156 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             image: e.profilePicture || e.image
         }));
     }, [employees]);
+
+    // --- 20 Day Prelim: Fetch Records ---
+    const fetchPrelimDocs = useCallback(async () => {
+        if (!formData?.estimate) return;
+        setLoadingPrelimDocs(true);
+        try {
+            const res = await fetch('/api/prelim-docs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'getPrelimDocs', payload: { estimate: formData.estimate } })
+            });
+            const data = await res.json();
+            if (data.success) setPrelimDocRecords(data.result || []);
+        } catch (err) { console.error('Failed to fetch prelim docs', err); }
+        finally { setLoadingPrelimDocs(false); }
+    }, [formData?.estimate]);
+
+    useEffect(() => { fetchPrelimDocs(); }, [fetchPrelimDocs]);
+
+    // --- 20 Day Prelim: Direct Generate (no modal) ---
+    const handleDirectGeneratePrelim = async () => {
+        if (!formData?.estimate || isGeneratingPrelim) return;
+        await handleSubmitPrelimDoc();
+    };
+
+    // --- 20 Day Prelim: Upload file to an existing record ---
+    const handlePrelimRecordUpload = async (docId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+        setIsPrelimUploading(true);
+        setPrelimUploadingDocId(docId);
+        const file = files[0];
+        try {
+            const fd = new FormData();
+            fd.append('file', file);
+            fd.append('folder', `estimates/${formData?.estimate || 'general'}/prelims`);
+            const uploadRes = await fetch('/api/upload', { method: 'POST', body: fd });
+            const uploadData = await uploadRes.json();
+            if (uploadData.success && uploadData.url) {
+                const uploadedFile = {
+                    url: uploadData.url,
+                    r2Key: uploadData.r2Key || '',
+                    thumbnailUrl: (uploadData.thumbnailUrl && !uploadData.thumbnailUrl.startsWith('data:')) ? uploadData.thumbnailUrl : '',
+                    fileName: file.name,
+                    fileType: file.type,
+                    fileSize: file.size,
+                    uploadedBy: currentUser?.email || '',
+                    uploadedAt: new Date().toISOString(),
+                };
+                // Update the record with the uploaded file
+                const res = await fetch('/api/prelim-docs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'uploadToPrelimDoc', payload: { id: docId, uploadedFile } }),
+                });
+                const data = await res.json();
+                if (data.success) {
+                    toast.success('File uploaded successfully');
+                    fetchPrelimDocs();
+                } else toast.error('Failed to save uploaded file');
+            } else toast.error(`Failed to upload ${file.name}`);
+        } catch (err) { console.error(err); toast.error(`Error uploading ${file.name}`); }
+        setIsPrelimUploading(false);
+        setPrelimUploadingDocId(null);
+        if (prelimUploadRef.current) prelimUploadRef.current.value = '';
+    };
+
+    // --- 20 Day Prelim: Submit (Generate PDF directly, no modal) ---
+    const handleSubmitPrelimDoc = async () => {
+        if (!formData?.estimate) return;
+
+        setIsGeneratingPrelim(true);
+        try {
+            const userEmail = currentUser?.email?.toLowerCase();
+            const loggedInEmp = employees.find(
+                (e: any) => (e.email || '').toLowerCase() === userEmail || (e._id || '').toLowerCase() === userEmail
+            );
+            const createdByName = loggedInEmp
+                ? `${loggedInEmp.firstName || ''} ${loggedInEmp.lastName || ''}`.trim()
+                : (currentUser as any)?.name || '';
+            const position = loggedInEmp?.companyPosition || '';
+            const signature = loggedInEmp?.signature || '';
+            const todayDate = new Date().toLocaleDateString('en-US');
+
+            const variables: Record<string, string> = {
+                createdBy: createdByName, position, signature,
+                date: todayDate, today: todayDate,
+                estimate: formData.estimate || '',
+                customerName: formData.customerName || '',
+                jobAddress: formData.jobAddress || '',
+                projectDescription: formData.projectDescription || '',
+                prelimAmount: formData.prelimAmount || '',
+                poName: formData.poName || '', PoAddress: formData.PoAddress || '', PoPhone: formData.PoPhone || '',
+                ocName: formData.ocName || '', ocAddress: formData.ocAddress || '', ocPhone: formData.ocPhone || '',
+                subCName: formData.subCName || '', subCAddress: formData.subCAddress || '', subCPhone: formData.subCPhone || '',
+                liName: formData.liName || '', liAddress: formData.liAddress || '', liPhone: formData.liPhone || '',
+                scName: formData.scName || '', scAddress: formData.scAddress || '', scPhone: formData.scPhone || '',
+                bondNumber: formData.bondNumber || '',
+                contactName: formData.contactName || '', contactEmail: formData.contactEmail || '', contactPhone: formData.contactPhone || '',
+                projectName: formData.projectName || '',
+                customerPONo: formData.customerPONo || '', workRequestNo: formData.workRequestNo || '',
+                subContractAgreementNo: formData.subContractAgreementNo || '',
+                customerJobNo: formData.customerJobNo || '', DIRProjectNo: formData.DIRProjectNo || '',
+                projectId: formData.projectId || '',
+                grandTotal: (() => {
+                    const liveGT = chartData?.grandTotal;
+                    if (liveGT && liveGT > 0) return `$${liveGT.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+                    const gt = formData.grandTotal;
+                    if (gt) { const n = parseFloat(String(gt).replace(/[^0-9.-]+/g, '')); return !isNaN(n) ? `$${n.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : ''; }
+                    return '';
+                })(),
+            };
+
+            const res = await fetch('/api/prelim-docs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'generatePrelimDoc',
+                    payload: {
+                        estimate: formData.estimate, variables, docName: '20 Day Prelim',
+                        createdByName, createdByEmail: currentUser?.email || '',
+                        position, generatedDate: todayDate,
+                    }
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast.success('20 Day Prelim generated!');
+                fetchPrelimDocs();
+            } else {
+                toast.error(data.error || 'Failed to generate');
+            }
+        } catch (err: any) {
+            console.error('Prelim error:', err);
+            toast.error(err.message || 'Error creating prelim');
+        } finally { setIsGeneratingPrelim(false); }
+    };
+
+    const handleDeletePrelimDoc = async (id: string) => {
+        try {
+            await fetch('/api/prelim-docs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'deletePrelimDoc', payload: { id } })
+            });
+            setPrelimDocRecords(prev => prev.filter(d => d._id !== id));
+            setPrelimDocToDelete(null);
+            toast.success('Document removed');
+        } catch (err) { toast.error('Error deleting'); }
+    };
 
     // --- JHA Handlers ---
     const handleViewJHA = (jha: any) => {
@@ -3163,6 +3323,138 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     );
                                 }
 
+                                // ──── Special: 20 Day Prelim (Accordion) ────
+                                if (docName === '20 Day Prelim') {
+                                    return (
+                                        <div key={idx} className="rounded-xl overflow-hidden">
+                                            {/* Accordion Header */}
+                                            <button
+                                                onClick={() => setIsPrelimAccordionOpen(prev => !prev)}
+                                                className={`w-full flex items-center justify-between p-3 rounded-xl transition-all duration-300 ${
+                                                    prelimDocRecords.length > 0
+                                                        ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 shadow-[2px_2px_5px_#d1d9e6,-2px_-2px_5px_#ffffff]'
+                                                        : 'bg-white/60 border border-slate-100 shadow-[2px_2px_5px_#d1d9e6,-2px_-2px_5px_#ffffff] hover:border-blue-200'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <ChevronDown className={`w-4 h-4 text-blue-500 transition-transform duration-300 ${isPrelimAccordionOpen ? '' : '-rotate-90'}`} />
+                                                    {loadingPrelimDocs ? (
+                                                        <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
+                                                    ) : (
+                                                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-[10px] font-black shadow-sm">
+                                                            {prelimDocRecords.length}
+                                                        </div>
+                                                    )}
+                                                    <span className={`text-xs font-bold ${prelimDocRecords.length > 0 ? 'text-blue-700' : 'text-slate-600'}`}>
+                                                        {docName}
+                                                    </span>
+                                                </div>
+                                                {/* Plus Button — directly generates PDF */}
+                                                <div
+                                                    onClick={(e) => { e.stopPropagation(); handleDirectGeneratePrelim(); }}
+                                                    className={`p-1.5 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 hover:scale-110 hover:shadow-lg cursor-pointer ${isGeneratingPrelim ? 'opacity-60 pointer-events-none' : ''}`}
+                                                >
+                                                    {isGeneratingPrelim ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                                                </div>
+                                            </button>
+
+                                            {/* Generating bar */}
+                                            {isGeneratingPrelim && (
+                                                <div className="mt-1 mx-2">
+                                                    <div className="h-1.5 bg-blue-100 rounded-full overflow-hidden">
+                                                        <div className="h-full bg-gradient-to-r from-blue-400 via-indigo-500 to-blue-600 rounded-full animate-pulse" style={{ width: '70%' }} />
+                                                    </div>
+                                                    <p className="text-[9px] text-blue-600 font-semibold mt-1 text-center animate-pulse">Generating PDF & storing in cloud...</p>
+                                                </div>
+                                            )}
+
+                                            {/* Accordion Body */}
+                                            {isPrelimAccordionOpen && prelimDocRecords.length > 0 && (
+                                                <div className="mt-2 space-y-2.5 pl-1">
+                                                    {prelimDocRecords.map((doc: any, docIdx: number) => (
+                                                        <div
+                                                            key={doc._id || docIdx}
+                                                            className="group/item relative p-3 bg-white/80 backdrop-blur-sm rounded-xl border border-blue-100/60 hover:border-blue-300 hover:shadow-md transition-all duration-300 shadow-sm"
+                                                        >
+                                                            {/* Top Row: Name + Meta */}
+                                                            <div className="flex items-start gap-3">
+                                                                <div className="mt-0.5 flex-shrink-0 w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white shadow-sm">
+                                                                    <FileCheck className="w-4.5 h-4.5" />
+                                                                </div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className="text-[11px] font-bold text-slate-700 truncate">{doc.docName || '20 Day Prelim'}</p>
+                                                                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                                                        {doc.createdByName && (
+                                                                            <span className="text-[9px] text-slate-500 flex items-center gap-1">
+                                                                                <User className="w-2.5 h-2.5" /> {doc.createdByName}
+                                                                            </span>
+                                                                        )}
+                                                                        {doc.position && (
+                                                                            <span className="text-[8px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full font-semibold">{doc.position}</span>
+                                                                        )}
+                                                                        <span className="text-[9px] text-slate-400">
+                                                                            {doc.generatedDate || (doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : '')}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Action Buttons Row */}
+                                                            <div className="mt-2.5 flex items-center gap-1.5 flex-wrap">
+                                                                {/* Download Generated PDF */}
+                                                                {(doc.generatedFile?.url || doc.files?.[0]?.url) && (
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            const f = doc.generatedFile || doc.files?.[0];
+                                                                            if (f?.url) handleFileDownload(f.url, f.fileName || '20_Day_Prelim.pdf');
+                                                                        }}
+                                                                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[9px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-all duration-200 border border-blue-100 hover:border-blue-200"
+                                                                    >
+                                                                        <Download className="w-3 h-3" /> Generated PDF
+                                                                    </button>
+                                                                )}
+                                                                {/* Download Uploaded File */}
+                                                                {doc.uploadedFile?.url && (
+                                                                    <button
+                                                                        onClick={() => handleFileDownload(doc.uploadedFile.url, doc.uploadedFile.fileName || 'uploaded_file')}
+                                                                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[9px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all duration-200 border border-indigo-100 hover:border-indigo-200"
+                                                                    >
+                                                                        <Download className="w-3 h-3" /> Uploaded File
+                                                                    </button>
+                                                                )}
+                                                                {/* Upload File (if not yet uploaded) */}
+                                                                {!doc.uploadedFile?.url && (
+                                                                    <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[9px] font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-all duration-200 border border-slate-200 hover:border-blue-200 cursor-pointer">
+                                                                        <input
+                                                                            type="file"
+                                                                            onChange={(e) => handlePrelimRecordUpload(doc._id, e)}
+                                                                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp"
+                                                                            className="hidden"
+                                                                        />
+                                                                        {(isPrelimUploading && prelimUploadingDocId === doc._id)
+                                                                            ? <><Loader2 className="w-3 h-3 animate-spin" /> Uploading...</>
+                                                                            : <><Upload className="w-3 h-3" /> Upload File</>
+                                                                        }
+                                                                    </label>
+                                                                )}
+                                                                {/* Delete */}
+                                                                <div className="ml-auto">
+                                                                    <button
+                                                                        onClick={() => setPrelimDocToDelete(doc._id)}
+                                                                        className="inline-flex items-center gap-1 px-2 py-1.5 text-[9px] font-bold text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
+                                                                    >
+                                                                        <Trash2 className="w-3 h-3" />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                }
+
                                 // Normal DocCard for other documents
                                 return (
                                     <DocCard
@@ -5657,6 +5949,19 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 confirmText="Remove"
                 variant="danger"
             />
+
+            {/* ──── 20 Day Prelim: Delete Confirm ──── */}
+            <ConfirmModal
+                isOpen={prelimDocToDelete !== null}
+                onClose={() => setPrelimDocToDelete(null)}
+                onConfirm={() => prelimDocToDelete && handleDeletePrelimDoc(prelimDocToDelete)}
+                title="Remove 20 Day Prelim"
+                message="Are you sure you want to remove this prelim document? This action cannot be undone."
+                confirmText="Remove"
+                variant="danger"
+            />
+
+
 
             {/* Add/Edit Intent to Lien Modal */}
             <Modal

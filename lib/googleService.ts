@@ -183,6 +183,38 @@ export async function processGoogleDoc(
             await docs.documents.batchUpdate({ documentId: tempFileId, requestBody: { requests } });
         }
 
+        // Step 2b: Clean up any remaining {{...}} placeholders that weren't in variables
+        const cleanupDoc = await docs.documents.get({ documentId: tempFileId });
+        const remainingPlaceholders = new Set<string>();
+        const scanForPlaceholders = (elements: any[]) => {
+            for (const el of elements) {
+                if (el.paragraph?.elements) {
+                    for (const run of el.paragraph.elements) {
+                        const text = run.textRun?.content || '';
+                        const matches = text.match(/\{\{[^}]+\}\}/g);
+                        if (matches) matches.forEach((m: string) => remainingPlaceholders.add(m));
+                    }
+                } else if (el.table?.tableRows) {
+                    for (const r of el.table.tableRows) {
+                        for (const c of r.tableCells || []) {
+                            if (c.content) scanForPlaceholders(c.content);
+                        }
+                    }
+                }
+            }
+        };
+        scanForPlaceholders(cleanupDoc.data.body?.content || []);
+
+        if (remainingPlaceholders.size > 0) {
+            const cleanupRequests = Array.from(remainingPlaceholders).map(placeholder => ({
+                replaceAllText: {
+                    containsText: { text: placeholder, matchCase: false },
+                    replaceText: ''
+                }
+            }));
+            await docs.documents.batchUpdate({ documentId: tempFileId, requestBody: { requests: cleanupRequests } });
+        }
+
         // Step 3: Handle Rich Styling Markers (added after replacement)
         const richDoc = await docs.documents.get({ documentId: tempFileId });
         const richRequests: any[] = [];
