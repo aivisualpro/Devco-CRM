@@ -793,28 +793,12 @@ export async function POST(request: NextRequest) {
                         startDate,
                         endDate,
                         parsedStart: startD.toISOString(),
-                        parsedEnd: endD.toISOString(),
-                        includeTimesheets
+                        parsedEnd: endD.toISOString()
                     });
-                    if (includeTimesheets) {
-                        // When fetching timesheets, widen the fromDate window by ±30 days
-                        // to catch schedules whose timesheet entries have clockIn dates
-                        // outside the schedule's own fromDate range (e.g., backdated entries).
-                        // The frontend still filters by actual clockIn within the selected week.
-                        const wideStart = new Date(startD);
-                        wideStart.setUTCDate(wideStart.getUTCDate() - 30);
-                        const wideEnd = new Date(endD);
-                        wideEnd.setUTCDate(wideEnd.getUTCDate() + 30);
-                        matchStage.fromDate = {
-                            $gte: wideStart,
-                            $lte: wideEnd
-                        };
-                    } else {
-                        matchStage.fromDate = {
-                            $gte: startD,
-                            $lte: endD
-                        };
-                    }
+                    matchStage.fromDate = {
+                        $gte: startD,
+                        $lte: endD
+                    };
                 } else if (selectedDates && selectedDates.length > 0) {
                     // Match fromDate stringified to YYYY-MM-DD in the selectedDates array
                     matchStage.$expr = {
@@ -1724,13 +1708,6 @@ export async function POST(request: NextRequest) {
                                     }
                                 }
                             }
-                        }
-                    },
-                    // Sanity guard: cap hoursNum at 24 for any single timesheet entry.
-                    // Values above 24 indicate corrupt data (bad GPS coords, absurd manual values).
-                    {
-                        $addFields: {
-                            hoursNum: { $min: ["$hoursNum", 24] }
                         }
                     },
                     // Use clockIn for year/week/date grouping instead of fromDate

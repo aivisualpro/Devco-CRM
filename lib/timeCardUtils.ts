@@ -28,19 +28,11 @@ export const robustNormalizeISO = (str?: string) => {
         return `${y}-${m}-${d}T${hStr}:${min}:${sec}.000Z`;
     }
 
-    // Handle YYYY-MM-DDTHH:mm (with optional seconds, milliseconds, and timezone offset)
+    // Handle YYYY-MM-DDTHH:mm
     if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(str)) {
-        // Check if the string has a timezone indicator (Z, +HH:MM, -HH:MM)
-        const hasTimezone = /[Zz]$/.test(str) || /[+-]\d{2}:\d{2}$/.test(str);
-        try {
-            // If it has a timezone offset, parse it properly (preserves -06:00 etc.)
-            // If NO timezone, append Z to treat as UTC (backward compatible)
-            const toParse = hasTimezone ? str : str + 'Z';
-            const date = new Date(toParse);
-            if (!isNaN(date.getTime())) return date.toISOString();
-        } catch { }
-        // Fallback: if Date parsing fails, manually truncate
-        const base = str.slice(0, 16);
+        // Just append :00.000Z if missing
+        // But check if it already has seconds
+        const base = str.slice(0, 16); // up to mm
         return `${base}:00.000Z`;
     }
 
@@ -200,15 +192,6 @@ export const calculateTimesheetData = (ts: any, scheduleDate?: string) => {
             hours = calcTimeHours();
         }
         distance = 0;
-    }
-
-    // Sanity guard: cap hours at 24 for any single timesheet entry.
-    // Values above 24 indicate corrupt data (e.g., bad GPS coordinates producing
-    // enormous haversine distances, or manualDuration set to an absurd value).
-    if (hours > 24) {
-        console.warn(`[calculateTimesheetData] Hours capped from ${hours.toFixed(2)} to 24 for entry:`,
-            ts.employee, ts.clockIn, ts.type);
-        hours = 24;
     }
 
     return { hours, distance, calculatedDistance };
