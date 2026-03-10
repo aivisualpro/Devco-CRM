@@ -1710,6 +1710,13 @@ export async function POST(request: NextRequest) {
                             }
                         }
                     },
+                    // Sanity guard: cap hoursNum at 24 for any single timesheet entry.
+                    // Values above 24 indicate corrupt data (bad GPS coords, absurd manual values).
+                    {
+                        $addFields: {
+                            hoursNum: { $min: ["$hoursNum", 24] }
+                        }
+                    },
                     // Use clockIn for year/week/date grouping instead of fromDate
                     {
                         $addFields: {

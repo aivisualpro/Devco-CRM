@@ -20,10 +20,10 @@ export const robustNormalizeISO = (str?: string) => {
         const min = mdMatch[5].padStart(2, '0');
         const sec = mdMatch[7] ? mdMatch[7].padStart(2, '0') : '00';
         const ampm = mdMatch[9] ? mdMatch[9].toUpperCase() : null;
-        
+
         if (ampm === 'PM' && h < 12) h += 12;
         if (ampm === 'AM' && h === 12) h = 0;
-        
+
         const hStr = String(h).padStart(2, '0');
         return `${y}-${m}-${d}T${hStr}:${min}:${sec}.000Z`;
     }
@@ -40,7 +40,7 @@ export const robustNormalizeISO = (str?: string) => {
     try {
         const date = new Date(str.includes('Z') || str.includes('UTC') ? str : str + ' UTC');
         if (!isNaN(date.getTime())) return date.toISOString();
-    } catch {}
+    } catch { }
 
     return str;
 };
@@ -50,7 +50,7 @@ export const formatTimeOnly = (dateStr?: string) => {
     const normalized = robustNormalizeISO(dateStr);
     const match = normalized.match(/T(\d{2}):(\d{2})/);
     if (match) {
-        let [ , hStr, mStr] = match;
+        let [, hStr, mStr] = match;
         let h = parseInt(hStr);
         const ampm = h >= 12 ? 'PM' : 'AM';
         h = h % 12;
@@ -65,21 +65,21 @@ export const formatDateOnly = (dateStr?: string) => {
     const normalized = robustNormalizeISO(dateStr);
     const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (match) {
-        const [ , y, m, d] = match;
+        const [, y, m, d] = match;
         return `${m}/${d}/${y}`;
     }
     return dateStr;
 };
 
 export const haversine = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = EARTH_RADIUS_MI; 
+    const R = EARTH_RADIUS_MI;
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
     const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c; 
+    return R * c;
 };
 
 export const calculateTimesheetData = (ts: any, scheduleDate?: string) => {
@@ -110,7 +110,7 @@ export const calculateTimesheetData = (ts: any, scheduleDate?: string) => {
 
     if (isDrive) {
         // ========== DRIVE TIME CALCULATION ==========
-        
+
         const getQty = (val: any) => {
             const str = String(val || '');
             const match = str.match(/\((\d+)\s+qty\)/);
@@ -149,17 +149,17 @@ export const calculateTimesheetData = (ts: any, scheduleDate?: string) => {
         }
     } else {
         // ========== SITE TIME CALCULATION ==========
-        
+
         const manualHrs = ts.manualDuration ? parseFloat(String(ts.manualDuration)) : 0;
         if (manualHrs > 0) {
             hours = manualHrs;
         } else {
             const calcTimeHours = () => {
                 if (!ts.clockIn || !ts.clockOut) return 0;
-                
+
                 const startStr = robustNormalizeISO(ts.clockIn);
                 const endStr = robustNormalizeISO(ts.clockOut);
-                
+
                 const start = new Date(startStr).getTime();
                 const end = new Date(endStr).getTime();
                 let durationMs = end - start;
@@ -172,7 +172,7 @@ export const calculateTimesheetData = (ts: any, scheduleDate?: string) => {
                     if (lEnd > lStart) durationMs -= (lEnd - lStart);
                 }
                 if (durationMs <= 0) return 0;
-                
+
                 const totalHoursRaw = durationMs / (1000 * 60 * 60);
 
                 // Cutoff rounding logic - Ensure UTC comparison
@@ -192,6 +192,15 @@ export const calculateTimesheetData = (ts: any, scheduleDate?: string) => {
             hours = calcTimeHours();
         }
         distance = 0;
+    }
+
+    // Sanity guard: cap hours at 24 for any single timesheet entry.
+    // Values above 24 indicate corrupt data (e.g., bad GPS coordinates producing
+    // enormous haversine distances, or manualDuration set to an absurd value).
+    if (hours > 24) {
+        console.warn(`[calculateTimesheetData] Hours capped from ${hours.toFixed(2)} to 24 for entry:`,
+            ts.employee, ts.clockIn, ts.type);
+        hours = 24;
     }
 
     return { hours, distance, calculatedDistance };
