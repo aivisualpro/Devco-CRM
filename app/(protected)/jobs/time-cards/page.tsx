@@ -684,12 +684,76 @@ function TimeCardContent() {
             }
         });
 
-        // Note: We no longer recalculate employee totals from frontend records
-        // The backend aggregation (groupingStats) is the source of truth for sidebar totals
-        // This prevents values from changing when clicking different weeks
+        // Override employee and date totals for the CURRENTLY SELECTED week
+        // using frontend-calculated hours from allRecords (source of truth).
+        // The backend aggregation can produce incorrect totals due to date parsing
+        // differences between MongoDB's $convert and the frontend's robustNormalizeISO.
+        const currentYear = getISOWeekYear(weekRange.start);
+        const currentWeek = getWeekNumber(weekRange.start);
+        const currentWeekKey = `${currentYear}-${currentWeek}`;
+
+        if (root.years[currentYear]?.weeks[currentWeekKey]) {
+            const weekNode = root.years[currentYear].weeks[currentWeekKey];
+
+            // Build frontend-calculated totals per employee and date for this week
+            const empTotals: Record<string, { total: number; dates: Record<string, number> }> = {};
+
+            allRecords.forEach(r => {
+                if (!r.clockIn) return;
+
+                // Skip based on sidebar employee filter
+                if (sidebarEmployeeFilter && r.employee !== sidebarEmployeeFilter) return;
+
+                // Apply drive/site time toggle filters
+                const isDrive = r.type?.toLowerCase().includes('drive');
+                const isSite = !isDrive;
+                if (!includeDriveTime && isDrive) return;
+                if (!includeSiteTime && isSite) return;
+
+                const emp = r.employee;
+                const hrs = r2(r.hoursVal || 0);
+                const dStr = robustNormalizeISO(r.clockIn);
+                const dateOnly = dStr.split('T')[0]; // YYYY-MM-DD
+
+                if (!empTotals[emp]) empTotals[emp] = { total: 0, dates: {} };
+                empTotals[emp].total = r2(empTotals[emp].total + hrs);
+                empTotals[emp].dates[dateOnly] = r2((empTotals[emp].dates[dateOnly] || 0) + hrs);
+            });
+
+            // Override employee and date node totals, and recalculate week total
+            let weekTotal = 0;
+            Object.entries(weekNode.employees).forEach(([empKey, empNode]: [string, any]) => {
+                if (empTotals[empKey]) {
+                    empNode.totalHours = empTotals[empKey].total;
+                    weekTotal = r2(weekTotal + empTotals[empKey].total);
+
+                    // Override date-level totals
+                    Object.entries(empNode.dates).forEach(([dateKey, dateNode]: [string, any]) => {
+                        // dateKey is "empEmail-YYYY-MM-DD"
+                        const datePart = dateKey.replace(`${empKey}-`, '');
+                        if (empTotals[empKey].dates[datePart] !== undefined) {
+                            dateNode.totalHours = empTotals[empKey].dates[datePart];
+                        }
+                    });
+                } else {
+                    // No frontend records for this employee in this week
+                    weekTotal = r2(weekTotal + empNode.totalHours);
+                }
+            });
+
+            // Recalculate the week total from the corrected employee totals
+            weekNode.totalHours = weekTotal;
+
+            // Recalculate year total from all its weeks
+            let yearTotal = 0;
+            Object.values(root.years[currentYear].weeks).forEach((w: any) => {
+                yearTotal = r2(yearTotal + w.totalHours);
+            });
+            root.years[currentYear].totalHours = yearTotal;
+        }
 
         return root;
-    }, [groupingStats, employeesMap, includeDriveTime, includeSiteTime, sidebarEmployeeFilter]);
+    }, [groupingStats, employeesMap, includeDriveTime, includeSiteTime, sidebarEmployeeFilter, allRecords, weekRange]);
 
     // 3. Filter Table based on Tree Selection
     const tableData = useMemo(() => {
@@ -1591,16 +1655,16 @@ function TimeCardContent() {
                 <div className="flex-1 flex gap-4 min-h-0">
 
                     {/* Left Sidebar - Tree View */}
-                    <div className="w-[230px] bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col overflow-hidden shrink-0">
+                    <div className="w-[280px] bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col overflow-hidden shrink-0">
                         <div className="p-3 border-b border-slate-100 bg-slate-50/50">
-                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Grouping</h3>
+                            <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-2">Grouping</h3>
 
                             {/* Inline Filters Row */}
                             <div className="flex items-center gap-1.5">
                                 {/* All Button */}
                                 <button
                                     onClick={() => selectNode('ROOT', 'All')}
-                                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-colors
+                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wide transition-colors
                                         ${selectedNode.value === 'All' ? 'bg-[#0F4C75] text-white shadow-sm' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}
                                     `}
                                 >
@@ -1611,7 +1675,7 @@ function TimeCardContent() {
                                 <button
                                     onClick={() => setIncludeDriveTime(!includeDriveTime)}
                                     title={`Drive Time: ${includeDriveTime ? 'On' : 'Off'}`}
-                                    className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all
+                                    className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold transition-all
                                         ${includeDriveTime
                                             ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
                                             : 'bg-slate-50 text-slate-400 border border-slate-200'}
@@ -1627,7 +1691,7 @@ function TimeCardContent() {
                                 <button
                                     onClick={() => setIncludeSiteTime(!includeSiteTime)}
                                     title={`Site Time: ${includeSiteTime ? 'On' : 'Off'}`}
-                                    className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all
+                                    className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold transition-all
                                         ${includeSiteTime
                                             ? 'bg-blue-50 text-blue-600 border border-blue-200'
                                             : 'bg-slate-50 text-slate-400 border border-slate-200'}
@@ -1645,7 +1709,7 @@ function TimeCardContent() {
                                         id="sidebar-emp-filter-btn"
                                         onClick={() => setEmployeeDropdownOpen(!employeeDropdownOpen)}
                                         title={sidebarEmployeeFilter ? (employeesMap[sidebarEmployeeFilter]?.label || sidebarEmployeeFilter) : 'Filter by Employee'}
-                                        className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all
+                                        className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold transition-all
                                             ${sidebarEmployeeFilter
                                                 ? 'bg-amber-50 text-amber-600 border border-amber-200'
                                                 : 'bg-white text-slate-400 border border-slate-200 hover:bg-slate-50'}
@@ -1723,9 +1787,9 @@ function TimeCardContent() {
                                                 >
                                                     {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                                                 </button>
-                                                <span className="text-sm font-bold">{year.label}</span>
+                                                <span className="text-[13px] font-bold">{year.label}</span>
                                             </div>
-                                            <span className="text-[10px] font-bold bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">
+                                            <span className="text-[11px] font-bold bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">
                                                 {year.totalHours.toLocaleString()}
                                             </span>
                                         </div>
@@ -1753,9 +1817,9 @@ function TimeCardContent() {
                                                                     >
                                                                         {isWeekExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                                                                     </button>
-                                                                    <span className="text-[10px] font-bold whitespace-nowrap truncate">{week.label}</span>
+                                                                    <span className="text-[11px] font-bold whitespace-nowrap truncate">{week.label}</span>
                                                                 </div>
-                                                                <span className="text-[9px] font-bold bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 shrink-0 ml-1">
+                                                                <span className="text-[11px] font-bold bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 shrink-0 ml-1">
                                                                     {week.totalHours.toFixed(2)}
                                                                 </span>
                                                             </div>
@@ -1783,9 +1847,9 @@ function TimeCardContent() {
                                                                                             {isEmpExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
                                                                                         </button>
                                                                                         <User size={12} className={isEmpSelected ? 'text-white' : 'text-slate-400'} />
-                                                                                        <span className="text-[11px] font-bold truncate">{emp.label}</span>
+                                                                                        <span className="text-[12px] font-bold truncate">{emp.label}</span>
                                                                                     </div>
-                                                                                    <span className={`text-[9px] font-mono font-bold px-1.5 rounded ${isEmpSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                                                                    <span className={`text-[11px] font-mono font-bold px-1.5 rounded ${isEmpSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
                                                                                         {emp.totalHours.toFixed(2)}
                                                                                     </span>
                                                                                 </div>
@@ -1814,9 +1878,9 @@ function TimeCardContent() {
                                                                                                 >
                                                                                                     <div className="flex items-center gap-2 min-w-0">
                                                                                                         <CalendarIcon size={10} className={isDateSelected ? 'text-white' : 'text-slate-300'} />
-                                                                                                        <span className="text-[10px] font-bold">{dateNode.label}</span>
+                                                                                                        <span className="text-[11px] font-bold">{dateNode.label}</span>
                                                                                                     </div>
-                                                                                                    <span className={`text-[8px] font-mono font-bold px-1 rounded ${isDateSelected ? 'bg-white/20 text-white' : 'bg-slate-50 text-slate-400'}`}>
+                                                                                                    <span className={`text-[11px] font-mono font-bold px-1 rounded ${isDateSelected ? 'bg-white/20 text-white' : 'bg-slate-50 text-slate-400'}`}>
                                                                                                         {dateNode.totalHours.toFixed(2)}
                                                                                                     </span>
                                                                                                 </div>
@@ -1844,10 +1908,10 @@ function TimeCardContent() {
                     <div className="flex-1 bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col relative z-20">
                         <div className="px-4 py-1 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 rounded-t-3xl relative z-30">
                             <div className="flex items-baseline gap-3">
-                                <h2 className="text-xs font-black text-slate-700 uppercase tracking-widest">
+                                <h2 className="text-sm font-black text-slate-700 uppercase tracking-widest">
                                     Records
                                 </h2>
-                                <p className="text-[10px] text-slate-400 font-bold">
+                                <p className="text-xs text-slate-400 font-bold">
                                     {tableData.length} entries
                                 </p>
                             </div>
@@ -1860,16 +1924,16 @@ function TimeCardContent() {
                             <Table containerClassName="flex-1">
                                 <TableHead className="bg-white/80 backdrop-blur-md shadow-sm">
                                     <TableRow>
-                                        <TableHeader className="text-[9px] uppercase font-bold text-slate-400 w-[160px] text-left">Employee</TableHeader>
-                                        <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-center w-[100px]">Date</TableHeader>
-                                        <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-center w-[70px]">Type</TableHeader>
-                                        <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-center w-[110px]">Estimate #</TableHeader>
-                                        <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-left w-[140px]">Project</TableHeader>
-                                        <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-center w-[120px]">In</TableHeader>
-                                        <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-center w-[120px]">Out</TableHeader>
-                                        <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-left w-[90px]">Dist (Mi)</TableHeader>
-                                        <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-left w-[70px]">Hrs</TableHeader>
-                                        <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-right w-[110px]">Actions</TableHeader>
+                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 w-[160px] text-left">Employee</TableHeader>
+                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[100px]">Date</TableHeader>
+                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[70px]">Type</TableHeader>
+                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[110px]">Estimate #</TableHeader>
+                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-left w-[140px]">Project</TableHeader>
+                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[120px]">In</TableHeader>
+                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[120px]">Out</TableHeader>
+                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-left w-[90px]">Dist (Mi)</TableHeader>
+                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-left w-[70px]">Hrs</TableHeader>
+                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-right w-[110px]">Actions</TableHeader>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
@@ -1904,7 +1968,7 @@ function TimeCardContent() {
                                                                 (employeesMap[ts.employee]?.initials || ts.employee.substring(0, 2)).toUpperCase()
                                                             )}
                                                         </div>
-                                                        <span className="text-[11px] font-medium text-slate-600">{employeesMap[ts.employee]?.label || ts.employee}</span>
+                                                        <span className="text-xs font-medium text-slate-600">{employeesMap[ts.employee]?.label || ts.employee}</span>
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className="text-center">
@@ -1933,12 +1997,12 @@ function TimeCardContent() {
                                                     </Tooltip>
                                                 </TableCell>
                                                 <TableCell className="text-center">
-                                                    <span className="text-[10px] font-medium text-slate-600 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100 uppercase tracking-tighter">
+                                                    <span className="text-[11px] font-medium text-slate-600 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100 uppercase tracking-tighter">
                                                         {ts.estimate || '-'}
                                                     </span>
                                                 </TableCell>
                                                 <TableCell className="text-left">
-                                                    <span className="text-[11px] font-medium text-slate-600 truncate block max-w-[140px]" title={ts.projectName}>
+                                                    <span className="text-xs font-medium text-slate-600 truncate block max-w-[140px]" title={ts.projectName}>
                                                         {ts.projectName || '-'}
                                                     </span>
                                                 </TableCell>
@@ -1973,7 +2037,7 @@ function TimeCardContent() {
                                                             />
                                                         </div>
                                                     ) : (
-                                                        <span className="text-[11px] font-medium text-slate-600 tracking-tight">{formatTimeOnly(ts.clockIn)}</span>
+                                                        <span className="text-xs font-medium text-slate-600 tracking-tight">{formatTimeOnly(ts.clockIn)}</span>
                                                     )}
                                                 </TableCell>
                                                 <TableCell className="text-center text-xs text-slate-500">
@@ -2007,7 +2071,7 @@ function TimeCardContent() {
                                                             />
                                                         </div>
                                                     ) : (
-                                                        <span className="text-[11px] font-medium text-slate-600 tracking-tight">{formatTimeOnly(ts.clockOut)}</span>
+                                                        <span className="text-xs font-medium text-slate-600 tracking-tight">{formatTimeOnly(ts.clockOut)}</span>
                                                     )}
                                                 </TableCell>
                                                 <TableCell className="text-left text-xs font-medium text-slate-500">
@@ -2210,8 +2274,8 @@ function TimeCardContent() {
                                     type="button"
                                     onClick={() => setEditForm(prev => ({ ...prev, type: t }))}
                                     className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all border-2 ${editForm.type?.trim().toLowerCase() === t.trim().toLowerCase()
-                                            ? 'bg-[#0F4C75] border-[#0F4C75] text-white shadow-lg'
-                                            : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
+                                        ? 'bg-[#0F4C75] border-[#0F4C75] text-white shadow-lg'
+                                        : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
                                         }`}
                                 >
                                     {t}
@@ -2523,8 +2587,8 @@ function TimeCardContent() {
                                         setAddForm(prev => ({ ...prev, type: t }));
                                     }}
                                     className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all border-2 ${addForm.type?.trim().toLowerCase() === t.trim().toLowerCase()
-                                            ? 'bg-[#0F4C75] border-[#0F4C75] text-white shadow-lg'
-                                            : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
+                                        ? 'bg-[#0F4C75] border-[#0F4C75] text-white shadow-lg'
+                                        : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
                                         }`}
                                 >
                                     {t}
