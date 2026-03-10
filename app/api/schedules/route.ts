@@ -795,10 +795,28 @@ export async function POST(request: NextRequest) {
                         parsedStart: startD.toISOString(),
                         parsedEnd: endD.toISOString()
                     });
-                    matchStage.fromDate = {
-                        $gte: startD,
-                        $lte: endD
-                    };
+
+                    if (includeTimesheets) {
+                        // When fetching timesheets, also match schedules where any timesheet
+                        // clockIn falls within the date range. clockIn can be stored as
+                        // ISO "2026-02-05T07:00:00.000Z" or legacy "2/5/2026 7:00 AM" format.
+                        // Build YYYY-MM-DD strings for the range to match ISO-formatted clockIns.
+                        const pad2 = (n: number) => String(n).padStart(2, '0');
+                        const startYMD = `${startD.getUTCFullYear()}-${pad2(startD.getUTCMonth() + 1)}-${pad2(startD.getUTCDate())}`;
+                        const endYMD = `${endD.getUTCFullYear()}-${pad2(endD.getUTCMonth() + 1)}-${pad2(endD.getUTCDate())}`;
+
+                        matchStage.$or = [
+                            // Match by schedule fromDate (original behavior)
+                            { fromDate: { $gte: startD, $lte: endD } },
+                            // Also match if any timesheet has clockIn within date range (ISO format)
+                            { 'timesheet.clockIn': { $gte: startYMD, $lte: endYMD + 'T23:59:59.999Z' } }
+                        ];
+                    } else {
+                        matchStage.fromDate = {
+                            $gte: startD,
+                            $lte: endD
+                        };
+                    }
                 } else if (selectedDates && selectedDates.length > 0) {
                     // Match fromDate stringified to YYYY-MM-DD in the selectedDates array
                     matchStage.$expr = {
