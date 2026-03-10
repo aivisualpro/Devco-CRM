@@ -420,6 +420,50 @@ export default function ReceiptsCostsPage() {
         }
     };
 
+    // Inline approval status change from table
+    const [updatingApprovalId, setUpdatingApprovalId] = useState<string | null>(null);
+
+    const handleInlineApprovalChange = async (receipt: FlatReceipt, newStatus: 'Approved' | 'Not Approved') => {
+        setUpdatingApprovalId(receipt.uniqueId);
+        try {
+            const targetEstimate = estimates.find(e => e._id === receipt.estimateId);
+            if (!targetEstimate) throw new Error('Estimate not found');
+
+            const index = parseInt(receipt.uniqueId.split('_')[1]);
+            const updatedReceipts = [...(targetEstimate.receiptsAndCosts || [])];
+
+            if (!isNaN(index) && index >= 0 && index < updatedReceipts.length) {
+                updatedReceipts[index] = { ...updatedReceipts[index], approvalStatus: newStatus };
+            }
+
+            const res = await fetch('/api/webhook/devcoBackend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'updateEstimate',
+                    payload: {
+                        id: receipt.estimateId,
+                        receiptsAndCosts: updatedReceipts,
+                        updatedBy: user?.email
+                    }
+                })
+            });
+
+            const result = await res.json();
+            if (result.success) {
+                toast.success(`Status changed to ${newStatus}`);
+                fetchEstimates();
+            } else {
+                toast.error('Failed to update approval status');
+            }
+        } catch (err) {
+            console.error(err);
+            toast.error('Error updating approval');
+        } finally {
+            setUpdatingApprovalId(null);
+        }
+    };
+
 
 
     // Filter estimates for dropdown - Deduplicated by Estimate Number
@@ -746,9 +790,58 @@ export default function ReceiptsCostsPage() {
                                                     </TableCell>
                                                     {canApprove && (
                                                         <TableCell>
-                                                            <Badge variant={receipt.approvalStatus === 'Approved' ? 'success' : 'default'} className="w-fit text-[10px]">
-                                                                {receipt.approvalStatus || 'Pending'}
-                                                            </Badge>
+                                                            <Popover>
+                                                                <PopoverTrigger asChild>
+                                                                    <button
+                                                                        className={cn(
+                                                                            'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide cursor-pointer transition-all duration-200 border',
+                                                                            'hover:shadow-md hover:scale-105 active:scale-95',
+                                                                            receipt.approvalStatus === 'Approved'
+                                                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300'
+                                                                                : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 hover:border-amber-300'
+                                                                        )}
+                                                                        disabled={updatingApprovalId === receipt.uniqueId}
+                                                                    >
+                                                                        {updatingApprovalId === receipt.uniqueId ? (
+                                                                            <Loader2 size={10} className="animate-spin" />
+                                                                        ) : receipt.approvalStatus === 'Approved' ? (
+                                                                            <CheckCircle size={10} />
+                                                                        ) : (
+                                                                            <XCircle size={10} />
+                                                                        )}
+                                                                        {receipt.approvalStatus || 'Pending'}
+                                                                        <ChevronDown size={9} className="opacity-60" />
+                                                                    </button>
+                                                                </PopoverTrigger>
+                                                                <PopoverContent className="w-44 p-1.5" align="start">
+                                                                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-2 py-1.5">Set Status</div>
+                                                                    {[
+                                                                        { value: 'Approved' as const, label: 'Approved', icon: CheckCircle, color: 'text-emerald-600', bg: 'hover:bg-emerald-50' },
+                                                                        { value: 'Not Approved' as const, label: 'Not Approved', icon: XCircle, color: 'text-amber-600', bg: 'hover:bg-amber-50' },
+                                                                    ].map(opt => (
+                                                                        <button
+                                                                            key={opt.value}
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                handleInlineApprovalChange(receipt, opt.value);
+                                                                            }}
+                                                                            className={cn(
+                                                                                'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all',
+                                                                                opt.bg,
+                                                                                receipt.approvalStatus === opt.value
+                                                                                    ? `${opt.color} bg-slate-50`
+                                                                                    : 'text-slate-600'
+                                                                            )}
+                                                                        >
+                                                                            <opt.icon size={14} className={receipt.approvalStatus === opt.value ? opt.color : 'text-slate-400'} />
+                                                                            {opt.label}
+                                                                            {receipt.approvalStatus === opt.value && (
+                                                                                <Check size={12} className="ml-auto text-emerald-500" />
+                                                                            )}
+                                                                        </button>
+                                                                    ))}
+                                                                </PopoverContent>
+                                                            </Popover>
                                                         </TableCell>
                                                     )}
                                                     <TableCell>
