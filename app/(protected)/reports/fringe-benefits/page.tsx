@@ -286,13 +286,13 @@ export default function FringeBenefitsPage() {
             setIsRefreshing(true);
         }
         try {
-            // Extend date range by 1 week in each direction to capture timesheets
-            // whose schedule fromDate might be in adjacent weeks but clockIn is in selected range
+            // Extend date range by 30 days in each direction to capture timesheets
+            // whose schedule fromDate might be far from the selected week but clockIn is in selected range
             // This matches the time-cards page behavior for consistency
             const extendedStart = new Date(startDate);
-            extendedStart.setUTCDate(extendedStart.getUTCDate() - 7);
+            extendedStart.setUTCDate(extendedStart.getUTCDate() - 30);
             const extendedEnd = new Date(endDate);
-            extendedEnd.setUTCDate(extendedEnd.getUTCDate() + 7);
+            extendedEnd.setUTCDate(extendedEnd.getUTCDate() + 30);
 
             const res = await fetch('/api/schedules', {
                 method: 'POST',

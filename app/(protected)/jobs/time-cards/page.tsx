@@ -516,13 +516,14 @@ function TimeCardContent() {
         try {
             const { start, end } = weekRange;
 
-            // Extend date range by 1 week in each direction to capture timesheets
-            // whose schedule fromDate might be in adjacent weeks but clockIn is in selected week
-            // This matches the payroll report behavior for consistency
+            // Extend date range by 30 days in each direction to capture timesheets
+            // whose schedule fromDate might be in a different month but clockIn is in selected week.
+            // This is critical for cases like a Drive Time record created on a schedule weeks earlier.
+            // The frontend allRecords filter still narrows down to the exact week via clockIn date comparison.
             const extendedStart = new Date(start);
-            extendedStart.setUTCDate(extendedStart.getUTCDate() - 7);
+            extendedStart.setUTCDate(extendedStart.getUTCDate() - 30);
             const extendedEnd = new Date(end);
-            extendedEnd.setUTCDate(extendedEnd.getUTCDate() + 7);
+            extendedEnd.setUTCDate(extendedEnd.getUTCDate() + 30);
 
             const res = await fetch('/api/schedules', {
                 method: 'POST',

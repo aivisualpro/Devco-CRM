@@ -304,10 +304,10 @@ function PayrollReportContent() {
         setLoading(true);
         const weekEnd = endOfWeek(weekStart);
 
-        // Extend date range by 1 week in each direction to capture timesheets
-        // whose schedule fromDate might be in adjacent weeks but clockIn is in selected week
-        const extendedStartDate = subWeeks(weekStart, 1);
-        const extendedEndDate = addWeeks(weekEnd, 1);
+        // Extend date range by 4 weeks in each direction to capture timesheets
+        // whose schedule fromDate might be far from the selected week but clockIn is in selected week
+        const extendedStartDate = subWeeks(weekStart, 4);
+        const extendedEndDate = addWeeks(weekEnd, 4);
 
         try {
             const res = await fetch('/api/schedules', {
