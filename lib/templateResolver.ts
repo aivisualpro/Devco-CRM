@@ -85,6 +85,7 @@ const prepareContext = (estimate: IEstimate) => {
         contactPhone: e.contactPhone || '',
         contactEmail: e.contactEmail || '',
         contactAddress: e.contactAddress || e.jobAddress || '',
+        prelimAmount: formatMoney(e.prelimAmount),
         today: new Date(),
     };
 };

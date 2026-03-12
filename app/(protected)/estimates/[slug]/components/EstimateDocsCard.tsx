@@ -600,7 +600,12 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 customerName: formData.customerName || '',
                 jobAddress: formData.jobAddress || '',
                 projectDescription: formData.projectDescription || '',
-                prelimAmount: formData.prelimAmount || '',
+                prelimAmount: (() => {
+                    const val = formData.prelimAmount;
+                    if (!val) return '';
+                    const n = parseFloat(String(val).replace(/[^0-9.-]+/g, ''));
+                    return !isNaN(n) ? `$${n.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : String(val);
+                })(),
                 poName: formData.poName || '', PoAddress: formData.PoAddress || '', PoPhone: formData.PoPhone || '',
                 ocName: formData.ocName || '', ocAddress: formData.ocAddress || '', ocPhone: formData.ocPhone || '',
                 subCName: formData.subCName || '', subCAddress: formData.subCAddress || '', subCPhone: formData.subCPhone || '',
