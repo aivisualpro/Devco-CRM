@@ -1322,6 +1322,24 @@ export async function POST(request: NextRequest) {
                 const { id: estId, ...updateData } = payload || {};
                 if (!estId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
 
+                // === STATUS PROTECTION: Prevent "Lost" if any sibling version is Won/Completed ===
+                if (updateData.status && updateData.status === 'Lost') {
+                    const currentEst = await Estimate.findById(estId).lean();
+                    if (currentEst && currentEst.estimate) {
+                        const siblingWithWonOrCompleted = await Estimate.findOne({
+                            estimate: currentEst.estimate,
+                            _id: { $ne: estId },
+                            status: { $in: ['Won', 'Completed'] }
+                        }).lean();
+                        if (siblingWithWonOrCompleted) {
+                            return NextResponse.json({
+                                success: false,
+                                error: `Cannot mark as Lost — Version ${siblingWithWonOrCompleted.versionNumber || ''} is already "${siblingWithWonOrCompleted.status}". A won/completed estimate cannot have a lost sibling.`
+                            }, { status: 400 });
+                        }
+                    }
+                }
+
                 // Directly update the specific version document
                 const updated = await Estimate.findByIdAndUpdate(
                     estId,
@@ -1373,7 +1391,10 @@ export async function POST(request: NextRequest) {
                         'bondNumber', 'projectId', 'fbName', 'fbAddress', 'eCPRSystem',
                         'typeOfServiceRequired', 'wetUtilities', 'dryUtilities',
                         'projectDescription', 'estimatedStartDate', 'estimatedCompletionDate', 'siteConditions',
-                        'prelimAmount', 'billingTerms', 'otherBillingTerms'
+                        'prelimAmount', 'billingTerms', 'otherBillingTerms',
+                        // Synced operational fields (not money-related)
+                        'fringe', 'certifiedPayroll', 'prevailingWage',
+                        'estimateVendorsSubContractors', 'services', 'proposalWriter'
                     ];
 
                     // Construct update object for shared fields

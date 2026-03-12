@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Layers, Activity, HardHat, Percent, Calculator, FileSpreadsheet, Plus, Check, ExternalLink, AlertTriangle, Users, Building2, Phone, Mail, MapPin, Trash2, X } from 'lucide-react';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { ChevronDown, Layers, Activity, HardHat, Percent, Calculator, FileSpreadsheet, Plus, Check, ExternalLink, AlertTriangle, Users, Building2, Phone, Mail, MapPin, Trash2, X, ShieldCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { MyDropDown, Modal, Input, Button, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
@@ -134,6 +134,13 @@ export function EstimateHeaderCard({
     const [activeDropdown, setActiveDropdown] = useState<'services' | 'status' | 'fringe' | 'markup' | 'proposalWriter' | 'certifiedPayroll' | 'prevailingWage' | 'client' | 'contact' | 'address' | null>(null);
     const [isAddingService, setIsAddingService] = useState(false);
     const [isConfirmWonModalOpen, setIsConfirmWonModalOpen] = useState(false);
+
+    // Check if any sibling version is Won or Completed (protects against Lost)
+    const hasSiblingWonOrCompleted = useMemo(() => {
+        return versionHistory.some(
+            v => v._id !== currentEstimateId && ['Won', 'Completed'].includes(v.status || '')
+        );
+    }, [versionHistory, currentEstimateId]);
 
     // Vendors & Subs state
     const [isVendorsSubsModalOpen, setIsVendorsSubsModalOpen] = useState(false);
@@ -1116,6 +1123,19 @@ export function EstimateHeaderCard({
                                                         <Check className="w-3 h-3 text-emerald-500" />
                                                     </button>
                                                 )}
+                                                {/* Shield indicator — sibling is Won/Completed, this version is protected */}
+                                                {hasSiblingWonOrCompleted && !['Won', 'Completed'].includes(formData.status || '') && (
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-gradient-to-br from-amber-400 to-amber-500 rounded-full shadow-md flex items-center justify-center z-20 animate-[scaleIn_0.3s_ease-out_forwards]">
+                                                                <ShieldCheck className="w-3 h-3 text-white" />
+                                                            </div>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p className="text-xs">Protected — another version is Won/Completed.<br/>This version cannot be marked as Lost.</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                )}
                                             </div>
                                         );
                                     })()}
@@ -1124,13 +1144,21 @@ export function EstimateHeaderCard({
                                     <MyDropDown
                                         isOpen={activeDropdown === 'status'}
                                         onClose={() => setActiveDropdown(null)}
-                                        options={statusOptions.map(opt =>
-                                            opt.value === 'Completed' && formData.status !== 'Won'
-                                                ? { ...opt, disabled: true, tooltip: 'Estimate must be Won before marking as Completed' }
-                                                : opt
-                                        )}
+                                        options={statusOptions.map(opt => {
+                                            if (opt.value === 'Completed' && formData.status !== 'Won') {
+                                                return { ...opt, disabled: true, tooltip: 'Estimate must be Won before marking as Completed' };
+                                            }
+                                            if (opt.value === 'Lost' && hasSiblingWonOrCompleted) {
+                                                return { ...opt, disabled: true, tooltip: 'Cannot mark as Lost — another version is Won or Completed' };
+                                            }
+                                            return opt;
+                                        })}
                                         selectedValues={formData.status ? [formData.status] : []}
                                         onSelect={(val) => {
+                                            if (val === 'Lost' && hasSiblingWonOrCompleted) {
+                                                toast.error('Cannot mark as Lost — another version is Won or Completed');
+                                                return;
+                                            }
                                             if (val === 'Won') {
                                                 if (!formData.fringe) {
                                                     toast.error("Please select a Fringe Rate first.");

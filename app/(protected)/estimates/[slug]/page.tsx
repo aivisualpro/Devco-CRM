@@ -1459,6 +1459,7 @@ export default function EstimateViewPage() {
 
     const handleStatusChange = (newStatus: string) => {
         if (!formData) return;
+        const previousStatus = formData.status;
         setFormData(prev => prev ? { ...prev, status: newStatus } : null);
         setUnsavedChanges(true);
 
@@ -1466,7 +1467,18 @@ export default function EstimateViewPage() {
         // Critical for "Won" and "Completed" transitions that must persist without manual save
         if (estimate) {
             apiCall('updateEstimate', { id: estimate._id, status: newStatus })
-                .catch(err => console.error('Status auto-save failed:', err));
+                .then(result => {
+                    if (!result.success) {
+                        // Revert local state if backend rejected the status change
+                        setFormData(prev => prev ? { ...prev, status: previousStatus } : null);
+                        toastError(result.error || 'Failed to update status');
+                    }
+                })
+                .catch(err => {
+                    console.error('Status auto-save failed:', err);
+                    setFormData(prev => prev ? { ...prev, status: previousStatus } : null);
+                    toastError('Failed to update status');
+                });
         }
     };
 
