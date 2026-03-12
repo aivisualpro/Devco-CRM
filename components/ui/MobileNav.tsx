@@ -32,6 +32,12 @@ const MobileNav = () => {
         return pathname.startsWith(tabHref);
     };
 
+    const [isMounted, setIsMounted] = useState(false);
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
     // Close modal on escape key
     useEffect(() => {
         const handleEscape = (e: KeyboardEvent) => {
@@ -46,6 +52,8 @@ const MobileNav = () => {
             document.body.style.overflow = '';
         };
     }, [isMenuOpen]);
+
+    if (!isMounted) return null;
 
     const menuItems = [
         {
