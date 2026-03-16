@@ -287,6 +287,7 @@ export const PayrollPDF = ({
                 </View>
               </View>
 
+
               {/* Diem Row */}
               <View style={styles.tableRow}>
                 <View style={styles.tableColFirst}>
@@ -307,13 +308,16 @@ export const PayrollPDF = ({
                 <View style={[styles.tableColFirst, { backgroundColor: '#eeeeee' }]}>
                   <Text style={styles.tableCellFirst}>Total</Text>
                 </View>
-                {emp.days.map((d: any, i: number) => (
-                  <View key={i} style={[styles.tableCol, { backgroundColor: '#eeeeee' }]}>
-                    <Text style={styles.tableCell}>{d.total > 0 ? d.total.toFixed(2) : '0.00'}</Text>
-                  </View>
-                ))}
+                {emp.days.map((d: any, i: number) => {
+                  const dayTotal = (d.reg || 0) + (d.ot || 0) + (d.dt || 0);
+                  return (
+                    <View key={i} style={[styles.tableCol, { backgroundColor: '#eeeeee' }]}>
+                      <Text style={styles.tableCell}>{dayTotal > 0 ? dayTotal.toFixed(2) : '0.00'}</Text>
+                    </View>
+                  );
+                })}
                 <View style={[styles.tableCol, { backgroundColor: '#eeeeee' }]}>
-                  <Text style={styles.tableCell}>{emp.totalHrs.toFixed(2)}</Text>
+                  <Text style={styles.tableCell}>{((emp.totalReg || 0) + (emp.totalOt || 0) + (emp.totalDt || 0)).toFixed(2)}</Text>
                 </View>
               </View>
             </View>

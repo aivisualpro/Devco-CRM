@@ -9,7 +9,7 @@ function isPublicRoute(pathname: string): boolean {
     return publicRoutes.some(route => pathname.startsWith(route));
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
     // Allow public routes
@@ -76,7 +76,7 @@ export function middleware(request: NextRequest) {
     }
 }
 
-// Configure which routes the middleware should run on
+// Configure which routes the proxy should run on
 export const config = {
     matcher: [
         /*

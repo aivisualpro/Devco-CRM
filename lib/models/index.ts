@@ -30,3 +30,4 @@ export { default as PotholeLog } from './PotholeLog';
 export { default as PreBoreLog } from './PreBoreLog';
 export { default as Usa811Ticket } from './Usa811Ticket';
 export { default as EquipmentInspection } from './EquipmentInspection';
+export { default as Customization } from './Customization';

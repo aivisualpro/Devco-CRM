@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import { connectToDatabase } from '@/lib/db';
-import { Schedule, Client, Employee, Constant, Estimate, JHA, EquipmentItem, OverheadItem } from '@/lib/models';
+import { Schedule, Client, Employee, Constant, Estimate, JHA, EquipmentItem, OverheadItem, Customization } from '@/lib/models';
 import { calculateTimesheetData } from '@/lib/timeCardUtils';
 import { getLocalNowISO } from '@/lib/scheduleUtils';
 import { getUserFromRequest } from '@/lib/permissions/middleware';
@@ -245,24 +245,63 @@ export async function POST(request: NextRequest) {
                     updatedAt: new Date()
                 });
 
-                // ── SMS Notification (must be awaited on Vercel serverless) ──
+                // ── SMS Notification ──
                 const docAny = doc as any;
-                if (docAny.notifyAssignees === true || docAny.notifyAssignees === 'Yes' || docAny.notifyAssignees === 'true') {
-                    if (Array.isArray(docAny.assignees) && docAny.assignees.length > 0) {
-                        const fmtDate = docAny.fromDate ? new Date(docAny.fromDate).toLocaleDateString() : 'N/A';
-                        const messageBody = `You have been assigned to a new devco schedule: ${docAny.title || docAny.jobLocation || 'Job Schedule'}. Date: ${fmtDate}`;
+                const shouldNotify = docAny.notifyAssignees === true || docAny.notifyAssignees === 'Yes' || docAny.notifyAssignees === 'true';
+                console.log(`[SMS] notifyAssignees=${docAny.notifyAssignees}, shouldNotify=${shouldNotify}, assignees=${JSON.stringify(docAny.assignees)}`);
 
-                        try {
+                if (shouldNotify && Array.isArray(docAny.assignees) && docAny.assignees.length > 0) {
+                    try {
+                        // 1. Load customizable template from DB
+                        const tplDoc = await Customization.findOne({ key: 'schedule_sms_notification' }).lean();
+                        const tplEnabled = tplDoc ? tplDoc.enabled !== false : true;
+                        const tplString = tplDoc?.template
+                            || 'DEVCOERP: You have been assigned to "{{title}}" at {{jobLocation}}. Date: {{fromDate}} – {{toDate}}.';
+
+                        if (!tplEnabled) {
+                            console.log('[SMS] Template disabled – skipping.');
+                        } else {
+                            // 2. Build variable map (everything except per-employee fields)
+                            const fmtDate = (d: any) => d ? new Date(d).toLocaleDateString() : 'N/A';
+                            const baseVars: Record<string, string> = {
+                                title: docAny.title || '',
+                                fromDate: fmtDate(docAny.fromDate),
+                                toDate: fmtDate(docAny.toDate),
+                                customerName: docAny.customerName || '',
+                                jobLocation: docAny.jobLocation || '',
+                                projectManager: docAny.projectManager || '',
+                                foremanName: docAny.foremanName || '',
+                                service: docAny.service || '',
+                                description: docAny.description || '',
+                                fringe: docAny.fringe || '',
+                                certifiedPayroll: docAny.certifiedPayroll || '',
+                                perDiem: docAny.perDiem || '',
+                            };
+
+                            // 3. Fetch assignee employees
                             const assigneesDocs = await Employee.find({ email: { $in: docAny.assignees } }).lean();
+                            console.log(`[SMS] Found ${assigneesDocs.length} employee(s) for ${docAny.assignees.length} assignee(s)`);
+
                             const smsPromises = assigneesDocs
-                                .map(emp => emp.phone || emp.mobile)
-                                .filter(Boolean)
-                                .map(phone => sendSMS(phone!, messageBody).catch(err => console.error('[SMS] Failed for', phone, err)));
+                                .map(emp => {
+                                    const phone = emp.phone || emp.mobile;
+                                    if (!phone) {
+                                        console.warn(`[SMS] Employee ${emp.email} has no phone number – skipped.`);
+                                        return null;
+                                    }
+                                    // Per-employee variables
+                                    const vars: Record<string, string> = { ...baseVars, employeeName: `${emp.firstName || ''} ${emp.lastName || ''}`.trim() };
+                                    // Resolve {{variable}} placeholders
+                                    const messageBody = tplString.replace(/\{\{(\w+)\}\}/g, (_: string, key: string) => vars[key] ?? '');
+                                    return sendSMS(phone, messageBody).catch(err => console.error('[SMS] Failed for', phone, err));
+                                })
+                                .filter(Boolean);
+
                             await Promise.all(smsPromises);
-                            console.log(`[SMS] Sent ${smsPromises.length} notification(s) for schedule ${scheduleId}`);
-                        } catch (smsErr) {
-                            console.error('[SMS] Error sending notifications:', smsErr);
+                            console.log(`[SMS] ✅ Sent ${smsPromises.length} notification(s) for schedule ${scheduleId}`);
                         }
+                    } catch (smsErr) {
+                        console.error('[SMS] ❌ Error sending notifications:', smsErr);
                     }
                 }
 
