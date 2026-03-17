@@ -332,6 +332,14 @@ export async function POST(request: NextRequest) {
                     if (docAny.foremanName) recipientEmails.push(docAny.foremanName);
                     if (docAny.projectManager) recipientEmails.push(docAny.projectManager);
 
+                    console.log('[Notifications] Schedule recipients:', {
+                        assignees: docAny.assignees,
+                        foreman: docAny.foremanName,
+                        pm: docAny.projectManager,
+                        allRecipients: recipientEmails,
+                        createdBy: docAny.createdBy || payload?.createdBy,
+                    });
+
                     const fmtDateShort = (d: any) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
                     const dateRange = `${fmtDateShort(docAny.fromDate)}${docAny.toDate ? ' – ' + fmtDateShort(docAny.toDate) : ''}`;
 

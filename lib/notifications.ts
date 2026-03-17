@@ -23,9 +23,16 @@ export async function createNotifications(params: CreateNotificationParams): Pro
     try {
         await connectToDatabase();
 
-        // De-duplicate recipients and exclude the creator (don't notify yourself)
-        const uniqueRecipients = [...new Set(recipientEmails)]
-            .filter(email => email && email !== createdBy);
+        // De-duplicate recipients (case-insensitive)
+        const seen = new Set<string>();
+        const uniqueRecipients = recipientEmails
+            .filter(email => {
+                if (!email) return false;
+                const normalized = email.toLowerCase().trim();
+                if (seen.has(normalized)) return false;
+                seen.add(normalized);
+                return true;
+            });
 
         if (uniqueRecipients.length === 0) return;
 
