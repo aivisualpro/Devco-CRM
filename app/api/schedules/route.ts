@@ -8,6 +8,7 @@ import { getUserFromRequest } from '@/lib/permissions/middleware';
 import { getUserPermissions, getDataScope, isSuperAdmin } from '@/lib/permissions/service';
 import { MODULES } from '@/lib/permissions/types';
 import { sendSMS } from '@/lib/signalwire';
+import { createNotifications } from '@/lib/notifications';
 const getAppSheetConfig = () => ({
     appId: process.env.APPSHEET_APP_ID || "3a1353f3-966e-467d-8947-a4a4d0c4c0c5",
     accessKey: process.env.APPSHEET_ACCESS || "V2-lWtLA-VV7bn-bEktT-S5xM7-2WUIf-UQmIA-GY6qH-A1S3E",
@@ -322,6 +323,31 @@ export async function POST(request: NextRequest) {
 
                 // Sync to AppSheet
                 await updateAppSheetSchedule(doc, "Add");
+
+                // ── In-App Notifications ──
+                // Notify assignees, foreman, and project manager
+                try {
+                    const recipientEmails: string[] = [];
+                    if (Array.isArray(docAny.assignees)) recipientEmails.push(...docAny.assignees);
+                    if (docAny.foremanName) recipientEmails.push(docAny.foremanName);
+                    if (docAny.projectManager) recipientEmails.push(docAny.projectManager);
+
+                    const fmtDateShort = (d: any) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+                    const dateRange = `${fmtDateShort(docAny.fromDate)}${docAny.toDate ? ' – ' + fmtDateShort(docAny.toDate) : ''}`;
+
+                    createNotifications({
+                        recipientEmails,
+                        type: 'schedule_assigned',
+                        title: `New Schedule: ${docAny.title || docAny.customerName || 'Untitled'}`,
+                        message: `You've been assigned to a schedule${docAny.jobLocation ? ' at ' + docAny.jobLocation : ''}. ${dateRange}`,
+                        link: '/jobs/schedules',
+                        metadata: { scheduleId: scheduleId, estimate: docAny.estimate },
+                        createdBy: docAny.createdBy || payload?.createdBy,
+                    });
+                } catch (notifErr) {
+                    console.error('[Notifications] Error creating schedule notifications:', notifErr);
+                }
+
                 return NextResponse.json({ success: true, result: doc });
             }
 

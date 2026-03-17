@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { ChevronDown, FileText, Package, Calculator, Sliders, Users, Contact, Briefcase, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, AlertTriangle, Truck, Wrench, Settings, BarChart, FileCheck, Search, Bell, BookOpen, Command, LogOut, User as UserIcon, Clock, Import, X, Menu, MessageSquare, GraduationCap, Activity, Receipt, MapPin, Download } from 'lucide-react';
 import { MyDropDown } from './MyDropDown';
+import NotificationBell from './NotificationBell';
 
 import { usePermissions } from '@/hooks/usePermissions';
 
@@ -422,6 +423,9 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
 
                             {/* Additional right content if provided */}
                             {rightContent}
+
+                            {/* Notification Bell */}
+                            <NotificationBell />
 
                             {/* User Profile Dropdown - Always visible for logout access */}
                             <div className="relative ml-2" ref={dropdownRef}>

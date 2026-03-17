@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { ChevronDown, Layers, Activity, HardHat, Percent, Calculator, FileSpreadsheet, Plus, Check, ExternalLink, AlertTriangle, Users, Building2, Phone, Mail, MapPin, Trash2, X, ShieldCheck } from 'lucide-react';
+import { ChevronDown, Layers, Activity, HardHat, Percent, Calculator, FileSpreadsheet, Plus, Check, ExternalLink, AlertTriangle, Users, Building2, Phone, Mail, MapPin, Trash2, X, ShieldCheck, Share2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { MyDropDown, Modal, Input, Button, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
 
 import { CostBreakdownChart } from './CostBreakdownChart';
 import { VersionTimeline } from './VersionTimeline';
+import { ShareEstimateModal } from './ShareEstimateModal';
 
 
 
@@ -134,6 +135,7 @@ export function EstimateHeaderCard({
     const [activeDropdown, setActiveDropdown] = useState<'services' | 'status' | 'fringe' | 'markup' | 'proposalWriter' | 'certifiedPayroll' | 'prevailingWage' | 'client' | 'contact' | 'address' | null>(null);
     const [isAddingService, setIsAddingService] = useState(false);
     const [isConfirmWonModalOpen, setIsConfirmWonModalOpen] = useState(false);
+    const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
     // Check if any sibling version is Won or Completed (protects against Lost)
     const hasSiblingWonOrCompleted = useMemo(() => {
@@ -1111,17 +1113,29 @@ export function EstimateHeaderCard({
 
                                                 {/* Tiny Completed Button */}
                                                 {formData.status === 'Won' && (
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            onStatusChange('Completed');
-                                                            toast.success('Status marked as Completed');
-                                                        }}
-                                                        className="absolute -top-1 -right-1 w-5 h-5 bg-white rounded-full shadow-md flex items-center justify-center border border-emerald-100 hover:bg-emerald-50 hover:scale-110 transition-all z-20 group/btn"
-                                                        title="Mark as Completed"
-                                                    >
-                                                        <Check className="w-3 h-3 text-emerald-500" />
-                                                    </button>
+                                                    <>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                onStatusChange('Completed');
+                                                                toast.success('Status marked as Completed');
+                                                            }}
+                                                            className="absolute -top-1 -right-1 w-5 h-5 bg-white rounded-full shadow-md flex items-center justify-center border border-emerald-100 hover:bg-emerald-50 hover:scale-110 transition-all z-20 group/btn"
+                                                            title="Mark as Completed"
+                                                        >
+                                                            <Check className="w-3 h-3 text-emerald-500" />
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setIsShareModalOpen(true);
+                                                            }}
+                                                            className="absolute -bottom-1 -left-1 w-5 h-5 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full shadow-md flex items-center justify-center border border-blue-200 hover:scale-110 transition-all z-20 animate-[scaleIn_0.3s_ease-out_forwards]"
+                                                            title="Share Form with Customer"
+                                                        >
+                                                            <Share2 className="w-2.5 h-2.5 text-white" />
+                                                        </button>
+                                                    </>
                                                 )}
                                                 {/* Shield indicator — sibling is Won/Completed, this version is protected */}
                                                 {hasSiblingWonOrCompleted && !['Won', 'Completed'].includes(formData.status || '') && (
@@ -1267,6 +1281,8 @@ export function EstimateHeaderCard({
                                     onStatusChange('Won');
                                     setIsConfirmWonModalOpen(false);
                                     toast.success("Status updated to Won! Fringe Rate Locked.");
+                                    // Auto-open share modal after a brief delay
+                                    setTimeout(() => setIsShareModalOpen(true), 600);
                                 }}
                             >
                                 Confirm & Lock
@@ -1457,6 +1473,17 @@ export function EstimateHeaderCard({
                 )}
 
             </div>
+
+            {/* Share Estimate Modal */}
+            <ShareEstimateModal
+                isOpen={isShareModalOpen}
+                onClose={() => setIsShareModalOpen(false)}
+                estimateId={currentEstimateId}
+                estimateNumber={formData.estimate || ''}
+                projectName={formData.projectName}
+                customerName={formData.customerName}
+                customerEmail={formData.contactEmail}
+            />
         </>
     );
 }

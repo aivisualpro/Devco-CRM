@@ -921,7 +921,8 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         'COI - Certificate of Insurance',
         'Legal Docs',
         'Mechanics Lien',
-        'Intent to Lien'
+        'Intent to Lien',
+        'Stop Payment Notice'
     ];
 
     const baseCertifiedPayrollDocs = [
@@ -1155,6 +1156,69 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         if (!onUpdate) return;
         const updated = legalDocs.filter((_, i) => i !== index);
         onUpdate('legalDocs', updated);
+        toast.success('Document removed');
+    };
+
+    // Stop Payment Notice Upload State (Multiple Files)
+    const stopPaymentInputRef = React.useRef<HTMLInputElement>(null);
+    const [isStopPaymentUploading, setIsStopPaymentUploading] = useState(false);
+    const stopPaymentDocs = (formData?.stopPaymentNoticeDocs || []) as { url: string; name: string; type: string; uploadedAt: string; uploadedBy?: string; uploadedByName?: string }[];
+
+    const handleStopPaymentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0 || !onUpdate) return;
+
+        setIsStopPaymentUploading(true);
+
+        // Resolve uploader name
+        const userEmail = currentUser?.email?.toLowerCase();
+        const loggedInEmp = employees.find(
+            (emp: any) => (emp.email || '').toLowerCase() === userEmail || (emp._id || '').toLowerCase() === userEmail
+        );
+        const uploaderName = loggedInEmp
+            ? `${loggedInEmp.firstName || ''} ${loggedInEmp.lastName || ''}`.trim()
+            : (currentUser as any)?.name || currentUser?.email || '';
+
+        const uploaded: { url: string; thumbnailUrl?: string; name: string; type: string; uploadedAt: string; uploadedBy: string; uploadedByName: string }[] = [...stopPaymentDocs] as any;
+
+        try {
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const fd = new FormData();
+                fd.append('file', file);
+                fd.append('folder', `estimates/${formData?.estimate || 'general'}/stop-payment-notice`);
+
+                const res = await fetch('/api/upload', { method: 'POST', body: fd });
+                const data = await res.json();
+
+                if (data.success && data.url) {
+                    uploaded.push({
+                        url: data.url,
+                        thumbnailUrl: data.thumbnailUrl || '',
+                        name: file.name,
+                        type: file.type,
+                        uploadedAt: new Date().toISOString(),
+                        uploadedBy: currentUser?.email || '',
+                        uploadedByName: uploaderName
+                    });
+                }
+            }
+
+            onUpdate('stopPaymentNoticeDocs', uploaded);
+            toast.success(`${files.length} file(s) uploaded successfully`);
+        } catch (err) {
+            console.error('Stop Payment Notice Upload Error:', err);
+            toast.error('Error uploading stop payment notice documents');
+        } finally {
+            setIsStopPaymentUploading(false);
+            if (stopPaymentInputRef.current) stopPaymentInputRef.current.value = '';
+        }
+    };
+
+    const removeStopPaymentDoc = (index: number) => {
+        if (!onUpdate) return;
+        const updated = stopPaymentDocs.filter((_, i) => i !== index);
+        onUpdate('stopPaymentNoticeDocs', updated);
         toast.success('Document removed');
     };
 
@@ -3130,6 +3194,14 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             multiple
                             className="hidden"
                         />
+                        <input
+                            type="file"
+                            ref={stopPaymentInputRef}
+                            onChange={handleStopPaymentUpload}
+                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                            multiple
+                            className="hidden"
+                        />
 
                         <div className="grid grid-cols-1 gap-3">
                             {prelimDocs.length > 0 ? prelimDocs.map((docName, idx) => {
@@ -3363,6 +3435,84 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                                     className="p-1.5 text-red-400 hover:bg-red-100 rounded-lg transition-colors"
                                                                 >
                                                                     <Trash2 className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                }
+
+                                // Special handling for Stop Payment Notice
+                                if (docName === 'Stop Payment Notice') {
+                                    return (
+                                        <div key={idx} className="group">
+                                            <div
+                                                onClick={() => stopPaymentInputRef.current?.click()}
+                                                className={`
+                                                    flex items-center justify-between p-3 rounded-xl cursor-pointer
+                                                    ${stopPaymentDocs.length > 0
+                                                        ? 'bg-rose-50 border border-rose-200'
+                                                        : 'bg-white/50 hover:bg-white border border-transparent hover:border-slate-200'}
+                                                    shadow-[2px_2px_5px_#d1d9e6,-2px_-2px_5px_#ffffff] transition-all duration-200
+                                                `}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    {isStopPaymentUploading ? (
+                                                        <Loader2 className="w-5 h-5 text-rose-500 animate-spin" />
+                                                    ) : stopPaymentDocs.length > 0 ? (
+                                                        <div className="w-6 h-6 rounded-full bg-rose-500 flex items-center justify-center text-white text-[10px] font-bold">
+                                                            {stopPaymentDocs.length}
+                                                        </div>
+                                                    ) : (
+                                                        <Upload className="w-5 h-5 text-slate-400" />
+                                                    )}
+                                                    <span className={`text-xs font-bold ${stopPaymentDocs.length > 0 ? 'text-rose-700' : 'text-slate-600'}`}>
+                                                        {docName}
+                                                    </span>
+                                                </div>
+                                                <Plus className="w-4 h-4 text-rose-500" />
+                                            </div>
+
+                                            {/* List of uploaded stop payment notice docs */}
+                                            {stopPaymentDocs.length > 0 && (
+                                                <div className="mt-2 ml-4 space-y-1">
+                                                    {stopPaymentDocs.map((doc, docIdx) => (
+                                                        <div key={docIdx} className="flex items-center justify-between p-2 bg-rose-50/50 rounded-lg border border-rose-100">
+                                                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                                <Paperclip className="w-3 h-3 text-rose-400 flex-shrink-0" />
+                                                                <span className="text-[10px] text-rose-700 font-medium truncate">{doc.name}</span>
+                                                                {(doc as any).uploadedByName && (
+                                                                    <span className="text-[9px] text-rose-500 flex-shrink-0 flex items-center gap-0.5">
+                                                                        <User className="w-2.5 h-2.5" />
+                                                                        {(doc as any).uploadedByName}
+                                                                    </span>
+                                                                )}
+                                                                <span className="text-[9px] text-rose-400 flex-shrink-0">
+                                                                    {localeDateString(doc.uploadedAt)}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1 flex-shrink-0">
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleFileDownload(doc.url, doc.name);
+                                                                    }}
+                                                                    className="p-1 text-rose-500 hover:bg-rose-100 rounded transition-colors"
+                                                                    title="Download Document"
+                                                                >
+                                                                    <Download className="w-3 h-3" />
+                                                                </button>
+                                                                <button
+                                                                    className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        removeStopPaymentDoc(docIdx);
+                                                                    }}
+                                                                >
+                                                                    <X className="w-3 h-3" />
                                                                 </button>
                                                             </div>
                                                         </div>
