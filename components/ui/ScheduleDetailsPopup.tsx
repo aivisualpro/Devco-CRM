@@ -69,7 +69,7 @@ const formatDate = (d: string | Date | undefined) => {
      if (!d) return '-';
     try {
         const date = new Date(d);
-        return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
     } catch { return String(d); }
 };
 
@@ -78,7 +78,7 @@ const formatTimeHeader = (d: string | Date | undefined) => {
     if (!d) return '--:--';
     try {
         const date = new Date(d);
-        return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
     } catch { return String(d); }
 };
 
