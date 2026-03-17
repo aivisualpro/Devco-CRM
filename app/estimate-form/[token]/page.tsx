@@ -37,7 +37,8 @@ const FIELDS_BY_TAB: Record<string, { key: string; label: string; type?: string;
         { key: 'accountingContact', label: 'Accounting Contact', icon: User },
         { key: 'accountingEmail', label: 'Accounting Email', type: 'email', icon: Mail },
         { key: 'accountingPhone', label: 'Accounting Phone', icon: Phone },
-        { key: 'projectId', label: 'Project ID', icon: FileText }
+        { key: 'projectId', label: 'Project ID', icon: FileText },
+        { key: 'eCPRSystem', label: 'eCPR System', span: 2, icon: Settings }
     ],
     owner: [
         { key: 'poName', label: 'Owner / Agency Name', span: 2, icon: Building2 },
@@ -72,8 +73,7 @@ const FIELDS_BY_TAB: Record<string, { key: string; label: string; type?: string;
     ],
     fringe: [
         { key: 'fbName', label: 'Trust Name', span: 2, icon: Heart },
-        { key: 'fbAddress', label: 'Trust Address', span: 2, icon: MapPin },
-        { key: 'eCPRSystem', label: 'eCPR System', span: 2, icon: Settings }
+        { key: 'fbAddress', label: 'Trust Address', span: 2, icon: MapPin }
     ],
     others: [
         { key: 'typeOfServiceRequired', label: 'Type of Service', icon: Settings },
