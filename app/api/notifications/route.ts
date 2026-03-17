@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
-import Notification from '@/lib/models/Notification';
+import mongoose from 'mongoose';
 import { getUserFromRequest } from '@/lib/permissions/middleware';
 
 export async function GET(req: NextRequest) {
@@ -17,18 +17,23 @@ export async function GET(req: NextRequest) {
 
         await connectToDatabase();
 
+        const db = mongoose.connection.db;
+        if (!db) {
+            return NextResponse.json({ success: false, error: 'DB connection unavailable' }, { status: 500 });
+        }
+
         const userEmail = jwtUser.email.toLowerCase().trim();
-        const filter: any = { recipientEmail: { $regex: new RegExp(`^${userEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } };
+        // Use case-insensitive regex for email matching
+        const emailFilter = { $regex: userEmail, $options: 'i' };
+        const filter: any = { recipientEmail: emailFilter };
         if (unreadOnly) filter.read = false;
 
+        const col = db.collection('notifications');
+
         const [notifications, unreadCount, total] = await Promise.all([
-            Notification.find(filter)
-                .sort({ createdAt: -1 })
-                .skip((page - 1) * limit)
-                .limit(limit)
-                .lean(),
-            Notification.countDocuments({ recipientEmail: { $regex: new RegExp(`^${userEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }, read: false }),
-            Notification.countDocuments(filter)
+            col.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).toArray(),
+            col.countDocuments({ recipientEmail: emailFilter, read: false }),
+            col.countDocuments(filter)
         ]);
 
         console.log(`[Notifications API] GET for ${userEmail}: found ${total} total, ${unreadCount} unread`);
@@ -59,12 +64,21 @@ export async function POST(req: NextRequest) {
 
         await connectToDatabase();
 
+        const db = mongoose.connection.db;
+        if (!db) {
+            return NextResponse.json({ success: false, error: 'DB connection unavailable' }, { status: 500 });
+        }
+
+        const col = db.collection('notifications');
+        const userEmail = jwtUser.email.toLowerCase().trim();
+        const emailFilter = { $regex: userEmail, $options: 'i' };
+
         switch (action) {
             case 'markRead': {
                 const { notificationId } = body;
                 if (notificationId) {
-                    await Notification.findOneAndUpdate(
-                        { _id: notificationId, recipientEmail: jwtUser.email },
+                    await col.updateOne(
+                        { _id: new mongoose.Types.ObjectId(notificationId), recipientEmail: emailFilter },
                         { $set: { read: true, readAt: new Date() } }
                     );
                 }
@@ -72,8 +86,8 @@ export async function POST(req: NextRequest) {
             }
 
             case 'markAllRead': {
-                await Notification.updateMany(
-                    { recipientEmail: jwtUser.email, read: false },
+                await col.updateMany(
+                    { recipientEmail: emailFilter, read: false },
                     { $set: { read: true, readAt: new Date() } }
                 );
                 return NextResponse.json({ success: true });
@@ -82,15 +96,13 @@ export async function POST(req: NextRequest) {
             case 'delete': {
                 const { notificationId } = body;
                 if (notificationId) {
-                    await Notification.findOneAndDelete(
-                        { _id: notificationId, recipientEmail: jwtUser.email }
-                    );
+                    await col.deleteOne({ _id: new mongoose.Types.ObjectId(notificationId), recipientEmail: emailFilter });
                 }
                 return NextResponse.json({ success: true });
             }
 
             case 'clearAll': {
-                await Notification.deleteMany({ recipientEmail: jwtUser.email });
+                await col.deleteMany({ recipientEmail: emailFilter });
                 return NextResponse.json({ success: true });
             }
 
