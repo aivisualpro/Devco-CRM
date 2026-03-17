@@ -93,9 +93,12 @@ export default function NotificationBell() {
     // Fetch notifications
     const fetchNotifications = useCallback(async (pageNum = 1, append = false) => {
         try {
+            console.log(`[NotificationBell] Fetching page ${pageNum}...`);
             setIsLoading(true);
             const res = await fetch(`/api/notifications?page=${pageNum}&limit=15`);
             const data = await res.json();
+            
+            console.log(`[NotificationBell] API Response:`, data);
 
             if (data.success) {
                 if (append) {
@@ -105,6 +108,7 @@ export default function NotificationBell() {
                 }
 
                 const newUnread = data.unreadCount;
+                console.log(`[NotificationBell] Unread count is now ${newUnread}`);
 
                 // Show desktop notification if new unread notifications appeared
                 if (newUnread > prevUnreadRef.current && prevUnreadRef.current >= 0 && pageNum === 1) {

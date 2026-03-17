@@ -332,10 +332,17 @@ export async function POST(request: NextRequest) {
                     if (docAny.foremanName) recipientEmails.push(docAny.foremanName);
                     if (docAny.projectManager) recipientEmails.push(docAny.projectManager);
 
+                    // Always notify the creator of the schedule as requested by the user
+                    const creatorEmail = docAny.createdBy || payload?.createdBy || '';
+                    if (creatorEmail) {
+                        recipientEmails.push(creatorEmail);
+                    }
+
                     console.log('[Notifications] Schedule recipients:', JSON.stringify({
                         assignees: docAny.assignees,
                         foreman: docAny.foremanName,
                         pm: docAny.projectManager,
+                        creator: creatorEmail,
                         allRecipients: recipientEmails,
                     }));
 
