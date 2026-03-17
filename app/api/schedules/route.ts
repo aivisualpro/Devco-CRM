@@ -193,6 +193,10 @@ export async function POST(request: NextRequest) {
 
         await connectToDatabase();
 
+        // ── Always get the authenticated user (used for creator tracking + notifications) ──
+        const jwtUser = await getUserFromRequest(request);
+        const loggedInEmail: string = jwtUser?.email || '';
+
         // ── Data Scope Enforcement ──
         // For read actions, determine if the user's role restricts them
         // to only viewing their own records (dataScope === 'self').
@@ -200,7 +204,6 @@ export async function POST(request: NextRequest) {
         let schedulesScope: 'self' | 'department' | 'all' = 'all';
         let currentUserEmail: string | null = null;
         if (action === 'getSchedulesPage' || action === 'getScheduleStats' || action === 'getScheduleActivity') {
-            const jwtUser = await getUserFromRequest(request);
             if (jwtUser) {
                 currentUserEmail = jwtUser.email;
                 if (!isSuperAdmin(jwtUser.role)) {
@@ -332,8 +335,9 @@ export async function POST(request: NextRequest) {
                     if (docAny.foremanName) recipientEmails.push(docAny.foremanName);
                     if (docAny.projectManager) recipientEmails.push(docAny.projectManager);
 
-                    // Always notify the creator of the schedule as requested by the user
-                    const creatorEmail = docAny.createdBy || payload?.createdBy || '';
+                    // Always notify the creator — use JWT session email as the most reliable source
+                    // (payload.createdBy is often undefined since the form doesn't send it)
+                    const creatorEmail = loggedInEmail || docAny.createdBy || payload?.createdBy || '';
                     if (creatorEmail) {
                         recipientEmails.push(creatorEmail);
                     }
@@ -343,6 +347,7 @@ export async function POST(request: NextRequest) {
                         foreman: docAny.foremanName,
                         pm: docAny.projectManager,
                         creator: creatorEmail,
+                        loggedInEmail,
                         allRecipients: recipientEmails,
                     }));
 
