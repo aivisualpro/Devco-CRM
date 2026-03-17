@@ -355,6 +355,17 @@ export async function POST(request: NextRequest) {
                         const fmtDateShort = (d: any) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
                         const dateRange = `${fmtDateShort(docAny.fromDate)}${docAny.toDate ? ' – ' + fmtDateShort(docAny.toDate) : ''}`;
 
+                        
+                    try {
+                        const debugCol = (mongoose.connection.db || mongoose.connection).collection('debug_logs');
+                        await debugCol.insertOne({
+                            type: 'notification_debug_start',
+                            recipientEmails,
+                            creatorEmail,
+                            scheduleId: String(scheduleId),
+                            createdAt: new Date()
+                        });
+                        
                         await createNotifications({
                             recipientEmails,
                             type: 'schedule_assigned',
@@ -365,6 +376,24 @@ export async function POST(request: NextRequest) {
                             createdBy: docAny.createdBy || payload?.createdBy,
                         });
                         console.log('[Notifications] ✅ Schedule notifications created successfully');
+                        
+                        await debugCol.insertOne({
+                            type: 'notification_debug_success',
+                            scheduleId: String(scheduleId),
+                            createdAt: new Date()
+                        });
+                    } catch (notifErr: any) {
+                        const debugCol = (mongoose.connection.db || mongoose.connection).collection('debug_logs');
+                        await debugCol.insertOne({
+                            type: 'notification_debug_error',
+                            error: notifErr?.message || String(notifErr),
+                            stack: notifErr?.stack,
+                            scheduleId: String(scheduleId),
+                            createdAt: new Date()
+                        });
+                        console.error('[Notifications] ❌ Error creating schedule notifications:', notifErr);
+                    }
+
                     } else {
                         console.log('[Notifications] No recipients found, skipping notifications');
                     }
