@@ -70,43 +70,10 @@ const toUTCDate = (dateStr?: string) => {
 
 const formatTimeOnly = (dateStr?: any) => {
     if (!dateStr) return '--:--';
-    
-    let str = '';
-    try {
-        // Safe string conversion
-        if (dateStr instanceof Date) {
-            str = dateStr.toISOString();
-        } else {
-            str = String(dateStr);
-        }
-    } catch (e) {
-        str = String(dateStr);
-    }
-    
-    // 1. Robust Regex - Find ANY "HH:mm" pattern
-    // This catches "T08:00", " 08:00", "8:00", etc.
-    const match = str.match(/(\d{1,2}):(\d{2})/);
-    
-    if (match) {
-        let h = parseInt(match[1], 10);
-        const m = match[2];
-        const ampm = h >= 12 ? 'PM' : 'AM';
-        h = h % 12 || 12;
-        return `${h}:${m} ${ampm}`;
-    }
-    
-    // 2. Fallback: UTC Date Methods
-    // If regex fails (e.g. funny format), parse as Date and read UTC values directly.
-    // This avoids local timezone shifts.
     try {
         const d = new Date(dateStr);
         if (isNaN(d.getTime())) return '--:--';
-        
-        let h = d.getUTCHours();
-        const m = d.getUTCMinutes().toString().padStart(2, '0');
-        const ampm = h >= 12 ? 'PM' : 'AM';
-        h = h % 12 || 12;
-        return `${h}:${m} ${ampm}`;
+        return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' });
     } catch { return '--:--'; }
 };
 

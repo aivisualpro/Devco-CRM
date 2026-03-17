@@ -228,7 +228,7 @@ export default function JHAPage() {
             schedule_id: schedule._id,
             scheduleRef: schedule,
             date: new Date().toISOString(), // Default to today
-            jhaTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            jhaTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }),
             createdBy: '', 
             signatures: [],
             active: true

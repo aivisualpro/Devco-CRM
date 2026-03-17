@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
                 // Using upsert based on schedule_id
                 const result = await JHA.findOneAndUpdate(
                     { schedule_id: jhaData.schedule_id },
-                    { $set: { ...updateData, jhaTime: updateData.jhaTime || new Date().toLocaleTimeString('en-US', { hour12: false }) } },
+                    { $set: { ...updateData, jhaTime: updateData.jhaTime || new Date().toLocaleTimeString('en-US', { hour12: false, timeZone: 'UTC' }) } },
                     { upsert: true, new: true, setDefaultsOnInsert: true }
                 );
                 

@@ -205,7 +205,7 @@ const TimeCardMini = ({ card }: { card: TimeCard }) => {
         if (!dateStr) return '--:--';
         try {
             const d = new Date(dateStr);
-            return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+            return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' });
         } catch { return '--:--'; }
     };
 
@@ -3359,7 +3359,7 @@ function DashboardContent() {
                                                         setSelectedJHA({
                                                             schedule_id: item._id,
                                                             date: new Date(),
-                                                            jhaTime: new Date().toLocaleTimeString('en-US', { hour12: false }),
+                                                            jhaTime: new Date().toLocaleTimeString('en-US', { hour12: false, timeZone: 'UTC' }),
                                                             emailCounter: 0,
                                                             signatures: [],
                                                             scheduleRef: item,

@@ -995,7 +995,8 @@ function SchedulePageContent() {
                 year: 'numeric',
                 hour: 'numeric',
                 minute: '2-digit',
-                hour12: true
+                hour12: true,
+                timeZone: 'UTC'
             });
         } catch (e) {
             return dateStr;
@@ -2654,7 +2655,7 @@ function SchedulePageContent() {
                                             setSelectedJHA({
                                                 schedule_id: item._id,
                                                 date: new Date(),
-                                                jhaTime: new Date().toLocaleTimeString('en-US', { hour12: false }),
+                                                jhaTime: new Date().toLocaleTimeString('en-US', { hour12: false, timeZone: 'UTC' }),
                                                 createdBy: userEmail || '',
                                                 emailCounter: 0,
                                                 signatures: [],
@@ -3259,9 +3260,7 @@ function SchedulePageContent() {
 
                                                             const formatDate = (d: string) => {
                                                                 if (!d) return '';
-                                                                const date = new Date(d);
-                                                                date.setMinutes(date.getMinutes() + date.getTimezoneOffset()); // Adjust to display date as is
-                                                                return date.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+                                                                return new Date(d).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', timeZone: 'UTC' });
                                                             };
 
                                                             const getWorkDays = (start: string, end: string) => {
