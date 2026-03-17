@@ -100,6 +100,16 @@ export default function EstimateFormPage() {
 
     useEffect(() => {
         setMounted(true);
+        // Override global `overflow: hidden` from globals.css for this public page
+        document.documentElement.style.overflow = 'auto';
+        document.body.style.overflow = 'auto';
+        document.body.style.height = 'auto';
+        return () => {
+            // Restore when leaving
+            document.documentElement.style.overflow = '';
+            document.body.style.overflow = '';
+            document.body.style.height = '';
+        };
     }, []);
 
     // Fetch estimate data
@@ -249,7 +259,7 @@ export default function EstimateFormPage() {
 
     // ── Main Form ──
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30">
+        <div className="min-h-screen overflow-y-auto bg-gradient-to-br from-slate-50 to-blue-50/30">
             <Toaster position="top-center" />
 
             {/* Header */}
