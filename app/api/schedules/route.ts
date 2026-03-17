@@ -332,28 +332,32 @@ export async function POST(request: NextRequest) {
                     if (docAny.foremanName) recipientEmails.push(docAny.foremanName);
                     if (docAny.projectManager) recipientEmails.push(docAny.projectManager);
 
-                    console.log('[Notifications] Schedule recipients:', {
+                    console.log('[Notifications] Schedule recipients:', JSON.stringify({
                         assignees: docAny.assignees,
                         foreman: docAny.foremanName,
                         pm: docAny.projectManager,
                         allRecipients: recipientEmails,
-                        createdBy: docAny.createdBy || payload?.createdBy,
-                    });
+                    }));
 
-                    const fmtDateShort = (d: any) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
-                    const dateRange = `${fmtDateShort(docAny.fromDate)}${docAny.toDate ? ' – ' + fmtDateShort(docAny.toDate) : ''}`;
+                    if (recipientEmails.length > 0) {
+                        const fmtDateShort = (d: any) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+                        const dateRange = `${fmtDateShort(docAny.fromDate)}${docAny.toDate ? ' – ' + fmtDateShort(docAny.toDate) : ''}`;
 
-                    createNotifications({
-                        recipientEmails,
-                        type: 'schedule_assigned',
-                        title: `New Schedule: ${docAny.title || docAny.customerName || 'Untitled'}`,
-                        message: `You've been assigned to a schedule${docAny.jobLocation ? ' at ' + docAny.jobLocation : ''}. ${dateRange}`,
-                        link: '/jobs/schedules',
-                        metadata: { scheduleId: scheduleId, estimate: docAny.estimate },
-                        createdBy: docAny.createdBy || payload?.createdBy,
-                    });
+                        await createNotifications({
+                            recipientEmails,
+                            type: 'schedule_assigned',
+                            title: `New Schedule: ${docAny.title || docAny.customerName || 'Untitled'}`,
+                            message: `You've been assigned to a schedule${docAny.jobLocation ? ' at ' + docAny.jobLocation : ''}. ${dateRange}`,
+                            link: '/jobs/schedules',
+                            metadata: { scheduleId: scheduleId, estimate: docAny.estimate },
+                            createdBy: docAny.createdBy || payload?.createdBy,
+                        });
+                        console.log('[Notifications] ✅ Schedule notifications created successfully');
+                    } else {
+                        console.log('[Notifications] No recipients found, skipping notifications');
+                    }
                 } catch (notifErr) {
-                    console.error('[Notifications] Error creating schedule notifications:', notifErr);
+                    console.error('[Notifications] ❌ Error creating schedule notifications:', notifErr);
                 }
 
                 return NextResponse.json({ success: true, result: doc });

@@ -121,6 +121,8 @@ export default function NotificationBell() {
                 setUnreadCount(newUnread);
                 setHasMore(data.page < data.totalPages);
                 setPage(pageNum);
+            } else {
+                console.warn('[NotificationBell] API returned non-success:', data);
             }
         } catch (error) {
             console.error('[NotificationBell] Fetch error:', error);

@@ -17,7 +17,8 @@ export async function GET(req: NextRequest) {
 
         await connectToDatabase();
 
-        const filter: any = { recipientEmail: jwtUser.email };
+        const userEmail = jwtUser.email.toLowerCase().trim();
+        const filter: any = { recipientEmail: { $regex: new RegExp(`^${userEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } };
         if (unreadOnly) filter.read = false;
 
         const [notifications, unreadCount, total] = await Promise.all([
@@ -26,9 +27,11 @@ export async function GET(req: NextRequest) {
                 .skip((page - 1) * limit)
                 .limit(limit)
                 .lean(),
-            Notification.countDocuments({ recipientEmail: jwtUser.email, read: false }),
+            Notification.countDocuments({ recipientEmail: { $regex: new RegExp(`^${userEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }, read: false }),
             Notification.countDocuments(filter)
         ]);
+
+        console.log(`[Notifications API] GET for ${userEmail}: found ${total} total, ${unreadCount} unread`);
 
         return NextResponse.json({
             success: true,
