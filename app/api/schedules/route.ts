@@ -843,7 +843,7 @@ export async function POST(request: NextRequest) {
                     // Stopping existing
                     const tsIndex = (schedule.timesheet || []).findIndex(t => String(t._id) === String(timesheetId));
                     if (tsIndex > -1) {
-                        const existingTs = schedule.timesheet[tsIndex];
+                        const existingTs = schedule.timesheet![tsIndex];
                         const updateObj: any = {};
                         updateObj[`timesheet.${tsIndex}.clockOut`] = date || getLocalNowISO();
                         if (location) updateObj[`timesheet.${tsIndex}.locationOut`] = location;
