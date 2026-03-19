@@ -1695,7 +1695,7 @@ function TimeCardContent() {
                                                             }
                                                             return <span className={`font-bold ${colorClass}`}>{dist.toFixed(1)}</span>;
                                                         })()}
-                                                        {ts.type?.toLowerCase().includes('drive') && !(ts as any).googleDistance && ts.locationIn && ts.locationOut && (
+                                                        {ts.type?.toLowerCase().includes('drive') && !(ts as any).googleDistance && ts.locationIn && ts.locationOut && String(ts.locationIn).includes(',') && String(ts.locationOut).includes(',') && (
                                                             <button
                                                                 onClick={(e) => { e.stopPropagation(); handleFetchGoogleDist(ts); }}
                                                                 disabled={fetchingGoogleDist.has(ts._id || ts.recordId || '')}
@@ -1707,7 +1707,7 @@ function TimeCardContent() {
                                                         )}
                                                     </div>
                                                 </TableCell>
-                                                <TableCell className="text-right text-[11px] font-black text-slate-800">
+                                                <TableCell className={`text-right text-[11px] font-black ${(() => { const manual = ts.manualDistance ? parseFloat(String(ts.manualDistance)) : 0; const actual = (ts.googleDistanceVal || 0) > 0 ? ts.googleDistanceVal! : (ts.rawDistanceVal || 0); return (manual > 0 && actual <= 0) ? 'text-green-600' : 'text-slate-800'; })()}`}>
                                                     {(ts.hoursVal || 0).toFixed(2)}
                                                 </TableCell>
                                             </TableRow>
@@ -2298,8 +2298,8 @@ function TimeCardContent() {
                                                                     }
                                                                     return <span className={`font-bold ${colorClass}`}>{dist.toFixed(1)}</span>;
                                                                 })()}
-                                                                {/* Show refresh button for drive-time entries without stored googleDistance */}
-                                                                {ts.type?.toLowerCase().includes('drive') && !(ts as any).googleDistance && ts.locationIn && ts.locationOut && (
+                                                                {/* Show refresh button for drive-time entries without stored googleDistance and with valid coordinates */}
+                                                                {ts.type?.toLowerCase().includes('drive') && !(ts as any).googleDistance && ts.locationIn && ts.locationOut && String(ts.locationIn).includes(',') && String(ts.locationOut).includes(',') && (
                                                                     <button
                                                                         onClick={(e) => { e.stopPropagation(); handleFetchGoogleDist(ts); }}
                                                                         disabled={fetchingGoogleDist.has(ts._id || ts.recordId || '')}
@@ -2318,7 +2318,7 @@ function TimeCardContent() {
                                                         </div>
                                                     )}
                                                 </TableCell>
-                                                <TableCell className={`text-left text-xs font-black ${isQuickEditing ? 'text-orange-600 underline decoration-orange-300' : 'text-slate-700'}`}>
+                                                <TableCell className={`text-left text-xs font-black ${isQuickEditing ? 'text-orange-600 underline decoration-orange-300' : (() => { const manual = ts.manualDistance ? parseFloat(String(ts.manualDistance)) : 0; const actual = (ts.googleDistanceVal || 0) > 0 ? ts.googleDistanceVal! : (ts.rawDistanceVal || 0); return (manual > 0 && actual <= 0) ? 'text-green-600' : 'text-slate-700'; })()}`}>
                                                     {isQuickEditing ? (quickEditLiveStats?.hours || 0).toFixed(2) : (ts.hoursVal || 0).toFixed(2)}
                                                 </TableCell>
                                                 <TableCell className="text-right">
