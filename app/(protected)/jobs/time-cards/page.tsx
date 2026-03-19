@@ -1684,7 +1684,10 @@ function TimeCardContent() {
                                                             const actual = (ts.googleDistanceVal || 0) > 0 ? ts.googleDistanceVal! : (ts.rawDistanceVal || 0);
                                                             const manual = ts.manualDistance ? parseFloat(String(ts.manualDistance)) : 0;
                                                             let colorClass = 'text-slate-600';
-                                                            if (manual > 0 && actual > 0) {
+                                                            if (manual > 0 && actual <= 0) {
+                                                                // Manual value only, no Google/calculated distance to compare
+                                                                colorClass = 'text-green-600';
+                                                            } else if (manual > 0 && actual > 0) {
                                                                 const diff = Math.abs(manual - actual);
                                                                 if (diff < 1) colorClass = 'text-green-600';
                                                                 else if (manual > actual) colorClass = 'text-red-500';
@@ -2283,8 +2286,11 @@ function TimeCardContent() {
                                                                     if (dist <= 0) return <span className="text-slate-300">-</span>;
                                                                     const actual = (ts.googleDistanceVal || 0) > 0 ? ts.googleDistanceVal! : (ts.rawDistanceVal || 0);
                                                                     const manual = ts.manualDistance ? parseFloat(String(ts.manualDistance)) : 0;
-                                                                    let colorClass = ts.manualDistance ? 'text-orange-600' : '';
-                                                                    if (manual > 0 && actual > 0) {
+                                                                    let colorClass = '';
+                                                                    if (manual > 0 && actual <= 0) {
+                                                                        // Manual value only, no Google/calculated distance to compare
+                                                                        colorClass = 'text-green-600';
+                                                                    } else if (manual > 0 && actual > 0) {
                                                                         const diff = Math.abs(manual - actual);
                                                                         if (diff < 1) colorClass = 'text-green-600';
                                                                         else if (manual > actual) colorClass = 'text-red-500';
