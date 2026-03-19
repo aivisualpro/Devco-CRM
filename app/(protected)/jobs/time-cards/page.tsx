@@ -48,6 +48,7 @@ interface TimesheetEntry {
     hoursVal?: number;
     distanceVal?: number;
     rawDistanceVal?: number;
+    googleDistanceVal?: number;
     projectName?: string;
 }
 
@@ -428,6 +429,49 @@ function TimeCardContent() {
     const [specialQty, setSpecialQty] = useState("1");
     const [isSpecialLoading, setIsSpecialLoading] = useState(false);
 
+    // Google Maps real driving distance overrides
+    // Key: "lat1,lon1|lat2,lon2" → value: distance in miles from Google Maps API
+    const [googleDistances, setGoogleDistances] = useState<Map<string, number>>(new Map());
+    const [fetchingGoogleDist, setFetchingGoogleDist] = useState<Set<string>>(new Set());
+
+    // Fetch Google Maps distance for a single entry and save to DB
+    const handleFetchGoogleDist = useCallback(async (ts: TimesheetEntry) => {
+        const locIn = String(ts.locationIn || '').trim();
+        const locOut = String(ts.locationOut || '').trim();
+        if (!locIn.includes(',') || !locOut.includes(',')) return;
+
+        const tsId = ts._id || ts.recordId || '';
+        setFetchingGoogleDist(prev => new Set(prev).add(tsId));
+
+        try {
+            const res = await fetch('/api/distance', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pairs: [{ origin: locOut, destination: locIn }] })
+            });
+            const data = await res.json();
+            if (data.success && data.results?.[0]?.distanceMiles > 0) {
+                const distMiles = data.results[0].distanceMiles;
+                const key = `${locIn}|${locOut}`;
+                setGoogleDistances(prev => { const m = new Map(prev); m.set(key, distMiles); return m; });
+
+                // Save to DB
+                await fetch('/api/schedules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'saveIndividualTimesheet',
+                        payload: { timesheet: { _id: ts._id, scheduleId: ts.scheduleId, googleDistance: distMiles } }
+                    })
+                });
+            }
+        } catch (err) {
+            console.error('Failed to fetch Google distance:', err);
+        } finally {
+            setFetchingGoogleDist(prev => { const s = new Set(prev); s.delete(tsId); return s; });
+        }
+    }, []);
+
     const clearFilters = () => {
         setFilEmployee('');
         setFilEstimate('');
@@ -452,6 +496,15 @@ function TimeCardContent() {
         const weekStartStr = toYMD(weekRange.start);
         const weekEndStr = toYMD(weekRange.end);
 
+        // Helper to build a consistent key for Google Distance lookups
+        const buildDistKey = (locIn?: string, locOut?: string) => {
+            if (!locIn || !locOut) return null;
+            const a = String(locIn).trim();
+            const b = String(locOut).trim();
+            if (!a.includes(',') || !b.includes(',')) return null;
+            return `${a}|${b}`;
+        };
+
         rawSchedules.forEach(sched => {
             if (sched.timesheet && Array.isArray(sched.timesheet)) {
                 sched.timesheet.forEach(ts => {
@@ -464,9 +517,56 @@ function TimeCardContent() {
                         }
                     }
 
-                    const { hours, distance, calculatedDistance } = calculateTimesheetData(ts as any, sched.fromDate);
+                    let { hours, distance, calculatedDistance } = calculateTimesheetData(ts as any, sched.fromDate);
+
+                    // Override with Google Maps real driving distance if available
+                    // Priority: 1) DB-stored googleDistance  2) Client-side fetched googleDistances Map  3) Haversine fallback
+                    const isDrive = (ts.type || '').toLowerCase().includes('drive');
+                    const manualDist = ts.manualDistance ? parseFloat(String(ts.manualDistance)) : 0;
+                    if (isDrive && manualDist <= 0) {
+                        // Check for stored googleDistance from DB first
+                        const storedGoogleDist = (ts as any).googleDistance;
+                        const distKey = buildDistKey(ts.locationIn, ts.locationOut);
+                        const clientGoogleDist = distKey && googleDistances.has(distKey) ? googleDistances.get(distKey)! : 0;
+                        const realDistance = storedGoogleDist > 0 ? storedGoogleDist : (clientGoogleDist > 0 ? clientGoogleDist : 0);
+                        
+                        if (realDistance > 0) {
+                            distance = realDistance;
+                            // Recalculate hours based on real distance
+                            const getQty = (val: any) => {
+                                const str = String(val || '');
+                                const match = str.match(/\((\d+)\s+qty\)/);
+                                if (match) return parseFloat(match[1]);
+                                if (val === true || str.toLowerCase() === 'true' || str.toLowerCase() === 'yes') return 1;
+                                return 0;
+                            };
+                            const washoutQty = (typeof ts.dumpQty === 'number') ? ts.dumpQty : getQty(ts.dumpWashout);
+                            const shopQty = (typeof ts.shopQty === 'number') ? ts.shopQty : getQty(ts.shopTime);
+                            const specialHrs = (washoutQty * 0.5) + (shopQty * 0.25);
+                            const manualHrs = ts.manualDuration ? parseFloat(String(ts.manualDuration)) : 0;
+                            if (manualHrs <= 0) {
+                                hours = (distance / SPEED_MPH) + specialHrs;
+                            }
+                        }
+                    }
+
                     const scheduleBase = normalizeEst(sched.estimate);
                     const pName = (sched as any).projectName || (sched as any).project || estMap.get(scheduleBase) || '';
+
+                    // Determine actual Google Maps distance for color comparison
+                    // Priority: DB-stored > client-fetched > 0
+                    let gDistVal = 0;
+                    if (isDrive) {
+                        const storedGDist = (ts as any).googleDistance;
+                        if (storedGDist > 0) {
+                            gDistVal = storedGDist;
+                        } else {
+                            const gKey = buildDistKey(ts.locationIn, ts.locationOut);
+                            if (gKey && googleDistances.has(gKey)) {
+                                gDistVal = googleDistances.get(gKey)!;
+                            }
+                        }
+                    }
 
                     flat.push({
                         ...ts,
@@ -475,13 +575,76 @@ function TimeCardContent() {
                         projectName: pName,
                         hoursVal: hours,
                         distanceVal: distance,
-                        rawDistanceVal: calculatedDistance
+                        rawDistanceVal: calculatedDistance,
+                        googleDistanceVal: gDistVal
                     });
                 });
             }
         });
         return flat.sort((a, b) => new Date(b.clockIn || 0).getTime() - new Date(a.clockIn || 0).getTime());
-    }, [rawSchedules, estimatesOptions, weekRange]);
+    }, [rawSchedules, estimatesOptions, weekRange, googleDistances]);
+
+    // Fetch real driving distances from Google Maps API for drive-time entries
+    useEffect(() => {
+        if (loading) return;
+
+        // Collect unique coordinate pairs from drive-time entries that need real distances
+        const pairsToFetch: { origin: string; destination: string }[] = [];
+        const seenKeys = new Set<string>();
+
+        rawSchedules.forEach(sched => {
+            if (!sched.timesheet || !Array.isArray(sched.timesheet)) return;
+            sched.timesheet.forEach(ts => {
+                const isDrive = (ts.type || '').toLowerCase().includes('drive');
+                const manualDist = ts.manualDistance ? parseFloat(String(ts.manualDistance)) : 0;
+                if (!isDrive || manualDist > 0) return; // Skip non-drive or manual distance entries
+                
+                // Skip if already has googleDistance stored in DB
+                if ((ts as any).googleDistance > 0) return;
+
+                const locIn = String(ts.locationIn || '').trim();
+                const locOut = String(ts.locationOut || '').trim();
+                if (!locIn.includes(',') || !locOut.includes(',')) return;
+
+                const key = `${locIn}|${locOut}`;
+                if (seenKeys.has(key) || googleDistances.has(key)) return;
+                seenKeys.add(key);
+
+                pairsToFetch.push({ origin: locOut, destination: locIn });
+            });
+        });
+
+        if (pairsToFetch.length === 0) return;
+
+        const fetchDistances = async () => {
+            try {
+                const res = await fetch('/api/distance', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pairs: pairsToFetch })
+                });
+                const data = await res.json();
+                if (data.success && data.results) {
+                    setGoogleDistances(prev => {
+                        const updated = new Map(prev);
+                        data.results.forEach((r: any, idx: number) => {
+                            if (r.distanceMiles > 0) {
+                                // Key is "locIn|locOut" (destination|origin in API terms)
+                                const key = `${r.destination}|${r.origin}`;
+                                updated.set(key, r.distanceMiles);
+                            }
+                        });
+                        return updated;
+                    });
+                }
+            } catch (err) {
+                console.error('Failed to fetch Google Maps distances:', err);
+                // Silently fail - Haversine fallback is already in use
+            }
+        };
+
+        fetchDistances();
+    }, [rawSchedules, loading]);
 
     // Note: Using the global toLocalISO function defined above (timezone-agnostic)
 
@@ -1513,8 +1676,33 @@ function TimeCardContent() {
                                                         </span>
                                                     ) : <span className="text-slate-300">-</span>}
                                                 </TableCell>
-                                                <TableCell className="text-right text-[11px] font-medium text-slate-600">
-                                                    {(ts.distanceVal || 0) > 0 ? (ts.distanceVal || 0).toFixed(1) : '-'}
+                                                <TableCell className="text-right text-[11px] font-medium">
+                                                    <div className="flex items-center justify-end gap-1">
+                                                        {(() => {
+                                                            const dist = ts.distanceVal || 0;
+                                                            if (dist <= 0) return <span className="text-slate-300">-</span>;
+                                                            const actual = (ts.googleDistanceVal || 0) > 0 ? ts.googleDistanceVal! : (ts.rawDistanceVal || 0);
+                                                            const manual = ts.manualDistance ? parseFloat(String(ts.manualDistance)) : 0;
+                                                            let colorClass = 'text-slate-600';
+                                                            if (manual > 0 && actual > 0) {
+                                                                const diff = Math.abs(manual - actual);
+                                                                if (diff < 1) colorClass = 'text-green-600';
+                                                                else if (manual > actual) colorClass = 'text-red-500';
+                                                                else colorClass = 'text-orange-500';
+                                                            }
+                                                            return <span className={`font-bold ${colorClass}`}>{dist.toFixed(1)}</span>;
+                                                        })()}
+                                                        {ts.type?.toLowerCase().includes('drive') && !(ts as any).googleDistance && ts.locationIn && ts.locationOut && (
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); handleFetchGoogleDist(ts); }}
+                                                                disabled={fetchingGoogleDist.has(ts._id || ts.recordId || '')}
+                                                                className="p-0.5 rounded hover:bg-blue-50 transition-all group"
+                                                                title="Fetch real driving distance"
+                                                            >
+                                                                <RefreshCcw size={10} className={`text-blue-400 group-hover:text-blue-600 ${fetchingGoogleDist.has(ts._id || ts.recordId || '') ? 'animate-spin' : ''}`} />
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </TableCell>
                                                 <TableCell className="text-right text-[11px] font-black text-slate-800">
                                                     {(ts.hoursVal || 0).toFixed(2)}
@@ -2089,12 +2277,36 @@ function TimeCardContent() {
                                                         />
                                                     ) : (
                                                         <div className="flex flex-col items-start">
-                                                            <span className={ts.manualDistance ? "text-orange-600 font-bold" : ""}>
-                                                                {((ts.distanceVal || 0) > 0 ? (ts.distanceVal || 0).toFixed(1) : '-')}
-                                                            </span>
+                                                            <div className="flex items-center gap-1">
+                                                                {(() => {
+                                                                    const dist = ts.distanceVal || 0;
+                                                                    if (dist <= 0) return <span className="text-slate-300">-</span>;
+                                                                    const actual = (ts.googleDistanceVal || 0) > 0 ? ts.googleDistanceVal! : (ts.rawDistanceVal || 0);
+                                                                    const manual = ts.manualDistance ? parseFloat(String(ts.manualDistance)) : 0;
+                                                                    let colorClass = ts.manualDistance ? 'text-orange-600' : '';
+                                                                    if (manual > 0 && actual > 0) {
+                                                                        const diff = Math.abs(manual - actual);
+                                                                        if (diff < 1) colorClass = 'text-green-600';
+                                                                        else if (manual > actual) colorClass = 'text-red-500';
+                                                                        else colorClass = 'text-orange-500';
+                                                                    }
+                                                                    return <span className={`font-bold ${colorClass}`}>{dist.toFixed(1)}</span>;
+                                                                })()}
+                                                                {/* Show refresh button for drive-time entries without stored googleDistance */}
+                                                                {ts.type?.toLowerCase().includes('drive') && !(ts as any).googleDistance && ts.locationIn && ts.locationOut && (
+                                                                    <button
+                                                                        onClick={(e) => { e.stopPropagation(); handleFetchGoogleDist(ts); }}
+                                                                        disabled={fetchingGoogleDist.has(ts._id || ts.recordId || '')}
+                                                                        className="p-0.5 rounded hover:bg-blue-50 transition-all group"
+                                                                        title="Fetch real driving distance from Google Maps"
+                                                                    >
+                                                                        <RefreshCcw size={10} className={`text-blue-400 group-hover:text-blue-600 ${fetchingGoogleDist.has(ts._id || ts.recordId || '') ? 'animate-spin' : ''}`} />
+                                                                    </button>
+                                                                )}
+                                                            </div>
                                                             {ts.manualDistance && (
                                                                 <span className="text-[9px] text-slate-300 font-medium leading-none">
-                                                                    {((ts as any).rawDistanceVal || 0).toFixed(1)}
+                                                                    {(ts.googleDistanceVal || 0) > 0 ? ts.googleDistanceVal!.toFixed(1) : (ts.rawDistanceVal || 0).toFixed(1)}
                                                                 </span>
                                                             )}
                                                         </div>

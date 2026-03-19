@@ -9,6 +9,38 @@ import { getUserPermissions, getDataScope, isSuperAdmin } from '@/lib/permission
 import { MODULES } from '@/lib/permissions/types';
 import { sendSMS } from '@/lib/signalwire';
 import { createNotifications } from '@/lib/notifications';
+
+// Helper to fetch real driving distance from Google Maps Distance Matrix API
+async function fetchGoogleDistance(locIn?: string, locOut?: string): Promise<number | null> {
+    const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
+    if (!GOOGLE_MAPS_API_KEY || !locIn || !locOut) return null;
+    
+    const origin = String(locOut).trim();
+    const destination = String(locIn).trim();
+    if (!origin.includes(',') || !destination.includes(',')) return null;
+    
+    // Validate coordinates are actual lat,lng (not "0.000000, 0.000000")
+    const parseCoord = (s: string) => s.split(',').map(p => parseFloat(p.trim()));
+    const [oLat, oLng] = parseCoord(origin);
+    const [dLat, dLng] = parseCoord(destination);
+    if ([oLat, oLng, dLat, dLng].some(v => isNaN(v) || v === 0)) return null;
+    
+    try {
+        const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${encodeURIComponent(origin)}&destinations=${encodeURIComponent(destination)}&units=imperial&key=${GOOGLE_MAPS_API_KEY}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.status === 'OK' && data.rows?.[0]?.elements?.[0]?.status === 'OK') {
+            const distanceMiles = data.rows[0].elements[0].distance.value / 1609.344;
+            return Math.round(distanceMiles * 10) / 10;
+        }
+        console.error('[GoogleDistance] API error:', data.status, data.rows?.[0]?.elements?.[0]?.status);
+        return null;
+    } catch (err) {
+        console.error('[GoogleDistance] Fetch error:', err);
+        return null;
+    }
+}
 const getAppSheetConfig = () => ({
     appId: process.env.APPSHEET_APP_ID || "3a1353f3-966e-467d-8947-a4a4d0c4c0c5",
     accessKey: process.env.APPSHEET_ACCESS || "V2-lWtLA-VV7bn-bEktT-S5xM7-2WUIf-UQmIA-GY6qH-A1S3E",
@@ -657,6 +689,17 @@ export async function POST(request: NextRequest) {
                     Object.keys(timesheet).forEach(key => {
                         updateObj[`timesheet.${existingIndex}.${key}`] = timesheet[key];
                     });
+                    
+                    // Fetch Google Maps distance for drive-time entries with coordinates
+                    const tsType = String(timesheet.type || '').toLowerCase();
+                    if (tsType.includes('drive') && timesheet.locationIn && timesheet.locationOut && !timesheet.googleDistance) {
+                        const gDist = await fetchGoogleDistance(timesheet.locationIn, timesheet.locationOut);
+                        if (gDist !== null) {
+                            updateObj[`timesheet.${existingIndex}.googleDistance`] = gDist;
+                            timesheet.googleDistance = gDist;
+                        }
+                    }
+                    
                     updateObj.updatedAt = new Date();
 
                     await Schedule.updateOne(
@@ -666,6 +709,16 @@ export async function POST(request: NextRequest) {
                 } else {
                     // Push new
                     if (!timesheet._id) timesheet._id = new mongoose.Types.ObjectId().toString();
+                    
+                    // Fetch Google Maps distance for new drive-time entries
+                    const tsType = String(timesheet.type || '').toLowerCase();
+                    if (tsType.includes('drive') && timesheet.locationIn && timesheet.locationOut) {
+                        const gDist = await fetchGoogleDistance(timesheet.locationIn, timesheet.locationOut);
+                        if (gDist !== null) {
+                            timesheet.googleDistance = gDist;
+                        }
+                    }
+                    
                     await Schedule.updateOne(
                         { _id: timesheet.scheduleId },
                         { $push: { timesheet: { ...timesheet, createdAt: new Date() } } }
@@ -790,9 +843,21 @@ export async function POST(request: NextRequest) {
                     // Stopping existing
                     const tsIndex = (schedule.timesheet || []).findIndex(t => String(t._id) === String(timesheetId));
                     if (tsIndex > -1) {
+                        const existingTs = schedule.timesheet[tsIndex];
                         const updateObj: any = {};
                         updateObj[`timesheet.${tsIndex}.clockOut`] = date || getLocalNowISO();
                         if (location) updateObj[`timesheet.${tsIndex}.locationOut`] = location;
+                        
+                        // Fetch Google Maps distance now that we have both locations
+                        const locIn = existingTs.locationIn;
+                        const locOut = location || existingTs.locationOut;
+                        if (locIn && locOut) {
+                            const gDist = await fetchGoogleDistance(locIn, locOut);
+                            if (gDist !== null) {
+                                updateObj[`timesheet.${tsIndex}.googleDistance`] = gDist;
+                            }
+                        }
+                        
                         updateObj.updatedAt = new Date();
                         await Schedule.updateOne({ _id: scheduleId }, { $set: updateObj });
 
@@ -858,6 +923,57 @@ export async function POST(request: NextRequest) {
                 }
 
                 return NextResponse.json({ success: true, message: `Updated ${count} schedules` });
+            }
+
+            case 'backfillGoogleDistances': {
+                // Backfill Google Maps distances for all drive-time entries missing googleDistance
+                const schedules = await Schedule.find({ "timesheet.0": { $exists: true } }).lean();
+                let updated = 0;
+                let skipped = 0;
+                let failed = 0;
+
+                for (const doc of (schedules as any[])) {
+                    const timesheets = doc.timesheet || [];
+                    let docModified = false;
+                    const updateObj: any = {};
+
+                    for (let i = 0; i < timesheets.length; i++) {
+                        const ts = timesheets[i];
+                        const isDrive = String(ts.type || '').toLowerCase().includes('drive');
+                        if (!isDrive || ts.googleDistance > 0) {
+                            skipped++;
+                            continue;
+                        }
+
+                        const locIn = String(ts.locationIn || '').trim();
+                        const locOut = String(ts.locationOut || '').trim();
+                        if (!locIn.includes(',') || !locOut.includes(',')) {
+                            skipped++;
+                            continue;
+                        }
+
+                        const gDist = await fetchGoogleDistance(locIn, locOut);
+                        if (gDist !== null && gDist > 0) {
+                            updateObj[`timesheet.${i}.googleDistance`] = gDist;
+                            docModified = true;
+                            updated++;
+                        } else {
+                            failed++;
+                        }
+
+                        // Rate limit: small delay between API calls
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                    }
+
+                    if (docModified) {
+                        await Schedule.updateOne({ _id: doc._id }, { $set: updateObj });
+                    }
+                }
+
+                return NextResponse.json({
+                    success: true,
+                    message: `Backfill complete: ${updated} updated, ${skipped} skipped, ${failed} failed`
+                });
             }
 
             case 'getScheduleActivity': {
