@@ -23,6 +23,7 @@ import { DJTModal } from './components/DJTModal';
 import { TimesheetModal } from './components/TimesheetModal';
 import { DriveMapModal } from './components/DriveMapModal';
 import { ScheduleCard, ScheduleItem } from './components/ScheduleCard';
+import { EstimateChat } from '@/components/ui/EstimateChat';
 import { useToast } from '@/hooks/useToast';
 import { useAddShortcut } from '@/hooks/useAddShortcut';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -239,6 +240,8 @@ function SchedulePageContent() {
     const [showMobileFilters, setShowMobileFilters] = useState(false);
     // Mobile detail sheet visibility
     const [showMobileDetail, setShowMobileDetail] = useState(false);
+    // Right panel tab state
+    const [detailActiveTab, setDetailActiveTab] = useState<'aerial' | 'planning' | 'timecard' | 'chat'>('aerial');
     // Mobile search visibility
     const [showMobileSearch, setShowMobileSearch] = useState(false);
 
@@ -3011,13 +3014,48 @@ function SchedulePageContent() {
                                                 </div>
                                             )}
 
-                                            {/* Aerial Image & Site Layout */}
-                                            {(selectedSchedule.aerialImage || selectedSchedule.siteLayout) && (
-                                                <div className="pt-4 border-t border-slate-100">
+                                            {/* TABS SECTION */}
+                                            <div className="pt-4 border-t border-slate-100">
+                                                <div className="flex items-center justify-center">
+                                                    <div className="flex items-center p-1 bg-slate-100 rounded-lg self-center">
+                                                        <button 
+                                                            onClick={() => setDetailActiveTab('aerial')}
+                                                            className={`px-3 py-1.5 rounded-md text-[10px] font-bold transition-all ${detailActiveTab === 'aerial' ? 'bg-white text-[#0F4C75] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                                        >
+                                                            Aerial Layout
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => setDetailActiveTab('planning')}
+                                                            className={`px-3 py-1.5 rounded-md text-[10px] font-bold transition-all flex items-center gap-1 ${detailActiveTab === 'planning' ? 'bg-white text-[#0F4C75] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                                        >
+                                                            Job Planning
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => setDetailActiveTab('timecard')}
+                                                            className={`px-3 py-1.5 rounded-md text-[10px] font-bold transition-all flex items-center gap-1 ${detailActiveTab === 'timecard' ? 'bg-white text-[#0F4C75] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                                        >
+                                                            Time Card
+                                                            {selectedSchedule.timesheet?.length ? <span className="bg-slate-200 px-1.5 rounded-full text-[9px]">{selectedSchedule.timesheet.length}</span> : null}
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => setDetailActiveTab('chat')}
+                                                            className={`px-3 py-1.5 rounded-md text-[10px] font-bold transition-all ${detailActiveTab === 'chat' ? 'bg-white text-[#0F4C75] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                                        >
+                                                            Chat
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* TAB CONTENT */}
+                                            <div className="mt-3">
+                                                {/* TAB 1: AERIAL LAYOUT */}
+                                                {detailActiveTab === 'aerial' && (
                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                        {selectedSchedule.aerialImage && (
-                                                            <div>
-                                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Aerial Image</p>
+                                                        {/* Aerial Image */}
+                                                        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Aerial Image</p>
+                                                            {selectedSchedule.aerialImage ? (
                                                                 <div
                                                                     className="relative group cursor-pointer"
                                                                     onClick={() => setMediaModal({ isOpen: true, type: 'image', url: selectedSchedule.aerialImage!, title: 'Aerial Site View' })}
@@ -3025,18 +3063,25 @@ function SchedulePageContent() {
                                                                     <img
                                                                         src={selectedSchedule.aerialImage}
                                                                         alt="Aerial View"
-                                                                        className="w-full h-44 object-cover rounded-xl border border-slate-200 group-hover:opacity-90 transition-all shadow-sm"
+                                                                        className="w-full h-36 object-cover rounded-xl border border-slate-200 group-hover:opacity-90 transition-all shadow-sm"
                                                                     />
                                                                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                                                         <div className="px-3 py-1.5 bg-white/90 backdrop-blur text-[10px] font-bold text-slate-700 rounded-lg shadow-xl">Click to Enlarge</div>
                                                                     </div>
                                                                 </div>
-                                                            </div>
-                                                        )}
-                                                        {selectedSchedule.siteLayout && (
-                                                            <div>
-                                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Interactive 3D Site Preview</p>
-                                                                {(() => {
+                                                            ) : (
+                                                                <div className="w-full h-36 bg-slate-50 rounded-xl flex flex-col items-center justify-center text-slate-400 border border-dashed border-slate-200">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mb-2 opacity-40"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                                                                    <span className="text-xs font-medium">No aerial image</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Site Layout */}
+                                                        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">{selectedSchedule.siteLayout ? 'Site Layout' : 'Site Layout'}</p>
+                                                            {selectedSchedule.siteLayout ? (
+                                                                (() => {
                                                                     const earthUrl = selectedSchedule.siteLayout;
                                                                     const coordsMatch = earthUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
                                                                     const lat = coordsMatch?.[1];
@@ -3045,7 +3090,7 @@ function SchedulePageContent() {
 
                                                                     return (
                                                                         <div
-                                                                            className="relative w-full h-44 rounded-xl overflow-hidden border border-slate-200 shadow-sm bg-slate-100 group cursor-pointer"
+                                                                            className="relative w-full h-36 rounded-xl overflow-hidden border border-slate-200 shadow-sm bg-slate-100 group cursor-pointer"
                                                                             onClick={() => {
                                                                                 if (embedUrl) {
                                                                                     setMediaModal({ isOpen: true, type: 'map', url: embedUrl, title: 'Interactive Site Layout' });
@@ -3064,169 +3109,257 @@ function SchedulePageContent() {
                                                                                         className="w-full h-full pointer-events-none"
                                                                                     />
                                                                                     <div className="absolute inset-0 bg-transparent flex items-center justify-center group-hover:bg-black/5 transition-all">
-                                                                                        <div className="px-4 py-2 bg-white/90 backdrop-blur shadow-2xl rounded-xl scale-75 group-hover:scale-100 transition-transform flex items-center gap-2">
-                                                                                            <MapPin size={16} className="text-blue-600" />
-                                                                                            <span className="text-[11px] font-black text-slate-800 uppercase">Enlarge Interactive Map</span>
+                                                                                        <div className="px-3 py-1.5 bg-white/90 backdrop-blur shadow-2xl rounded-xl scale-75 group-hover:scale-100 transition-transform flex items-center gap-2">
+                                                                                            <MapPin size={14} className="text-blue-600" />
+                                                                                            <span className="text-[10px] font-black text-slate-800 uppercase">Enlarge Map</span>
                                                                                         </div>
                                                                                     </div>
                                                                                 </div>
                                                                             ) : (
                                                                                 <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center">
-                                                                                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg mb-3 group-hover:scale-110 transition-transform">
-                                                                                        <MapPin size={24} className="text-blue-600" />
+                                                                                    <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-lg mb-2 group-hover:scale-110 transition-transform">
+                                                                                        <MapPin size={20} className="text-blue-600" />
                                                                                     </div>
-                                                                                    <p className="text-xs font-black text-slate-800 uppercase tracking-tight">Open Google Earth</p>
+                                                                                    <p className="text-[10px] font-black text-slate-800 uppercase tracking-tight">Open Google Earth</p>
                                                                                 </div>
                                                                             )}
                                                                         </div>
                                                                     );
-                                                                })()}
+                                                                })()
+                                                            ) : (
+                                                                <div className="w-full h-36 bg-slate-50 rounded-xl flex flex-col items-center justify-center text-slate-400 border border-dashed border-slate-200">
+                                                                    <MapPin size={32} className="mb-2 opacity-40" />
+                                                                    <span className="text-xs font-medium">No site layout</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* TAB 2: JOB PLANNING */}
+                                                {detailActiveTab === 'planning' && (
+                                                    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                                                        <div className="p-3 border-b border-slate-100 bg-slate-50">
+                                                            <h4 className="text-xs font-bold text-slate-700 flex items-center gap-2">
+                                                                <FileCheck size={14} /> Job Planning Documents
+                                                            </h4>
+                                                        </div>
+                                                        {(() => {
+                                                            const est = initialData.estimates.find((e: any) => e.value === selectedSchedule.estimate);
+                                                            const docs = est?.jobPlanningDocs || [];
+                                                            return docs.length > 0 ? (
+                                                                <ul className="divide-y divide-slate-100">
+                                                                    {docs.map((doc: any, i: number) => (
+                                                                        <li key={i} className="p-3 hover:bg-slate-50 transition-colors">
+                                                                            <div className="flex items-start justify-between">
+                                                                                <div>
+                                                                                    <h5 className="text-xs font-bold text-slate-800 mb-1">{doc.documentName || 'Untitled Document'}</h5>
+                                                                                    <div className="flex flex-wrap gap-1.5 text-[10px] text-slate-500">
+                                                                                        {doc.planningType && <span className="bg-slate-100 px-1.5 py-0.5 rounded">Type: {doc.planningType}</span>}
+                                                                                        {doc.usaTicketNo && <span className="bg-slate-100 px-1.5 py-0.5 rounded">USA#: {doc.usaTicketNo}</span>}
+                                                                                    </div>
+                                                                                </div>
+                                                                                {doc.documents?.length > 0 && (
+                                                                                    <div className="flex flex-col gap-1">
+                                                                                        {doc.documents.map((file: any, fi: number) => (
+                                                                                            <a 
+                                                                                                key={fi} 
+                                                                                                href={file.url} 
+                                                                                                target="_blank" 
+                                                                                                rel="noreferrer"
+                                                                                                className="flex items-center gap-1.5 text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-2 py-1 rounded-lg border border-blue-100 transition-colors"
+                                                                                            >
+                                                                                                <FileText size={10} />
+                                                                                                View
+                                                                                            </a>
+                                                                                        ))}
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        </li>
+                                                                    ))}
+                                                                </ul>
+                                                            ) : (
+                                                                <div className="p-8 text-center text-slate-400">
+                                                                    <FileText size={36} className="mx-auto mb-2 opacity-20" />
+                                                                    <p className="text-xs font-medium">No job planning documents found.</p>
+                                                                </div>
+                                                            );
+                                                        })()}
+                                                    </div>
+                                                )}
+
+                                                {/* TAB 3: TIME CARD */}
+                                                {detailActiveTab === 'timecard' && (
+                                                    <div>
+                                                        {selectedSchedule.timesheet && selectedSchedule.timesheet.length > 0 ? (
+                                                            <div>
+                                                                <div className="flex items-center justify-between mb-3">
+                                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Timesheets</p>
+                                                                    <Badge variant="default" className="bg-slate-100 text-slate-500 border-none">{selectedSchedule.timesheet.length} Entries</Badge>
+                                                                </div>
+
+                                                                {Object.entries(
+                                                                    selectedSchedule.timesheet.reduce((acc: any, item: any) => {
+                                                                        const type = item.type || 'Other';
+                                                                        if (!acc[type]) acc[type] = [];
+                                                                        acc[type].push(item);
+                                                                        return acc;
+                                                                    }, {}) as Record<string, any[]>
+                                                                ).map(([type, items], groupIdx) => (
+                                                                    <div key={groupIdx} className="mb-4 last:mb-0">
+                                                                        <div className="flex items-center gap-2 mb-2">
+                                                                            <div className="w-1.5 h-1.5 rounded-full bg-[#0F4C75]"></div>
+                                                                            <h5 className="text-xs font-bold text-[#0F4C75] uppercase tracking-wide">{type}</h5>
+                                                                        </div>
+                                                                        <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
+                                                                            <table className="w-full text-left border-collapse">
+                                                                                <thead>
+                                                                                    <tr className="bg-slate-50/80 border-b border-slate-100">
+                                                                                        <th className="p-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider w-[25%]">Employee</th>
+                                                                                        <th className="p-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-center">In</th>
+                                                                                        <th className="p-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-center">Out</th>
+                                                                                        {!type.includes('SITE') && (
+                                                                                            <th className="p-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-right">Dist.</th>
+                                                                                        )}
+                                                                                        <th className="p-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-right">Hrs</th>
+                                                                                        <th className="p-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-right w-20">Actions</th>
+                                                                                    </tr>
+                                                                                </thead>
+                                                                                <tbody className="text-xs text-slate-600 divide-y divide-slate-50">
+                                                                                    {items.map((ts, idx) => {
+                                                                                        const emp = initialData.employees.find(e => e.value === ts.employee);
+                                                                                        const { hours, distance } = calculateTimesheetData(ts, selectedSchedule.fromDate);
+                                                                                        return (
+                                                                                            <tr key={idx} className="group hover:bg-blue-50/30 transition-colors">
+                                                                                                <td className="p-2">
+                                                                                                    <div className="flex items-center gap-2.5">
+                                                                                                        <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[9px] font-bold text-slate-500 overflow-hidden shrink-0 border border-white shadow-sm">
+                                                                                                            {emp?.image ? (
+                                                                                                                <img src={emp.image} className="w-full h-full object-cover" />
+                                                                                                            ) : (
+                                                                                                                (emp?.label?.[0] || ts.employee?.[0] || '?').toUpperCase()
+                                                                                                            )}
+                                                                                                        </div>
+                                                                                                        <div className="min-w-0 flex items-center gap-2">
+                                                                                                            <p className="font-bold text-slate-700 truncate max-w-[120px]">{emp?.label || ts.employee}</p>
+                                                                                                            {(String(ts.dumpWashout).toLowerCase() === 'true' || ts.dumpWashout === true || String(ts.dumpWashout).toLowerCase() === 'yes') && (
+                                                                                                                <Droplets size={12} className="text-teal-500" />
+                                                                                                            )}
+                                                                                                            {(String(ts.shopTime).toLowerCase() === 'true' || ts.shopTime === true) && (
+                                                                                                                <Warehouse size={12} className="text-amber-500" />
+                                                                                                            )}
+                                                                                                        </div>
+                                                                                                    </div>
+                                                                                                </td>
+                                                                                                <td className="p-2 text-center font-medium bg-slate-50/30 group-hover:bg-transparent transition-colors">
+                                                                                                    <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100/50">
+                                                                                                        {formatTimeOnly(ts.clockIn)}
+                                                                                                    </div>
+                                                                                                </td>
+                                                                                                <td className="p-2 text-center font-medium">
+                                                                                                    <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-rose-50 text-rose-700 border border-rose-100/50">
+                                                                                                        {formatTimeOnly(ts.clockOut)}
+                                                                                                    </div>
+                                                                                                </td>
+                                                                                                {!type.includes('SITE') && (
+                                                                                                    <td className="p-2 text-right font-medium text-slate-500">
+                                                                                                        {distance > 0 ? (
+                                                                                                            <button
+                                                                                                                onClick={(e) => {
+                                                                                                                    e.stopPropagation();
+                                                                                                                    const isCoord = (val: any) => typeof val === 'string' && val.includes(',');
+                                                                                                                    if (isCoord(ts.locationIn) && isCoord(ts.locationOut)) {
+                                                                                                                        setSelectedMapRoute({
+                                                                                                                            start: ts.locationIn,
+                                                                                                                            end: ts.locationOut,
+                                                                                                                            distance: distance
+                                                                                                                        });
+                                                                                                                        setMapModalOpen(true);
+                                                                                                                    }
+                                                                                                                }}
+                                                                                                                className={`hover:text-blue-600 ${ts.locationIn && ts.locationOut && typeof ts.locationIn === 'string' && ts.locationIn.includes(',') ? 'hover:underline cursor-pointer' : ''}`}
+                                                                                                            >
+                                                                                                                {distance.toFixed(1)} mi
+                                                                                                            </button>
+                                                                                                        ) : '-'}
+                                                                                                    </td>
+                                                                                                )}
+                                                                                                <td className="p-2 text-right font-bold text-[#0F4C75]">
+                                                                                                    {hours > 0 ? hours.toFixed(2) : '-'}
+                                                                                                </td>
+                                                                                                <td className="p-2 text-right">
+                                                                                                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
+                                                                                                        <Tooltip>
+                                                                                                            <TooltipTrigger asChild>
+                                                                                                                <button
+                                                                                                                    onClick={(e) => { e.stopPropagation(); handleEditTimesheetClick(ts, selectedSchedule._id); }}
+                                                                                                                    className="p-1.5 text-slate-400 hover:text-[#0F4C75] hover:bg-blue-50 rounded-lg transition-colors"
+                                                                                                                >
+                                                                                                                    <Edit size={12} />
+                                                                                                                </button>
+                                                                                                            </TooltipTrigger>
+                                                                                                            <TooltipContent>
+                                                                                                                <p>Edit</p>
+                                                                                                            </TooltipContent>
+                                                                                                        </Tooltip>
+                                                                                                        <Tooltip>
+                                                                                                            <TooltipTrigger asChild>
+                                                                                                                <button
+                                                                                                                    onClick={(e) => {
+                                                                                                                        e.stopPropagation();
+                                                                                                                        handleDeleteTimesheet(ts._id || ts.recordId);
+                                                                                                                    }}
+                                                                                                                    className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                                                                                                                >
+                                                                                                                    <Trash2 size={12} />
+                                                                                                                </button>
+                                                                                                            </TooltipTrigger>
+                                                                                                            <TooltipContent>
+                                                                                                                <p>Delete</p>
+                                                                                                            </TooltipContent>
+                                                                                                        </Tooltip>
+                                                                                                    </div>
+                                                                                                </td>
+                                                                                            </tr>
+                                                                                        );
+                                                                                    })}
+                                                                                </tbody>
+                                                                            </table>
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        ) : (
+                                                            <div className="p-8 text-center text-slate-400 bg-white rounded-xl border border-slate-200">
+                                                                <ClipboardList size={36} className="mx-auto mb-2 opacity-20" />
+                                                                <p className="text-xs font-medium">No timesheet entries yet.</p>
                                                             </div>
                                                         )}
                                                     </div>
-                                                </div>
-                                            )}
+                                                )}
 
-                                            {/* Row 12: Timesheets - Grouped */}
-                                            {selectedSchedule.timesheet && selectedSchedule.timesheet.length > 0 && (
-                                                <div className="pt-4 border-t border-slate-100">
-                                                    <div className="flex items-center justify-between mb-4">
-                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Timesheets</p>
-                                                        <Badge variant="default" className="bg-slate-100 text-slate-500 border-none">{selectedSchedule.timesheet.length} Entries</Badge>
+                                                {/* TAB 4: CHAT */}
+                                                {detailActiveTab === 'chat' && (
+                                                    <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm min-h-[300px]">
+                                                        {selectedSchedule.estimate ? (
+                                                            <EstimateChat 
+                                                                estimateId={selectedSchedule.estimate} 
+                                                                currentUserEmail={currentUser?.email} 
+                                                                employees={initialData.employees}
+                                                                height="350px"
+                                                            />
+                                                        ) : (
+                                                            <div className="h-[300px] flex flex-col items-center justify-center text-slate-400">
+                                                                <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mb-3">
+                                                                    <FileText size={24} className="opacity-50" />
+                                                                </div>
+                                                                <p className="text-xs font-medium">No estimate linked to this schedule.</p>
+                                                            </div>
+                                                        )}
                                                     </div>
-
-                                                    {Object.entries(
-                                                        selectedSchedule.timesheet.reduce((acc: any, item: any) => {
-                                                            const type = item.type || 'Other';
-                                                            if (!acc[type]) acc[type] = [];
-                                                            acc[type].push(item);
-                                                            return acc;
-                                                        }, {}) as Record<string, any[]>
-                                                    ).map(([type, items], groupIdx) => (
-                                                        <div key={groupIdx} className="mb-4 last:mb-0">
-                                                            <div className="flex items-center gap-2 mb-2">
-                                                                <div className="w-1.5 h-1.5 rounded-full bg-[#0F4C75]"></div>
-                                                                <h5 className="text-xs font-bold text-[#0F4C75] uppercase tracking-wide">{type}</h5>
-                                                            </div>
-                                                            <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
-                                                                <table className="w-full text-left border-collapse">
-                                                                    <thead>
-                                                                        <tr className="bg-slate-50/80 border-b border-slate-100">
-                                                                            <th className="p-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider w-[25%]">Employee</th>
-                                                                            <th className="p-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-center">In</th>
-                                                                            <th className="p-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-center">Out</th>
-                                                                            {!type.includes('SITE') && (
-                                                                                <th className="p-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-right">Dist.</th>
-                                                                            )}
-                                                                            <th className="p-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-right">Hrs</th>
-                                                                            <th className="p-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-right w-20">Actions</th>
-                                                                        </tr>
-                                                                    </thead>
-                                                                    <tbody className="text-xs text-slate-600 divide-y divide-slate-50">
-                                                                        {items.map((ts, idx) => {
-                                                                            const emp = initialData.employees.find(e => e.value === ts.employee);
-                                                                            const { hours, distance } = calculateTimesheetData(ts, selectedSchedule.fromDate);
-                                                                            return (
-                                                                                <tr key={idx} className="group hover:bg-blue-50/30 transition-colors">
-                                                                                    <td className="p-2">
-                                                                                        <div className="flex items-center gap-2.5">
-                                                                                            <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[9px] font-bold text-slate-500 overflow-hidden shrink-0 border border-white shadow-sm">
-                                                                                                {emp?.image ? (
-                                                                                                    <img src={emp.image} className="w-full h-full object-cover" />
-                                                                                                ) : (
-                                                                                                    (emp?.label?.[0] || ts.employee?.[0] || '?').toUpperCase()
-                                                                                                )}
-                                                                                            </div>
-                                                                                            <div className="min-w-0 flex items-center gap-2">
-                                                                                                <p className="font-bold text-slate-700 truncate max-w-[120px]">{emp?.label || ts.employee}</p>
-                                                                                                {(String(ts.dumpWashout).toLowerCase() === 'true' || ts.dumpWashout === true || String(ts.dumpWashout).toLowerCase() === 'yes') && (
-                                                                                                    <Droplets size={12} className="text-teal-500" />
-                                                                                                )}
-                                                                                                {(String(ts.shopTime).toLowerCase() === 'true' || ts.shopTime === true) && (
-                                                                                                    <Warehouse size={12} className="text-amber-500" />
-                                                                                                )}
-                                                                                            </div>
-                                                                                        </div>
-                                                                                    </td>
-                                                                                    <td className="p-2 text-center font-medium bg-slate-50/30 group-hover:bg-transparent transition-colors">
-                                                                                        <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100/50">
-                                                                                            {formatTimeOnly(ts.clockIn)}
-                                                                                        </div>
-                                                                                    </td>
-                                                                                    <td className="p-2 text-center font-medium">
-                                                                                        <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-rose-50 text-rose-700 border border-rose-100/50">
-                                                                                            {formatTimeOnly(ts.clockOut)}
-                                                                                        </div>
-                                                                                    </td>
-                                                                                    {!type.includes('SITE') && (
-                                                                                        <td className="p-2 text-right font-medium text-slate-500">
-                                                                                            {distance > 0 ? (
-                                                                                                <button
-                                                                                                    onClick={(e) => {
-                                                                                                        e.stopPropagation();
-                                                                                                        const isCoord = (val: any) => typeof val === 'string' && val.includes(',');
-                                                                                                        if (isCoord(ts.locationIn) && isCoord(ts.locationOut)) {
-                                                                                                            setSelectedMapRoute({
-                                                                                                                start: ts.locationIn,
-                                                                                                                end: ts.locationOut,
-                                                                                                                distance: distance
-                                                                                                            });
-                                                                                                            setMapModalOpen(true);
-                                                                                                        }
-                                                                                                    }}
-                                                                                                    className={`hover:text-blue-600 ${ts.locationIn && ts.locationOut && typeof ts.locationIn === 'string' && ts.locationIn.includes(',') ? 'hover:underline cursor-pointer' : ''}`}
-                                                                                                >
-                                                                                                    {distance.toFixed(1)} mi
-                                                                                                </button>
-                                                                                            ) : '-'}
-                                                                                        </td>
-                                                                                    )}
-                                                                                    <td className="p-2 text-right font-bold text-[#0F4C75]">
-                                                                                        {hours > 0 ? hours.toFixed(2) : '-'}
-                                                                                    </td>
-                                                                                    <td className="p-2 text-right">
-                                                                                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
-                                                                                            <Tooltip>
-                                                                                                <TooltipTrigger asChild>
-                                                                                                    <button
-                                                                                                        onClick={(e) => { e.stopPropagation(); handleEditTimesheetClick(ts, selectedSchedule._id); }}
-                                                                                                        className="p-1.5 text-slate-400 hover:text-[#0F4C75] hover:bg-blue-50 rounded-lg transition-colors"
-                                                                                                    >
-                                                                                                        <Edit size={12} />
-                                                                                                    </button>
-                                                                                                </TooltipTrigger>
-                                                                                                <TooltipContent>
-                                                                                                    <p>Edit</p>
-                                                                                                </TooltipContent>
-                                                                                            </Tooltip>
-                                                                                            <Tooltip>
-                                                                                                <TooltipTrigger asChild>
-                                                                                                    <button
-                                                                                                        onClick={(e) => {
-                                                                                                            e.stopPropagation();
-                                                                                                            handleDeleteTimesheet(ts._id || ts.recordId);
-                                                                                                        }}
-                                                                                                        className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
-                                                                                                    >
-                                                                                                        <Trash2 size={12} />
-                                                                                                    </button>
-                                                                                                </TooltipTrigger>
-                                                                                                <TooltipContent>
-                                                                                                    <p>Delete</p>
-                                                                                                </TooltipContent>
-                                                                                            </Tooltip>
-                                                                                        </div>
-                                                                                    </td>
-                                                                                </tr>
-                                                                            );
-                                                                        })}
-                                                                    </tbody>
-                                                                </table>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
+                                                )}
+                                            </div>
 
                                         </div>
                                     </div>
@@ -3520,6 +3653,62 @@ function SchedulePageContent() {
                                     </p>
                                 </div>
                             )}
+
+                            {/* Aerial Image & Site Layout */}
+                            <div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Aerial Image</p>
+                                        {selectedSchedule.aerialImage ? (
+                                            <div
+                                                className="relative group cursor-pointer"
+                                                onClick={() => setMediaModal({ isOpen: true, type: 'image', url: selectedSchedule.aerialImage!, title: 'Aerial Site View' })}
+                                            >
+                                                <img
+                                                    src={selectedSchedule.aerialImage}
+                                                    alt="Aerial View"
+                                                    className="w-full h-28 object-cover rounded-xl border border-slate-200 shadow-sm"
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div className="w-full h-28 bg-slate-50 rounded-xl flex flex-col items-center justify-center text-slate-400 border border-dashed border-slate-200">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mb-1 opacity-40"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                                                <span className="text-[10px] font-medium">No aerial image</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Site Layout</p>
+                                        {selectedSchedule.siteLayout ? (
+                                            <div
+                                                className="w-full h-28 rounded-xl overflow-hidden border border-slate-200 shadow-sm bg-slate-100 cursor-pointer"
+                                                onClick={() => {
+                                                    const earthUrl = selectedSchedule.siteLayout!;
+                                                    const coordsMatch = earthUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+                                                    const lat = coordsMatch?.[1];
+                                                    const lng = coordsMatch?.[2];
+                                                    const embedUrl = lat && lng ? `https://www.google.com/maps?q=${lat},${lng}&t=k&z=19&ie=UTF8&iwloc=&output=embed` : '';
+                                                    if (embedUrl) {
+                                                        setMediaModal({ isOpen: true, type: 'map', url: embedUrl, title: 'Site Layout' });
+                                                    } else {
+                                                        window.open(earthUrl, '_blank');
+                                                    }
+                                                }}
+                                            >
+                                                <div className="w-full h-full flex flex-col items-center justify-center p-2 text-center">
+                                                    <MapPin size={24} className="text-blue-600 mb-1" />
+                                                    <span className="text-[10px] font-bold text-slate-600">View Map</span>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="w-full h-28 bg-slate-50 rounded-xl flex flex-col items-center justify-center text-slate-400 border border-dashed border-slate-200">
+                                                <MapPin size={24} className="mb-1 opacity-40" />
+                                                <span className="text-[10px] font-medium">No site layout</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
 
                             {/* Today's Objectives */}
                             {selectedSchedule.todayObjectives && selectedSchedule.todayObjectives.length > 0 && (
