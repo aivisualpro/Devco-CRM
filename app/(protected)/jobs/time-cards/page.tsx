@@ -461,7 +461,7 @@ function TimeCardContent() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         action: 'saveIndividualTimesheet',
-                        payload: { timesheet: { _id: ts._id, scheduleId: ts.scheduleId, googleDistance: distMiles } }
+                        payload: { timesheet: { _id: ts._id, scheduleId: ts.scheduleId, employee: ts.employee, type: ts.type, googleDistance: distMiles } }
                     })
                 });
             }
