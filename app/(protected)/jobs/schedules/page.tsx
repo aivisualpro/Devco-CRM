@@ -241,7 +241,12 @@ function SchedulePageContent() {
     // Mobile detail sheet visibility
     const [showMobileDetail, setShowMobileDetail] = useState(false);
     // Right panel tab state
-    const [detailActiveTab, setDetailActiveTab] = useState<'aerial' | 'planning' | 'timecard' | 'chat'>('aerial');
+    const [detailActiveTab, setDetailActiveTab] = useState<'aerial' | 'planning' | 'timecard' | 'chat' | 'pothole' | 'prebore'>('aerial');
+    // Pothole & PreBore logs state for detail panel
+    const [detailPotholeLogs, setDetailPotholeLogs] = useState<any[]>([]);
+    const [detailPotholeLoading, setDetailPotholeLoading] = useState(false);
+    const [detailPreboreLogs, setDetailPreboreLogs] = useState<any[]>([]);
+    const [detailPreboreLoading, setDetailPreboreLoading] = useState(false);
     // Mobile search visibility
     const [showMobileSearch, setShowMobileSearch] = useState(false);
 
@@ -2590,7 +2595,12 @@ function SchedulePageContent() {
                                         onClick={() => {
                                             const isDeselecting = selectedSchedule?._id === item._id;
                                             setSelectedSchedule(isDeselecting ? null : item);
-                                            if (!isDeselecting) setShowMobileDetail(true);
+                                            if (!isDeselecting) {
+                                                setShowMobileDetail(true);
+                                                // Clear cached pothole/prebore logs when switching schedules
+                                                setDetailPotholeLogs([]);
+                                                setDetailPreboreLogs([]);
+                                            }
                                             else setShowMobileDetail(false);
                                         }}
                                         onEdit={(item) => {
@@ -3038,6 +3048,42 @@ function SchedulePageContent() {
                                                             {selectedSchedule.timesheet?.length ? <span className="bg-slate-200 px-1.5 rounded-full text-[9px]">{selectedSchedule.timesheet.length}</span> : null}
                                                         </button>
                                                         <button 
+                                                            onClick={() => {
+                                                                setDetailActiveTab('pothole');
+                                                                if (selectedSchedule.estimate && detailPotholeLogs.length === 0 && !detailPotholeLoading) {
+                                                                    setDetailPotholeLoading(true);
+                                                                    fetch(`/api/pothole-logs?estimate=${encodeURIComponent(selectedSchedule.estimate)}`)
+                                                                        .then(r => r.json())
+                                                                        .then(d => { if (d.success) setDetailPotholeLogs(d.result || []); })
+                                                                        .catch(err => console.error('Failed to fetch pothole logs', err))
+                                                                        .finally(() => setDetailPotholeLoading(false));
+                                                                }
+                                                            }}
+                                                            className={`px-3 py-1.5 rounded-md text-[10px] font-bold transition-all ${detailActiveTab === 'pothole' ? 'bg-white text-[#0F4C75] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                                        >
+                                                            Pothole Logs
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => {
+                                                                setDetailActiveTab('prebore');
+                                                                if (selectedSchedule._id && detailPreboreLogs.length === 0 && !detailPreboreLoading) {
+                                                                    setDetailPreboreLoading(true);
+                                                                    fetch('/api/pre-bore-logs', {
+                                                                        method: 'POST',
+                                                                        headers: { 'Content-Type': 'application/json' },
+                                                                        body: JSON.stringify({ action: 'getPreBoreLog', payload: { id: selectedSchedule._id } })
+                                                                    })
+                                                                        .then(r => r.json())
+                                                                        .then(d => { if (d.success) setDetailPreboreLogs(d.result?.preBore || []); })
+                                                                        .catch(err => console.error('Failed to fetch prebore logs', err))
+                                                                        .finally(() => setDetailPreboreLoading(false));
+                                                                }
+                                                            }}
+                                                            className={`px-3 py-1.5 rounded-md text-[10px] font-bold transition-all ${detailActiveTab === 'prebore' ? 'bg-white text-[#0F4C75] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                                        >
+                                                            Prebore Logs
+                                                        </button>
+                                                        <button 
                                                             onClick={() => setDetailActiveTab('chat')}
                                                             className={`px-3 py-1.5 rounded-md text-[10px] font-bold transition-all ${detailActiveTab === 'chat' ? 'bg-white text-[#0F4C75] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                                         >
@@ -3339,7 +3385,131 @@ function SchedulePageContent() {
                                                     </div>
                                                 )}
 
-                                                {/* TAB 4: CHAT */}
+                                                {/* TAB: POTHOLE LOGS */}
+                                                {detailActiveTab === 'pothole' && (
+                                                    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                                                        <div className="p-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+                                                            <h4 className="text-[10px] font-bold text-slate-700 flex items-center gap-2">
+                                                                <Circle size={12} /> Pothole Logs
+                                                            </h4>
+                                                            {detailPotholeLogs.length > 0 && <span className="text-[9px] bg-slate-200 px-1.5 py-0.5 rounded-full font-bold text-slate-600">{detailPotholeLogs.length}</span>}
+                                                        </div>
+                                                        {detailPotholeLoading ? (
+                                                            <div className="p-8 text-center"><Loader2 className="animate-spin mx-auto text-slate-400" size={20} /></div>
+                                                        ) : detailPotholeLogs.length > 0 ? (
+                                                            <div className="divide-y divide-slate-100 max-h-[400px] overflow-y-auto">
+                                                                {detailPotholeLogs.map((log: any, li: number) => (
+                                                                    <div key={log._id || li} className="p-3">
+                                                                        <div className="flex items-center justify-between mb-2">
+                                                                            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Log #{li + 1} — {log.date ? new Date(log.date).toLocaleDateString() : '-'}</p>
+                                                                            {log.projectionLocation && <span className="text-[9px] text-slate-400">{log.projectionLocation}</span>}
+                                                                        </div>
+                                                                        {log.potholeItems?.length > 0 ? (
+                                                                            <div className="overflow-hidden rounded-lg border border-slate-100">
+                                                                                <table className="w-full text-left border-collapse">
+                                                                                    <thead>
+                                                                                        <tr className="bg-slate-50/80 border-b border-slate-100">
+                                                                                            <th className="p-1.5 text-[8px] font-bold text-slate-400 uppercase">#</th>
+                                                                                            <th className="p-1.5 text-[8px] font-bold text-slate-400 uppercase">Utility</th>
+                                                                                            <th className="p-1.5 text-[8px] font-bold text-slate-400 uppercase">Soil</th>
+                                                                                            <th className="p-1.5 text-[8px] font-bold text-slate-400 uppercase text-center">Top</th>
+                                                                                            <th className="p-1.5 text-[8px] font-bold text-slate-400 uppercase text-center">Bottom</th>
+                                                                                        </tr>
+                                                                                    </thead>
+                                                                                    <tbody className="text-[10px] text-slate-600 divide-y divide-slate-50">
+                                                                                        {log.potholeItems.map((item: any, ii: number) => (
+                                                                                            <tr key={ii} className="hover:bg-blue-50/30 transition-colors">
+                                                                                                <td className="p-1.5 font-bold text-slate-700">{item.potholeNo || ii + 1}</td>
+                                                                                                <td className="p-1.5">{item.typeOfUtility || '-'}</td>
+                                                                                                <td className="p-1.5">{item.soilType || '-'}</td>
+                                                                                                <td className="p-1.5 text-center">{item.topDepthOfUtility || '-'}</td>
+                                                                                                <td className="p-1.5 text-center">{item.bottomDepthOfUtility || '-'}</td>
+                                                                                            </tr>
+                                                                                        ))}
+                                                                                    </tbody>
+                                                                                </table>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <p className="text-[9px] text-slate-400 italic">No pothole items</p>
+                                                                        )}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        ) : (
+                                                            <div className="p-8 text-center text-slate-400">
+                                                                <Circle size={28} className="mx-auto mb-2 opacity-20" />
+                                                                <p className="text-[10px] font-medium">No pothole logs found.</p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {/* TAB: PREBORE LOGS */}
+                                                {detailActiveTab === 'prebore' && (
+                                                    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                                                        <div className="p-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+                                                            <h4 className="text-[10px] font-bold text-slate-700 flex items-center gap-2">
+                                                                <StopCircle size={12} /> Prebore Logs
+                                                            </h4>
+                                                            {detailPreboreLogs.length > 0 && <span className="text-[9px] bg-slate-200 px-1.5 py-0.5 rounded-full font-bold text-slate-600">{detailPreboreLogs.length}</span>}
+                                                        </div>
+                                                        {detailPreboreLoading ? (
+                                                            <div className="p-8 text-center"><Loader2 className="animate-spin mx-auto text-slate-400" size={20} /></div>
+                                                        ) : detailPreboreLogs.length > 0 ? (
+                                                            <div className="divide-y divide-slate-100 max-h-[400px] overflow-y-auto">
+                                                                {detailPreboreLogs.map((pb: any, pi: number) => (
+                                                                    <div key={pb._id || pb.legacyId || pi} className="p-3">
+                                                                        <div className="flex items-center justify-between mb-2">
+                                                                            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Bore #{pi + 1} — {pb.date ? new Date(pb.date).toLocaleDateString() : '-'}</p>
+                                                                            {pb.devcoOperator && <span className="text-[9px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full font-bold border border-blue-100">{pb.devcoOperator}</span>}
+                                                                        </div>
+                                                                        <div className="grid grid-cols-2 gap-1.5 mb-2">
+                                                                            {pb.addressBoreStart && <div className="bg-slate-50 p-1.5 rounded-lg"><p className="text-[8px] text-slate-400 uppercase font-bold">Start</p><p className="text-[10px] font-medium text-slate-700 truncate">{pb.addressBoreStart}</p></div>}
+                                                                            {pb.addressBoreEnd && <div className="bg-slate-50 p-1.5 rounded-lg"><p className="text-[8px] text-slate-400 uppercase font-bold">End</p><p className="text-[10px] font-medium text-slate-700 truncate">{pb.addressBoreEnd}</p></div>}
+                                                                            {pb.drillSize && <div className="bg-slate-50 p-1.5 rounded-lg"><p className="text-[8px] text-slate-400 uppercase font-bold">Drill</p><p className="text-[10px] font-medium text-slate-700">{pb.drillSize}</p></div>}
+                                                                            {pb.boreLength && <div className="bg-slate-50 p-1.5 rounded-lg"><p className="text-[8px] text-slate-400 uppercase font-bold">Length</p><p className="text-[10px] font-medium text-slate-700">{pb.boreLength}</p></div>}
+                                                                            {pb.soilType && <div className="bg-slate-50 p-1.5 rounded-lg"><p className="text-[8px] text-slate-400 uppercase font-bold">Soil</p><p className="text-[10px] font-medium text-slate-700">{pb.soilType}</p></div>}
+                                                                            {pb.pipeSize && <div className="bg-slate-50 p-1.5 rounded-lg"><p className="text-[8px] text-slate-400 uppercase font-bold">Pipe</p><p className="text-[10px] font-medium text-slate-700">{pb.pipeSize}</p></div>}
+                                                                        </div>
+                                                                        {pb.preBoreLogs?.length > 0 && (
+                                                                            <div className="overflow-hidden rounded-lg border border-slate-100">
+                                                                                <table className="w-full text-left border-collapse">
+                                                                                    <thead>
+                                                                                        <tr className="bg-slate-50/80 border-b border-slate-100">
+                                                                                            <th className="p-1.5 text-[8px] font-bold text-slate-400 uppercase">Rod</th>
+                                                                                            <th className="p-1.5 text-[8px] font-bold text-slate-400 uppercase text-center">Dist</th>
+                                                                                            <th className="p-1.5 text-[8px] font-bold text-slate-400 uppercase text-center">Top</th>
+                                                                                            <th className="p-1.5 text-[8px] font-bold text-slate-400 uppercase text-center">Bottom</th>
+                                                                                            <th className="p-1.5 text-[8px] font-bold text-slate-400 uppercase text-center">O/U</th>
+                                                                                        </tr>
+                                                                                    </thead>
+                                                                                    <tbody className="text-[10px] text-slate-600 divide-y divide-slate-50">
+                                                                                        {pb.preBoreLogs.map((rod: any, ri: number) => (
+                                                                                            <tr key={ri} className="hover:bg-blue-50/30 transition-colors">
+                                                                                                <td className="p-1.5 font-bold text-slate-700">{rod.rodNumber || ri + 1}</td>
+                                                                                                <td className="p-1.5 text-center">{rod.distance || '-'}</td>
+                                                                                                <td className="p-1.5 text-center">{rod.topDepth || '-'}</td>
+                                                                                                <td className="p-1.5 text-center">{rod.bottomDepth || '-'}</td>
+                                                                                                <td className="p-1.5 text-center">{rod.overOrUnder || '-'}</td>
+                                                                                            </tr>
+                                                                                        ))}
+                                                                                    </tbody>
+                                                                                </table>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        ) : (
+                                                            <div className="p-8 text-center text-slate-400">
+                                                                <StopCircle size={28} className="mx-auto mb-2 opacity-20" />
+                                                                <p className="text-[10px] font-medium">No prebore logs found.</p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {/* TAB: CHAT */}
                                                 {detailActiveTab === 'chat' && (
                                                     <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm min-h-[300px]">
                                                         {selectedSchedule.estimate ? (

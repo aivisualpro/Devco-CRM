@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
     X, Calendar, Clock, MapPin, User, Users, FileText, 
     CheckCircle2, AlertCircle, Phone, Mail, Building2, 
     Droplets, Warehouse, Car, Info, ClipboardList,
     ArrowLeft, ChevronRight, ExternalLink, Image as ImageIcon,
-    FileCheck, Briefcase, MessageSquare
+    FileCheck, Briefcase, MessageSquare, Loader2, Drill, CircleDot
 } from 'lucide-react';
 import { Modal, Badge, Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/ui';
 import { EstimateChat } from '@/components/ui/EstimateChat';
@@ -92,7 +92,52 @@ export const ScheduleDetailsPopup: React.FC<ScheduleDetailsPopupProps> = ({
     currentUserEmail
 }) => {
     const [isMobile, setIsMobile] = useState(false);
-    const [activeTab, setActiveTab] = useState<'aerial' | 'planning' | 'timecard' | 'chat'>('aerial');
+    const [activeTab, setActiveTab] = useState<'aerial' | 'planning' | 'timecard' | 'chat' | 'pothole' | 'prebore'>('aerial');
+
+    // Pothole & PreBore logs state
+    const [potholeLogs, setPotholeLogs] = useState<any[]>([]);
+    const [potholeLoading, setPotholeLoading] = useState(false);
+    const [preboreLogs, setPreboreLogs] = useState<any[]>([]);
+    const [preboreLoading, setPreboreLoading] = useState(false);
+
+    // Fetch pothole logs when tab is selected
+    const fetchPotholeLogs = useCallback(async () => {
+        if (!schedule?.estimate) return;
+        setPotholeLoading(true);
+        try {
+            const res = await fetch(`/api/pothole-logs?estimate=${encodeURIComponent(schedule.estimate)}`);
+            const data = await res.json();
+            if (data.success) setPotholeLogs(data.result || []);
+        } catch (err) {
+            console.error('Failed to fetch pothole logs', err);
+        } finally {
+            setPotholeLoading(false);
+        }
+    }, [schedule?.estimate]);
+
+    // Fetch prebore logs when tab is selected
+    const fetchPreboreLogs = useCallback(async () => {
+        if (!schedule?._id) return;
+        setPreboreLoading(true);
+        try {
+            const res = await fetch('/api/pre-bore-logs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'getPreBoreLog', payload: { id: schedule._id } })
+            });
+            const data = await res.json();
+            if (data.success) setPreboreLogs(data.result?.preBore || []);
+        } catch (err) {
+            console.error('Failed to fetch prebore logs', err);
+        } finally {
+            setPreboreLoading(false);
+        }
+    }, [schedule?._id]);
+
+    useEffect(() => {
+        if (activeTab === 'pothole') fetchPotholeLogs();
+        if (activeTab === 'prebore') fetchPreboreLogs();
+    }, [activeTab, fetchPotholeLogs, fetchPreboreLogs]);
 
     useEffect(() => {
         const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -412,6 +457,18 @@ export const ScheduleDetailsPopup: React.FC<ScheduleDetailsPopupProps> = ({
                                     {schedule.timesheet?.length ? <span className="bg-slate-200 px-1.5 rounded-full text-[10px]">{schedule.timesheet.length}</span> : null}
                                 </button>
                                 <button 
+                                    onClick={() => setActiveTab('pothole')}
+                                    className={`px-4 py-2 rounded-md text-xs font-bold transition-all flex items-center gap-1 ${activeTab === 'pothole' ? 'bg-white text-[#0F4C75] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    Pothole Logs
+                                </button>
+                                <button 
+                                    onClick={() => setActiveTab('prebore')}
+                                    className={`px-4 py-2 rounded-md text-xs font-bold transition-all flex items-center gap-1 ${activeTab === 'prebore' ? 'bg-white text-[#0F4C75] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    Prebore Logs
+                                </button>
+                                <button 
                                     onClick={() => setActiveTab('chat')}
                                     className={`px-4 py-2 rounded-md text-xs font-bold transition-all flex items-center gap-1 ${activeTab === 'chat' ? 'bg-white text-[#0F4C75] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                 >
@@ -704,7 +761,142 @@ export const ScheduleDetailsPopup: React.FC<ScheduleDetailsPopupProps> = ({
                             </div>
                         )}
 
-                        {/* TAB 4: CHAT */}
+                        {/* TAB: POTHOLE LOGS */}
+                        {activeTab === 'pothole' && (
+                            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                                <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+                                    <h4 className="text-xs font-bold text-slate-700 flex items-center gap-2">
+                                        <CircleDot size={14} /> Pothole Logs
+                                    </h4>
+                                    {potholeLogs.length > 0 && <span className="text-[10px] bg-slate-200 px-2 py-0.5 rounded-full font-bold text-slate-600">{potholeLogs.length}</span>}
+                                </div>
+                                {potholeLoading ? (
+                                    <div className="p-12 text-center"><Loader2 className="animate-spin mx-auto text-slate-400" size={24} /></div>
+                                ) : potholeLogs.length > 0 ? (
+                                    <div className="divide-y divide-slate-100 max-h-[500px] overflow-y-auto">
+                                        {potholeLogs.map((log: any, li: number) => (
+                                            <div key={log._id || li} className="p-4">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Log #{li + 1} — {log.date ? new Date(log.date).toLocaleDateString() : '-'}</p>
+                                                    {log.projectionLocation && <span className="text-[10px] text-slate-400">{log.projectionLocation}</span>}
+                                                </div>
+                                                {log.potholeItems?.length > 0 ? (
+                                                    <div className="overflow-hidden rounded-lg border border-slate-100">
+                                                        <table className="w-full text-left border-collapse">
+                                                            <thead>
+                                                                <tr className="bg-slate-50/80 border-b border-slate-100">
+                                                                    <th className="p-2 text-[9px] font-bold text-slate-400 uppercase">#</th>
+                                                                    <th className="p-2 text-[9px] font-bold text-slate-400 uppercase">Utility Type</th>
+                                                                    <th className="p-2 text-[9px] font-bold text-slate-400 uppercase">Soil</th>
+                                                                    <th className="p-2 text-[9px] font-bold text-slate-400 uppercase text-center">Top Depth</th>
+                                                                    <th className="p-2 text-[9px] font-bold text-slate-400 uppercase text-center">Bottom Depth</th>
+                                                                    <th className="p-2 text-[9px] font-bold text-slate-400 uppercase text-center">Photos</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="text-xs text-slate-600 divide-y divide-slate-50">
+                                                                {log.potholeItems.map((item: any, ii: number) => (
+                                                                    <tr key={ii} className="hover:bg-blue-50/30 transition-colors">
+                                                                        <td className="p-2 font-bold text-slate-700">{item.potholeNo || ii + 1}</td>
+                                                                        <td className="p-2">{item.typeOfUtility || '-'}</td>
+                                                                        <td className="p-2">{item.soilType || '-'}</td>
+                                                                        <td className="p-2 text-center">{item.topDepthOfUtility || '-'}</td>
+                                                                        <td className="p-2 text-center">{item.bottomDepthOfUtility || '-'}</td>
+                                                                        <td className="p-2 text-center">
+                                                                            <div className="flex items-center justify-center gap-1">
+                                                                                {item.photo1 && <a href={item.photo1} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700"><ImageIcon size={12} /></a>}
+                                                                                {item.photo2 && <a href={item.photo2} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700"><ImageIcon size={12} /></a>}
+                                                                                {!item.photo1 && !item.photo2 && '-'}
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-[10px] text-slate-400 italic">No pothole items</p>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="p-12 text-center text-slate-400">
+                                        <CircleDot size={36} className="mx-auto mb-2 opacity-20" />
+                                        <p className="text-xs font-medium">No pothole logs found for this estimate.</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* TAB: PREBORE LOGS */}
+                        {activeTab === 'prebore' && (
+                            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                                <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+                                    <h4 className="text-xs font-bold text-slate-700 flex items-center gap-2">
+                                        <Drill size={14} /> Prebore Logs
+                                    </h4>
+                                    {preboreLogs.length > 0 && <span className="text-[10px] bg-slate-200 px-2 py-0.5 rounded-full font-bold text-slate-600">{preboreLogs.length}</span>}
+                                </div>
+                                {preboreLoading ? (
+                                    <div className="p-12 text-center"><Loader2 className="animate-spin mx-auto text-slate-400" size={24} /></div>
+                                ) : preboreLogs.length > 0 ? (
+                                    <div className="divide-y divide-slate-100 max-h-[500px] overflow-y-auto">
+                                        {preboreLogs.map((pb: any, pi: number) => (
+                                            <div key={pb._id || pb.legacyId || pi} className="p-4">
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Bore #{pi + 1} — {pb.date ? new Date(pb.date).toLocaleDateString() : '-'}</p>
+                                                    {pb.devcoOperator && <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold border border-blue-100">Operator: {pb.devcoOperator}</span>}
+                                                </div>
+                                                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-3">
+                                                    {pb.addressBoreStart && <div className="bg-slate-50 p-2 rounded-lg"><p className="text-[9px] text-slate-400 uppercase font-bold">Start Address</p><p className="text-[11px] font-medium text-slate-700 truncate">{pb.addressBoreStart}</p></div>}
+                                                    {pb.addressBoreEnd && <div className="bg-slate-50 p-2 rounded-lg"><p className="text-[9px] text-slate-400 uppercase font-bold">End Address</p><p className="text-[11px] font-medium text-slate-700 truncate">{pb.addressBoreEnd}</p></div>}
+                                                    {pb.drillSize && <div className="bg-slate-50 p-2 rounded-lg"><p className="text-[9px] text-slate-400 uppercase font-bold">Drill Size</p><p className="text-[11px] font-medium text-slate-700">{pb.drillSize}</p></div>}
+                                                    {pb.boreLength && <div className="bg-slate-50 p-2 rounded-lg"><p className="text-[9px] text-slate-400 uppercase font-bold">Bore Length</p><p className="text-[11px] font-medium text-slate-700">{pb.boreLength}</p></div>}
+                                                    {pb.pipeSize && <div className="bg-slate-50 p-2 rounded-lg"><p className="text-[9px] text-slate-400 uppercase font-bold">Pipe Size</p><p className="text-[11px] font-medium text-slate-700">{pb.pipeSize}</p></div>}
+                                                    {pb.soilType && <div className="bg-slate-50 p-2 rounded-lg"><p className="text-[9px] text-slate-400 uppercase font-bold">Soil Type</p><p className="text-[11px] font-medium text-slate-700">{pb.soilType}</p></div>}
+                                                    {(pb.reamers || pb.pilotBoreSize) && <div className="bg-slate-50 p-2 rounded-lg"><p className="text-[9px] text-slate-400 uppercase font-bold">Reamers / Pilot</p><p className="text-[11px] font-medium text-slate-700">{pb.reamers || '-'} / {pb.pilotBoreSize || '-'}</p></div>}
+                                                </div>
+                                                {pb.preBoreLogs?.length > 0 && (
+                                                    <div className="overflow-hidden rounded-lg border border-slate-100">
+                                                        <table className="w-full text-left border-collapse">
+                                                            <thead>
+                                                                <tr className="bg-slate-50/80 border-b border-slate-100">
+                                                                    <th className="p-2 text-[9px] font-bold text-slate-400 uppercase">Rod #</th>
+                                                                    <th className="p-2 text-[9px] font-bold text-slate-400 uppercase text-center">Distance</th>
+                                                                    <th className="p-2 text-[9px] font-bold text-slate-400 uppercase text-center">Top Depth</th>
+                                                                    <th className="p-2 text-[9px] font-bold text-slate-400 uppercase text-center">Bottom Depth</th>
+                                                                    <th className="p-2 text-[9px] font-bold text-slate-400 uppercase text-center">Over/Under</th>
+                                                                    <th className="p-2 text-[9px] font-bold text-slate-400 uppercase">Utilities</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="text-xs text-slate-600 divide-y divide-slate-50">
+                                                                {pb.preBoreLogs.map((rod: any, ri: number) => (
+                                                                    <tr key={ri} className="hover:bg-blue-50/30 transition-colors">
+                                                                        <td className="p-2 font-bold text-slate-700">{rod.rodNumber || ri + 1}</td>
+                                                                        <td className="p-2 text-center">{rod.distance || '-'}</td>
+                                                                        <td className="p-2 text-center">{rod.topDepth || '-'}</td>
+                                                                        <td className="p-2 text-center">{rod.bottomDepth || '-'}</td>
+                                                                        <td className="p-2 text-center">{rod.overOrUnder || '-'}</td>
+                                                                        <td className="p-2">{rod.existingUtilities || '-'}</td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="p-12 text-center text-slate-400">
+                                        <Drill size={36} className="mx-auto mb-2 opacity-20" />
+                                        <p className="text-xs font-medium">No prebore logs found for this schedule.</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* TAB: CHAT */}
                         {activeTab === 'chat' && (
                             <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm min-h-[500px]">
                                 {schedule.estimate ? (
