@@ -134,6 +134,7 @@ export interface ITimesheet {
     qty?: number;
     dumpQty?: number;
     shopQty?: number;
+    googleDistance?: number;
 }
 
 const TimesheetSchema = new Schema({
@@ -164,7 +165,8 @@ const TimesheetSchema = new Schema({
     hours: { type: Number },
     qty: { type: Number, default: 1 },
     dumpQty: { type: Number },
-    shopQty: { type: Number }
+    shopQty: { type: Number },
+    googleDistance: { type: Number }
 });
 
 const ScheduleSchema = new Schema({

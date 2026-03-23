@@ -434,6 +434,26 @@ function TimeCardContent() {
     const [googleDistances, setGoogleDistances] = useState<Map<string, number>>(new Map());
     const [fetchingGoogleDist, setFetchingGoogleDist] = useState<Set<string>>(new Set());
 
+    // Fetch Grouping Stats (Tree Data)
+    const fetchStats = useCallback(async () => {
+        setIsStatsLoading(true);
+        try {
+            const res = await fetch('/api/schedules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'getScheduleStats' })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setGroupingStats(data.result);
+            }
+        } catch (e) {
+            console.error("Failed to fetch grouping stats", e);
+        } finally {
+            setIsStatsLoading(false);
+        }
+    }, []);
+
     // Fetch Google Maps distance for a single entry and save to DB
     const handleFetchGoogleDist = useCallback(async (ts: TimesheetEntry) => {
         const locIn = String(ts.locationIn || '').trim();
@@ -456,7 +476,7 @@ function TimeCardContent() {
                 setGoogleDistances(prev => { const m = new Map(prev); m.set(key, distMiles); return m; });
 
                 // Save to DB
-                await fetch('/api/schedules', {
+                const saveRes = await fetch('/api/schedules', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -464,13 +484,29 @@ function TimeCardContent() {
                         payload: { timesheet: { _id: ts._id, scheduleId: ts.scheduleId, employee: ts.employee, type: ts.type, googleDistance: distMiles } }
                     })
                 });
+                const saveData = await saveRes.json();
+
+                // Update rawSchedules in memory so googleDistance persists across re-renders
+                if (saveData.success) {
+                    setRawSchedules(prev => prev.map(sched => {
+                        if (sched._id !== ts.scheduleId) return sched;
+                        return {
+                            ...sched,
+                            timesheet: (sched.timesheet || []).map(t =>
+                                String(t._id) === String(ts._id) ? { ...t, googleDistance: distMiles } as any : t
+                            )
+                        };
+                    }));
+                    // Refresh grouping stats so sidebar totals reflect the new distance
+                    fetchStats();
+                }
             }
         } catch (err) {
             console.error('Failed to fetch Google distance:', err);
         } finally {
             setFetchingGoogleDist(prev => { const s = new Set(prev); s.delete(tsId); return s; });
         }
-    }, []);
+    }, [fetchStats]);
 
     const clearFilters = () => {
         setFilEmployee('');
@@ -648,26 +684,6 @@ function TimeCardContent() {
 
     // Note: Using the global toLocalISO function defined above (timezone-agnostic)
 
-
-    // Fetch Grouping Stats (Tree Data)
-    const fetchStats = useCallback(async () => {
-        setIsStatsLoading(true);
-        try {
-            const res = await fetch('/api/schedules', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'getScheduleStats' })
-            });
-            const data = await res.json();
-            if (data.success) {
-                setGroupingStats(data.result);
-            }
-        } catch (e) {
-            console.error("Failed to fetch grouping stats", e);
-        } finally {
-            setIsStatsLoading(false);
-        }
-    }, []);
 
     useEffect(() => {
         fetchStats();

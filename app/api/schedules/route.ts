@@ -1789,16 +1789,23 @@ export async function POST(request: NextRequest) {
                     },
                     {
                         $addFields: {
-                            // Final drive distance: manual distance takes priority, then haversine
+                            // Final drive distance: manual distance takes priority, then Google Maps distance, then haversine
                             _driveDistance: {
                                 $cond: {
                                     if: { $gt: ["$_manualDist", 0] },
                                     then: "$_manualDist",
                                     else: {
                                         $cond: {
-                                            if: { $and: ["$hasLocationIn", "$hasLocationOut"] },
-                                            then: "$_haversineDist",
-                                            else: 0
+                                            // Priority 2: Stored Google Maps distance
+                                            if: { $gt: [{ $ifNull: ["$timesheet.googleDistance", 0] }, 0] },
+                                            then: "$timesheet.googleDistance",
+                                            else: {
+                                                $cond: {
+                                                    if: { $and: ["$hasLocationIn", "$hasLocationOut"] },
+                                                    then: "$_haversineDist",
+                                                    else: 0
+                                                }
+                                            }
                                         }
                                     }
                                 }
