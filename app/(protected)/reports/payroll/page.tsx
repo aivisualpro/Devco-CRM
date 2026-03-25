@@ -442,6 +442,10 @@ function PayrollReportContent() {
         rawSchedules.forEach(sched => {
             if (!sched.timesheet) return;
 
+            // Determine Per Diem eligibility at schedule level (outside timesheet loop)
+            const perDiemValue = String(sched.perDiem || '').trim().toLowerCase();
+            const isPerDiemEligible = (perDiemValue === 'yes' || perDiemValue === 'true' || sched.perDiem === true);
+
             sched.timesheet.forEach((ts: any) => {
                 const normalized = robustNormalizeISO(ts.clockIn);
                 if (!normalized) return;
@@ -502,23 +506,36 @@ function PayrollReportContent() {
                     employeesWork[empEmail].days[dayIdx].travelHrs += hours;
                 }
 
-                // Handle Per Diem: $50 per perDiem-eligible schedule per day per employee
-                const perDiemValue = String(sched.perDiem || '').trim().toLowerCase();
-                const isPerDiemEligible = (perDiemValue === 'yes' || perDiemValue === 'true' || sched.perDiem === true);
-                if (isPerDiemEligible) {
-                    const schedDayKey = `${sched._id}_${dayIdx}`;
-                    if (!employeesWork[empEmail].days[dayIdx].perDiemCounted.has(schedDayKey)) {
-                        employeesWork[empEmail].days[dayIdx].perDiemCounted.add(schedDayKey);
-                        employeesWork[empEmail].days[dayIdx].diem += 1;
-                    }
-                }
-
                 // Capture daily rates from entries if present
                 const rateS = parseRate(ts.hourlyRateSITE);
                 const rateD = parseRate(ts.hourlyRateDrive);
                 if (rateS !== null) employeesWork[empEmail].days[dayIdx].dayRateSite = rateS;
                 if (rateD !== null) employeesWork[empEmail].days[dayIdx].dayRateDrive = rateD;
             });
+
+            // Handle Per Diem OUTSIDE timesheet loop — based on schedule date range, not clockIn
+            // This avoids timezone-shifted clockIn times causing phantom extra days
+            if (isPerDiemEligible && sched.assignees?.length) {
+                // Get the schedule's date range as YYYY-MM-DD strings
+                const schedFromStr = sched.fromDate ? String(sched.fromDate).split('T')[0] : '';
+                const schedToStr = sched.toDate ? String(sched.toDate).split('T')[0] : schedFromStr;
+
+                sched.assignees.forEach((assigneeEmail: string) => {
+                    const empEmail = assigneeEmail.toLowerCase();
+                    if (!employeesWork[empEmail]) return; // Only for employees with timesheet data
+
+                    weekDayStrs.forEach((dayStr, dayIdx) => {
+                        // Check if this weekday falls within the schedule's date range
+                        if (dayStr >= schedFromStr && dayStr <= schedToStr) {
+                            const schedKey = `${sched._id}`;
+                            if (!employeesWork[empEmail].days[dayIdx].perDiemCounted.has(schedKey)) {
+                                employeesWork[empEmail].days[dayIdx].perDiemCounted.add(schedKey);
+                                employeesWork[empEmail].days[dayIdx].diem += 1;
+                            }
+                        }
+                    });
+                });
+            }
         });
 
         const filtered = Object.values(employeesWork).filter((ew: any) => {
