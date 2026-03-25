@@ -125,10 +125,14 @@ export const calculateTimesheetData = (ts: any, scheduleDate?: string) => {
 
         // Priority 1: Manual Distance (ignores calculated if set)
         const manualDist = ts.manualDistance ? parseFloat(String(ts.manualDistance)) : 0;
+        // Priority 2: Google Distance API (stored on timesheet from Google Maps Distance Matrix)
+        const googleDist = ts.googleDistance ? parseFloat(String(ts.googleDistance)) : 0;
         if (manualDist > 0) {
             distance = manualDist;
+        } else if (googleDist > 0) {
+            distance = googleDist;
         } else {
-            // Priority 2: Calculated Distance
+            // Priority 3: Haversine fallback
             distance = calculatedDistance;
         }
 

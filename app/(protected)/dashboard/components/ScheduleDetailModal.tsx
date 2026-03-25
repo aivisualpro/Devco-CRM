@@ -8,6 +8,7 @@ import {
     ArrowLeft, ChevronRight
 } from 'lucide-react';
 import { Modal, Badge, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui';
+import { calculateTimesheetData as sharedCalculateTimesheetData } from '@/lib/timeCardUtils';
 
 interface Objective {
     text: string;
@@ -80,28 +81,7 @@ const formatTimeOnly = (dateStr?: any) => {
 const calculateTimesheetData = (ts: any, scheduleDate: string) => {
     try {
         const qty = ts.qty || 1;
-        if (ts.hours !== undefined && ts.hours !== null) {
-            return { hours: Number(ts.hours), distance: Number(ts.distance || 0), qty };
-        }
-        const cin = toUTCDate(ts.clockIn);
-        const cout = ts.clockOut ? toUTCDate(ts.clockOut) : null;
-        let hours = 0;
-        if (cin && cout) {
-            hours = (cout.getTime() - cin.getTime()) / (1000 * 60 * 60);
-        }
-        let distance = 0;
-        if (ts.locationIn && ts.locationOut && typeof ts.locationIn === 'string' && ts.locationIn.includes(',')) {
-            const [lat1, lon1] = ts.locationIn.split(',').map(Number);
-            const [lat2, lon2] = ts.locationOut.split(',').map(Number);
-            const R = 3958.8;
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                    Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * 
-                    Math.sin(dLon/2) * Math.sin(dLon/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            distance = R * c;
-        }
+        const { hours, distance } = sharedCalculateTimesheetData(ts, scheduleDate);
         return { hours, distance, qty };
     } catch { return { hours: 0, distance: 0, qty: 1 }; }
 };

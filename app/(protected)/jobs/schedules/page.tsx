@@ -49,6 +49,7 @@ import {
     getCurrentWeekDates,
     getLocalNowISO
 } from '@/lib/scheduleUtils';
+import { calculateTimesheetData } from '@/lib/timeCardUtils';
 
 interface Objective {
     text: string;
@@ -1609,119 +1610,8 @@ function SchedulePageContent() {
 
     // formatTimeOnly is imported from lib/scheduleUtils.ts
 
-    const calculateTimesheetData = (ts: any, scheduleDate: string) => {
-        let hours = 0;
-        let distance = 0;
-        // Normalize type
-        const type = (ts.type || '').toUpperCase();
-
-        // Safe parse helpers
-        const parseLoc = (val: any) => {
-            const num = parseFloat(String(val).replace(/,/g, ''));
-            return isNaN(num) ? 0 : num;
-        };
-
-        const isCoord = (val: any) => typeof val === 'string' && val.includes(',') && !isNaN(Number(val.split(',')[0]));
-
-        const DISTANCE_CUTOFF = new Date('2026-01-12T00:00:00');
-        const tsDateStr = ts.clockIn || scheduleDate;
-        const tsDate = new Date(tsDateStr);
-        const DRIVING_FACTOR = 1.50; // Multiplier to convert straight-line to approximate driving distance
-
-        // Calculate Hours & Distance
-        if (!type.includes('SITE')) {
-            if (tsDate < DISTANCE_CUTOFF) {
-                // BEFORE CUTOFF: Use hours in database for distance
-                hours = typeof ts.hours === 'number' ? ts.hours : (parseFloat(String(ts.hours)) || 0);
-                distance = hours * 55;
-            } else {
-                // ON/AFTER CUTOFF: Calculate driving distance
-                if (isCoord(ts.locationIn) && isCoord(ts.locationOut)) {
-                    const [lat1, lon1] = ts.locationIn.split(',').map(Number);
-                    const [lat2, lon2] = ts.locationOut.split(',').map(Number);
-                    // Straight line distance (3958.8 radius) * Driving Factor (1.364)
-                    distance = getDistanceFromLatLonInMiles(lat1, lon1, lat2, lon2) * DRIVING_FACTOR;
-                } else {
-                    const locIn = parseLoc(ts.locationIn);
-                    const locOut = parseLoc(ts.locationOut);
-                    if (locOut > locIn) {
-                        distance = locOut - locIn;
-                    }
-                }
-
-                // Hours from distance (for new records)
-                if (distance > 0) {
-                    hours = distance / 55;
-                } else if (String(ts.dumpWashout).toLowerCase() === 'true' || ts.dumpWashout === true || String(ts.dumpWashout).toLowerCase() === 'yes') {
-                    hours = 0.5;
-                } else if (String(ts.shopTime).toLowerCase() === 'true' || ts.shopTime === true) {
-                    hours = 0.25;
-                }
-            }
-        }
-        else if (type.includes('SITE')) {
-            // Rule: Calculate Duration
-            if (ts.clockIn && ts.clockOut) {
-                const start = new Date(ts.clockIn).getTime();
-                const end = new Date(ts.clockOut).getTime();
-                let durationMs = end - start;
-
-                // Subtract lunch
-                if (ts.lunchStart && ts.lunchEnd) {
-                    const lStart = new Date(ts.lunchStart).getTime();
-                    const lEnd = new Date(ts.lunchEnd).getTime();
-                    if (lEnd > lStart) {
-                        durationMs -= (lEnd - lStart);
-                    }
-                }
-
-                if (durationMs > 0) {
-                    const totalHoursRaw = durationMs / (1000 * 60 * 60);
-
-                    // Date Check for Logic Branching
-                    const tsDateStr = ts.clockIn || scheduleDate;
-                    const tsDate = new Date(tsDateStr);
-                    const cutoffDate = new Date('2025-10-26T00:00:00'); // ensuring comparison works
-
-                    if (tsDate < cutoffDate) {
-                        // Old Logic: exact decimal hours
-                        hours = totalHoursRaw;
-                    } else {
-                        // New Logic (>= 10/26/2025)
-                        if (totalHoursRaw >= 7.75 && totalHoursRaw < 8.0) {
-                            hours = 8.0;
-                        } else {
-                            // Minute Rounding Logic
-                            const h = Math.floor(totalHoursRaw);
-                            const m = Math.round((totalHoursRaw - h) * 60); // Get minute part
-
-                            let roundedM = 0;
-                            // IFS(AND(M>1,M<=14),0, AND(M>14,M<=29),15, AND(M>29,M<=44),30, AND(M>44,M<=59),45)
-                            if (m > 1 && m <= 14) roundedM = 0;
-                            else if (m > 14 && m <= 29) roundedM = 15;
-                            else if (m > 29 && m <= 44) roundedM = 30;
-                            else if (m > 44 && m <= 59) roundedM = 45;
-                            else if (m > 59) {
-                                // edge case close to 60, usually 0 and add hour, but strict to formula logic:
-                                // "AND(MINUTE([Duration])>44,MINUTE([Duration])<=59),45" -> undefined for 60.
-                                // We'll assume standard behavior or just 45 if it caps there, 
-                                // but mathematically 60 mins -> next hour. Let's stick to adding fractional part.
-                                // If simple logic:
-                                roundedM = 0; // Reset
-                            } else {
-                                // 0 or 1
-                                roundedM = 0;
-                            }
-
-                            hours = h + (roundedM / 60);
-                        }
-                    }
-                }
-            }
-        }
-
-        return { hours, distance };
-    };
+    // calculateTimesheetData is now imported from @/lib/timeCardUtils
+    // This ensures consistent distance priority: Manual > Google Distance API > Haversine
 
     // deg2rad, getDistanceFromLatLonInMiles, and toLocalISO are imported from lib/scheduleUtils.ts
 
