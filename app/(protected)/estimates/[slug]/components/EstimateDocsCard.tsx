@@ -116,6 +116,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     const [aggregatedReceipts, setAggregatedReceipts] = useState<any[]>([]);
     const [aggregatedBillingTickets, setAggregatedBillingTickets] = useState<any[]>([]); // New State
     const [loadingReceipts, setLoadingReceipts] = useState(false);
+    const [billingTicketAssignees, setBillingTicketAssignees] = useState<string[]>(['dt@devco-inc.com', 'rosa@devco-inc.com']);
 
     // Job Docs State: JHA, Job Tickets, Pothole Logs, Pre-Bore Logs
     const [jhaRecords, setJhaRecords] = useState<any[]>([]);
@@ -208,6 +209,18 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     const [prelimDocToDelete, setPrelimDocToDelete] = useState<string | null>(null);
     const [isPrelimAccordionOpen, setIsPrelimAccordionOpen] = useState(true);
     const prelimUploadRef = React.useRef<HTMLInputElement>(null);
+
+    // Fetch billing ticket assignees setting
+    useEffect(() => {
+        fetch('/api/app-settings?key=billingTicketAssignees')
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.result?.data && Array.isArray(data.result.data)) {
+                    setBillingTicketAssignees(data.result.data);
+                }
+            })
+            .catch(console.error);
+    }, []);
 
     useEffect(() => {
         const fetchAllVersions = async () => {
@@ -1635,7 +1648,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             task: taskDescription,
-                            assignees: ['dt@devco-inc.com'],
+                            assignees: billingTicketAssignees,
                             status: 'todo',
                             dueDate: new Date(new Date().toLocaleDateString('en-US')),
                             estimate: formData?.estimate || '',

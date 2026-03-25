@@ -84,6 +84,7 @@ export default function BillingTicketsPage() {
     const [sentDateValue, setSentDateValue] = useState(format(new Date(), 'yyyy-MM-dd'));
 
     const [employees, setEmployees] = useState<any[]>([]);
+    const [billingTicketAssignees, setBillingTicketAssignees] = useState<string[]>(['dt@devco-inc.com', 'rosa@devco-inc.com']);
 
     // Estimate Selection
     const [selectedEstimateId, setSelectedEstimateId] = useState<string>('');
@@ -141,6 +142,16 @@ export default function BillingTicketsPage() {
             .then(res => res.json())
             .then(data => {
                 if (data.success) setEmployees(data.result || []);
+            })
+            .catch(console.error);
+
+        // Fetch billing ticket assignees setting
+        fetch('/api/app-settings?key=billingTicketAssignees')
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.result?.data && Array.isArray(data.result.data)) {
+                    setBillingTicketAssignees(data.result.data);
+                }
             })
             .catch(console.error);
     }, []);
@@ -555,7 +566,7 @@ export default function BillingTicketsPage() {
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 task: taskDescription,
-                                assignees: ['dt@devco-inc.com'],
+                                assignees: billingTicketAssignees,
                                 status: 'todo',
                                 dueDate: new Date(new Date().toLocaleDateString('en-US')),
                                 estimate: targetEstimate.estimate || '',
