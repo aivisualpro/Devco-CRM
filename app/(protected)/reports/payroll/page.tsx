@@ -474,6 +474,7 @@ function PayrollReportContent() {
                                 driveHrs: 0,
                                 travelHrs: 0,
                                 diem: 0,
+                                perDiemCounted: new Set<string>(),
                                 dayRateSite: null as number | null,
                                 dayRateDrive: null as number | null,
                                 entries: []
@@ -501,9 +502,15 @@ function PayrollReportContent() {
                     employeesWork[empEmail].days[dayIdx].travelHrs += hours;
                 }
 
-                // Handle Per Diem if present
-                if (ts.perDiem) {
-                    employeesWork[empEmail].days[dayIdx].diem = (employeesWork[empEmail].days[dayIdx].diem || 0) + (parseFloat(ts.perDiem) || 0);
+                // Handle Per Diem: $50 per perDiem-eligible schedule per day per employee
+                const perDiemValue = String(sched.perDiem || '').trim().toLowerCase();
+                const isPerDiemEligible = (perDiemValue === 'yes' || perDiemValue === 'true' || sched.perDiem === true);
+                if (isPerDiemEligible) {
+                    const schedDayKey = `${sched._id}_${dayIdx}`;
+                    if (!employeesWork[empEmail].days[dayIdx].perDiemCounted.has(schedDayKey)) {
+                        employeesWork[empEmail].days[dayIdx].perDiemCounted.add(schedDayKey);
+                        employeesWork[empEmail].days[dayIdx].diem += 1;
+                    }
                 }
 
                 // Capture daily rates from entries if present
@@ -608,7 +615,7 @@ function PayrollReportContent() {
                 };
             });
 
-            const totalAmount = totalRegAmount + totalOtAmount + totalDtAmount + totalTravelAmount + totalDiem;
+            const totalAmount = totalRegAmount + totalOtAmount + totalDtAmount + totalTravelAmount + (totalDiem * 50);
 
             return {
                 employee: ew.email,
@@ -732,13 +739,13 @@ function PayrollReportContent() {
             ));
 
             // 7. Per Diem Row
-            const diemValues = emp.days.map(d => d.diem > 0 ? `$${d.diem.toFixed(2)}` : '');
+            const diemValues = emp.days.map(d => d.diem > 0 ? 'Yes' : '');
             rows.push(createRow(
                 'Per Diem',
                 diemValues,
-                `$${emp.totalDiem.toFixed(2)}`,
+                `${emp.totalDiem}`,
                 '',
-                `$${emp.totalDiem.toFixed(2)}`
+                `$${(emp.totalDiem * 50).toFixed(2)}`
             ));
 
             // 8. Total Net Row (Hours and Amounts)
@@ -1244,14 +1251,14 @@ function PayrollReportContent() {
                                                 <tr className="hover:bg-blue-50/50 transition-colors cursor-help" onClick={() => setSelectedDetail({ employee: emp, type: 'Per Diem' })}>
                                                     <td className="px-4 py-2 font-black text-[9px] uppercase tracking-wider text-slate-500/80 border-b border-white/40">Per Diem</td>
                                                     {emp.days.map((d, i) => (
-                                                        <td key={i} className="px-2 py-2 text-[11px] font-black text-slate-400 text-center border-b border-white/40">
-                                                            {d.diem > 0 ? d.diem.toFixed(2) : '--'}
+                                                        <td key={i} className="px-2 py-2 text-[11px] font-black text-center border-b border-white/40">
+                                                            {d.diem > 0 ? <span className="text-green-600">YES</span> : <span className="text-slate-300">--</span>}
                                                         </td>
                                                     ))}
-                                                    <td className="px-4 py-2 border-b border-white/40"></td>
+                                                    <td className="px-4 py-2 text-center text-[12px] font-black text-slate-800 border-b border-white/40">{emp.totalDiem > 0 ? emp.totalDiem : ''}</td>
                                                     <td className="px-4 py-2 border-b border-white/40"></td>
                                                     <td className="px-4 py-2 text-right text-[12px] font-black text-slate-800 border-b border-white/40">
-                                                        ${emp.totalDiem.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                        ${(emp.totalDiem * 50).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                     </td>
                                                 </tr>
 
@@ -1259,7 +1266,7 @@ function PayrollReportContent() {
                                                     <td className="px-4 py-4 font-black text-[11px] uppercase tracking-[0.2em] italic text-[#0F4C75] border-b-[20px] border-transparent">Total Net</td>
                                                     {emp.days.map((d, i) => (
                                                         <td key={i} className="px-2 py-4 text-[12px] font-black text-center text-slate-900 border-b-[20px] border-transparent">
-                                                            {(d.reg + d.ot + d.dt + d.travel + d.diem) > 0 ? (d.reg + d.ot + d.dt + d.travel + d.diem).toFixed(2) : '--'}
+                                                            {(d.reg + d.ot + d.dt + d.travel) > 0 ? (d.reg + d.ot + d.dt + d.travel).toFixed(2) : '--'}
                                                         </td>
                                                     ))}
                                                     <td className="px-4 py-4 text-center text-[13px] font-black text-slate-900 bg-white/20 border-b-[20px] border-transparent">{emp.totalHrs.toFixed(2)}</td>
@@ -1445,7 +1452,8 @@ function PayrollReportContent() {
                                         {selectedDetail.employee.days.map((d, i) => (
                                             <div key={i} className="p-4 rounded-2xl neu-outset bg-white/50 text-center">
                                                 <p className="text-[8px] font-black uppercase text-slate-400 mb-1">{formatDate(d.date, 'EEEE')}</p>
-                                                <p className="text-lg font-black text-slate-900">${d.diem.toFixed(2)}</p>
+                                                <p className={`text-lg font-black ${d.diem > 0 ? 'text-green-600' : 'text-slate-300'}`}>{d.diem > 0 ? 'YES' : '--'}</p>
+                                                {d.diem > 0 && <p className="text-xs text-slate-500 mt-1">${(d.diem * 50).toFixed(2)}</p>}
                                             </div>
                                         ))}
                                     </div>
@@ -1472,7 +1480,7 @@ function PayrollReportContent() {
                                                     selectedDetail.type === 'Overtime' ? selectedDetail.employee.totalOtAmount :
                                                         selectedDetail.type === 'Double Time' ? selectedDetail.employee.totalDtAmount :
                                                             selectedDetail.type === 'Travel' ? selectedDetail.employee.totalTravelAmount :
-                                                                selectedDetail.type === 'Per Diem' ? selectedDetail.employee.totalDiem : 0
+                                                                selectedDetail.type === 'Per Diem' ? selectedDetail.employee.totalDiem * 50 : 0
                                             ).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                         </p>
                                     </div>

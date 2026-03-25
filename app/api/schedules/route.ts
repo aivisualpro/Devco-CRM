@@ -1203,6 +1203,7 @@ export async function POST(request: NextRequest) {
                                         title: 1, projectTitle: 1, jobTitle: 1,
                                         item: 1, fringe: 1, certifiedPayroll: 1,
                                         customerName: 1, customerId: 1,
+                                        perDiem: 1, assignees: 1,
                                         createdAt: 1, updatedAt: 1
                                     } : {
                                         // SCHEDULE LIST MODE: Exclude timesheet array and heavy signature data
