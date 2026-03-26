@@ -9,6 +9,7 @@ import { getUserPermissions, getDataScope, isSuperAdmin } from '@/lib/permission
 import { MODULES } from '@/lib/permissions/types';
 import { sendSMS } from '@/lib/signalwire';
 import { createNotifications } from '@/lib/notifications';
+import { Resend } from 'resend';
 
 // Helper to fetch real driving distance from Google Maps Distance Matrix API
 async function fetchGoogleDistance(locIn?: string, locOut?: string): Promise<number | null> {
@@ -338,6 +339,116 @@ export async function POST(request: NextRequest) {
                         }
                     } catch (smsErr) {
                         console.error('[SMS] ❌ Error sending notifications:', smsErr);
+                    }
+                }
+
+                // ── Schedule Alert Email ──
+                if (shouldNotify && Array.isArray(docAny.assignees) && docAny.assignees.length > 0) {
+                    try {
+                        const alertSetting = await Constant.findOne({ type: 'AppSettings', value: 'emailBot_scheduleAlert' }).lean();
+                        const alertConfig = (alertSetting as any)?.data;
+                        const alertEnabled = alertConfig ? alertConfig.enabled !== false : true;
+
+                        if (alertEnabled && process.env.RESEND_API_KEY) {
+                            const resendClient = new Resend(process.env.RESEND_API_KEY);
+                            const fromName = alertConfig?.fromName || 'DEVCO Notifications';
+
+                            // Fetch assignee emails
+                            const assigneeDocs = await Employee.find({ email: { $in: docAny.assignees } }).select('email firstName lastName').lean();
+                            const recipientEmails = assigneeDocs.map((e: any) => e.email).filter(Boolean);
+
+                            if (recipientEmails.length > 0) {
+                                const fmtDate = (d: any) => d ? new Date(d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : 'N/A';
+                                const fmtDateShort = (d: any) => d ? new Date(d).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : 'N/A';
+                                const title = docAny.title || docAny.customerName || 'New Schedule';
+
+                                const scheduleFields = [
+                                    { label: 'Customer', value: docAny.customerName || '--', icon: '🏢' },
+                                    { label: 'Job Location', value: docAny.jobLocation || '--', icon: '📍' },
+                                    { label: 'Estimate #', value: docAny.estimate || '--', icon: '📋' },
+                                    { label: 'Date', value: `${fmtDateShort(docAny.fromDate)} – ${fmtDateShort(docAny.toDate)}`, icon: '📅' },
+                                    { label: 'Service', value: docAny.service || '--', icon: '⚡' },
+                                    { label: 'Item', value: docAny.item || '--', icon: '🔧' },
+                                    { label: 'Foreman', value: docAny.foremanName || '--', icon: '👷' },
+                                    { label: 'Project Manager', value: docAny.projectManager || '--', icon: '👤' },
+                                    { label: 'Description', value: docAny.description || '--', icon: '📝' },
+                                    { label: 'Per Diem', value: docAny.perDiem || 'No', icon: '💰' },
+                                    { label: 'Certified Payroll', value: docAny.certifiedPayroll || 'No', icon: '✅' },
+                                    { label: 'Fringe', value: docAny.fringe || '--', icon: '💵' },
+                                ];
+
+                                const fieldRows = scheduleFields.map((f, i) =>
+                                    `<tr style="background:${i % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+                                        <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9;font-size:12px;">
+                                            <span style="margin-right:6px;">${f.icon}</span>
+                                            <strong style="color:#64748b;text-transform:uppercase;letter-spacing:0.5px;font-size:10px;">${f.label}</strong>
+                                        </td>
+                                        <td style="padding:10px 16px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#334155;font-weight:600;">${f.value}</td>
+                                    </tr>`
+                                ).join('');
+
+                                // Build assignee names for greeting
+                                const assigneeNames = assigneeDocs.map((e: any) => `${e.firstName || ''} ${e.lastName || ''}`.trim()).filter(Boolean);
+
+                                const emailHtml = `
+                                <!DOCTYPE html>
+                                <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+                                <body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+                                    <div style="max-width:640px;margin:0 auto;padding:24px;">
+                                        <!-- Header Banner -->
+                                        <div style="background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#0f172a 100%);border-radius:16px;padding:32px 40px;text-align:center;margin-bottom:24px;">
+                                            <p style="margin:0 0 4px 0;font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:2px;">📅 NEW SCHEDULE ASSIGNED</p>
+                                            <h1 style="margin:0 0 6px 0;font-size:24px;font-weight:900;color:#fbbf24;letter-spacing:-0.5px;">${title}</h1>
+                                            <p style="margin:0;font-size:13px;color:#cbd5e1;font-weight:500;">${fmtDate(docAny.fromDate)}</p>
+                                        </div>
+
+                                        <!-- Greeting -->
+                                        <div style="background:#ffffff;border-radius:16px;padding:24px 28px;border:1px solid #e2e8f0;margin-bottom:16px;">
+                                            <p style="margin:0;font-size:14px;color:#334155;line-height:1.6;">
+                                                Hi Team,<br><br>
+                                                You have been assigned to a new schedule. Please review the details below and prepare accordingly.
+                                            </p>
+                                        </div>
+
+                                        <!-- Schedule Details -->
+                                        <div style="background:#ffffff;border-radius:16px;padding:0;border:1px solid #e2e8f0;overflow:hidden;margin-bottom:16px;">
+                                            <div style="padding:16px 20px;background:linear-gradient(90deg,#0f172a,#1e293b);">
+                                                <h2 style="margin:0;font-size:13px;font-weight:800;color:#ffffff;text-transform:uppercase;letter-spacing:1px;">📋 Schedule Details</h2>
+                                            </div>
+                                            <table style="width:100%;border-collapse:collapse;">
+                                                ${fieldRows}
+                                            </table>
+                                        </div>
+
+                                        <!-- Assignees -->
+                                        <div style="background:#ffffff;border-radius:16px;padding:20px 28px;border:1px solid #e2e8f0;margin-bottom:16px;">
+                                            <p style="margin:0 0 8px 0;font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:1px;">👥 Assigned Team</p>
+                                            <p style="margin:0;font-size:13px;color:#334155;font-weight:600;">${assigneeNames.join(', ') || 'N/A'}</p>
+                                        </div>
+
+                                        <!-- Footer -->
+                                        <div style="text-align:center;padding:16px 0 0 0;">
+                                            <p style="margin:0;font-size:11px;color:#94a3b8;">This is an automated notification from <strong>DEVCO CRM</strong>.</p>
+                                        </div>
+                                    </div>
+                                </body></html>`;
+
+                                const { error: emailErr } = await resendClient.emails.send({
+                                    from: `${fromName} <info@devco.email>`,
+                                    to: recipientEmails,
+                                    subject: `New Schedule: ${title} — ${fmtDateShort(docAny.fromDate)}`,
+                                    html: emailHtml,
+                                });
+
+                                if (emailErr) {
+                                    console.error('[ScheduleAlert] ❌ Resend error:', emailErr);
+                                } else {
+                                    console.log(`[ScheduleAlert] ✅ Email sent to ${recipientEmails.length} assignee(s) for schedule ${scheduleId}`);
+                                }
+                            }
+                        }
+                    } catch (emailAlertErr) {
+                        console.error('[ScheduleAlert] ❌ Error sending email alert:', emailAlertErr);
                     }
                 }
 

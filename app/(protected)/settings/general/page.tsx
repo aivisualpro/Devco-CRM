@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import toast from 'react-hot-toast';
-import { Loader2, Plus, Save, MessageSquare, FileText, ToggleLeft, ToggleRight, Variable, Info, ChevronDown, Sparkles, Settings2, X, Search, Users, Check, Mail, Send, Clock, Bot, Zap, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Loader2, Plus, Save, MessageSquare, FileText, ToggleLeft, ToggleRight, Variable, Info, ChevronDown, Sparkles, Settings2, X, Search, Users, Check, Mail, Send, Clock, Bot, Zap, CheckCircle2, AlertCircle, CalendarPlus, Bell } from 'lucide-react';
 import { Header } from '@/components/ui';
 
 /* ─── Types ─── */
@@ -238,6 +238,12 @@ export default function GeneralSettings() {
     const [emailBotSearch, setEmailBotSearch] = useState('');
     const [isEmailBotDropdownOpen, setIsEmailBotDropdownOpen] = useState(false);
     const emailBotDropdownRef = useRef<HTMLDivElement>(null);
+    const [emailBotSubTab, setEmailBotSubTab] = useState<'dailySummary' | 'scheduleAlert'>('dailySummary');
+
+    // ─── Schedule Alert State ───
+    const [schedAlertEnabled, setSchedAlertEnabled] = useState(true);
+    const [schedAlertFromName, setSchedAlertFromName] = useState('DEVCO Notifications');
+    const [schedAlertSaving, setSchedAlertSaving] = useState(false);
     const assigneeDropdownRef = useRef<HTMLDivElement>(null);
 
     // Types to manage
@@ -342,6 +348,15 @@ export default function GeneralSettings() {
                 if (cfg.lastSent) setEmailBotLastSent(cfg.lastSent);
                 if (cfg.lastStats) setEmailBotLastStats(cfg.lastStats);
             }
+
+            // Fetch schedule alert settings
+            const alertRes = await fetch('/api/app-settings?key=emailBot_scheduleAlert');
+            const alertData = await alertRes.json();
+            if (alertData.success && alertData.result?.data) {
+                const acfg = alertData.result.data;
+                if (acfg.enabled !== undefined) setSchedAlertEnabled(acfg.enabled);
+                if (acfg.fromName) setSchedAlertFromName(acfg.fromName);
+            }
         } catch (err) {
             console.error('Failed to load email bot settings', err);
             toast.error('Failed to load email bot settings');
@@ -380,8 +395,32 @@ export default function GeneralSettings() {
         }
     };
 
-    const handleForceSend = async () => {
-        if (!confirm('Send the daily summary report email right now?')) return;
+    const handleSaveScheduleAlert = async () => {
+        setSchedAlertSaving(true);
+        try {
+            const res = await fetch('/api/app-settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    key: 'emailBot_scheduleAlert',
+                    data: {
+                        enabled: schedAlertEnabled,
+                        fromName: schedAlertFromName
+                    },
+                    description: 'Email Bot - Schedule Alert Configuration'
+                })
+            });
+            const data = await res.json();
+            if (data.success) toast.success('Schedule alert settings saved!');
+            else toast.error('Failed to save settings');
+        } catch (err) {
+            toast.error('Error saving schedule alert settings');
+        } finally {
+            setSchedAlertSaving(false);
+        }
+    };
+
+    const executeForceSend = async () => {
         setEmailBotSending(true);
         try {
             // Save first to ensure latest config is used
@@ -419,6 +458,34 @@ export default function GeneralSettings() {
         } finally {
             setEmailBotSending(false);
         }
+    };
+
+    const handleForceSend = () => {
+        toast((t) => (
+            <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-violet-500" />
+                    <span className="font-bold text-sm text-slate-800">Send daily summary report now?</span>
+                </div>
+                <p className="text-xs text-slate-500">
+                    This will email the report to {emailBotRecipients.length} recipient{emailBotRecipients.length !== 1 ? 's' : ''} immediately.
+                </p>
+                <div className="flex items-center gap-2 justify-end">
+                    <button
+                        onClick={() => toast.dismiss(t.id)}
+                        className="px-3 py-1.5 text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={() => { toast.dismiss(t.id); executeForceSend(); }}
+                        className="px-3 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-700 hover:to-pink-700 rounded-lg transition-all shadow-sm"
+                    >
+                        Send Now
+                    </button>
+                </div>
+            </div>
+        ), { duration: 10000, style: { maxWidth: '380px', padding: '16px' } });
     };
 
     const toggleEmailBotRecipient = (email: string) => {
@@ -892,12 +959,63 @@ export default function GeneralSettings() {
                                     <div>
                                         <p className="text-sm font-bold text-slate-700">Email Bot Automations</p>
                                         <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                                            Configure automated email reports that are sent on a schedule. Set up recipients, customize the message, and choose when to send. You can also force-send a report manually at any time.
+                                            Configure automated email reports and triggered notifications. Set up recipients, customize messages, and manage delivery rules.
                                         </p>
                                     </div>
                                 </div>
 
-                                {/* Daily Summary Card */}
+                                {/* Sub-sidebar + Content Layout */}
+                                <div className="flex gap-5">
+                                    {/* Sub Sidebar */}
+                                    <div className="w-64 flex-shrink-0 space-y-1.5">
+                                        <button
+                                            onClick={() => setEmailBotSubTab('dailySummary')}
+                                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all ${
+                                                emailBotSubTab === 'dailySummary'
+                                                ? 'bg-gradient-to-r from-violet-50 to-pink-50 border border-violet-200 shadow-sm'
+                                                : 'bg-white border border-slate-100 hover:border-slate-200 hover:bg-slate-50'
+                                            }`}
+                                        >
+                                            <div className={`p-2 rounded-lg ${
+                                                emailBotSubTab === 'dailySummary'
+                                                ? 'bg-gradient-to-br from-violet-500 to-pink-600 text-white shadow-md shadow-violet-200'
+                                                : 'bg-slate-100 text-slate-400'
+                                            }`}>
+                                                <Mail className="w-4 h-4" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className={`text-sm font-bold truncate ${emailBotSubTab === 'dailySummary' ? 'text-violet-800' : 'text-slate-600'}`}>Everyday Summary</p>
+                                                <p className={`text-[10px] font-semibold ${emailBotSubTab === 'dailySummary' ? 'text-violet-500' : 'text-slate-400'}`}>Scheduled · Daily</p>
+                                            </div>
+                                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${emailBotEnabled ? 'bg-emerald-400' : 'bg-slate-300'}`} />
+                                        </button>
+
+                                        <button
+                                            onClick={() => setEmailBotSubTab('scheduleAlert')}
+                                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all ${
+                                                emailBotSubTab === 'scheduleAlert'
+                                                ? 'bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 shadow-sm'
+                                                : 'bg-white border border-slate-100 hover:border-slate-200 hover:bg-slate-50'
+                                            }`}
+                                        >
+                                            <div className={`p-2 rounded-lg ${
+                                                emailBotSubTab === 'scheduleAlert'
+                                                ? 'bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-md shadow-amber-200'
+                                                : 'bg-slate-100 text-slate-400'
+                                            }`}>
+                                                <CalendarPlus className="w-4 h-4" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className={`text-sm font-bold truncate ${emailBotSubTab === 'scheduleAlert' ? 'text-amber-800' : 'text-slate-600'}`}>Schedule Alert</p>
+                                                <p className={`text-[10px] font-semibold ${emailBotSubTab === 'scheduleAlert' ? 'text-amber-500' : 'text-slate-400'}`}>Triggered · On Create</p>
+                                            </div>
+                                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${schedAlertEnabled ? 'bg-emerald-400' : 'bg-slate-300'}`} />
+                                        </button>
+                                    </div>
+
+                                    {/* Content Area */}
+                                    <div className="flex-1 min-w-0">
+                                    {emailBotSubTab === 'dailySummary' && (
                                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-hidden">
                                     {/* Card Header */}
                                     <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
@@ -1173,6 +1291,140 @@ export default function GeneralSettings() {
                                                 </div>
                                             </div>
                                         </div>
+                                    </div>
+                                </div>
+                                    )}
+
+                                    {/* ─── Schedule Alert Panel ─── */}
+                                    {emailBotSubTab === 'scheduleAlert' && (
+                                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-hidden">
+                                            {/* Card Header */}
+                                            <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2.5 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-200">
+                                                        <CalendarPlus className="w-5 h-5" />
+                                                    </div>
+                                                    <div>
+                                                        <h3 className="text-sm font-black text-slate-800">Schedule Alert</h3>
+                                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Triggered on Schedule Creation</span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSchedAlertEnabled(!schedAlertEnabled)}
+                                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                                                            schedAlertEnabled
+                                                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                                                            : 'bg-slate-100 text-slate-400 border border-slate-200 hover:bg-slate-200'
+                                                        }`}
+                                                    >
+                                                        {schedAlertEnabled ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                                                        {schedAlertEnabled ? 'Active' : 'Inactive'}
+                                                    </button>
+                                                    <button
+                                                        onClick={handleSaveScheduleAlert}
+                                                        disabled={schedAlertSaving}
+                                                        className="flex items-center gap-2 px-4 py-1.5 bg-[#1A1A1A] text-white rounded-lg text-xs font-bold hover:bg-black transition-all shadow-sm disabled:opacity-50"
+                                                    >
+                                                        {schedAlertSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                                                        Save
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div className="p-6 space-y-6">
+                                                {/* How It Works */}
+                                                <div className="flex items-start gap-3 p-4 bg-gradient-to-r from-amber-50/50 to-orange-50/30 rounded-xl border border-amber-100/50">
+                                                    <Bell className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                                                    <div>
+                                                        <p className="text-xs font-bold text-slate-700">Trigger-Based Notification</p>
+                                                        <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                                                            When a new schedule is created with <strong>"Notify Assignees"</strong> enabled, an email is automatically sent to all assigned employees with the full schedule details.
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                {/* From Name */}
+                                                <div className="space-y-2">
+                                                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">From Name</label>
+                                                    <input
+                                                        type="text"
+                                                        value={schedAlertFromName}
+                                                        onChange={(e) => setSchedAlertFromName(e.target.value)}
+                                                        className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-700 font-bold focus:outline-none focus:ring-2 focus:ring-amber-200 focus:border-amber-300 focus:bg-white transition-all"
+                                                        placeholder="Sender display name..."
+                                                    />
+                                                    <p className="text-[10px] text-slate-400">Emails will be sent from info@devco.email</p>
+                                                </div>
+
+                                                {/* Auto-populated Rules */}
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Recipients</p>
+                                                        <p className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                                            <Users className="w-4 h-4 text-amber-500" />
+                                                            Schedule Assignees
+                                                        </p>
+                                                        <p className="text-[10px] text-slate-400 mt-1">Auto-resolved from the schedule&apos;s assigned employees</p>
+                                                    </div>
+                                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Subject Line</p>
+                                                        <p className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                                            <Mail className="w-4 h-4 text-amber-500" />
+                                                            Schedule Title
+                                                        </p>
+                                                        <p className="text-[10px] text-slate-400 mt-1">Dynamically uses the schedule&apos;s title as the email subject</p>
+                                                    </div>
+                                                </div>
+
+                                                {/* Email Preview */}
+                                                <div className="space-y-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <Info className="w-3.5 h-3.5 text-slate-400" />
+                                                        <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Email Template Preview</span>
+                                                    </div>
+                                                    <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 border border-slate-200/60 rounded-xl overflow-hidden">
+                                                        {/* Simulated email header */}
+                                                        <div className="px-5 py-3 border-b border-slate-200/60 space-y-1">
+                                                            <p className="text-[11px] text-slate-400"><strong className="text-slate-500">From:</strong> {schedAlertFromName} &lt;info@devco.email&gt;</p>
+                                                            <p className="text-[11px] text-slate-400"><strong className="text-slate-500">To:</strong> <span className="italic">john@example.com, jane@example.com (assignees)</span></p>
+                                                            <p className="text-[11px] text-slate-400"><strong className="text-slate-500">Subject:</strong> <span className="italic">New Schedule: Fort Irwin Solar — 03/27/2026</span></p>
+                                                        </div>
+                                                        <div className="px-5 py-4">
+                                                            {/* Preview Banner */}
+                                                            <div className="bg-gradient-to-r from-[#0f172a] to-[#1e3a5f] rounded-lg p-4 text-center mb-4">
+                                                                <p className="text-white text-xs font-bold tracking-wide">📅 NEW SCHEDULE ASSIGNED</p>
+                                                                <p className="text-amber-300 text-lg font-black mt-1">Fort Irwin Solar</p>
+                                                                <p className="text-slate-300 text-[11px] mt-0.5">Thursday, March 27, 2026</p>
+                                                            </div>
+                                                            {/* Preview Table */}
+                                                            <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+                                                                {[
+                                                                    { label: 'Customer', value: 'Clear Blue Energy Corp', icon: '🏢' },
+                                                                    { label: 'Job Location', value: '1234 Solar Ave, Fort Irwin, CA', icon: '📍' },
+                                                                    { label: 'Estimate #', value: '24-0353', icon: '📋' },
+                                                                    { label: 'Service', value: 'Underground', icon: '⚡' },
+                                                                    { label: 'Foreman', value: 'John Smith', icon: '👷' },
+                                                                    { label: 'Project Manager', value: 'Sean Murphy', icon: '👤' },
+                                                                    { label: 'Description', value: 'Solar panel installation run...', icon: '📝' },
+                                                                    { label: 'Per Diem', value: 'Yes', icon: '💰' },
+                                                                    { label: 'Certified Payroll', value: 'Yes', icon: '✅' },
+                                                                ].map((row, i) => (
+                                                                    <div key={i} className={`flex items-center px-4 py-2.5 ${i % 2 === 0 ? 'bg-white' : 'bg-slate-50'} ${i < 8 ? 'border-b border-slate-100' : ''}`}>
+                                                                        <span className="text-xs mr-2">{row.icon}</span>
+                                                                        <span className="text-[11px] font-bold text-slate-500 w-32 flex-shrink-0 uppercase">{row.label}</span>
+                                                                        <span className="text-[12px] text-slate-700 font-semibold">{row.value}</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                            <p className="text-[10px] text-slate-400 italic mt-3 text-center">This is a preview with sample data. Actual emails will contain real schedule details.</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                     </div>
                                 </div>
                             </div>

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
-import { Schedule, Employee } from '@/lib/models';
+import { Schedule, Employee, Constant } from '@/lib/models';
 import { sendSMS } from '@/lib/signalwire';
+import { Resend } from 'resend';
 
 /**
  * Webhook endpoint for AppSheet to add/update schedules
@@ -213,6 +214,55 @@ export async function POST(request: NextRequest) {
                         _id: doc._id,
                         record 
                     });
+
+                    // ── Schedule Alert Email ──
+                    if (docAny.notifyAssignees === true || docAny.notifyAssignees === 'Yes' || docAny.notifyAssignees === 'true') {
+                        if (Array.isArray(docAny.assignees) && docAny.assignees.length > 0) {
+                            try {
+                                const alertSetting = await Constant.findOne({ type: 'AppSettings', value: 'emailBot_scheduleAlert' }).lean();
+                                const alertConfig = (alertSetting as any)?.data;
+                                const alertEnabled = alertConfig ? alertConfig.enabled !== false : true;
+
+                                if (alertEnabled && process.env.RESEND_API_KEY) {
+                                    const resendClient = new Resend(process.env.RESEND_API_KEY);
+                                    const fromName = alertConfig?.fromName || 'DEVCO Notifications';
+                                    const assigneeDocs = await Employee.find({ email: { $in: docAny.assignees } }).select('email firstName lastName').lean();
+                                    const recipientEmails = assigneeDocs.map((e: any) => e.email).filter(Boolean);
+
+                                    if (recipientEmails.length > 0) {
+                                        const fmtDateLong = (d: any) => d ? new Date(d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : 'N/A';
+                                        const fmtDateShort = (d: any) => d ? new Date(d).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : 'N/A';
+                                        const title = docAny.title || docAny.customerName || 'New Schedule';
+                                        const assigneeNames = assigneeDocs.map((e: any) => `${e.firstName || ''} ${e.lastName || ''}`.trim()).filter(Boolean);
+
+                                        const fields = [
+                                            { l: 'Customer', v: docAny.customerName || '--', i: '\ud83c\udfe2' },
+                                            { l: 'Job Location', v: docAny.jobLocation || '--', i: '\ud83d\udccd' },
+                                            { l: 'Estimate #', v: docAny.estimate || '--', i: '\ud83d\udccb' },
+                                            { l: 'Date', v: `${fmtDateShort(docAny.fromDate)} \u2013 ${fmtDateShort(docAny.toDate)}`, i: '\ud83d\udcc5' },
+                                            { l: 'Service', v: docAny.service || '--', i: '\u26a1' },
+                                            { l: 'Foreman', v: docAny.foremanName || '--', i: '\ud83d\udc77' },
+                                            { l: 'Project Manager', v: docAny.projectManager || '--', i: '\ud83d\udc64' },
+                                            { l: 'Description', v: docAny.description || '--', i: '\ud83d\udcdd' },
+                                            { l: 'Per Diem', v: docAny.perDiem || 'No', i: '\ud83d\udcb0' },
+                                            { l: 'Certified Payroll', v: docAny.certifiedPayroll || 'No', i: '\u2705' },
+                                        ];
+                                        const rows = fields.map((f, i) => `<tr style="background:${i%2===0?'#fff':'#f8fafc'};"><td style="padding:10px 16px;border-bottom:1px solid #f1f5f9;font-size:12px;"><span style="margin-right:6px;">${f.i}</span><strong style="color:#64748b;text-transform:uppercase;letter-spacing:0.5px;font-size:10px;">${f.l}</strong></td><td style="padding:10px 16px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#334155;font-weight:600;">${f.v}</td></tr>`).join('');
+
+                                        const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;"><div style="max-width:640px;margin:0 auto;padding:24px;"><div style="background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#0f172a 100%);border-radius:16px;padding:32px 40px;text-align:center;margin-bottom:24px;"><p style="margin:0 0 4px 0;font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:2px;">\ud83d\udcc5 NEW SCHEDULE ASSIGNED</p><h1 style="margin:0 0 6px 0;font-size:24px;font-weight:900;color:#fbbf24;">${title}</h1><p style="margin:0;font-size:13px;color:#cbd5e1;">${fmtDateLong(docAny.fromDate)}</p></div><div style="background:#fff;border-radius:16px;padding:24px 28px;border:1px solid #e2e8f0;margin-bottom:16px;"><p style="margin:0;font-size:14px;color:#334155;line-height:1.6;">Hi Team,<br><br>You have been assigned to a new schedule. Please review the details below.</p></div><div style="background:#fff;border-radius:16px;padding:0;border:1px solid #e2e8f0;overflow:hidden;margin-bottom:16px;"><div style="padding:16px 20px;background:linear-gradient(90deg,#0f172a,#1e293b);"><h2 style="margin:0;font-size:13px;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:1px;">\ud83d\udccb Schedule Details</h2></div><table style="width:100%;border-collapse:collapse;">${rows}</table></div><div style="background:#fff;border-radius:16px;padding:20px 28px;border:1px solid #e2e8f0;margin-bottom:16px;"><p style="margin:0 0 8px 0;font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:1px;">\ud83d\udc65 Assigned Team</p><p style="margin:0;font-size:13px;color:#334155;font-weight:600;">${assigneeNames.join(', ')}</p></div><div style="text-align:center;padding:16px 0 0 0;"><p style="margin:0;font-size:11px;color:#94a3b8;">Automated notification from <strong>DEVCO CRM</strong></p></div></div></body></html>`;
+
+                                        await resendClient.emails.send({
+                                            from: `${fromName} <info@devco.email>`,
+                                            to: recipientEmails,
+                                            subject: `New Schedule: ${title} \u2014 ${fmtDateShort(docAny.fromDate)}`,
+                                            html,
+                                        }).catch(err => console.error('[ScheduleAlert][Webhook] Email error:', err));
+                                        console.log(`[ScheduleAlert][Webhook] \u2705 Email sent to ${recipientEmails.length} assignee(s)`);
+                                    }
+                                }
+                            } catch (e) { console.error('[ScheduleAlert][Webhook] Error:', e); }
+                        }
+                    }
                     break;
                 }
                 
