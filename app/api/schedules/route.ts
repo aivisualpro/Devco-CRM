@@ -349,6 +349,9 @@ export async function POST(request: NextRequest) {
                         const alertConfig = (alertSetting as any)?.data;
                         const alertEnabled = alertConfig ? alertConfig.enabled !== false : true;
 
+                        console.log(`[ScheduleAlert] Config found: ${!!alertSetting}, enabled: ${alertEnabled}, RESEND_KEY: ${!!process.env.RESEND_API_KEY}`);
+                        console.log(`[ScheduleAlert] Assignees from schedule: ${JSON.stringify(docAny.assignees)}`);
+
                         if (alertEnabled && process.env.RESEND_API_KEY) {
                             const resendClient = new Resend(process.env.RESEND_API_KEY);
                             const fromName = alertConfig?.fromName || 'DEVCO Notifications';
@@ -356,6 +359,7 @@ export async function POST(request: NextRequest) {
                             // Fetch assignee emails
                             const assigneeDocs = await Employee.find({ email: { $in: docAny.assignees } }).select('email firstName lastName').lean();
                             const recipientEmails = assigneeDocs.map((e: any) => e.email).filter(Boolean);
+                            console.log(`[ScheduleAlert] Resolved ${assigneeDocs.length} employee(s), emails: ${JSON.stringify(recipientEmails)}`);
 
                             if (recipientEmails.length > 0) {
                                 const fmtDate = (d: any) => d ? new Date(d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : 'N/A';
