@@ -364,13 +364,14 @@ export async function POST(request: NextRequest) {
                             if (recipientEmails.length > 0) {
                                 const fmtDate = (d: any) => d ? new Date(d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : 'N/A';
                                 const fmtDateShort = (d: any) => d ? new Date(d).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : 'N/A';
+                                const fmtTime = (d: any) => d ? new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : '';
                                 const title = docAny.title || docAny.customerName || 'New Schedule';
 
                                 const scheduleFields = [
                                     { label: 'Customer', value: docAny.customerName || '--', icon: '🏢' },
                                     { label: 'Job Location', value: docAny.jobLocation || '--', icon: '📍' },
                                     { label: 'Estimate #', value: docAny.estimate || '--', icon: '📋' },
-                                    { label: 'Date', value: `${fmtDateShort(docAny.fromDate)} – ${fmtDateShort(docAny.toDate)}`, icon: '📅' },
+                                    { label: 'Date', value: `${fmtDateShort(docAny.fromDate)} ${fmtTime(docAny.fromDate)} – ${fmtDateShort(docAny.toDate)} ${fmtTime(docAny.toDate)}`, icon: '📅' },
                                     { label: 'Service', value: docAny.service || '--', icon: '⚡' },
                                     { label: 'Item', value: docAny.item || '--', icon: '🔧' },
                                     { label: 'Foreman', value: docAny.foremanName || '--', icon: '👷' },
@@ -731,11 +732,12 @@ export async function POST(request: NextRequest) {
 
                                 if (recipientEmails.length > 0) {
                                     const fmtDateShort = (d: any) => d ? new Date(d).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : 'N/A';
+                                    const fmtTime = (d: any) => d ? new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : '';
                                     const title = docAny.title || docAny.customerName || 'New Schedule';
                                     const scheduleFields = [
                                         { label: 'Customer', value: docAny.customerName || '--', icon: '🏢' },
                                         { label: 'Job Location', value: docAny.jobLocation || '--', icon: '📍' },
-                                        { label: 'Date', value: `${fmtDateShort(docAny.fromDate)} – ${fmtDateShort(docAny.toDate)}`, icon: '📅' },
+                                        { label: 'Date', value: `${fmtDateShort(docAny.fromDate)} ${fmtTime(docAny.fromDate)} – ${fmtDateShort(docAny.toDate)} ${fmtTime(docAny.toDate)}`, icon: '📅' },
                                         { label: 'Service', value: docAny.service || '--', icon: '⚡' },
                                         { label: 'Item', value: docAny.item || '--', icon: '🔧' },
                                         { label: 'Description', value: docAny.description || '--', icon: '📝' },
