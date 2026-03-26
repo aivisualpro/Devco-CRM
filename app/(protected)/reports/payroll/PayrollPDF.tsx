@@ -288,21 +288,6 @@ export const PayrollPDF = ({
               </View>
 
 
-              {/* Diem Row */}
-              <View style={styles.tableRow}>
-                <View style={styles.tableColFirst}>
-                  <Text style={styles.tableCellFirst}>Diem</Text>
-                </View>
-                {emp.days.map((d: any, i: number) => (
-                  <View key={i} style={styles.tableCol}>
-                    <Text style={styles.tableCell}>{d.diem > 0 ? d.diem.toFixed(2) : '0.00'}</Text>
-                  </View>
-                ))}
-                <View style={styles.tableCol}>
-                  <Text style={styles.tableCell}>{emp.totalDiem.toFixed(2)}</Text>
-                </View>
-              </View>
-
               {/* Total Row */}
               <View style={styles.tableRow}>
                 <View style={[styles.tableColFirst, { backgroundColor: '#eeeeee' }]}>
