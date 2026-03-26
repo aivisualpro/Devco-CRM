@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import toast from 'react-hot-toast';
-import { Loader2, Plus, Save, MessageSquare, FileText, ToggleLeft, ToggleRight, Variable, Info, ChevronDown, Sparkles, Settings2, X, Search, Users, Check, Mail, Send, Clock, Bot, Zap, CheckCircle2, AlertCircle, CalendarPlus, Bell } from 'lucide-react';
+import { Loader2, Plus, Save, MessageSquare, FileText, ToggleLeft, ToggleRight, Variable, Info, ChevronDown, Sparkles, Settings2, X, Search, Users, Check, Mail, Send, Clock, Bot, Zap, CheckCircle2, AlertCircle, CalendarPlus, Bell, CheckSquare } from 'lucide-react';
 import { Header } from '@/components/ui';
 
 /* ─── Types ─── */
@@ -238,12 +238,18 @@ export default function GeneralSettings() {
     const [emailBotSearch, setEmailBotSearch] = useState('');
     const [isEmailBotDropdownOpen, setIsEmailBotDropdownOpen] = useState(false);
     const emailBotDropdownRef = useRef<HTMLDivElement>(null);
-    const [emailBotSubTab, setEmailBotSubTab] = useState<'dailySummary' | 'scheduleAlert'>('dailySummary');
+    const [emailBotSubTab, setEmailBotSubTab] = useState<'dailySummary' | 'scheduleAlert' | 'taskAlert'>('dailySummary');
 
     // ─── Schedule Alert State ───
     const [schedAlertEnabled, setSchedAlertEnabled] = useState(true);
     const [schedAlertFromName, setSchedAlertFromName] = useState('DEVCO Notifications');
     const [schedAlertSaving, setSchedAlertSaving] = useState(false);
+
+    // ─── Task Alert State ───
+    const [taskAlertEnabled, setTaskAlertEnabled] = useState(true);
+    const [taskAlertFromName, setTaskAlertFromName] = useState('DEVCO Notifications');
+    const [taskAlertSaving, setTaskAlertSaving] = useState(false);
+
     const assigneeDropdownRef = useRef<HTMLDivElement>(null);
 
     // Types to manage
@@ -357,6 +363,15 @@ export default function GeneralSettings() {
                 if (acfg.enabled !== undefined) setSchedAlertEnabled(acfg.enabled);
                 if (acfg.fromName) setSchedAlertFromName(acfg.fromName);
             }
+
+            // Fetch task alert settings
+            const taskAlertRes = await fetch('/api/app-settings?key=emailBot_taskAlert');
+            const taskAlertData = await taskAlertRes.json();
+            if (taskAlertData.success && taskAlertData.result?.data) {
+                const acfg = taskAlertData.result.data;
+                if (acfg.enabled !== undefined) setTaskAlertEnabled(acfg.enabled);
+                if (acfg.fromName) setTaskAlertFromName(acfg.fromName);
+            }
         } catch (err) {
             console.error('Failed to load email bot settings', err);
             toast.error('Failed to load email bot settings');
@@ -417,6 +432,31 @@ export default function GeneralSettings() {
             toast.error('Error saving schedule alert settings');
         } finally {
             setSchedAlertSaving(false);
+        }
+    };
+
+    const handleSaveTaskAlert = async () => {
+        setTaskAlertSaving(true);
+        try {
+            const res = await fetch('/api/app-settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    key: 'emailBot_taskAlert',
+                    data: {
+                        enabled: taskAlertEnabled,
+                        fromName: taskAlertFromName
+                    },
+                    description: 'Email Bot - Task Alert Configuration'
+                })
+            });
+            const data = await res.json();
+            if (data.success) toast.success('Task alert settings saved!');
+            else toast.error('Failed to save settings');
+        } catch (err) {
+            toast.error('Error saving task alert settings');
+        } finally {
+            setTaskAlertSaving(false);
         }
     };
 
@@ -991,25 +1031,46 @@ export default function GeneralSettings() {
                                         </button>
 
                                         <button
+                                            type="button"
                                             onClick={() => setEmailBotSubTab('scheduleAlert')}
-                                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all ${
+                                            className={`w-full flex items-center gap-4 px-4 py-4 border-b border-slate-100 transition-all ${
                                                 emailBotSubTab === 'scheduleAlert'
-                                                ? 'bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 shadow-sm'
-                                                : 'bg-white border border-slate-100 hover:border-slate-200 hover:bg-slate-50'
+                                                ? 'bg-gradient-to-r from-amber-50 to-white pl-5'
+                                                : 'hover:bg-slate-50'
                                             }`}
                                         >
-                                            <div className={`p-2 rounded-lg ${
-                                                emailBotSubTab === 'scheduleAlert'
-                                                ? 'bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-md shadow-amber-200'
-                                                : 'bg-slate-100 text-slate-400'
-                                            }`}>
-                                                <CalendarPlus className="w-4 h-4" />
+                                            <div className={`p-2 rounded-xl transition-all ${emailBotSubTab === 'scheduleAlert' ? 'bg-amber-100/50 text-amber-500 shadow-sm shadow-amber-200/50' : 'bg-slate-100 text-slate-400'}`}>
+                                                <Bell className="w-4 h-4" />
                                             </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className={`text-sm font-bold truncate ${emailBotSubTab === 'scheduleAlert' ? 'text-amber-800' : 'text-slate-600'}`}>Schedule Alert</p>
-                                                <p className={`text-[10px] font-semibold ${emailBotSubTab === 'scheduleAlert' ? 'text-amber-500' : 'text-slate-400'}`}>Triggered · On Create</p>
+                                            <div className="flex-1 text-left min-w-0">
+                                                <h4 className={`text-[13px] font-black truncate transition-all ${emailBotSubTab === 'scheduleAlert' ? 'text-amber-600' : 'text-slate-600'}`}>
+                                                    Schedule Alert
+                                                </h4>
+                                                <p className={`text-[10px] font-semibold truncate ${emailBotSubTab === 'scheduleAlert' ? 'text-amber-500' : 'text-slate-400'}`}>Triggered · On Create</p>
                                             </div>
-                                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${schedAlertEnabled ? 'bg-emerald-400' : 'bg-slate-300'}`} />
+                                            <div className={`w-2 h-2 rounded-full flex-shrink-0 transition-all ${schedAlertEnabled ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'bg-slate-300'}`} />
+                                        </button>
+
+                                        {/* Task Alert */}
+                                        <button
+                                            type="button"
+                                            onClick={() => setEmailBotSubTab('taskAlert')}
+                                            className={`w-full flex items-center gap-4 px-4 py-4 transition-all ${
+                                                emailBotSubTab === 'taskAlert'
+                                                ? 'bg-gradient-to-r from-blue-50 to-white pl-5'
+                                                : 'hover:bg-slate-50'
+                                            }`}
+                                        >
+                                            <div className={`p-2 rounded-xl transition-all ${emailBotSubTab === 'taskAlert' ? 'bg-blue-100/50 text-blue-500 shadow-sm shadow-blue-200/50' : 'bg-slate-100 text-slate-400'}`}>
+                                                <CheckSquare className="w-4 h-4" />
+                                            </div>
+                                            <div className="flex-1 text-left min-w-0">
+                                                <h4 className={`text-[13px] font-black truncate transition-all ${emailBotSubTab === 'taskAlert' ? 'text-blue-600' : 'text-slate-600'}`}>
+                                                    Task Alert
+                                                </h4>
+                                                <p className={`text-[10px] font-semibold truncate ${emailBotSubTab === 'taskAlert' ? 'text-blue-500' : 'text-slate-400'}`}>Triggered · On Create</p>
+                                            </div>
+                                            <div className={`w-2 h-2 rounded-full flex-shrink-0 transition-all ${taskAlertEnabled ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'bg-slate-300'}`} />
                                         </button>
                                     </div>
 
@@ -1419,6 +1480,130 @@ export default function GeneralSettings() {
                                                                 ))}
                                                             </div>
                                                             <p className="text-[10px] text-slate-400 italic mt-3 text-center">This is a preview with sample data. Actual emails will contain real schedule details.</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* ─── Task Alert Panel ─── */}
+                                    {emailBotSubTab === 'taskAlert' && (
+                                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-hidden">
+                                            {/* Card Header */}
+                                            <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2.5 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-200">
+                                                        <CheckSquare className="w-5 h-5" />
+                                                    </div>
+                                                    <div>
+                                                        <h3 className="text-sm font-black text-slate-800">Task Alert</h3>
+                                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Triggered on Task Creation</span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setTaskAlertEnabled(!taskAlertEnabled)}
+                                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                                                            taskAlertEnabled
+                                                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                                                            : 'bg-slate-100 text-slate-400 border border-slate-200 hover:bg-slate-200'
+                                                        }`}
+                                                    >
+                                                        {taskAlertEnabled ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                                                        {taskAlertEnabled ? 'Active' : 'Inactive'}
+                                                    </button>
+                                                    <button
+                                                        onClick={handleSaveTaskAlert}
+                                                        disabled={taskAlertSaving}
+                                                        className="flex items-center gap-2 px-4 py-1.5 bg-[#1A1A1A] text-white rounded-lg text-xs font-bold hover:bg-black transition-all shadow-sm disabled:opacity-50"
+                                                    >
+                                                        {taskAlertSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                                                        Save
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div className="p-6 space-y-6">
+                                                {/* How It Works */}
+                                                <div className="flex items-start gap-3 p-4 bg-gradient-to-r from-blue-50/50 to-indigo-50/30 rounded-xl border border-blue-100/50">
+                                                    <CheckSquare className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                                                    <div>
+                                                        <p className="text-xs font-bold text-slate-700">Trigger-Based Notification</p>
+                                                        <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                                                            When a new task is created, an email is automatically sent to all assigned employees with the full task details.
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                {/* From Name */}
+                                                <div className="space-y-2">
+                                                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">From Name</label>
+                                                    <input
+                                                        type="text"
+                                                        value={taskAlertFromName}
+                                                        onChange={(e) => setTaskAlertFromName(e.target.value)}
+                                                        className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-700 font-bold focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300 focus:bg-white transition-all"
+                                                        placeholder="Sender display name..."
+                                                    />
+                                                    <p className="text-[10px] text-slate-400">Emails will be sent from info@devco.email</p>
+                                                </div>
+
+                                                {/* Auto-populated Rules */}
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Recipients</p>
+                                                        <p className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                                            <Users className="w-4 h-4 text-blue-500" />
+                                                            Task Assignees
+                                                        </p>
+                                                        <p className="text-[10px] text-slate-400 mt-1">Auto-resolved from the task's assigned employees</p>
+                                                    </div>
+                                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Subject Line</p>
+                                                        <p className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                                            <Mail className="w-4 h-4 text-blue-500" />
+                                                            You have been assigned to a new task
+                                                        </p>
+                                                        <p className="text-[10px] text-slate-400 mt-1">Preset static email subject</p>
+                                                    </div>
+                                                </div>
+
+                                                {/* Email Preview */}
+                                                <div className="space-y-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <Info className="w-3.5 h-3.5 text-slate-400" />
+                                                        <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Email Template Preview</span>
+                                                    </div>
+                                                    <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 border border-slate-200/60 rounded-xl overflow-hidden">
+                                                        <div className="px-5 py-3 border-b border-slate-200/60 space-y-1">
+                                                            <p className="text-[11px] text-slate-400"><strong className="text-slate-500">From:</strong> {taskAlertFromName} &lt;info@devco.email&gt;</p>
+                                                            <p className="text-[11px] text-slate-400"><strong className="text-slate-500">To:</strong> <span className="italic">john@example.com (assignees)</span></p>
+                                                            <p className="text-[11px] text-slate-400"><strong className="text-slate-500">Subject:</strong> <span className="italic">You have been assigned to a new task</span></p>
+                                                        </div>
+                                                        <div className="px-5 py-4">
+                                                            <div className="bg-gradient-to-r from-[#0f172a] to-[#1e3a5f] rounded-lg p-4 text-center mb-4">
+                                                                <p className="text-white text-xs font-bold tracking-wide uppercase">📋 NEW TASK ASSIGNED</p>
+                                                                <p className="text-blue-300 text-lg font-black mt-1">Please review the details below</p>
+                                                            </div>
+                                                            <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+                                                                {[
+                                                                    { label: 'Customer', value: 'Clear Blue Energy Corp', icon: '🏢' },
+                                                                    { label: 'Estimate', value: '24-0353', icon: '📋' },
+                                                                    { label: 'Job Address', value: '1234 Solar Ave, Fort Irwin, CA', icon: '📍' },
+                                                                    { label: 'Due Date', value: '03/30/2026', icon: '📅' },
+                                                                    { label: 'Status', value: 'To Do', icon: '✅' },
+                                                                    { label: 'Task Description', value: 'Complete the site layout validation.', icon: '📝' },
+                                                                ].map((row, i) => (
+                                                                    <div key={i} className={`flex items-center px-4 py-2.5 ${i % 2 === 0 ? 'bg-white' : 'bg-slate-50'} ${i < 5 ? 'border-b border-slate-100' : ''}`}>
+                                                                        <span className="text-xs mr-2">{row.icon}</span>
+                                                                        <span className="text-[11px] font-bold text-slate-500 w-32 flex-shrink-0 uppercase">{row.label}</span>
+                                                                        <span className="text-[12px] text-slate-700 font-semibold">{row.value}</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                            <p className="text-[10px] text-slate-400 italic mt-3 text-center">This is a preview with sample data. Actual emails will contain real task details.</p>
                                                         </div>
                                                     </div>
                                                 </div>

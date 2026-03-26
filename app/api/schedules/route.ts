@@ -283,6 +283,7 @@ export async function POST(request: NextRequest) {
                 });
 
                 // ── SMS Notification ──
+                Promise.resolve().then(async () => {
                 const docAny = doc as any;
                 const shouldNotify = docAny.notifyAssignees === true || docAny.notifyAssignees === 'Yes' || docAny.notifyAssignees === 'true';
                 console.log(`[SMS] notifyAssignees=${docAny.notifyAssignees}, shouldNotify=${shouldNotify}, assignees=${JSON.stringify(docAny.assignees)}`);
@@ -548,6 +549,7 @@ export async function POST(request: NextRequest) {
                 } catch (notifErr) {
                     console.error('[Notifications] ❌ Error creating schedule notifications:', notifErr);
                 }
+                }); // End background tasks
 
                 return NextResponse.json({ success: true, result: doc });
             }
@@ -638,6 +640,8 @@ export async function POST(request: NextRequest) {
                     ...item,
                     _id: item.recordId || item._id
                 }));
+                // Background operations: AppSheet sync, image propagation, and notifications
+                Promise.resolve().then(async () => {
                 // Batch sync to AppSheet
                 await updateAppSheetSchedule(syncItems, "Add");
 
@@ -785,6 +789,7 @@ export async function POST(request: NextRequest) {
                 } catch (e) {
                     console.error('[Bulk Notification] Error:', e);
                 }
+                }); // End background tasks
 
                 return NextResponse.json({ success: true, result });
             }
