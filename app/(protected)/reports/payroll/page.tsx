@@ -20,6 +20,7 @@ import {
     formatDateOnly,
     formatTimeOnly,
     robustNormalizeISO,
+    r2,
     SPEED_MPH,
     EARTH_RADIUS_MI,
     DRIVING_FACTOR,
@@ -501,9 +502,9 @@ function PayrollReportContent() {
                 if (estCertified) employeesWork[empEmail].days[dayIdx].certified = true;
 
                 if (ts.type?.toLowerCase().includes('site')) {
-                    employeesWork[empEmail].days[dayIdx].siteHrs += hours;
+                    employeesWork[empEmail].days[dayIdx].siteHrs = r2(employeesWork[empEmail].days[dayIdx].siteHrs + hours);
                 } else if (ts.type?.toLowerCase().includes('drive')) {
-                    employeesWork[empEmail].days[dayIdx].travelHrs += hours;
+                    employeesWork[empEmail].days[dayIdx].travelHrs = r2(employeesWork[empEmail].days[dayIdx].travelHrs + hours);
                 }
 
                 // Capture daily rates from entries if present
@@ -576,18 +577,18 @@ function PayrollReportContent() {
                 const rawDt = Math.max(0, d.siteHrs - 12);
                 const rawTravel = d.travelHrs;
 
-                // Round to 2 decimals to match visual display logic (WYSIWYG)
-                const reg = Number(rawReg.toFixed(2));
-                const ot = Number(rawOt.toFixed(2));
-                const dt = Number(rawDt.toFixed(2));
-                const travel = Number(rawTravel.toFixed(2));
+                // Round to 2 decimals using shared r2 utility for consistency with time-cards
+                const reg = r2(rawReg);
+                const ot = r2(rawOt);
+                const dt = r2(rawDt);
+                const travel = r2(rawTravel);
 
-                const total = reg + ot + dt + travel;
+                const total = r2(reg + ot + dt + travel);
 
-                totalReg += reg;
-                totalOt += ot;
-                totalDt += dt;
-                totalTravel += travel;
+                totalReg = r2(totalReg + reg);
+                totalOt = r2(totalOt + ot);
+                totalDt = r2(totalDt + dt);
+                totalTravel = r2(totalTravel + travel);
                 totalDiem += d.diem;
 
                 const dayRateSite = d.dayRateSite ?? rateSite;
@@ -652,7 +653,7 @@ function PayrollReportContent() {
                 totalDtAmount,
                 totalTravelAmount,
                 totalDiem,
-                totalHrs: totalReg + totalOt + totalDt + totalTravel,
+                totalHrs: r2(totalReg + totalOt + totalDt + totalTravel),
                 rateSite,
                 rateTravel,
                 totalAmount,

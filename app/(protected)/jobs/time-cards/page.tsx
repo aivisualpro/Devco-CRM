@@ -63,7 +63,7 @@ interface ScheduleDoc {
 }
 
 // --- Constants ---
-import { calculateTimesheetData, formatDateOnly, formatTimeOnly, robustNormalizeISO, SPEED_MPH, EARTH_RADIUS_MI, DRIVING_FACTOR } from '@/lib/timeCardUtils';
+import { calculateTimesheetData, formatDateOnly, formatTimeOnly, robustNormalizeISO, r2, SPEED_MPH, EARTH_RADIUS_MI, DRIVING_FACTOR } from '@/lib/timeCardUtils';
 
 // --- Constants ---
 const FORMULA_CUTOFF_DATE = new Date('2026-01-12T00:00:00.000Z');
@@ -581,7 +581,7 @@ function TimeCardContent() {
                             const specialHrs = (washoutQty * 0.5) + (shopQty * 0.25);
                             const manualHrs = ts.manualDuration ? parseFloat(String(ts.manualDuration)) : 0;
                             if (manualHrs <= 0) {
-                                hours = (distance / SPEED_MPH) + specialHrs;
+                                hours = r2((distance / SPEED_MPH) + specialHrs);
                             }
                         }
                     }
@@ -790,9 +790,9 @@ function TimeCardContent() {
         let site = 0;
         filteredRecords.forEach(ts => {
             if (ts.type?.toLowerCase().includes('drive')) {
-                drive += (ts.hoursVal || 0);
+                drive = r2(drive + (ts.hoursVal || 0));
             } else {
-                site += (ts.hoursVal || 0);
+                site = r2(site + (ts.hoursVal || 0));
             }
         });
         return { drive, site };
@@ -805,7 +805,7 @@ function TimeCardContent() {
 
         // Helper to round to 2 decimal places to prevent floating-point drift
         // e.g. 1.57+8+1.57+3.5+1.76+8.25+1.55+8.5 should be 34.70, not 34.69
-        const r2 = (n: number) => Math.round(n * 100) / 100;
+        // Uses shared r2 from @/lib/timeCardUtils
 
         // First, build the tree structure from groupingStats (backend aggregation)
         groupingStats.forEach(stat => {

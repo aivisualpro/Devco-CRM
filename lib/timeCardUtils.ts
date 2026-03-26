@@ -2,6 +2,9 @@
 
 // Constants
 export const SPEED_MPH = 55;
+
+// Round to 2 decimal places — prevents floating-point drift when summing hours
+export const r2 = (n: number) => Math.round(n * 100) / 100;
 export const EARTH_RADIUS_MI = 3958.8;
 export const DRIVING_FACTOR = 1.50;
 
@@ -198,7 +201,7 @@ export const calculateTimesheetData = (ts: any, scheduleDate?: string) => {
         distance = 0;
     }
 
-    return { hours, distance, calculatedDistance };
+    return { hours: r2(hours), distance, calculatedDistance };
 };
 
 export const startOfWeek = (date: Date) => {
