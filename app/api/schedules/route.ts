@@ -641,6 +641,7 @@ export async function POST(request: NextRequest) {
                 await updateAppSheetSchedule(syncItems, "Add");
 
                 // Propagate images to associated estimates (all versions)
+                // Propagate images to associated estimates (all versions)
                 const estimatesToUpdate = new Map<string, any>();
                 schedules.forEach((s: any) => {
                     if (s.estimate && (s.aerialImage !== undefined || s.siteLayout !== undefined)) {
@@ -660,6 +661,127 @@ export async function POST(request: NextRequest) {
                     } catch (e) {
                         console.error('[Schedule API] Bulk image propagation failed:', e);
                     }
+                }
+
+                // ── Schedule Alert Email, SMS & In-App Notifications for Imports ──
+                try {
+                    const notificationGroups = new Map<string, any>();
+                    for (const item of schedules) {
+                        const shouldNotify = item.notifyAssignees === true || item.notifyAssignees === 'Yes' || item.notifyAssignees === 'true';
+                        if (shouldNotify && Array.isArray(item.assignees) && item.assignees.length > 0) {
+                            const groupKey = `${item.title || item.customerName}-${item.assignees.join(',')}`;
+                            if (!notificationGroups.has(groupKey)) {
+                                notificationGroups.set(groupKey, { ...item, _id: item.recordId || item._id || result.upsertedIds?.[0] || 'batch' });
+                            } else {
+                                const existing = notificationGroups.get(groupKey);
+                                if (new Date(item.toDate) > new Date(existing.toDate)) {
+                                    existing.toDate = item.toDate;
+                                }
+                            }
+                        }
+                    }
+
+                    for (const docAny of notificationGroups.values()) {
+                        const scheduleId = docAny._id;
+                        
+                        // 1. SMS
+                        try {
+                            const tplDoc = await Customization.findOne({ key: 'schedule_sms_notification' }).lean();
+                            const tplEnabled = tplDoc ? tplDoc.enabled !== false : true;
+                            const tplString = tplDoc?.template || 'DEVCOERP: You have been assigned to "{{title}}" at {{jobLocation}}. Date: {{fromDate}} – {{toDate}}.';
+
+                            if (tplEnabled) {
+                                const fmtDate = (d: any) => d ? new Date(d).toLocaleDateString() : 'N/A';
+                                const baseVars: Record<string, string> = {
+                                    title: docAny.title || '',
+                                    fromDate: fmtDate(docAny.fromDate),
+                                    toDate: fmtDate(docAny.toDate),
+                                    customerName: docAny.customerName || '',
+                                    jobLocation: docAny.jobLocation || '',
+                                    projectManager: docAny.projectManager || '',
+                                    foremanName: docAny.foremanName || '',
+                                    service: docAny.service || '',
+                                };
+
+                                const assigneesDocs = await Employee.find({ email: { $in: docAny.assignees } }).lean();
+                                const smsPromises = assigneesDocs.map(emp => {
+                                    const phone = emp.phone || emp.mobile;
+                                    if (!phone) return null;
+                                    const vars: Record<string, string> = { ...baseVars, employeeName: `${emp.firstName || ''} ${emp.lastName || ''}`.trim() };
+                                    const messageBody = tplString.replace(/\{\{(\w+)\}\}/g, (_: string, key: string) => vars[key] ?? '');
+                                    return sendSMS(phone, messageBody).catch(() => {});
+                                }).filter(Boolean);
+                                await Promise.all(smsPromises);
+                            }
+                        } catch (e) {
+                            console.error('[SMS Import] Error:', e);
+                        }
+
+                        // 2. Email
+                        try {
+                            const alertSetting = await Constant.findOne({ type: 'AppSettings', value: 'emailBot_scheduleAlert' }).lean();
+                            const alertConfig = (alertSetting as any)?.data;
+                            const alertEnabled = alertConfig ? alertConfig.enabled !== false : true;
+
+                            if (alertEnabled && process.env.RESEND_API_KEY) {
+                                const resendClient = new Resend(process.env.RESEND_API_KEY);
+                                const fromName = alertConfig?.fromName || 'DEVCO Notifications';
+                                const assigneeDocs = await Employee.find({ email: { $in: docAny.assignees } }).select('email firstName lastName').lean();
+                                const recipientEmails = assigneeDocs.map((e: any) => e.email).filter(Boolean);
+
+                                if (recipientEmails.length > 0) {
+                                    const fmtDateShort = (d: any) => d ? new Date(d).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : 'N/A';
+                                    const title = docAny.title || docAny.customerName || 'New Schedule';
+                                    const scheduleFields = [
+                                        { label: 'Customer', value: docAny.customerName || '--', icon: '🏢' },
+                                        { label: 'Job Location', value: docAny.jobLocation || '--', icon: '📍' },
+                                        { label: 'Date', value: `${fmtDateShort(docAny.fromDate)} – ${fmtDateShort(docAny.toDate)}`, icon: '📅' },
+                                        { label: 'Service', value: docAny.service || '--', icon: '⚡' },
+                                        { label: 'Item', value: docAny.item || '--', icon: '🔧' },
+                                        { label: 'Description', value: docAny.description || '--', icon: '📝' },
+                                    ];
+                                    const fieldRows = scheduleFields.map((f, i) => `<tr style="background:${i % 2 === 0 ? '#ffffff' : '#f8fafc'};"><td style="padding:10px 16px;border-bottom:1px solid #f1f5f9;font-size:12px;"><span style="margin-right:6px;">${f.icon}</span><strong style="color:#64748b;font-size:10px;text-transform:uppercase;">${f.label}</strong></td><td style="padding:10px 16px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#334155;font-weight:600;">${f.value}</td></tr>`).join('');
+
+                                    const emailHtml = `<!DOCTYPE html><html><body style="margin:0;padding:24px;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;"><div style="max-width:640px;margin:0 auto;background:#fff;border-radius:16px;border:1px solid #e2e8f0;overflow:hidden;"><div style="background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#0f172a 100%);padding:32px 40px;text-align:center;"><p style="margin:0 0 4px 0;font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:2px;">📅 NEW SCHEDULE ASSIGNED</p><h1 style="margin:0;font-size:24px;font-weight:900;color:#fbbf24;">${title}</h1></div><div style="padding:24px 28px;"><table style="width:100%;border-collapse:collapse;">${fieldRows}</table></div></div></body></html>`;
+
+                                    await resendClient.emails.send({
+                                        from: `${fromName} <info@devco.email>`,
+                                        to: recipientEmails,
+                                        subject: `New Schedule: ${title} — ${fmtDateShort(docAny.fromDate)}`,
+                                        html: emailHtml,
+                                    }).catch(e => console.error('[ScheduleAlert] ❌ Resend error (import):', e));
+                                }
+                            }
+                        } catch (e) {
+                            console.error('[Email Import] Error:', e);
+                        }
+
+                        // 3. In-App Notifications
+                        try {
+                            const recipientEmails: string[] = [];
+                            if (Array.isArray(docAny.assignees)) recipientEmails.push(...docAny.assignees);
+                            if (docAny.foremanName) recipientEmails.push(docAny.foremanName);
+                            if (docAny.projectManager) recipientEmails.push(docAny.projectManager);
+                            
+                            const creatorEmail = loggedInEmail || docAny.createdBy || payload?.createdBy || '';
+                            if (creatorEmail) recipientEmails.push(creatorEmail);
+
+                            if (recipientEmails.length > 0) {
+                                const fmtDateShort = (d: any) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+                                await createNotifications({
+                                    recipientEmails,
+                                    type: 'schedule_assigned',
+                                    title: `New Schedule: ${docAny.title || docAny.customerName || 'Untitled'}`,
+                                    message: `You've been assigned to a schedule${docAny.jobLocation ? ' at ' + docAny.jobLocation : ''}. ${fmtDateShort(docAny.fromDate)} – ${fmtDateShort(docAny.toDate)}`,
+                                    link: '/jobs/schedules',
+                                    metadata: { scheduleId, estimate: docAny.estimate },
+                                    createdBy: docAny.createdBy || payload?.createdBy,
+                                });
+                            }
+                        } catch (e) {}
+                    }
+                } catch (e) {
+                    console.error('[Bulk Notification] Error:', e);
                 }
 
                 return NextResponse.json({ success: true, result });
