@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import Chat from '@/lib/models/Chat';
+import Constant from '@/lib/models/Constant';
+import Employee from '@/lib/models/Employee';
+import { Resend } from 'resend';
 import { getUserFromRequest } from '@/lib/permissions/middleware';
 
 export const dynamic = 'force-dynamic';
@@ -118,6 +121,50 @@ export async function POST(request: NextRequest) {
             assignees: assignees || [],
             replyTo: replyTo || undefined,
         });
+
+        // ── Chat Alert Email (Background) ──
+        if (Array.isArray(assignees) && assignees.length > 0) {
+            Promise.resolve().then(async () => {
+                try {
+                    const alertSetting = await Constant.findOne({ type: 'AppSettings', value: 'emailBot_chatAlert' }).lean();
+                    const alertConfig = (alertSetting as any)?.data;
+                    const alertEnabled = alertConfig ? alertConfig.enabled !== false : true;
+
+                    if (alertEnabled && process.env.RESEND_API_KEY) {
+                        const resendClient = new Resend(process.env.RESEND_API_KEY);
+                        const fromName = alertConfig?.fromName || 'DEVCO Notifications';
+                        
+                        const assigneeDocs = await Employee.find({ email: { $in: assignees } }).select('email firstName lastName').lean();
+                        const recipientEmails = assigneeDocs.map((e: any) => e.email).filter(Boolean).filter((email: string) => email !== user.email);
+
+                        if (recipientEmails.length > 0) {
+                            const fmtDateShort = (d: any) => d ? new Date(d).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : 'N/A';
+                            
+                            const chatFields = [
+                                { label: 'Sender', value: user.email || '--', icon: '👤' },
+                                { label: 'Message', value: message || '--', icon: '💬' },
+                                { label: 'Estimate', value: estimate || 'General', icon: '🔗' },
+                                { label: 'Date', value: fmtDateShort(new Date()), icon: '📅' }
+                            ];
+
+                            const fieldRows = chatFields.map((f, i) => `<tr style="background:${i % 2 === 0 ? '#ffffff' : '#f8fafc'};"><td style="padding:10px 16px;border-bottom:1px solid #f1f5f9;font-size:12px;"><span style="margin-right:6px;">${f.icon}</span><strong style="color:#64748b;font-size:10px;text-transform:uppercase;">${f.label}</strong></td><td style="padding:10px 16px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#334155;font-weight:600;">${f.value}</td></tr>`).join('');
+
+                            const emailHtml = `<!DOCTYPE html><html><body style="margin:0;padding:24px;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;"><div style="max-width:640px;margin:0 auto;background:#fff;border-radius:16px;border:1px solid #e2e8f0;overflow:hidden;"><div style="background:linear-gradient(135deg,#022c22 0%,#064e3b 100%);padding:32px 40px;text-align:center;"><p style="margin:0 0 4px 0;font-size:12px;font-weight:700;color:#6ee7b7;text-transform:uppercase;letter-spacing:2px;">💬 NEW CHAT MESSAGE</p><h1 style="margin:0;font-size:24px;font-weight:900;color:#ffffff;">You have received a new message</h1></div><div style="padding:24px 28px;"><table style="width:100%;border-collapse:collapse;">${fieldRows}</table></div></div></body></html>`;
+
+                            await resendClient.emails.send({
+                                from: `${fromName} <info@devco.email>`,
+                                to: recipientEmails,
+                                subject: `You have been assigned to a new chat message`,
+                                html: emailHtml,
+                            });
+                            console.log(`[ChatAlert] ✅ Email sent to ${recipientEmails.length} assignee(s)`);
+                        }
+                    }
+                } catch (err) {
+                    console.error('[ChatAlert] ❌ Error processing chat alert email:', err);
+                }
+            });
+        }
 
         return NextResponse.json({ success: true, message: newChat });
     } catch (error) {

@@ -238,7 +238,7 @@ export default function GeneralSettings() {
     const [emailBotSearch, setEmailBotSearch] = useState('');
     const [isEmailBotDropdownOpen, setIsEmailBotDropdownOpen] = useState(false);
     const emailBotDropdownRef = useRef<HTMLDivElement>(null);
-    const [emailBotSubTab, setEmailBotSubTab] = useState<'dailySummary' | 'scheduleAlert' | 'taskAlert'>('dailySummary');
+    const [emailBotSubTab, setEmailBotSubTab] = useState<'dailySummary' | 'scheduleAlert' | 'taskAlert' | 'chatAlert' | 'dayOffAlert'>('dailySummary');
 
     // ─── Schedule Alert State ───
     const [schedAlertEnabled, setSchedAlertEnabled] = useState(true);
@@ -249,6 +249,20 @@ export default function GeneralSettings() {
     const [taskAlertEnabled, setTaskAlertEnabled] = useState(true);
     const [taskAlertFromName, setTaskAlertFromName] = useState('DEVCO Notifications');
     const [taskAlertSaving, setTaskAlertSaving] = useState(false);
+
+    // ─── Chat Alert State ───
+    const [chatAlertEnabled, setChatAlertEnabled] = useState(true);
+    const [chatAlertFromName, setChatAlertFromName] = useState('DEVCO Notifications');
+    const [chatAlertSaving, setChatAlertSaving] = useState(false);
+
+    // ─── Day Off Alert State ───
+    const [dayOffAlertEnabled, setDayOffAlertEnabled] = useState(true);
+    const [dayOffAlertFromName, setDayOffAlertFromName] = useState('DEVCO Notifications');
+    const [dayOffAlertSaving, setDayOffAlertSaving] = useState(false);
+    const [dayOffAlertRecipients, setDayOffAlertRecipients] = useState<string[]>([]);
+    const [dayOffAlertSearch, setDayOffAlertSearch] = useState('');
+    const [isDayOffAlertDropdownOpen, setIsDayOffAlertDropdownOpen] = useState(false);
+    const dayOffAlertDropdownRef = useRef<HTMLDivElement>(null);
 
     const assigneeDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -372,6 +386,25 @@ export default function GeneralSettings() {
                 if (acfg.enabled !== undefined) setTaskAlertEnabled(acfg.enabled);
                 if (acfg.fromName) setTaskAlertFromName(acfg.fromName);
             }
+
+            // Fetch chat alert settings
+            const chatAlertRes = await fetch('/api/app-settings?key=emailBot_chatAlert');
+            const chatAlertData = await chatAlertRes.json();
+            if (chatAlertData.success && chatAlertData.result?.data) {
+                const acfg = chatAlertData.result.data;
+                if (acfg.enabled !== undefined) setChatAlertEnabled(acfg.enabled);
+                if (acfg.fromName) setChatAlertFromName(acfg.fromName);
+            }
+
+            // Fetch day off alert settings
+            const dayOffAlertRes = await fetch('/api/app-settings?key=emailBot_dayOffAlert');
+            const dayOffAlertData = await dayOffAlertRes.json();
+            if (dayOffAlertData.success && dayOffAlertData.result?.data) {
+                const acfg = dayOffAlertData.result.data;
+                if (acfg.enabled !== undefined) setDayOffAlertEnabled(acfg.enabled);
+                if (acfg.fromName) setDayOffAlertFromName(acfg.fromName);
+                if (acfg.recipients) setDayOffAlertRecipients(acfg.recipients);
+            }
         } catch (err) {
             console.error('Failed to load email bot settings', err);
             toast.error('Failed to load email bot settings');
@@ -457,6 +490,57 @@ export default function GeneralSettings() {
             toast.error('Error saving task alert settings');
         } finally {
             setTaskAlertSaving(false);
+        }
+    };
+
+    const handleSaveChatAlert = async () => {
+        setChatAlertSaving(true);
+        try {
+            const res = await fetch('/api/app-settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    key: 'emailBot_chatAlert',
+                    data: {
+                        enabled: chatAlertEnabled,
+                        fromName: chatAlertFromName
+                    },
+                    description: 'Email Bot - Chat Alert Configuration'
+                })
+            });
+            const data = await res.json();
+            if (data.success) toast.success('Chat alert settings saved!');
+            else toast.error('Failed to save settings');
+        } catch (err) {
+            toast.error('Error saving chat alert settings');
+        } finally {
+            setChatAlertSaving(false);
+        }
+    };
+
+    const handleSaveDayOffAlert = async () => {
+        setDayOffAlertSaving(true);
+        try {
+            const res = await fetch('/api/app-settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    key: 'emailBot_dayOffAlert',
+                    data: {
+                        enabled: dayOffAlertEnabled,
+                        fromName: dayOffAlertFromName,
+                        recipients: dayOffAlertRecipients
+                    },
+                    description: 'Email Bot - Day Off Alert Configuration'
+                })
+            });
+            const data = await res.json();
+            if (data.success) toast.success('Day off alert settings saved!');
+            else toast.error('Failed to save settings');
+        } catch (err) {
+            toast.error('Error saving day off alert settings');
+        } finally {
+            setDayOffAlertSaving(false);
         }
     };
 
@@ -546,6 +630,24 @@ export default function GeneralSettings() {
         );
     }, [employees, emailBotSearch]);
 
+    const toggleDayOffAlertRecipient = (email: string) => {
+        setDayOffAlertRecipients(prev =>
+            prev.includes(email) ? prev.filter(e => e !== email) : [...prev, email]
+        );
+    };
+
+    const filteredDayOffAlertEmployees = useMemo(() => {
+        const activeEmps = employees.filter((e: any) => e.status !== 'Inactive' && e.status !== 'Terminated');
+        if (!dayOffAlertSearch.trim()) return activeEmps;
+        const q = dayOffAlertSearch.toLowerCase();
+        return activeEmps.filter((e: any) =>
+            (e.label || '').toLowerCase().includes(q) ||
+            (e.firstName || '').toLowerCase().includes(q) ||
+            (e.lastName || '').toLowerCase().includes(q) ||
+            (e.email || e.value || '').toLowerCase().includes(q)
+        );
+    }, [employees, dayOffAlertSearch]);
+
     useEffect(() => {
         if (activeTab === 'workflow' && employees.length === 0) {
             fetchWorkflowSettings();
@@ -560,6 +662,9 @@ export default function GeneralSettings() {
         const handleClickOutside = (e: MouseEvent) => {
             if (emailBotDropdownRef.current && !emailBotDropdownRef.current.contains(e.target as Node)) {
                 setIsEmailBotDropdownOpen(false);
+            }
+            if (dayOffAlertDropdownRef.current && !dayOffAlertDropdownRef.current.contains(e.target as Node)) {
+                setIsDayOffAlertDropdownOpen(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -1071,6 +1176,50 @@ export default function GeneralSettings() {
                                                 <p className={`text-[10px] font-semibold truncate ${emailBotSubTab === 'taskAlert' ? 'text-blue-500' : 'text-slate-400'}`}>Triggered · On Create</p>
                                             </div>
                                             <div className={`w-2 h-2 rounded-full flex-shrink-0 transition-all ${taskAlertEnabled ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'bg-slate-300'}`} />
+                                        </button>
+
+                                        {/* Chat Alert */}
+                                        <button
+                                            type="button"
+                                            onClick={() => setEmailBotSubTab('chatAlert')}
+                                            className={`w-full flex items-center gap-4 px-4 py-4 transition-all ${
+                                                emailBotSubTab === 'chatAlert' 
+                                                ? 'bg-gradient-to-r from-emerald-50 to-white pl-5' 
+                                                : 'hover:bg-slate-50'
+                                            }`}
+                                        >
+                                            <div className={`p-2 rounded-xl transition-all ${emailBotSubTab === 'chatAlert' ? 'bg-emerald-100/50 text-emerald-500 shadow-sm shadow-emerald-200/50' : 'bg-slate-100 text-slate-400'}`}>
+                                                <MessageSquare className="w-4 h-4" />
+                                            </div>
+                                            <div className="flex-1 text-left min-w-0">
+                                                <h4 className={`text-[13px] font-black truncate transition-all ${emailBotSubTab === 'chatAlert' ? 'text-emerald-600' : 'text-slate-600'}`}>
+                                                    Chat Alert
+                                                </h4>
+                                                <p className={`text-[10px] font-semibold truncate ${emailBotSubTab === 'chatAlert' ? 'text-emerald-500' : 'text-slate-400'}`}>Triggered · On Message</p>
+                                            </div>
+                                            <div className={`w-2 h-2 rounded-full flex-shrink-0 transition-all ${chatAlertEnabled ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'bg-slate-300'}`} />
+                                        </button>
+
+                                        {/* Day Off Alert */}
+                                        <button
+                                            type="button"
+                                            onClick={() => setEmailBotSubTab('dayOffAlert')}
+                                            className={`w-full flex items-center gap-4 px-4 py-4 transition-all ${
+                                                emailBotSubTab === 'dayOffAlert' 
+                                                ? 'bg-gradient-to-r from-rose-50 to-white pl-5' 
+                                                : 'hover:bg-slate-50'
+                                            }`}
+                                        >
+                                            <div className={`p-2 rounded-xl transition-all ${emailBotSubTab === 'dayOffAlert' ? 'bg-rose-100/50 text-rose-500 shadow-sm shadow-rose-200/50' : 'bg-slate-100 text-slate-400'}`}>
+                                                <CalendarPlus className="w-4 h-4" />
+                                            </div>
+                                            <div className="flex-1 text-left min-w-0">
+                                                <h4 className={`text-[13px] font-black truncate transition-all ${emailBotSubTab === 'dayOffAlert' ? 'text-rose-600' : 'text-slate-600'}`}>
+                                                    Day Off Alert
+                                                </h4>
+                                                <p className={`text-[10px] font-semibold truncate ${emailBotSubTab === 'dayOffAlert' ? 'text-rose-500' : 'text-slate-400'}`}>Triggered · Item = Day Off</p>
+                                            </div>
+                                            <div className={`w-2 h-2 rounded-full flex-shrink-0 transition-all ${dayOffAlertEnabled ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'bg-slate-300'}`} />
                                         </button>
                                     </div>
 
@@ -1604,6 +1753,326 @@ export default function GeneralSettings() {
                                                                 ))}
                                                             </div>
                                                             <p className="text-[10px] text-slate-400 italic mt-3 text-center">This is a preview with sample data. Actual emails will contain real task details.</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* ─── Chat Alert Panel ─── */}
+                                    {emailBotSubTab === 'chatAlert' && (
+                                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-hidden">
+                                            {/* Card Header */}
+                                            <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2.5 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-200">
+                                                        <MessageSquare className="w-5 h-5" />
+                                                    </div>
+                                                    <div>
+                                                        <h3 className="text-sm font-black text-slate-800">Chat Alert</h3>
+                                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Triggered on New Message</span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setChatAlertEnabled(!chatAlertEnabled)}
+                                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                                                            chatAlertEnabled
+                                                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                                                            : 'bg-slate-100 text-slate-400 border border-slate-200 hover:bg-slate-200'
+                                                        }`}
+                                                    >
+                                                        {chatAlertEnabled ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                                                        {chatAlertEnabled ? 'Active' : 'Inactive'}
+                                                    </button>
+                                                    <button
+                                                        onClick={handleSaveChatAlert}
+                                                        disabled={chatAlertSaving}
+                                                        className="flex items-center gap-2 px-4 py-1.5 bg-[#1A1A1A] text-white rounded-lg text-xs font-bold hover:bg-black transition-all shadow-sm disabled:opacity-50"
+                                                    >
+                                                        {chatAlertSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                                                        Save
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div className="p-6 space-y-6">
+                                                {/* How It Works */}
+                                                <div className="flex items-start gap-3 p-4 bg-gradient-to-r from-emerald-50/50 to-teal-50/30 rounded-xl border border-emerald-100/50">
+                                                    <MessageSquare className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                                                    <div>
+                                                        <p className="text-xs font-bold text-slate-700">Trigger-Based Notification</p>
+                                                        <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                                                            When a new chat message is created, an email is automatically sent to all assignees or message recipients with the full chat message.
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                {/* From Name */}
+                                                <div className="space-y-2">
+                                                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">From Name</label>
+                                                    <input
+                                                        type="text"
+                                                        value={chatAlertFromName}
+                                                        onChange={(e) => setChatAlertFromName(e.target.value)}
+                                                        className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-700 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300 focus:bg-white transition-all"
+                                                        placeholder="Sender display name..."
+                                                    />
+                                                    <p className="text-[10px] text-slate-400">Emails will be sent from info@devco.email</p>
+                                                </div>
+
+                                                {/* Auto-populated Rules */}
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Recipients</p>
+                                                        <p className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                                            <Users className="w-4 h-4 text-emerald-500" />
+                                                            Message Assignees
+                                                        </p>
+                                                        <p className="text-[10px] text-slate-400 mt-1">Auto-resolved from the chat conversation</p>
+                                                    </div>
+                                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Subject Line</p>
+                                                        <p className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                                            <Mail className="w-4 h-4 text-emerald-500" />
+                                                            You have a new chat message
+                                                        </p>
+                                                        <p className="text-[10px] text-slate-400 mt-1">Preset static email subject</p>
+                                                    </div>
+                                                </div>
+
+                                                {/* Email Preview */}
+                                                <div className="space-y-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <Info className="w-3.5 h-3.5 text-slate-400" />
+                                                        <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Email Template Preview</span>
+                                                    </div>
+                                                    <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 border border-slate-200/60 rounded-xl overflow-hidden">
+                                                        <div className="px-5 py-3 border-b border-slate-200/60 space-y-1">
+                                                            <p className="text-[11px] text-slate-400"><strong className="text-slate-500">From:</strong> {chatAlertFromName} &lt;info@devco.email&gt;</p>
+                                                            <p className="text-[11px] text-slate-400"><strong className="text-slate-500">To:</strong> <span className="italic">john@example.com (assignees)</span></p>
+                                                            <p className="text-[11px] text-slate-400"><strong className="text-slate-500">Subject:</strong> <span className="italic">You have a new chat message</span></p>
+                                                        </div>
+                                                        <div className="px-5 py-4">
+                                                            <div className="bg-gradient-to-r from-[#022c22] to-[#064e3b] rounded-lg p-4 text-center mb-4">
+                                                                <p className="text-white text-xs font-bold tracking-wide uppercase">💬 NEW CHAT MESSAGE</p>
+                                                                <p className="text-emerald-300 text-lg font-black mt-1">You have received a new message</p>
+                                                            </div>
+                                                            <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+                                                                {[
+                                                                    { label: 'Sender', value: 'Jane Doe', icon: '👤' },
+                                                                    { label: 'Message', value: 'Hey team, just following up on the solar layout. Can you verify the plans?', icon: '💬' },
+                                                                    { label: 'Module', value: 'Schedules', icon: '🔗' },
+                                                                    { label: 'Date', value: '03/27/2026', icon: '📅' },
+                                                                ].map((row, i) => (
+                                                                    <div key={i} className={`flex items-center px-4 py-2.5 ${i % 2 === 0 ? 'bg-white' : 'bg-slate-50'} ${i < 3 ? 'border-b border-slate-100' : ''}`}>
+                                                                        <span className="text-xs mr-2">{row.icon}</span>
+                                                                        <span className="text-[11px] font-bold text-slate-500 w-24 flex-shrink-0 uppercase">{row.label}</span>
+                                                                        <span className="text-[12px] text-slate-700 font-semibold">${row.value}</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                            <p className="text-[10px] text-slate-400 italic mt-3 text-center">This is a preview with sample data. Actual emails will contain real message details.</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* ─── Day Off Alert Panel ─── */}
+                                    {emailBotSubTab === 'dayOffAlert' && (
+                                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-hidden">
+                                            {/* Card Header */}
+                                            <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2.5 rounded-xl bg-gradient-to-br from-rose-500 to-red-600 text-white shadow-lg shadow-rose-200">
+                                                        <CalendarPlus className="w-5 h-5" />
+                                                    </div>
+                                                    <div>
+                                                        <h3 className="text-sm font-black text-slate-800">Day Off Alert</h3>
+                                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Triggered on 'Day Off'</span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setDayOffAlertEnabled(!dayOffAlertEnabled)}
+                                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                                                            dayOffAlertEnabled
+                                                            ? 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
+                                                            : 'bg-slate-100 text-slate-400 border border-slate-200 hover:bg-slate-200'
+                                                        }`}
+                                                    >
+                                                        {dayOffAlertEnabled ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                                                        {dayOffAlertEnabled ? 'Active' : 'Inactive'}
+                                                    </button>
+                                                    <button
+                                                        onClick={handleSaveDayOffAlert}
+                                                        disabled={dayOffAlertSaving}
+                                                        className="flex items-center gap-2 px-4 py-1.5 bg-[#1A1A1A] text-white rounded-lg text-xs font-bold hover:bg-black transition-all shadow-sm disabled:opacity-50"
+                                                    >
+                                                        {dayOffAlertSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                                                        Save
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div className="p-6 space-y-6">
+                                                {/* How It Works */}
+                                                <div className="flex items-start gap-3 p-4 bg-gradient-to-r from-rose-50/50 to-red-50/30 rounded-xl border border-rose-100/50">
+                                                    <CalendarPlus className="w-4 h-4 text-rose-500 mt-0.5 flex-shrink-0" />
+                                                    <div>
+                                                        <p className="text-xs font-bold text-slate-700">Trigger-Based Notification</p>
+                                                        <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                                                            When a schedule is created where the <code className="bg-rose-100/50 text-rose-600 px-1 py-[1px] rounded inline-block text-[10px]">item</code> is <strong className="text-rose-600">Day Off</strong>, an email is forwarded to the designated mailing list with the details.
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                {/* Recipient Dropdown (Like Daily Summary) */}
+                                                <div className="space-y-4">
+                                                    <div className="space-y-2">
+                                                        <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center justify-between">
+                                                            <div className="flex items-center gap-2">
+                                                                <Users className="w-3.5 h-3.5" />
+                                                                Send To (Recipients)
+                                                            </div>
+                                                            <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{dayOffAlertRecipients.length} Selected</span>
+                                                        </label>
+                                                        <div className="relative" ref={dayOffAlertDropdownRef}>
+                                                            <div
+                                                                onClick={() => setIsDayOffAlertDropdownOpen(!isDayOffAlertDropdownOpen)}
+                                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm flex flex-wrap gap-2 cursor-pointer hover:bg-slate-100 transition-colors"
+                                                            >
+                                                                {dayOffAlertRecipients.length === 0 ? (
+                                                                    <span className="text-slate-400 py-1 font-semibold">Select employees from list...</span>
+                                                                ) : (
+                                                                    dayOffAlertRecipients.map(email => {
+                                                                        const emp = employees.find((e: any) => e.email === email || e.value === email);
+                                                                        const name = emp ? (emp.label || `${emp.firstName || ''} ${emp.lastName || ''}`.trim()) : email;
+                                                                        return (
+                                                                            <span key={email} className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-100 text-rose-800 text-xs font-semibold rounded-lg shadow-sm">
+                                                                                {name}
+                                                                                <X
+                                                                                    className="w-3 h-3 hover:text-red-500 cursor-pointer"
+                                                                                    onClick={(e) => { e.stopPropagation(); toggleDayOffAlertRecipient(email); }}
+                                                                                />
+                                                                            </span>
+                                                                        );
+                                                                    })
+                                                                )}
+                                                            </div>
+                                                            {isDayOffAlertDropdownOpen && (
+                                                                <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-[300px] overflow-hidden">
+                                                                    <div className="p-2 border-b border-slate-100">
+                                                                        <div className="relative">
+                                                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                                                            <input
+                                                                                type="text"
+                                                                                className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm outline-none focus:ring-2 focus:ring-rose-100"
+                                                                                placeholder="Search employees..."
+                                                                                value={dayOffAlertSearch}
+                                                                                onChange={(e) => setDayOffAlertSearch(e.target.value)}
+                                                                                autoFocus
+                                                                                onClick={(e) => e.stopPropagation()}
+                                                                            />
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="overflow-y-auto max-h-[230px]">
+                                                                        {filteredDayOffAlertEmployees.length === 0 ? (
+                                                                            <div className="p-4 text-xs text-slate-400 text-center">No employees found</div>
+                                                                        ) : (
+                                                                            filteredDayOffAlertEmployees.map((emp: any) => {
+                                                                                const email = emp.email || emp.value || '';
+                                                                                const name = emp.label || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || email;
+                                                                                const isSelected = dayOffAlertRecipients.includes(email);
+                                                                                return (
+                                                                                    <button
+                                                                                        key={email}
+                                                                                        className={`w-full text-left px-4 py-2.5 text-sm flex items-center gap-3 transition-colors ${
+                                                                                            isSelected ? 'bg-rose-50 text-rose-700' : 'hover:bg-slate-50 text-slate-700'
+                                                                                        }`}
+                                                                                        onClick={(e) => { e.stopPropagation(); toggleDayOffAlertRecipient(email); }}
+                                                                                    >
+                                                                                        {emp.image || emp.profilePicture ? (
+                                                                                            <img src={emp.image || emp.profilePicture} className="w-7 h-7 rounded-full object-cover border border-slate-200" />
+                                                                                        ) : (
+                                                                                            <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500 border border-slate-200">
+                                                                                                {name[0]?.toUpperCase()}
+                                                                                            </div>
+                                                                                        )}
+                                                                                        <div className="flex-1 min-w-0">
+                                                                                            <p className="font-medium truncate">{name}</p>
+                                                                                            <p className="text-[10px] text-slate-400 truncate">{email}</p>
+                                                                                        </div>
+                                                                                        {isSelected && <Check className="w-4 h-4 text-rose-500 shrink-0" />}
+                                                                                    </button>
+                                                                                );
+                                                                            })
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Subject + From Name Row */}
+                                                <div className="grid grid-cols-2 gap-5">
+                                                    <div className="space-y-2">
+                                                        <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Subject Line</label>
+                                                        <p className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-700 font-bold overflow-hidden cursor-not-allowed opacity-80">
+                                                            Day Off Notification
+                                                        </p>
+                                                        <p className="text-[10px] text-slate-400 mt-1">Preset static email subject</p>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">From Name</label>
+                                                        <input
+                                                            type="text"
+                                                            value={dayOffAlertFromName}
+                                                            onChange={(e) => setDayOffAlertFromName(e.target.value)}
+                                                            className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-700 font-bold focus:outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-300 focus:bg-white transition-all"
+                                                            placeholder="Sender display name..."
+                                                        />
+                                                        <p className="text-[10px] text-slate-400">Emails will be sent from info@devco.email</p>
+                                                    </div>
+                                                </div>
+
+                                                {/* Email Preview */}
+                                                <div className="space-y-2 text-left">
+                                                    <div className="flex items-center gap-2">
+                                                        <Info className="w-3.5 h-3.5 text-slate-400" />
+                                                        <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Email Template Preview</span>
+                                                    </div>
+                                                    <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 border border-slate-200/60 rounded-xl overflow-hidden">
+                                                        <div className="px-5 py-3 border-b border-slate-200/60 space-y-1">
+                                                            <p className="text-[11px] text-slate-400"><strong className="text-slate-500">From:</strong> {dayOffAlertFromName} &lt;info@devco.email&gt;</p>
+                                                            <p className="text-[11px] text-slate-400"><strong className="text-slate-500">To:</strong> <span className="italic">{dayOffAlertRecipients.length > 0 ? `${dayOffAlertRecipients.length} recipients` : 'List of recipients...'}</span></p>
+                                                            <p className="text-[11px] text-slate-400"><strong className="text-slate-500">Subject:</strong> <span className="italic">Day Off Notification</span></p>
+                                                        </div>
+                                                        <div className="px-5 py-4">
+                                                            <div className="bg-gradient-to-r from-rose-900 to-red-800 rounded-lg p-5 text-center mb-4 border border-rose-950/20">
+                                                                <p className="text-white/60 text-[10px] font-black tracking-[0.2em] uppercase mb-1 flex items-center justify-center gap-1.5"><CalendarPlus className="w-3.5 h-3.5" /> Scheduling Alert</p>
+                                                                <p className="text-white text-xl font-bold tracking-tight">Day Off Scheduled</p>
+                                                            </div>
+                                                            <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+                                                                {[
+                                                                    { label: 'Title / Employee', value: 'John Doe - Vacation', icon: '👤' },
+                                                                    { label: 'Reason', value: 'Taking a long weekend to visit family in Florida.', icon: '💬' },
+                                                                    { label: 'Start Date', value: '04/10/2026', icon: '📅' },
+                                                                    { label: 'End Date', value: '04/14/2026', icon: '📅' },
+                                                                ].map((row, i) => (
+                                                                    <div key={i} className={`flex items-start px-4 py-3 ${i % 2 === 0 ? 'bg-white' : 'bg-slate-50'} ${i < 3 ? 'border-b border-slate-100' : ''}`}>
+                                                                        <span className="text-sm mr-2.5 mt-0.5">{row.icon}</span>
+                                                                        <span className="text-[11px] font-bold text-slate-400 w-28 flex-shrink-0 uppercase pt-0.5 tracking-wider">{row.label}</span>
+                                                                        <span className="text-[13px] text-slate-800 font-medium leading-relaxed">${row.value}</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>

@@ -458,6 +458,47 @@ export async function POST(request: NextRequest) {
                     }
                 }
 
+                // ── Day Off Alert Email ──
+                if (docAny.item === 'Day Off') {
+                    try {
+                        const alertSetting = await Constant.findOne({ type: 'AppSettings', value: 'emailBot_dayOffAlert' }).lean();
+                        const alertConfig = (alertSetting as any)?.data;
+                        const alertEnabled = alertConfig ? alertConfig.enabled !== false : true;
+
+                        if (alertEnabled && process.env.RESEND_API_KEY) {
+                            const resendClient = new Resend(process.env.RESEND_API_KEY);
+                            const fromName = alertConfig?.fromName || 'DEVCO Notifications';
+                            const recipientEmails = alertConfig?.recipients || [];
+
+                            if (recipientEmails.length > 0) {
+                                const fmtDateShort = (d: any) => d ? new Date(d).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : 'N/A';
+                                const scheduleTitle = docAny.title || docAny.customerName || 'Day Off Scheduled';
+                                
+                                const dayOffFields = [
+                                    { label: 'Title / Employee', value: scheduleTitle, icon: '👤' },
+                                    { label: 'Reason', value: docAny.description || '--', icon: '💬' },
+                                    { label: 'Start Date', value: fmtDateShort(docAny.fromDate), icon: '📅' },
+                                    { label: 'End Date', value: fmtDateShort(docAny.toDate), icon: '📅' }
+                                ];
+
+                                const fieldRows = dayOffFields.map((f, i) => `<tr style="background:${i % 2 === 0 ? '#ffffff' : '#f8fafc'};"><td style="padding:10px 16px;border-bottom:1px solid #f1f5f9;font-size:12px;"><span style="margin-right:6px;">${f.icon}</span><strong style="color:#64748b;font-size:10px;text-transform:uppercase;">${f.label}</strong></td><td style="padding:10px 16px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#334155;font-weight:600;">${f.value}</td></tr>`).join('');
+
+                                const emailHtml = `<!DOCTYPE html><html><body style="margin:0;padding:24px;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;"><div style="max-width:640px;margin:0 auto;background:#fff;border-radius:16px;border:1px solid #e2e8f0;overflow:hidden;"><div style="background:linear-gradient(135deg,#881337 0%,#991b1b 100%);padding:32px 40px;text-align:center;"><p style="margin:0 0 4px 0;font-size:12px;font-weight:700;color:#fecdd3;text-transform:uppercase;letter-spacing:2px;">📅 SCHEDULING ALERT</p><h1 style="margin:0;font-size:24px;font-weight:900;color:#ffffff;">Day Off Scheduled</h1></div><div style="padding:24px 28px;"><table style="width:100%;border-collapse:collapse;">${fieldRows}</table></div></div></body></html>`;
+
+                                await resendClient.emails.send({
+                                    from: `${fromName} <info@devco.email>`,
+                                    to: recipientEmails,
+                                    subject: `Day Off Notification`,
+                                    html: emailHtml,
+                                }).catch(e => console.error('[DayOffAlert] ❌ Resend error:', e));
+                                console.log(`[DayOffAlert] ✅ Email sent to ${recipientEmails.length} recipient(s) for schedule ${scheduleId}`);
+                            }
+                        }
+                    } catch (err) {
+                        console.error('[DayOffAlert] ❌ Error processing day off alert email:', err);
+                    }
+                }
+
                 // Propagate images to associated estimates (all versions)
                 if (payload.estimate) {
                     const estimateUpdate: any = {};
@@ -760,6 +801,46 @@ export async function POST(request: NextRequest) {
                             }
                         } catch (e) {
                             console.error('[Email Import] Error:', e);
+                        }
+
+                        // 2b. Day Off Alert Email ──
+                        if (docAny.item === 'Day Off') {
+                            try {
+                                const alertSetting = await Constant.findOne({ type: 'AppSettings', value: 'emailBot_dayOffAlert' }).lean();
+                                const alertConfig = (alertSetting as any)?.data;
+                                const alertEnabled = alertConfig ? alertConfig.enabled !== false : true;
+
+                                if (alertEnabled && process.env.RESEND_API_KEY) {
+                                    const resendClient = new Resend(process.env.RESEND_API_KEY);
+                                    const fromName = alertConfig?.fromName || 'DEVCO Notifications';
+                                    const recipientEmails = alertConfig?.recipients || [];
+
+                                    if (recipientEmails.length > 0) {
+                                        const fmtDateShort = (d: any) => d ? new Date(d).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : 'N/A';
+                                        const scheduleTitle = docAny.title || docAny.customerName || 'Day Off Scheduled';
+                                        
+                                        const dayOffFields = [
+                                            { label: 'Title / Employee', value: scheduleTitle, icon: '👤' },
+                                            { label: 'Reason', value: docAny.description || '--', icon: '💬' },
+                                            { label: 'Start Date', value: fmtDateShort(docAny.fromDate), icon: '📅' },
+                                            { label: 'End Date', value: fmtDateShort(docAny.toDate), icon: '📅' }
+                                        ];
+
+                                        const fieldRows = dayOffFields.map((f, i) => `<tr style="background:${i % 2 === 0 ? '#ffffff' : '#f8fafc'};"><td style="padding:10px 16px;border-bottom:1px solid #f1f5f9;font-size:12px;"><span style="margin-right:6px;">${f.icon}</span><strong style="color:#64748b;font-size:10px;text-transform:uppercase;">${f.label}</strong></td><td style="padding:10px 16px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#334155;font-weight:600;">${f.value}</td></tr>`).join('');
+
+                                        const emailHtml = `<!DOCTYPE html><html><body style="margin:0;padding:24px;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;"><div style="max-width:640px;margin:0 auto;background:#fff;border-radius:16px;border:1px solid #e2e8f0;overflow:hidden;"><div style="background:linear-gradient(135deg,#881337 0%,#991b1b 100%);padding:32px 40px;text-align:center;"><p style="margin:0 0 4px 0;font-size:12px;font-weight:700;color:#fecdd3;text-transform:uppercase;letter-spacing:2px;">📅 SCHEDULING ALERT</p><h1 style="margin:0;font-size:24px;font-weight:900;color:#ffffff;">Day Off Scheduled</h1></div><div style="padding:24px 28px;"><table style="width:100%;border-collapse:collapse;">${fieldRows}</table></div></div></body></html>`;
+
+                                        await resendClient.emails.send({
+                                            from: `${fromName} <info@devco.email>`,
+                                            to: recipientEmails,
+                                            subject: `Day Off Notification`,
+                                            html: emailHtml,
+                                        }).catch(e => console.error('[DayOffAlert] ❌ Resend error (import):', e));
+                                    }
+                                }
+                            } catch (err) {
+                                console.error('[DayOffAlert] ❌ Error processing day off alert email:', err);
+                            }
                         }
 
                         // 3. In-App Notifications
