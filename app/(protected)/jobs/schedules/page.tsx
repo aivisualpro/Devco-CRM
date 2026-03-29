@@ -946,6 +946,25 @@ function SchedulePageContent() {
         });
     };
 
+    const handleResendEmail = async (item: any) => {
+        try {
+            const res = await fetch('/api/schedules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'resendEmail', payload: { id: item._id } })
+            });
+            const data = await res.json();
+            if (data.success) {
+                success(data.message || 'Email resent successfully');
+            } else {
+                toastError(data.error || 'Failed to resend email');
+            }
+        } catch (err) {
+            console.error(err);
+            toastError('Error resending email');
+        }
+    };
+
     // AppSheet sync handler - only for adeel@devco-inc.com
     const handleSyncToAppSheet = async () => {
         if (!selectedSchedule) return;
@@ -2498,6 +2517,7 @@ function SchedulePageContent() {
                                             setEditingItem(item);
                                             setIsModalOpen(true);
                                         }}
+                                        onResendEmail={handleResendEmail}
                                         onCopy={(item) => {
                                             const addOneDay = (dateStr: string) => {
                                                 const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);

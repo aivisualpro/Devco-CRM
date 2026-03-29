@@ -3,7 +3,7 @@
 import React from 'react';
 import { 
     Edit, Copy, Trash2, Shield, ShieldCheck, FilePlus, FileCheck, 
-    StopCircle, Droplets, Warehouse, Car 
+    StopCircle, Droplets, Warehouse, Car, Mail
 } from 'lucide-react';
 import { 
     Tooltip, TooltipTrigger, TooltipContent, TooltipProvider 
@@ -66,6 +66,7 @@ interface ScheduleCardProps {
     onEdit?: (item: ScheduleItem, e: React.MouseEvent) => void;
     onCopy?: (item: ScheduleItem, e: React.MouseEvent) => void;
     onDelete?: (item: ScheduleItem, e: React.MouseEvent) => void;
+    onResendEmail?: (item: ScheduleItem, e: React.MouseEvent) => void;
     onViewJHA?: (item: ScheduleItem, e: React.MouseEvent) => void;
     onCreateJHA?: (item: ScheduleItem, e: React.MouseEvent) => void;
     onViewDJT?: (item: ScheduleItem, e: React.MouseEvent) => void;
@@ -84,6 +85,7 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
     onEdit,
     onCopy,
     onDelete,
+    onResendEmail,
     onViewJHA,
     onCreateJHA,
     onViewDJT,
@@ -171,7 +173,20 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                         {dayName}
                     </div>
 
-                    <div className={`hidden md:flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 ${!onEdit && !onCopy && !onDelete ? 'hidden' : ''}`}>
+                    <div className={`hidden md:flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 ${!onEdit && !onCopy && !onDelete && !onResendEmail ? 'hidden' : ''}`}>
+                        {onResendEmail && item.assignees && item.assignees.length > 0 && (
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); onResendEmail(item, e); }}
+                                        className="p-2 bg-white/90 backdrop-blur rounded-xl text-slate-500 hover:text-amber-500 hover:bg-amber-50 shadow-sm border border-slate-100 transition-all active:scale-90"
+                                    >
+                                        <Mail size={14} />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent><p>Resend Email to Assignees</p></TooltipContent>
+                            </Tooltip>
+                        )}
                         {onEdit && (
                             <Tooltip>
                                 <TooltipTrigger asChild>
