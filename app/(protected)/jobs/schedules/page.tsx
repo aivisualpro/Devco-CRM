@@ -61,6 +61,7 @@ interface Objective {
 // ScheduleItem interface imported from components/ScheduleCard
 
 function SchedulePageContent() {
+    const router = useRouter();
     const { success, error: toastError } = useToast();
     const { user, getDataScope: getScope, isSuperAdmin } = usePermissions();
     // Users with 'self' scope for schedules can only create Day Off schedules
@@ -2743,7 +2744,13 @@ function SchedulePageContent() {
                                                 </div>
                                                 <div className="mt-2 flex items-center gap-2 text-xs font-bold text-slate-500">
                                                     {selectedSchedule.item !== 'Day Off' && selectedSchedule.estimate && (
-                                                        <span className="text-[#0F4C75] bg-[#E6EEF8] px-2 py-0.5 rounded-full">
+                                                        <span 
+                                                            className="text-[#0F4C75] bg-[#E6EEF8] px-2 py-0.5 rounded-full hover:bg-[#b0cde8] transition-colors cursor-pointer shadow-sm active:scale-95 z-10 relative"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                router.push(`/estimates/${selectedSchedule.estimate}`);
+                                                            }}
+                                                        >
                                                             {selectedSchedule.estimate.replace(/-[vV]\d+$/, '')}
                                                         </span>
                                                     )}
@@ -3629,7 +3636,13 @@ function SchedulePageContent() {
                             {/* Date & Time */}
                             <div className="flex items-center gap-2 text-xs font-bold text-slate-500 flex-wrap bg-slate-50 p-3 rounded-xl">
                                 {selectedSchedule.item !== 'Day Off' && selectedSchedule.estimate && (
-                                    <span className="text-[#0F4C75] bg-[#E6EEF8] px-2 py-0.5 rounded-full text-[11px]">
+                                    <span 
+                                        className="text-[#0F4C75] bg-[#E6EEF8] px-2 py-0.5 rounded-full text-[11px] hover:bg-[#b0cde8] transition-colors cursor-pointer shadow-sm active:scale-95 z-10 relative"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            router.push(`/estimates/${selectedSchedule.estimate}`);
+                                        }}
+                                    >
                                         {selectedSchedule.estimate.replace(/-[vV]\d+$/, '')}
                                     </span>
                                 )}

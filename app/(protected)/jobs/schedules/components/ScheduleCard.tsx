@@ -8,6 +8,7 @@ import {
 import { 
     Tooltip, TooltipTrigger, TooltipContent, TooltipProvider 
 } from '@/components/ui';
+import { useRouter } from 'next/navigation';
 
 interface Objective {
     text: string;
@@ -91,6 +92,7 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
     onQuickTimesheet,
     onViewTimesheet
 }) => {
+    const router = useRouter();
     // Helpers
     const formatLocalDate = (dateInput: string | Date) => {
         if (!dateInput) return '';
@@ -277,7 +279,13 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                     <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2 flex-wrap">
                             {item.item !== 'Day Off' && item.estimate && (
-                                <span className="text-[10px] sm:text-[11px] font-bold text-[#0F4C75] bg-[#E6EEF8] px-2 py-0.5 rounded-full">
+                                <span 
+                                    className="text-[10px] sm:text-[11px] font-bold text-[#0F4C75] bg-[#E6EEF8] px-2 py-0.5 rounded-full hover:bg-[#b0cde8] transition-colors cursor-pointer shadow-sm active:scale-95 relative z-10"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        router.push(`/estimates/${item.estimate}`);
+                                    }}
+                                >
                                     {item.estimate.replace(/-[vV]\d+$/, '')}
                                 </span>
                             )}
