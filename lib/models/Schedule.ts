@@ -72,6 +72,7 @@ export interface ISchedule extends Document {
     changeOfScope?: IChangeOfScope[];
     syncedToAppSheet?: boolean;
     isDayOffApproved?: boolean;
+    historyLog?: IHistoryLog[];
 }
 
 export interface IChangeOfScope {
@@ -79,6 +80,12 @@ export interface IChangeOfScope {
     customerPrintName?: string;
     customerSignature?: string;
     createdAt?: Date;
+}
+
+export interface IHistoryLog {
+    updatedBy?: string;
+    updatedOn?: Date;
+    [field: string]: any; // Allow dynamic fields for {oldValue, newValue}
 }
 
 export interface IDJT {
@@ -288,7 +295,15 @@ const ScheduleSchema = new Schema({
         default: []
     },
     syncedToAppSheet: { type: Boolean, default: false },
-    isDayOffApproved: { type: Boolean, default: false }
+    isDayOffApproved: { type: Boolean, default: false },
+    historyLog: {
+        type: [{
+            updatedBy: { type: String },
+            updatedOn: { type: Date, default: Date.now },
+            // Mongoose Mixed type for dynamic fields
+        }, { strict: false }],
+        default: []
+    }
 }, {
     timestamps: true,
     collection: 'devcoschedules'

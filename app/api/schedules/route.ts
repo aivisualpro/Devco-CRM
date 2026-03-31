@@ -604,9 +604,48 @@ export async function POST(request: NextRequest) {
             case 'updateSchedule': {
                 const { id, ...data } = payload || {};
                 const oldDoc = await Schedule.findById(id).lean();
+
+                // Compute changes for parent fields (ignore arrays and objects)
+                const changeLog: any = {};
+                let hasChanges = false;
+                if (oldDoc) {
+                    for (const key of Object.keys(data)) {
+                        if (
+                            Array.isArray(data[key]) || 
+                            (typeof data[key] === 'object' && data[key] !== null) || 
+                            key === 'updatedAt' || 
+                            key === 'historyLog' ||
+                            key === 'syncedToAppSheet' ||
+                            key === '$push' ||
+                            key === '$set'
+                        ) continue;
+                        
+                        const oldValue = (oldDoc as any)[key];
+                        const newValue = data[key];
+
+                        if (String(oldValue) !== String(newValue) && (oldValue !== undefined || newValue !== undefined)) {
+                            changeLog[key] = { oldValue, newValue };
+                            hasChanges = true;
+                        }
+                    }
+                }
+
+                const updatePayload: any = { ...data, updatedAt: new Date() };
+                const finalUpdate: any = { $set: updatePayload };
+
+                if (hasChanges) {
+                    finalUpdate.$push = {
+                        historyLog: {
+                            updatedBy: loggedInEmail || 'Unknown',
+                            updatedOn: new Date(),
+                            ...changeLog
+                        }
+                    };
+                }
+
                 const result = await Schedule.findByIdAndUpdate(
                     id,
-                    { ...data, updatedAt: new Date() },
+                    finalUpdate,
                     { new: true }
                 );
 
