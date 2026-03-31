@@ -6,6 +6,7 @@ import { ScheduleCard, ScheduleItem } from '@/app/(protected)/jobs/schedules/com
 import { ScheduleFormModal } from '@/app/(protected)/jobs/schedules/components/ScheduleFormModal';
 import { JHAModal } from '@/app/(protected)/jobs/schedules/components/JHAModal';
 import { DJTModal } from '@/app/(protected)/jobs/schedules/components/DJTModal';
+import { ChangeOfScopeModal } from '@/app/(protected)/jobs/schedules/components/ChangeOfScopeModal';
 import { ScheduleDetailsPopup } from '@/components/ui/ScheduleDetailsPopup';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { useToast } from '@/hooks/useToast';
@@ -44,6 +45,10 @@ export const EstimateScheduleCard: React.FC<EstimateScheduleCardProps> = ({
     const [editingSchedule, setEditingSchedule] = useState<ScheduleItem | null>(null);
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+
+    // Change Of Scope state
+    const [changeOfScopeModalOpen, setChangeOfScopeModalOpen] = useState(false);
+    const [selectedScopeSchedule, setSelectedScopeSchedule] = useState<ScheduleItem | null>(null);
 
 
 
@@ -371,6 +376,10 @@ export const EstimateScheduleCard: React.FC<EstimateScheduleCardProps> = ({
                             onDelete={(item) => {
                                 setDeleteId(item._id);
                                 setIsConfirmOpen(true);
+                            }}
+                            onChangeOfScope={(item) => {
+                                setSelectedScopeSchedule(item);
+                                setChangeOfScopeModalOpen(true);
                             }}
                             // Functionality Handlers
                             onViewJHA={(item) => {
@@ -737,6 +746,16 @@ export const EstimateScheduleCard: React.FC<EstimateScheduleCardProps> = ({
                         });
                     } catch(e) { console.error('Failed to update objective', e); }
                 }}
+            />
+
+            <ChangeOfScopeModal
+                isOpen={changeOfScopeModalOpen}
+                onClose={() => {
+                    setChangeOfScopeModalOpen(false);
+                    setSelectedScopeSchedule(null);
+                }}
+                schedule={selectedScopeSchedule}
+                setSchedules={setSchedules}
             />
 
             {/* Media Viewer Modal */}

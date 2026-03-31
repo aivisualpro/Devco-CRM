@@ -69,8 +69,16 @@ export interface ISchedule extends Document {
     JHASignatures?: any[];
     DJTSignatures?: any[];
     todayObjectives?: IObjective[];
+    changeOfScope?: IChangeOfScope[];
     syncedToAppSheet?: boolean;
     isDayOffApproved?: boolean;
+}
+
+export interface IChangeOfScope {
+    jobDescription?: string;
+    customerPrintName?: string;
+    customerSignature?: string;
+    createdAt?: Date;
 }
 
 export interface IDJT {
@@ -267,6 +275,15 @@ const ScheduleSchema = new Schema({
             }],
             createdBy: { type: String },
             createdAt: { type: Date }
+        }],
+        default: []
+    },
+    changeOfScope: {
+        type: [{
+            jobDescription: { type: String },
+            customerPrintName: { type: String },
+            customerSignature: { type: String },
+            createdAt: { type: Date, default: Date.now }
         }],
         default: []
     },

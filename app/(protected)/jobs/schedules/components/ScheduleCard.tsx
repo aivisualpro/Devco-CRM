@@ -3,7 +3,7 @@
 import React from 'react';
 import { 
     Edit, Copy, Trash2, Shield, ShieldCheck, FilePlus, FileCheck, 
-    StopCircle, Droplets, Warehouse, Car, Mail
+    StopCircle, Droplets, Warehouse, Car, Mail, FileEdit
 } from 'lucide-react';
 import { 
     Tooltip, TooltipTrigger, TooltipContent, TooltipProvider 
@@ -48,6 +48,7 @@ export interface ScheduleItem {
     djt?: any;
     DJTSignatures?: any[];
     todayObjectives?: Objective[];
+    changeOfScope?: any[];
     syncedToAppSheet?: boolean;
     isDayOffApproved?: boolean;
 }
@@ -74,6 +75,7 @@ interface ScheduleCardProps {
     onToggleDriveTime?: (item: ScheduleItem, activeTs: any, e: React.MouseEvent) => void;
     onQuickTimesheet?: (item: ScheduleItem, type: 'Dump Washout' | 'Shop Time', e: React.MouseEvent) => void;
     onViewTimesheet?: (item: ScheduleItem, ts: any, e: React.MouseEvent) => void;
+    onChangeOfScope?: (item: ScheduleItem, e: React.MouseEvent) => void;
 }
 
 export const ScheduleCard: React.FC<ScheduleCardProps> = ({
@@ -92,7 +94,8 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
     onCreateDJT,
     onToggleDriveTime,
     onQuickTimesheet,
-    onViewTimesheet
+    onViewTimesheet,
+    onChangeOfScope
 }) => {
     const router = useRouter();
     // Helpers
@@ -400,6 +403,22 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                                     </div>
                                 </TooltipTrigger>
                                 <TooltipContent><p>{(item.hasDJT || (item.djt && Object.keys(item.djt).length > 0)) ? 'View DJT' : 'Create DJT'}</p></TooltipContent>
+                            </Tooltip>
+
+                            {/* Change of Scope */}
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <div 
+                                        className={`relative z-10 flex items-center justify-center w-10 h-10 sm:w-7 sm:h-7 rounded-full transition-colors border-2 border-white shadow-sm cursor-pointer ${(item.changeOfScope && item.changeOfScope.length > 0) ? 'bg-fuchsia-100 text-fuchsia-600 hover:bg-fuchsia-200' : 'bg-slate-100 text-slate-400 hover:bg-fuchsia-100 hover:text-fuchsia-600'}`} 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onChangeOfScope?.(item, e);
+                                        }}
+                                    >
+                                        <FileEdit className="w-5 h-5 sm:w-3 sm:h-3" strokeWidth={2.5} />
+                                    </div>
+                                </TooltipTrigger>
+                                <TooltipContent><p>Change of Scope</p></TooltipContent>
                             </Tooltip>
 
                             {/* Timesheet */}

@@ -20,6 +20,7 @@ import {
 } from '@/components/ui';
 import { JHAModal } from './components/JHAModal';
 import { DJTModal } from './components/DJTModal';
+import { ChangeOfScopeModal } from './components/ChangeOfScopeModal';
 import { TimesheetModal } from './components/TimesheetModal';
 import { DriveMapModal } from './components/DriveMapModal';
 import { ScheduleCard, ScheduleItem } from './components/ScheduleCard';
@@ -170,6 +171,8 @@ function SchedulePageContent() {
     const [djtModalOpen, setDjtModalOpen] = useState(false);
     const [selectedDJT, setSelectedDJT] = useState<any>(null);
     const [isDjtEditMode, setIsDjtEditMode] = useState(false);
+    const [changeOfScopeModalOpen, setChangeOfScopeModalOpen] = useState(false);
+    const [selectedScopeSchedule, setSelectedScopeSchedule] = useState<ScheduleItem | null>(null);
     const [activeSignatureEmployee, setActiveSignatureEmployee] = useState<string | null>(null);
     const [isGeneratingJHAPDF, setIsGeneratingJHAPDF] = useState(false);
     const [isGeneratingDJTPDF, setIsGeneratingDJTPDF] = useState(false);
@@ -2554,6 +2557,10 @@ function SchedulePageContent() {
                                             setDeleteId(item._id);
                                             setIsConfirmOpen(true);
                                         }}
+                                        onChangeOfScope={(item) => {
+                                            setSelectedScopeSchedule(item);
+                                            setChangeOfScopeModalOpen(true);
+                                        }}
                                         onViewJHA={(item) => {
                                             // Fetch JHA from standalone collection (authoritative source, not stale embedded copy)
                                             fetch('/api/jha', {
@@ -4450,6 +4457,16 @@ function SchedulePageContent() {
             />
 
             {/* Daily Job Ticket Modal */}
+            <ChangeOfScopeModal
+                isOpen={changeOfScopeModalOpen}
+                onClose={() => {
+                    setChangeOfScopeModalOpen(false);
+                    setSelectedScopeSchedule(null);
+                }}
+                schedule={selectedScopeSchedule}
+                setSchedules={setSchedules}
+            />
+
             <DJTModal
                 isOpen={djtModalOpen}
                 onClose={() => setDjtModalOpen(false)}

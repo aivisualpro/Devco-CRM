@@ -26,6 +26,7 @@ import { ScheduleFormModal } from '../jobs/schedules/components/ScheduleFormModa
 import { JHAModal } from '../jobs/schedules/components/JHAModal';
 import ClientOnly from '@/components/ClientOnly';
 import { DJTModal } from '../jobs/schedules/components/DJTModal';
+import { ChangeOfScopeModal } from '../jobs/schedules/components/ChangeOfScopeModal';
 import { TimesheetModal } from '../jobs/schedules/components/TimesheetModal';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { calculateTimesheetData, formatDateOnly, formatTimeOnly } from '@/lib/timeCardUtils';
@@ -1137,6 +1138,10 @@ function DashboardContent() {
     const [djtModalOpen, setDjtModalOpen] = useState(false);
     const [selectedDJT, setSelectedDJT] = useState<any>(null);
     const [isDjtEditMode, setIsDjtEditMode] = useState(false);
+
+    // Change of Scope State
+    const [changeOfScopeModalOpen, setChangeOfScopeModalOpen] = useState(false);
+    const [selectedScopeSchedule, setSelectedScopeSchedule] = useState<ScheduleItem | null>(null);
     const [isGeneratingDJTPDF, setIsGeneratingDJTPDF] = useState(false);
     const [isSavingSignature, setIsSavingSignature] = useState(false);
 
@@ -3421,6 +3426,10 @@ function DashboardContent() {
                                                         setIsTimesheetEditMode(false);
                                                         setTimesheetModalOpen(true);
                                                     }}
+                                                    onChangeOfScope={(item) => {
+                                                        setSelectedScopeSchedule(item);
+                                                        setChangeOfScopeModalOpen(true);
+                                                    }}
                                                 />
                                             ))}
                                         </div>
@@ -4584,6 +4593,16 @@ function DashboardContent() {
             />
 
             {/* DJT Modal */}
+            <ChangeOfScopeModal
+                isOpen={changeOfScopeModalOpen}
+                onClose={() => {
+                    setChangeOfScopeModalOpen(false);
+                    setSelectedScopeSchedule(null);
+                }}
+                schedule={selectedScopeSchedule}
+                setSchedules={setSchedules as any}
+            />
+
             <DJTModal
                 isOpen={djtModalOpen}
                 onClose={() => setDjtModalOpen(false)}
