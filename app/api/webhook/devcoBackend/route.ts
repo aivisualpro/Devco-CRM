@@ -594,6 +594,17 @@ export async function POST(request: NextRequest) {
                         { jobAddress: regex },
                         { customerJobNumber: regex },
                     ];
+                    
+                    try {
+                        const matchedClients = await Client.find({ name: regex }).select('_id').lean();
+                        if (matchedClients.length > 0) {
+                            const clientIds = matchedClients.map((c: any) => c._id.toString());
+                            searchOrConditions.push({ customerId: { $in: clientIds } });
+                        }
+                    } catch (err) {
+                        console.error('Error finding clients for search:', err);
+                    }
+
                     const numericSearch = parseFloat(search.replace(/[$,%\s]/g, ''));
                     if (!isNaN(numericSearch)) {
                         searchOrConditions.push(
@@ -750,7 +761,7 @@ export async function POST(request: NextRequest) {
                         Estimate.find()
                             .select('-labor -equipment -material -tools -overhead -subcontractor -disposal -miscellaneous -proposals -proposal -receiptsAndCosts -billingTickets -jobPlanningDocs -releases -intentToLien -legalDocs -aerialImage -siteLayout -scopeOfWork -htmlContent -customVariables -coiDocument -notes -projectDescription -siteConditions')
                             .sort({ updatedAt: -1 })
-                            .limit(1000)
+                            .limit(5000)
                             .lean(),
                         Constant.find().lean(),
                         Employee.find({ status: { $ne: 'Inactive' } }).select('_id name email profileImage status').lean(),

@@ -1738,7 +1738,7 @@ export async function POST(request: NextRequest) {
                     !skipInitialData ? Estimate.find({ status: { $ne: 'deleted' } })
                         .select('estimate _id updatedAt createdAt customer customerName customerId projectTitle projectName projectId jobAddress contactName contactPhone contactEmail contact phone fringe certifiedPayroll')
                         .sort({ updatedAt: -1 })
-                        .limit(1000)
+                        .limit(5000)
                         .lean() : Promise.resolve([]),
                     !skipInitialData ? EquipmentItem.find().select('equipmentMachine dailyCost uom classification').sort({ equipmentMachine: 1 }).lean() : Promise.resolve([]),
                     !skipInitialData ? OverheadItem.find().sort({ overhead: 1 }).lean() : Promise.resolve([])
@@ -1927,7 +1927,7 @@ export async function POST(request: NextRequest) {
                     Estimate.find({ status: { $ne: 'deleted' } })
                         .select('estimate _id updatedAt createdAt customer customerName customerId projectTitle projectName projectId jobAddress contactName contactPhone contactEmail contact phone')
                         .sort({ updatedAt: -1 })
-                        .limit(1000)
+                        .limit(5000)
                         .lean(),
                     EquipmentItem.find().select('equipmentMachine dailyCost uom classification').sort({ equipmentMachine: 1 }).lean(),
                     OverheadItem.find().sort({ overhead: 1 }).lean()
