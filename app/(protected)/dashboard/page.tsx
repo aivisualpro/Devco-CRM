@@ -293,8 +293,12 @@ const TodoColumn = ({
                             <p className={`text-sm font-medium whitespace-pre-wrap break-words ${item.status === 'done' ? 'text-slate-400 line-through decoration-slate-300 decoration-2' : 'text-slate-800'}`}>
                                 {item.task}
                             </p>
-                            {item.dueDate && (
-                                <p className="text-xs text-slate-400 mt-1">Due: {new Date(item.dueDate).toLocaleDateString()}</p>
+                            {(item.createdAt || item.dueDate) && (
+                                <p className="text-xs text-slate-400 mt-1">
+                                    {item.createdAt && <span>Created: {new Date(item.createdAt).toLocaleDateString()}</span>}
+                                    {item.createdAt && item.dueDate && <span className="mx-1">|</span>}
+                                    {item.dueDate && <span>Due: {new Date(item.dueDate).toLocaleDateString()}</span>}
+                                </p>
                             )}
                         </div>
                     </div>
@@ -3029,10 +3033,14 @@ function DashboardContent() {
                                                                 <div className="flex justify-between items-start gap-3">
                                                                     <div className="flex-1">
                                                                         <p className="text-sm font-bold text-slate-800 leading-tight">{item.task}</p>
-                                                                            {item.dueDate && (
+                                                                            {(item.createdAt || item.dueDate) && (
                                                                                 <div className="flex items-center gap-1.5 mt-2">
                                                                                     <Clock size={10} className="text-slate-400" />
-                                                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Due {new Date(item.dueDate).toLocaleDateString()}</p>
+                                                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                                                                                        {item.createdAt && `Created ${new Date(item.createdAt).toLocaleDateString()}`}
+                                                                                        {item.createdAt && item.dueDate && ' • '}
+                                                                                        {item.dueDate && `Due ${new Date(item.dueDate).toLocaleDateString()}`}
+                                                                                    </p>
                                                                                 </div>
                                                                             )}
                                                                         </div>
@@ -3083,10 +3091,14 @@ function DashboardContent() {
                                                                 <div className="flex justify-between items-start gap-3">
                                                                     <div className="flex-1">
                                                                         <p className="text-sm font-bold text-slate-800 leading-tight">{item.task}</p>
-                                                                            {item.dueDate && (
+                                                                            {(item.createdAt || item.dueDate) && (
                                                                                 <div className="flex items-center gap-1.5 mt-2">
                                                                                     <Clock size={10} className="text-slate-400" />
-                                                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Due {new Date(item.dueDate).toLocaleDateString()}</p>
+                                                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                                                                                        {item.createdAt && `Created ${new Date(item.createdAt).toLocaleDateString()}`}
+                                                                                        {item.createdAt && item.dueDate && ' • '}
+                                                                                        {item.dueDate && `Due ${new Date(item.dueDate).toLocaleDateString()}`}
+                                                                                    </p>
                                                                                 </div>
                                                                             )}
                                                                         </div>
