@@ -166,6 +166,7 @@ interface TodoItem {
     jobAddress?: string;
     createdBy?: string;
     createdAt?: string;
+    lastUpdatedBy?: string;
     lastUpdatedAt?: string;
 }
 
@@ -293,12 +294,37 @@ const TodoColumn = ({
                             <p className={`text-sm font-medium whitespace-pre-wrap break-words ${item.status === 'done' ? 'text-slate-400 line-through decoration-slate-300 decoration-2' : 'text-slate-800'}`}>
                                 {item.task}
                             </p>
-                            {(item.createdAt || item.dueDate) && (
-                                <p className="text-xs text-slate-400 mt-1">
-                                    {item.createdAt && <span>Created: {new Date(item.createdAt).toLocaleDateString()}</span>}
-                                    {item.createdAt && item.dueDate && <span className="mx-1">|</span>}
-                                    {item.dueDate && <span>Due: {new Date(item.dueDate).toLocaleDateString()}</span>}
-                                </p>
+                            {(item.createdAt || item.dueDate || (item.status === 'done' && item.lastUpdatedAt)) && (
+                                <div className="text-xs mt-1 flex items-center justify-between gap-2 flex-wrap">
+                                    <p className="text-slate-400">
+                                        {item.createdAt && <span>Created: {new Date(item.createdAt).toLocaleDateString()}</span>}
+                                        {item.createdAt && item.dueDate && <span className="mx-1">|</span>}
+                                        {item.dueDate && <span>Due: {new Date(item.dueDate).toLocaleDateString()}</span>}
+                                    </p>
+                                    {item.status === 'done' && item.lastUpdatedAt && (
+                                        <div className="flex items-center gap-1.5 text-emerald-500 font-medium whitespace-nowrap ml-auto">
+                                            <span>Completed: {new Date(item.lastUpdatedAt).toLocaleDateString()}</span>
+                                            {item.lastUpdatedBy && (() => {
+                                                const emp = employees?.find((e: any) => e.value === item.lastUpdatedBy);
+                                                const name = emp?.label || item.lastUpdatedBy.split('@')[0] || 'System';
+                                                const initials = name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+                                                return (
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Avatar className="w-5 h-5 border border-emerald-200 cursor-default">
+                                                                    <AvatarImage src={emp?.image} />
+                                                                    <AvatarFallback className="text-[8px] bg-emerald-50 font-bold text-emerald-600">{initials}</AvatarFallback>
+                                                                </Avatar>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent><p className="text-[10px]">Completed by {name}</p></TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                );
+                                            })()}
+                                        </div>
+                                    )}
+                                </div>
                             )}
                         </div>
                     </div>
@@ -3149,8 +3175,40 @@ function DashboardContent() {
                                                                 <div className="flex justify-between items-start gap-3">
                                                                     <div className="flex-1">
                                                                         <p className="text-sm font-bold text-slate-800 leading-tight line-through decoration-slate-300 decoration-2">{item.task}</p>
-                                                                            {item.dueDate && (
-                                                                                <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-tighter mt-2">Completed</p>
+                                                                            {(item.createdAt || item.dueDate || item.lastUpdatedAt) && (
+                                                                                <div className="flex items-center justify-between mt-2 flex-wrap gap-1">
+                                                                                    <div className="flex items-center gap-1.5">
+                                                                                        <Clock size={10} className="text-slate-400" />
+                                                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                                                                                            {item.createdAt && `Created ${new Date(item.createdAt).toLocaleDateString()}`}
+                                                                                            {item.createdAt && item.dueDate && ' • '}
+                                                                                            {item.dueDate && `Due ${new Date(item.dueDate).toLocaleDateString()}`}
+                                                                                        </p>
+                                                                                    </div>
+                                                                                    {item.lastUpdatedAt && (
+                                                                                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-500 uppercase tracking-tighter ml-auto">
+                                                                                            <span>Completed {new Date(item.lastUpdatedAt).toLocaleDateString()}</span>
+                                                                                            {item.lastUpdatedBy && (() => {
+                                                                                                const emp = initialData.employees?.find((e: any) => e.value === item.lastUpdatedBy);
+                                                                                                const name = emp?.label || item.lastUpdatedBy.split('@')[0] || 'System';
+                                                                                                const initials = name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+                                                                                                return (
+                                                                                                    <TooltipProvider>
+                                                                                                        <Tooltip>
+                                                                                                            <TooltipTrigger asChild>
+                                                                                                                <Avatar className="w-5 h-5 border border-emerald-200 cursor-default">
+                                                                                                                    <AvatarImage src={emp?.image} />
+                                                                                                                    <AvatarFallback className="text-[8px] bg-emerald-50 font-bold text-emerald-600">{initials}</AvatarFallback>
+                                                                                                                </Avatar>
+                                                                                                            </TooltipTrigger>
+                                                                                                            <TooltipContent><p className="text-[10px] capitalize">Completed by {name}</p></TooltipContent>
+                                                                                                        </Tooltip>
+                                                                                                    </TooltipProvider>
+                                                                                                );
+                                                                                            })()}
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
                                                                             )}
                                                                         </div>
                                                                         <div className="flex items-center gap-3 shrink-0">
