@@ -107,14 +107,10 @@ export default function EmployeeViewPage() {
     const [saving, setSaving] = useState(false);
     const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
 
-    // Training record editing state
-    const [editingTrainingIdx, setEditingTrainingIdx] = useState<number | null>(null);
-    const [editingTraining, setEditingTraining] = useState<any>(null);
-    const [savingTraining, setSavingTraining] = useState(false);
-    const [deletingTrainingIdx, setDeletingTrainingIdx] = useState<number | null>(null);
-    const [isAddingTraining, setIsAddingTraining] = useState(false);
-    const emptyTraining = { category: '', type: '', frequency: '', assignedDate: '', completionDate: '', renewalDate: '', description: '', status: '', fileUrl: '', createdBy: '', createdAt: '' };
-    const [newTraining, setNewTraining] = useState<any>({ ...emptyTraining });
+    const [isDrugModalOpen, setIsDrugModalOpen] = useState(false);
+    const [drugSearch, setDrugSearch] = useState('');
+    const [isTrainingModalOpen, setIsTrainingModalOpen] = useState(false);
+    const [trainingSearch, setTrainingSearch] = useState('');
 
     // Document Modal State
     const emptyDocument = { fileName: '', fileUrl: '', files: [] as string[], createdAt: '' };
@@ -128,17 +124,21 @@ export default function EmployeeViewPage() {
     const [activeDocCardIdx, setActiveDocCardIdx] = useState<number | null>(null);
     const [docSearch, setDocSearch] = useState('');
 
-    const [isDrugModalOpen, setIsDrugModalOpen] = useState(false);
-    const [drugSearch, setDrugSearch] = useState('');
-    const [trainingSearch, setTrainingSearch] = useState('');
     const emptyDrugTest = { date: '', type: 'Drug / Alcohol Testing Auth', description: '', fileUrl: '', files: [] as string[] };
     const [currentDrugModal, setCurrentDrugModal] = useState<any>({ ...emptyDrugTest });
     const [currentDrugModalIdx, setCurrentDrugModalIdx] = useState<number | null>(null);
     const [isViewOnlyDrug, setIsViewOnlyDrug] = useState(false);
-    const [savingDrugTest, setSavingDrugTest] = useState(false);
-    const [deletingDrugTestIdx, setDeletingDrugTestIdx] = useState<number | null>(null);
+    const emptyTraining = { category: '', type: '', frequency: '', assignedDate: '', completionDate: '', renewalDate: '', status: '', description: '', fileUrl: '', files: [] as string[] };
+    const [currentTrainingModal, setCurrentTrainingModal] = useState<any>({ ...emptyTraining });
+    const [currentTrainingModalIdx, setCurrentTrainingModalIdx] = useState<number | null>(null);
+    const [isViewOnlyTraining, setIsViewOnlyTraining] = useState(false);
     const [drugTestingThumbIdx, setDrugTestingThumbIdx] = useState<Record<number, number>>({});
     const [activeDrugCardIdx, setActiveDrugCardIdx] = useState<number | null>(null);
+    const [savingTraining, setSavingTraining] = useState(false);
+    const [deletingTrainingIdx, setDeletingTrainingIdx] = useState<number | null>(null);
+    const [trainingThumbIdx, setTrainingThumbIdx] = useState<Record<number, number>>({});
+    const [savingDrugTest, setSavingDrugTest] = useState(false);
+    const [deletingDrugTestIdx, setDeletingDrugTestIdx] = useState<number | null>(null);
 
     const TRAINING_CATEGORIES = ['Other', 'HEAVY EQUIPMENT RELATED'];
     const TRAINING_TYPES = ['Union Bootcamp', 'Osha', 'First Aid', 'Veriforce', 'Trenching and Excavating', 'Additional Training', 'CPR/First Aid'];
@@ -194,74 +194,7 @@ export default function EmployeeViewPage() {
         }
     };
 
-    const handleDeleteTrainingRecord = async (index: number) => {
-        if (!employee) return;
-        setSavingTraining(true);
-        try {
-            const updated = [...(employee.trainingCertifications || [])];
-            updated.splice(index, 1);
-            const res = await apiCall('updateEmployee', { id: employee._id, item: { trainingCertifications: updated } });
-            if (res.success) {
-                setEmployee({ ...employee, trainingCertifications: updated });
-                success('Record deleted');
-                setDeletingTrainingIdx(null);
-            } else {
-                toastError('Failed to delete record');
-            }
-        } catch (e) {
-            toastError('Error deleting record');
-        } finally {
-            setSavingTraining(false);
-        }
-    };
 
-    const handleSaveTrainingEdit = async () => {
-        if (!employee || editingTrainingIdx === null || !editingTraining) return;
-        setSavingTraining(true);
-        try {
-            const updated = [...(employee.trainingCertifications || [])];
-            updated[editingTrainingIdx] = editingTraining;
-            const res = await apiCall('updateEmployee', { id: employee._id, item: { trainingCertifications: updated } });
-            if (res.success) {
-                setEmployee({ ...employee, trainingCertifications: updated });
-                success('Record updated');
-                setEditingTrainingIdx(null);
-                setEditingTraining(null);
-            } else {
-                toastError('Failed to update record');
-            }
-        } catch (e) {
-            toastError('Error updating record');
-        } finally {
-            setSavingTraining(false);
-        }
-    };
-
-    const handleAddTrainingRecord = async () => {
-        if (!employee) return;
-        if (!newTraining.type && !newTraining.category) {
-            toastError('Please select at least a category or type');
-            return;
-        }
-        setSavingTraining(true);
-        try {
-            const record = { ...newTraining, createdAt: new Date().toISOString() };
-            const updated = [...(employee.trainingCertifications || []), record];
-            const res = await apiCall('updateEmployee', { id: employee._id, item: { trainingCertifications: updated } });
-            if (res.success) {
-                setEmployee({ ...employee, trainingCertifications: updated });
-                success('Record added');
-                setNewTraining({ ...emptyTraining });
-                setIsAddingTraining(false);
-            } else {
-                toastError('Failed to add record');
-            }
-        } catch (e) {
-            toastError('Error adding record');
-        } finally {
-            setSavingTraining(false);
-        }
-    };
 
     const handleDocModalSave = async () => {
         if (!employee) return;
@@ -389,6 +322,71 @@ export default function EmployeeViewPage() {
             toastError('Error deleting record');
         } finally {
             setSavingDrugTest(false);
+        }
+    };
+
+    const handleSaveTrainingModal = async () => {
+        if (!employee) return;
+        if (!currentTrainingModal.category || !currentTrainingModal.type) {
+            toastError('Category and Type are required');
+            return;
+        }
+
+        setSavingTraining(true);
+        try {
+            const currentRecords = [...(employee.trainingCertifications || [])];
+            
+            // Format for save, migrating legacy fileUrl into files if needed
+            const recordToSave = {
+                ...currentTrainingModal,
+                assignedDate: currentTrainingModal.assignedDate || null,
+                completionDate: currentTrainingModal.completionDate || null,
+                renewalDate: currentTrainingModal.renewalDate || null,
+            };
+
+            let updatedRecords;
+            if (currentTrainingModalIdx !== null) {
+                updatedRecords = currentRecords.map((r, i) => i === currentTrainingModalIdx ? recordToSave : r);
+            } else {
+                recordToSave.createdAt = new Date().toISOString();
+                updatedRecords = [recordToSave, ...currentRecords];
+            }
+
+            const res = await apiCall('updateEmployee', { id: employee._id, item: { trainingCertifications: updatedRecords } });
+
+            if (res.success) {
+                setEmployee({ ...employee, trainingCertifications: updatedRecords });
+                setIsTrainingModalOpen(false);
+                success(currentTrainingModalIdx !== null ? 'Record updated' : 'Record added');
+            } else {
+                toastError('Failed to save record');
+            }
+        } catch (error) {
+            console.error('Error saving training:', error);
+            toastError('Failed to save record');
+        } finally {
+            setSavingTraining(false);
+        }
+    };
+
+    const handleDeleteTraining = async (index: number) => {
+        if (!employee) return;
+        setSavingTraining(true);
+        try {
+            const updated = [...(employee.trainingCertifications || [])];
+            updated.splice(index, 1);
+            const res = await apiCall('updateEmployee', { id: employee._id, item: { trainingCertifications: updated } });
+            if (res.success) {
+                setEmployee({ ...employee, trainingCertifications: updated });
+                success('Record deleted');
+                setDeletingTrainingIdx(null);
+            } else {
+                toastError('Failed to delete record');
+            }
+        } catch (e) {
+            toastError('Error deleting record');
+        } finally {
+            setSavingTraining(false);
         }
     };
 
@@ -1072,306 +1070,143 @@ export default function EmployeeViewPage() {
                                                     placeholder="Search training..." 
                                                     value={trainingSearch}
                                                     onChange={(e) => setTrainingSearch(e.target.value)}
-                                                    className="pl-9 pr-3 py-1 text-[10px] border border-slate-200 bg-white shadow-sm rounded-full focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all w-[100px] sm:w-[130px] focus:w-[150px] sm:focus:w-[180px] outline-none"
+                                                    className="pl-9 pr-3 py-1 text-[10px] border border-slate-200 bg-white shadow-sm rounded-full focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all w-[100px] sm:w-[130px] focus:w-[150px] sm:focus:w-[180px] outline-none font-medium"
                                                 />
                                             </div>
                                             <button
-                                                onClick={() => { setIsAddingTraining(true); setOpenSections(prev => ({ ...prev, training: true })); }}
-                                                className="p-1.5 rounded-full text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 transition-colors flex-shrink-0"
+                                                onClick={() => { 
+                                                    setCurrentTrainingModal({ ...emptyTraining });
+                                                    setCurrentTrainingModalIdx(null);
+                                                    setIsViewOnlyTraining(false);
+                                                    setIsTrainingModalOpen(true);
+                                                }}
+                                                className="p-1.5 rounded-full text-emerald-600 hover:bg-emerald-50 transition-all hover:scale-110 active:scale-95"
                                                 title="Add Training / Certification"
                                             >
-                                                <Plus className="w-5 h-5" />
+                                                <Plus className="w-5 h-5 shadow-sm" />
                                             </button>
                                         </div>
                                     }
                                 >
-                                    {/* Inline Edit Form */}
-                                    {editingTrainingIdx !== null && editingTraining && (
-                                        <div className="mb-4 p-4 bg-blue-50/50 rounded-xl border border-blue-100 space-y-3">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <h4 className="text-sm font-semibold text-slate-700">Edit Record #{editingTrainingIdx + 1}</h4>
-                                                <button onClick={() => { setEditingTrainingIdx(null); setEditingTraining(null); }} className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors">
-                                                    <X className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                                                <div className="md:col-span-2">
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Category</label>
-                                                    <Select onValueChange={val => setEditingTraining({ ...editingTraining, category: val })} value={editingTraining.category || ''}>
-                                                        <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-                                                        <SelectContent>
-                                                            {TRAINING_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Type</label>
-                                                    <Select onValueChange={val => setEditingTraining({ ...editingTraining, type: val })} value={editingTraining.type || ''}>
-                                                        <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
-                                                        <SelectContent>
-                                                            {TRAINING_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Frequency</label>
-                                                    <Select onValueChange={val => setEditingTraining({ ...editingTraining, frequency: val })} value={editingTraining.frequency || ''}>
-                                                        <SelectTrigger><SelectValue placeholder="Select frequency" /></SelectTrigger>
-                                                        <SelectContent>
-                                                            {TRAINING_FREQUENCIES.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Assigned Date</label>
-                                                    <Input type="date" value={toDateInputValue(editingTraining.assignedDate)} onChange={e => setEditingTraining({ ...editingTraining, assignedDate: e.target.value })} />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Completion Date</label>
-                                                    <Input type="date" value={toDateInputValue(editingTraining.completionDate)} onChange={e => setEditingTraining({ ...editingTraining, completionDate: e.target.value })} />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Renewal Date</label>
-                                                    <Input type="date" value={toDateInputValue(editingTraining.renewalDate)} onChange={e => setEditingTraining({ ...editingTraining, renewalDate: e.target.value })} />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Status</label>
-                                                    <Select onValueChange={val => setEditingTraining({ ...editingTraining, status: val })} value={editingTraining.status || ''}>
-                                                        <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
-                                                        <SelectContent>
-                                                            {TRAINING_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                                <div className="md:col-span-3">
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
-                                                    <Input placeholder="Brief description" value={editingTraining.description || ''} onChange={e => setEditingTraining({ ...editingTraining, description: e.target.value })} />
-                                                </div>
-                                                <div className="md:col-span-4">
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Document</label>
-                                                    <div className="flex items-center gap-3">
-                                                        {editingTraining.fileUrl && (
-                                                            <button type="button" onClick={() => openFileUrl(editingTraining.fileUrl)} className="text-xs bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-lg font-medium hover:bg-emerald-100 transition-colors cursor-pointer flex items-center gap-1">
-                                                                <FileText className="w-3.5 h-3.5" /> Current File
-                                                            </button>
-                                                        )}
-                                                        <label className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-[#0F4C75] hover:bg-blue-50/30 transition-all text-slate-600">
-                                                            <Upload className="w-3.5 h-3.5" />
-                                                            {editingTraining.fileUrl ? 'Replace File' : 'Upload File'}
-                                                            <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" onChange={e => {
-                                                                const file = e.target.files?.[0];
-                                                                if (file) {
-                                                                    const reader = new FileReader();
-                                                                    reader.onloadend = () => setEditingTraining({ ...editingTraining, fileUrl: reader.result as string });
-                                                                    reader.readAsDataURL(file);
-                                                                }
-                                                            }} />
-                                                        </label>
-                                                        {editingTraining.fileUrl && (
-                                                            <button type="button" onClick={() => setEditingTraining({ ...editingTraining, fileUrl: '' })} className="text-xs text-red-500 hover:text-red-700 transition-colors">
-                                                                Remove
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-2 pt-1">
-                                                <Button size="sm" className="bg-[#0F4C75] hover:bg-[#0b3c5e] text-white" onClick={handleSaveTrainingEdit} disabled={savingTraining}>
-                                                    <Check className="w-3.5 h-3.5 mr-1" /> {savingTraining ? 'Saving...' : 'Save Changes'}
-                                                </Button>
-                                                <Button size="sm" variant="outline" onClick={() => { setEditingTrainingIdx(null); setEditingTraining(null); }}>
-                                                    Cancel
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    )}
+                                    <div className="relative overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
+                                        <div className="overflow-auto max-h-[500px]">
+                                            <table className="w-full text-left border-collapse">
+                                                <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-100">
+                                                    <tr>
+                                                        <th className="py-2.5 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Type / Category</th>
+                                                        <th className="py-2.5 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Dates</th>
+                                                        <th className="py-2.5 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Status</th>
+                                                        <th className="py-2.5 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Docs</th>
+                                                        <th className="py-2.5 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-50">
+                                                    {(employee.trainingCertifications || []).length > 0 ? (
+                                                        (employee.trainingCertifications || []).map((rec: any, i: number) => {
+                                                            if (trainingSearch) {
+                                                                const match = (rec.category || '').toLowerCase().includes(trainingSearch.toLowerCase()) || 
+                                                                              (rec.type || '').toLowerCase().includes(trainingSearch.toLowerCase()) ||
+                                                                              (rec.description || '').toLowerCase().includes(trainingSearch.toLowerCase());
+                                                                if (!match) return null;
+                                                            }
+                                                            
+                                                            const numFiles = (rec.files?.length || 0) + (rec.fileUrl ? 1 : 0);
 
-                                    {/* Add New Record Form */}
-                                    {isAddingTraining && (
-                                        <div className="mb-4 p-4 bg-emerald-50/50 rounded-xl border border-emerald-100 space-y-3">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <h4 className="text-sm font-semibold text-slate-700">Add New Training / Certification</h4>
-                                                <button onClick={() => { setIsAddingTraining(false); setNewTraining({ ...emptyTraining }); }} className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors">
-                                                    <X className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                                                <div className="md:col-span-2">
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Category</label>
-                                                    <Select onValueChange={val => setNewTraining({ ...newTraining, category: val })} value={newTraining.category || ''}>
-                                                        <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-                                                        <SelectContent>
-                                                            {TRAINING_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Type</label>
-                                                    <Select onValueChange={val => setNewTraining({ ...newTraining, type: val })} value={newTraining.type || ''}>
-                                                        <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
-                                                        <SelectContent>
-                                                            {TRAINING_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Frequency</label>
-                                                    <Select onValueChange={val => setNewTraining({ ...newTraining, frequency: val })} value={newTraining.frequency || ''}>
-                                                        <SelectTrigger><SelectValue placeholder="Select frequency" /></SelectTrigger>
-                                                        <SelectContent>
-                                                            {TRAINING_FREQUENCIES.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Assigned Date</label>
-                                                    <Input type="date" value={toDateInputValue(newTraining.assignedDate)} onChange={e => setNewTraining({ ...newTraining, assignedDate: e.target.value })} />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Completion Date</label>
-                                                    <Input type="date" value={toDateInputValue(newTraining.completionDate)} onChange={e => setNewTraining({ ...newTraining, completionDate: e.target.value })} />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Renewal Date</label>
-                                                    <Input type="date" value={toDateInputValue(newTraining.renewalDate)} onChange={e => setNewTraining({ ...newTraining, renewalDate: e.target.value })} />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Status</label>
-                                                    <Select onValueChange={val => setNewTraining({ ...newTraining, status: val })} value={newTraining.status || ''}>
-                                                        <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
-                                                        <SelectContent>
-                                                            {TRAINING_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                                <div className="md:col-span-3">
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
-                                                    <Input placeholder="Brief description" value={newTraining.description || ''} onChange={e => setNewTraining({ ...newTraining, description: e.target.value })} />
-                                                </div>
-                                                <div className="md:col-span-4">
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Document</label>
-                                                    <div className="flex items-center gap-3">
-                                                        {newTraining.fileUrl && (
-                                                            <span className="text-xs text-emerald-600 font-medium">File attached ✓</span>
-                                                        )}
-                                                        <label className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-[#0F4C75] hover:bg-blue-50/30 transition-all text-slate-600">
-                                                            <Upload className="w-3.5 h-3.5" />
-                                                            {newTraining.fileUrl ? 'Replace File' : 'Upload File'}
-                                                            <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" onChange={e => {
-                                                                const file = e.target.files?.[0];
-                                                                if (file) {
-                                                                    const reader = new FileReader();
-                                                                    reader.onloadend = () => setNewTraining({ ...newTraining, fileUrl: reader.result as string });
-                                                                    reader.readAsDataURL(file);
-                                                                }
-                                                            }} />
-                                                        </label>
-                                                        {newTraining.fileUrl && (
-                                                            <button type="button" onClick={() => setNewTraining({ ...newTraining, fileUrl: '' })} className="text-xs text-red-500 hover:text-red-700 transition-colors">
-                                                                Remove
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-2 pt-1">
-                                                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleAddTrainingRecord} disabled={savingTraining}>
-                                                    <Plus className="w-3.5 h-3.5 mr-1" /> {savingTraining ? 'Adding...' : 'Add Record'}
-                                                </Button>
-                                                <Button size="sm" variant="outline" onClick={() => { setIsAddingTraining(false); setNewTraining({ ...emptyTraining }); }}>
-                                                    Cancel
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    )}
-
-
-                                    <div className="overflow-auto max-h-[500px]">
-                                        <table className="w-full text-sm">
-                                            <thead>
-                                                <tr className="border-b border-slate-100">
-                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Category</th>
-                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Type</th>
-                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Frequency</th>
-                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Assigned</th>
-                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Completed</th>
-                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Renewal</th>
-                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Description</th>
-                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Status</th>
-                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">File</th>
-                                                    <th className="text-right py-2 px-3 text-xs font-semibold text-slate-500 uppercase w-20">Actions</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {employee.trainingCertifications?.map((rec: any, i: number) => {
-                                                    if (trainingSearch) {
-                                                        const match = (rec.category || '').toLowerCase().includes(trainingSearch.toLowerCase()) || 
-                                                                      (rec.type || '').toLowerCase().includes(trainingSearch.toLowerCase()) ||
-                                                                      (rec.description || '').toLowerCase().includes(trainingSearch.toLowerCase());
-                                                        if (!match) return null;
-                                                    }
-                                                    return (
-                                                        <tr key={i} className={`border-b border-slate-50 hover:bg-slate-50/50 ${editingTrainingIdx === i ? 'bg-blue-50/30' : ''}`}>
-                                                            <td className="py-2 px-3 text-slate-600">{rec.category || '-'}</td>
-                                                            <td className="py-2 px-3 text-slate-800 font-medium">{rec.type || '-'}</td>
-                                                            <td className="py-2 px-3 text-slate-600">{rec.frequency || '-'}</td>
-                                                            <td className="py-2 px-3 text-slate-600">{formatDateDisplay(rec.assignedDate)}</td>
-                                                            <td className="py-2 px-3 text-slate-600">{formatDateDisplay(rec.completionDate)}</td>
-                                                            <td className="py-2 px-3 text-slate-600">{formatDateDisplay(rec.renewalDate)}</td>
-                                                            <td className="py-2 px-3 text-slate-600">{rec.description || '-'}</td>
-                                                            <td className="py-2 px-3">
-                                                                {rec.status ? (
-                                                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${rec.status === 'Completed' ? 'bg-emerald-50 text-emerald-600' : rec.status === 'Expired' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>{rec.status}</span>
-                                                                ) : '-'}
-                                                            </td>
-                                                            <td className="py-2 px-3">
-                                                                {rec.fileUrl ? (
-                                                                    <button onClick={() => openFileUrl(rec.fileUrl)} className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium hover:bg-emerald-100 transition-colors cursor-pointer">
-                                                                        View File
-                                                                    </button>
-                                                                ) : '-'}
-                                                            </td>
-                                                            <td className="py-2 px-3 text-right">
-                                                                <div className="flex items-center justify-end gap-1">
-                                                                    <button
-                                                                        onClick={() => { setEditingTrainingIdx(i); setEditingTraining({ ...rec }); }}
-                                                                        className="p-1.5 text-slate-400 hover:text-[#0F4C75] hover:bg-blue-50 rounded-md transition-colors"
-                                                                        title="Edit record"
-                                                                    >
-                                                                        <Pencil className="w-3.5 h-3.5" />
-                                                                    </button>
-                                                                    {deletingTrainingIdx === i ? (
-                                                                        <div className="flex items-center gap-1">
-                                                                            <button
-                                                                                onClick={() => handleDeleteTrainingRecord(i)}
-                                                                                className="p-1 text-xs bg-red-500 text-white rounded px-2 hover:bg-red-600 transition-colors"
-                                                                                disabled={savingTraining}
-                                                                            >
-                                                                                {savingTraining ? '...' : 'Yes'}
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={() => setDeletingTrainingIdx(null)}
-                                                                                className="p-1 text-xs bg-slate-200 text-slate-600 rounded px-2 hover:bg-slate-300 transition-colors"
-                                                                            >
-                                                                                No
-                                                                            </button>
+                                                            return (
+                                                                <tr 
+                                                                    key={i} 
+                                                                    onClick={() => {
+                                                                        setCurrentTrainingModal({ ...rec, files: rec.files || [] });
+                                                                        setCurrentTrainingModalIdx(i);
+                                                                        setIsViewOnlyTraining(true);
+                                                                        setIsTrainingModalOpen(true);
+                                                                    }}
+                                                                    className="group hover:bg-emerald-50/30 transition-colors cursor-pointer"
+                                                                >
+                                                                    <td className="py-3 px-4">
+                                                                        <div className="flex flex-col">
+                                                                            <span className="text-xs font-bold text-slate-800 leading-tight group-hover:text-emerald-700 transition-colors">{rec.type || 'Untitled Training'}</span>
+                                                                            <div className="flex items-center gap-2 mt-0.5">
+                                                                                <span className="text-[10px] font-medium text-slate-400">{rec.category || 'No Category'}</span>
+                                                                                <span className="w-1 h-1 rounded-full bg-slate-200" />
+                                                                                <span className="text-[10px] font-medium text-slate-400 line-clamp-1">{rec.frequency || 'N/A'}</span>
+                                                                            </div>
                                                                         </div>
-                                                                    ) : (
-                                                                        <button
-                                                                            onClick={() => setDeletingTrainingIdx(i)}
-                                                                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
-                                                                            title="Delete record"
-                                                                        >
-                                                                            <Trash2 className="w-3.5 h-3.5" />
-                                                                        </button>
-                                                                    )}
-                                                                </div>
-                                                            </td>
+                                                                    </td>
+                                                                    <td className="py-3 px-4 text-center">
+                                                                        <div className="flex flex-col items-center gap-0.5">
+                                                                            {rec.completionDate && (
+                                                                                <span className="text-[10px] font-bold text-slate-600">Done: {formatDateDisplay(rec.completionDate)}</span>
+                                                                            )}
+                                                                            {rec.renewalDate && (
+                                                                                <span className="text-[10px] font-medium text-red-500/80">Renews: {formatDateDisplay(rec.renewalDate)}</span>
+                                                                            )}
+                                                                            {!rec.completionDate && !rec.renewalDate && (
+                                                                                <span className="text-[10px] text-slate-300 italic">No dates set</span>
+                                                                            )}
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="py-3 px-4 text-center">
+                                                                        {rec.status ? (
+                                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                                                                                rec.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' : 
+                                                                                rec.status === 'Expired' ? 'bg-red-100 text-red-700' : 
+                                                                                'bg-amber-100 text-amber-700'
+                                                                            }`}>
+                                                                                {rec.status}
+                                                                            </span>
+                                                                        ) : <span className="text-slate-300 italic text-[10px]">N/A</span>}
+                                                                    </td>
+                                                                    <td className="py-3 px-4 text-center">
+                                                                        <div className="flex items-center justify-center gap-1">
+                                                                            <div className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${numFiles > 0 ? 'bg-indigo-50 text-indigo-500 shadow-sm border border-indigo-100' : 'bg-slate-50 text-slate-300 border border-slate-100'}`}>
+                                                                                <FileText className="w-3.5 h-3.5" />
+                                                                            </div>
+                                                                            {numFiles > 0 && <span className="text-[10px] font-bold text-slate-500">{numFiles}</span>}
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="py-3 px-4 text-right">
+                                                                        <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                            <button 
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setCurrentTrainingModal({ ...rec, files: rec.files || [] });
+                                                                                    setCurrentTrainingModalIdx(i);
+                                                                                    setIsViewOnlyTraining(false);
+                                                                                    setIsTrainingModalOpen(true);
+                                                                                }}
+                                                                                className="p-1.5 bg-white text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg border border-slate-100 shadow-sm transition-all active:scale-90"
+                                                                                title="Edit Record"
+                                                                            >
+                                                                                <Pencil className="w-3.5 h-3.5" />
+                                                                            </button>
+                                                                            {deletingTrainingIdx === i ? (
+                                                                                <div className="flex items-center gap-1 ml-1 bg-red-50 p-0.5 rounded-lg border border-red-100 animate-in fade-in slide-in-from-right-2">
+                                                                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteTraining(i); }} className="px-2 py-0.5 text-[10px] font-bold bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors" disabled={savingTraining}>{savingTraining ? '...' : 'Yes'}</button>
+                                                                                    <button onClick={(e) => { e.stopPropagation(); setDeletingTrainingIdx(null); }} className="px-2 py-0.5 text-[10px] font-bold bg-white text-slate-400 rounded-md hover:bg-slate-100 transition-colors">No</button>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <button 
+                                                                                    onClick={(e) => { e.stopPropagation(); setDeletingTrainingIdx(i); }} 
+                                                                                    className="p-1.5 bg-white text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg border border-slate-100 shadow-sm transition-all active:scale-90"
+                                                                                    title="Delete Record"
+                                                                                >
+                                                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })
+                                                    ) : (
+                                                        <tr>
+                                                            <td colSpan={5} className="py-12 text-center text-slate-400 italic text-sm">No training found</td>
                                                         </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     </div>
                                 </SectionCard>
                             </div>
@@ -1923,6 +1758,162 @@ export default function EmployeeViewPage() {
                             disabled={savingDrugTest}
                         >
                             {savingDrugTest ? (
+                                <div className="flex items-center gap-2">
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    <span>Saving...</span>
+                                </div>
+                            ) : (
+                                <span>Save Changes</span>
+                            )}
+                        </Button>
+                    )}
+                </div>
+            </Modal>
+
+            {/* Training & Certifications Add/Edit Modal */}
+            <Modal isOpen={isTrainingModalOpen} onClose={() => setIsTrainingModalOpen(false)} title={isViewOnlyTraining ? "View Record" : currentTrainingModalIdx !== null ? "Edit Record" : "Add Training / Certification"} maxWidth="3xl">
+                <div className="space-y-6 pt-2">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Category</label>
+                            <Select onValueChange={val => setCurrentTrainingModal({ ...currentTrainingModal, category: val })} value={currentTrainingModal.category || ''} disabled={isViewOnlyTraining}>
+                                <SelectTrigger className="h-10"><SelectValue placeholder="Select category" /></SelectTrigger>
+                                <SelectContent>
+                                    {TRAINING_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Type</label>
+                            <Select onValueChange={val => setCurrentTrainingModal({ ...currentTrainingModal, type: val })} value={currentTrainingModal.type || ''} disabled={isViewOnlyTraining}>
+                                <SelectTrigger className="h-10"><SelectValue placeholder="Select type" /></SelectTrigger>
+                                <SelectContent>
+                                    {TRAINING_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Frequency</label>
+                            <Select onValueChange={val => setCurrentTrainingModal({ ...currentTrainingModal, frequency: val })} value={currentTrainingModal.frequency || ''} disabled={isViewOnlyTraining}>
+                                <SelectTrigger className="h-10"><SelectValue placeholder="Select frequency" /></SelectTrigger>
+                                <SelectContent>
+                                    {TRAINING_FREQUENCIES.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Status</label>
+                            <Select onValueChange={val => setCurrentTrainingModal({ ...currentTrainingModal, status: val })} value={currentTrainingModal.status || ''} disabled={isViewOnlyTraining}>
+                                <SelectTrigger className="h-10"><SelectValue placeholder="Select status" /></SelectTrigger>
+                                <SelectContent>
+                                    {TRAINING_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Assigned Date</label>
+                            <Input type="date" value={toDateInputValue(currentTrainingModal.assignedDate)} onChange={e => setCurrentTrainingModal({ ...currentTrainingModal, assignedDate: e.target.value })} disabled={isViewOnlyTraining} className="h-10 font-medium" />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Completion Date</label>
+                            <Input type="date" value={toDateInputValue(currentTrainingModal.completionDate)} onChange={e => setCurrentTrainingModal({ ...currentTrainingModal, completionDate: e.target.value })} disabled={isViewOnlyTraining} className="h-10 font-medium" />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Renewal Date</label>
+                            <Input type="date" value={toDateInputValue(currentTrainingModal.renewalDate)} onChange={e => setCurrentTrainingModal({ ...currentTrainingModal, renewalDate: e.target.value })} disabled={isViewOnlyTraining} className="h-10 font-medium" />
+                        </div>
+                    </div>
+
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Description</label>
+                        <Input placeholder="Enter details about this training..." value={currentTrainingModal.description || ''} onChange={e => setCurrentTrainingModal({ ...currentTrainingModal, description: e.target.value })} disabled={isViewOnlyTraining} className="h-10" />
+                    </div>
+
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between px-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Document(s)</label>
+                            {!isViewOnlyTraining && (
+                                <label className="flex items-center gap-2 px-3 py-1.5 text-[10px] font-bold border border-slate-200 rounded-full cursor-pointer hover:bg-emerald-50 hover:border-emerald-300 transition-all text-slate-600 shadow-sm bg-white">
+                                    <Upload className="w-3 h-3" />
+                                    <span>Upload Files</span>
+                                    <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" multiple onChange={e => {
+                                        const fileList = e.target.files;
+                                        if (fileList) {
+                                            Array.from(fileList).forEach(file => {
+                                                const reader = new FileReader();
+                                                reader.onloadend = () => {
+                                                    setCurrentTrainingModal((prev: any) => ({ ...prev, files: [...(prev.files || []), reader.result as string] }));
+                                                };
+                                                reader.readAsDataURL(file);
+                                            });
+                                        }
+                                        e.target.value = '';
+                                    }} />
+                                </label>
+                            )}
+                        </div>
+
+                        {(currentTrainingModal.files || []).length > 0 || currentTrainingModal.fileUrl ? (
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                {[...(currentTrainingModal.fileUrl ? [currentTrainingModal.fileUrl] : []), ...(currentTrainingModal.files || [])].map((fileUrl: string, idx: number) => {
+                                    const { isImage, isPdf } = getFileType(fileUrl);
+
+                                    return (
+                                        <div key={idx} className="relative group border border-slate-200 rounded-xl overflow-hidden bg-slate-50 h-[100px] shadow-sm">
+                                            {isImage ? (
+                                                <img src={fileUrl} alt="Preview" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                                            ) : isPdf ? (
+                                                <iframe src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=0`} className="w-full h-full border-0 pointer-events-none object-cover transition-transform duration-500 group-hover:scale-105" title="PDF Preview" />
+                                            ) : (
+                                                <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 transition-transform duration-500 group-hover:scale-105">
+                                                    <GraduationCap className="w-8 h-8 text-emerald-400/40" />
+                                                    <span className="text-[10px] uppercase font-bold text-slate-400 italic">File {idx + 1}</span>
+                                                </div>
+                                            )}
+                                            
+                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-[1px]">
+                                                <button type="button" onClick={() => openFileUrl(fileUrl)} className="p-1.5 bg-white/90 hover:bg-white text-slate-800 rounded-lg shadow-sm transition-colors">
+                                                    <Eye className="w-3.5 h-3.5" />
+                                                </button>
+                                                {!isViewOnlyTraining && (
+                                                    <button type="button" onClick={() => {
+                                                        if (idx === 0 && currentTrainingModal.fileUrl) {
+                                                            setCurrentTrainingModal({ ...currentTrainingModal, fileUrl: '' });
+                                                        } else {
+                                                            const filesIdx = currentTrainingModal.fileUrl ? idx - 1 : idx;
+                                                            setCurrentTrainingModal((prev: any) => ({ ...prev, files: prev.files.filter((_: any, j: number) => j !== filesIdx) }));
+                                                        }
+                                                    }} className="p-1.5 bg-red-500/90 hover:bg-red-500 text-white rounded-lg shadow-sm transition-colors">
+                                                        <X className="w-3.5 h-3.5" />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <div className="p-10 text-center text-[11px] font-medium text-slate-400 border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                                No files attached to this record
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="flex justify-end gap-2 mt-8 pt-4 border-t border-slate-100">
+                    <Button variant="outline" onClick={() => setIsTrainingModalOpen(false)} className="rounded-full px-6">
+                        {isViewOnlyTraining ? 'Close' : 'Cancel'}
+                    </Button>
+                    {!isViewOnlyTraining && (
+                        <Button 
+                            className="bg-[#0F4C75] hover:bg-[#0a3a5c] text-white rounded-full px-8 shadow-md"
+                            onClick={handleSaveTrainingModal}
+                            disabled={savingTraining}
+                        >
+                            {savingTraining ? (
                                 <div className="flex items-center gap-2">
                                     <Loader2 className="w-4 h-4 animate-spin" />
                                     <span>Saving...</span>
