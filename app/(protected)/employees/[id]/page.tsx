@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Save, Trash2, ArrowLeft, Briefcase, FileText, User, Pencil, FlaskConical, GraduationCap, X, Check, Plus, Upload } from 'lucide-react';
-import { Header, Button, ConfirmModal, Modal, Input, SearchableSelect, UnderlineTabs, SaveButton, CancelButton, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
+import { Save, Trash2, ArrowLeft, Briefcase, FileText, User, Pencil, FlaskConical, GraduationCap, X, Check, Plus, Upload, ChevronLeft, ChevronRight, Loader2, Search } from 'lucide-react';
+import { Header, Button, ConfirmModal, Modal, Input, SearchableSelect, UnderlineTabs, SaveButton, CancelButton, Tooltip, TooltipTrigger, TooltipContent, Switch } from '@/components/ui';
 import { SignaturePad } from '@/components/ui/SignaturePad';
 import { useToast } from '@/hooks/useToast';
 import { EmployeeHeaderCard, AccordionCard, DetailRow } from './components';
@@ -65,6 +65,21 @@ interface Employee {
     [key: string]: any;
 }
 
+const SectionCard = ({ title, icon: Icon, children, action }: any) => (
+    <div className="flex flex-col h-full min-h-[280px] bg-white/30 rounded-2xl shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] p-4 relative overflow-hidden">
+        <div className="w-full flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+                {Icon && <Icon className="w-4 h-4 text-indigo-400" />}
+                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{title}</h3>
+            </div>
+            {action && <div>{action}</div>}
+        </div>
+        <div className="p-0 flex-1">
+            {children}
+        </div>
+    </div>
+);
+
 export default function EmployeeViewPage() {
     const router = useRouter();
     const params = useParams();
@@ -77,17 +92,17 @@ export default function EmployeeViewPage() {
     const [loading, setLoading] = useState(true);
     const [animate, setAnimate] = useState(false);
 
-    // Accordion State
+    // Accordion State for lower sections if needed
     const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-        'personal': true,
-        'employment': true,
-        'compliance': false
+        'documents': true,
+        'drugTesting': true
     });
 
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [currentEmployee, setCurrentEmployee] = useState<Partial<Employee>>({});
     const [modalTab, setModalTab] = useState('personal');
+    const [inlineEditSection, setInlineEditSection] = useState<'personal' | 'employment' | 'compliance' | null>(null);
 
     const [saving, setSaving] = useState(false);
     const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
@@ -101,23 +116,30 @@ export default function EmployeeViewPage() {
     const emptyTraining = { category: '', type: '', frequency: '', assignedDate: '', completionDate: '', renewalDate: '', description: '', status: '', fileUrl: '', createdBy: '', createdAt: '' };
     const [newTraining, setNewTraining] = useState<any>({ ...emptyTraining });
 
-    // Document adding state
-    const [isAddingDocument, setIsAddingDocument] = useState(false);
-    const emptyDocument = { fileName: '', expiryDate: '', fileUrl: '', createdAt: '' };
-    const [newDocument, setNewDocument] = useState<any>({ ...emptyDocument });
+    // Document Modal State
+    const emptyDocument = { fileName: '', fileUrl: '', files: [] as string[], createdAt: '' };
+    const [isDocModalOpen, setIsDocModalOpen] = useState(false);
+    const [currentDocModal, setCurrentDocModal] = useState<any>({ ...emptyDocument });
+    const [currentDocModalIdx, setCurrentDocModalIdx] = useState<number | null>(null);
+    const [isViewOnlyDoc, setIsViewOnlyDoc] = useState(false);
     const [savingDocument, setSavingDocument] = useState(false);
-    const [editingDocIdx, setEditingDocIdx] = useState<number | null>(null);
-    const [editingDoc, setEditingDoc] = useState<any>(null);
     const [deletingDocIdx, setDeletingDocIdx] = useState<number | null>(null);
+    const [docThumbIdx, setDocThumbIdx] = useState<Record<number, number>>({});
+    const [activeDocCardIdx, setActiveDocCardIdx] = useState<number | null>(null);
+    const [docSearch, setDocSearch] = useState('');
 
     // Drug testing adding state
     const [isAddingDrugTest, setIsAddingDrugTest] = useState(false);
+    const [drugSearch, setDrugSearch] = useState('');
+    const [trainingSearch, setTrainingSearch] = useState('');
     const emptyDrugTest = { date: '', type: 'Drug / Alcohol Testing Auth', description: '', fileUrl: '', files: [] as string[] };
     const [newDrugTest, setNewDrugTest] = useState<any>({ ...emptyDrugTest });
     const [savingDrugTest, setSavingDrugTest] = useState(false);
     const [editingDrugTestIdx, setEditingDrugTestIdx] = useState<number | null>(null);
     const [editingDrugTest, setEditingDrugTest] = useState<any>(null);
     const [deletingDrugTestIdx, setDeletingDrugTestIdx] = useState<number | null>(null);
+    const [drugTestingThumbIdx, setDrugTestingThumbIdx] = useState<Record<number, number>>({});
+    const [activeDrugCardIdx, setActiveDrugCardIdx] = useState<number | null>(null);
 
     const TRAINING_CATEGORIES = ['Other', 'HEAVY EQUIPMENT RELATED'];
     const TRAINING_TYPES = ['Union Bootcamp', 'Osha', 'First Aid', 'Veriforce', 'Trenching and Excavating', 'Additional Training', 'CPR/First Aid'];
@@ -242,49 +264,38 @@ export default function EmployeeViewPage() {
         }
     };
 
-    const handleAddDocument = async () => {
+    const handleDocModalSave = async () => {
         if (!employee) return;
-        if (!newDocument.fileName) {
+        if (!currentDocModal.fileName) {
             toastError('Please enter a file name');
             return;
         }
         setSavingDocument(true);
         try {
-            const record = { ...newDocument, date: newDocument.date || new Date().toISOString().split('T')[0] };
-            const updated = [...(employee.documents || []), record];
-            const res = await apiCall('updateEmployee', { id: employee._id, item: { documents: updated } });
-            if (res.success) {
-                setEmployee({ ...employee, documents: updated });
-                success('Document added');
-                setNewDocument({ ...emptyDocument });
-                setIsAddingDocument(false);
-            } else {
-                toastError('Failed to add document');
-            }
-        } catch (e) {
-            toastError('Error adding document');
-        } finally {
-            setSavingDocument(false);
-        }
-    };
-
-    const handleSaveDocEdit = async () => {
-        if (!employee || editingDocIdx === null || !editingDoc) return;
-        setSavingDocument(true);
-        try {
             const updated = [...(employee.documents || [])];
-            updated[editingDocIdx] = editingDoc;
+            // Format for save, migrating legacy fileUrl into files if needed
+            const recordToSave = {
+                ...currentDocModal,
+                date: currentDocModal.date || new Date().toISOString().split('T')[0],
+            };
+
+            if (currentDocModalIdx !== null) {
+                updated[currentDocModalIdx] = recordToSave;
+            } else {
+                recordToSave.createdAt = new Date().toISOString();
+                updated.push(recordToSave);
+            }
+
             const res = await apiCall('updateEmployee', { id: employee._id, item: { documents: updated } });
             if (res.success) {
                 setEmployee({ ...employee, documents: updated });
-                success('Document updated');
-                setEditingDocIdx(null);
-                setEditingDoc(null);
+                success(`Document ${currentDocModalIdx !== null ? 'updated' : 'added'}`);
+                setIsDocModalOpen(false);
             } else {
-                toastError('Failed to update document');
+                toastError('Failed to save document');
             }
         } catch (e) {
-            toastError('Error updating document');
+            toastError('Error saving document');
         } finally {
             setSavingDocument(false);
         }
@@ -472,6 +483,29 @@ export default function EmployeeViewPage() {
         }
     };
 
+    const handleInlineSave = async () => {
+        setSaving(true);
+        try {
+            const res = await apiCall('updateEmployee', { id: currentEmployee._id, item: currentEmployee });
+            if (res.success) {
+                success('Saved');
+                setInlineEditSection(null);
+                loadEmployee(true);
+            } else {
+                toastError('Failed to save');
+            }
+        } catch (err) {
+            toastError('An error occurred while saving');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const startInlineEdit = (section: 'personal' | 'employment' | 'compliance') => {
+        setCurrentEmployee({ ...employee });
+        setInlineEditSection(section);
+    };
+
     const handleQuickUpdate = async (field: string, value: any) => {
         if (!employee) return;
 
@@ -568,7 +602,7 @@ export default function EmployeeViewPage() {
             </div>
 
             <main className="flex-1 overflow-y-auto">
-                <div className="w-full p-4 pb-24 max-w-[1600px] mx-auto">
+                <div className="w-full p-4 pb-24">
 
                     {/* Hero Header Card */}
                     <EmployeeHeaderCard
@@ -578,427 +612,856 @@ export default function EmployeeViewPage() {
                         animate={animate}
                     />
 
-                    {/* Accordions Grid */}
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                    {/* Details Grid */}
+                    <div className="bg-[#eef2f6] rounded-[40px] shadow-[12px_12px_24px_#d1d9e6,-12px_-12px_24px_#ffffff] p-4 mb-6">
+                        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
 
-                        {/* Personal Info */}
-                        <AccordionCard
-                            title="Personal Information"
-                            icon={User}
-                            isOpen={openSections['personal']}
-                            onToggle={() => handleToggle('personal')}
-                        >
-                            <DetailRow label="DOB" value={employee.dob} />
-                            <DetailRow label="Address" value={employee.address} />
-                            <DetailRow label="City" value={employee.city} />
-                            <DetailRow label="State" value={employee.state} />
-                            <DetailRow label="Zip Code" value={employee.zip} />
-                            <DetailRow label="Driver License" value={employee.driverLicense} />
-                        </AccordionCard>
-
-                        {/* Employment Details */}
-                        <AccordionCard
-                            title="Employment Details"
-                            icon={Briefcase}
-                            isOpen={openSections['employment']}
-                            onToggle={() => handleToggle('employment')}
-                        >
-                            <DetailRow label="Date Hired" value={employee.dateHired} />
-                            <DetailRow label="App Role" value={employee.appRole} />
-                            <DetailRow label="Company Position" value={employee.companyPosition} />
-                            <DetailRow label="Designation" value={employee.designation} />
-                            <DetailRow label="Group No." value={employee.groupNo} />
-                            <DetailRow label="Separation Date" value={employee.separationDate} />
-                            <DetailRow label="Separation Reason" value={employee.separationReason} />
-                        </AccordionCard>
-
-                        {/* Compliance & Documents */}
-                        <div className="col-span-1 xl:col-span-2">
-                            <AccordionCard
-                                title="Compliance & Documents"
-                                icon={FileText}
-                                isOpen={openSections['compliance']}
-                                onToggle={() => handleToggle('compliance')}
-                            >
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
-                                    <div>
-                                        <DetailRow label="Application / Resume" value={employee.applicationResume} isLink href={employee.applicationResume} />
-                                        <DetailRow label="Employee Handbook" value={employee.employeeHandbook} isLink href={employee.employeeHandbook} />
-                                        <DetailRow label="W4 / I9 / DD" value={employee.quickbooksW4I9DD} isLink href={employee.quickbooksW4I9DD} />
-                                        <DetailRow label="Emergency Contact" value={employee.emergencyContact} isLink href={employee.emergencyContact} />
-                                        <DetailRow label="DOT Release" value={employee.dotRelease} isLink href={employee.dotRelease} />
-                                        <DetailRow label="DMV Pull Notice" value={employee.dmvPullNotifications} isLink href={employee.dmvPullNotifications} />
-                                        <DetailRow label="Driving Record Permission" value={employee.drivingRecordPermission} isLink href={employee.drivingRecordPermission} />
-                                    </div>
-                                    <div>
-                                        <DetailRow label="Background Check" value={employee.backgroundCheck} isLink href={employee.backgroundCheck} />
-                                        <DetailRow label="Copy of DL" value={employee.copyOfDL} isLink href={employee.copyOfDL} />
-                                        <DetailRow label="Copy of SS" value={employee.copyOfSS} isLink href={employee.copyOfSS} />
-                                        <DetailRow label="LCP Tracker" value={employee.lcpTracker} isLink href={employee.lcpTracker} />
-                                        <DetailRow label="EDD" value={employee.edd} isLink href={employee.edd} />
-                                        <DetailRow label="Auto Insurance" value={employee.autoInsurance} isLink href={employee.autoInsurance} />
-                                        <DetailRow label="Veriforce / OQ" value={employee.veriforce} isLink href={employee.veriforce} />
-                                        <DetailRow label="Union Paperwork" value={employee.unionPaperwork1184} isLink href={employee.unionPaperwork1184} />
-                                    </div>
-                                </div>
-                            </AccordionCard>
-                        </div>
-
-                        {/* Documents */}
-                        <div className="col-span-1 xl:col-span-2">
-                            <AccordionCard
-                                title={`Documents (${employee.documents?.length || 0})`}
-                                icon={FileText}
-                                isOpen={openSections['documents']}
-                                onToggle={() => handleToggle('documents')}
+                            {/* Personal Info */}
+                            <SectionCard
+                                title="Personal Information"
+                                icon={User}
                                 action={
-                                    <button
-                                        onClick={() => { setIsAddingDocument(true); setOpenSections(prev => ({ ...prev, documents: true })); }}
-                                        className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
-                                        title="Add Document"
-                                    >
-                                        <Plus className="w-5 h-5" />
-                                    </button>
+                                    inlineEditSection !== 'personal' && (
+                                        <button
+                                            onClick={() => startInlineEdit('personal')}
+                                            className="p-1.5 rounded-lg text-indigo-500 hover:bg-white/50 hover:text-indigo-700 transition-colors"
+                                            title="Edit Personal Information"
+                                        >
+                                            <Pencil className="w-4 h-4" />
+                                        </button>
+                                    )
                                 }
                             >
-                                {/* Add Document Form */}
-                                {isAddingDocument && (
-                                    <div className="mb-4 p-4 bg-emerald-50/50 rounded-xl border border-emerald-100 space-y-3">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <h4 className="text-sm font-semibold text-slate-700">Add New Document</h4>
-                                            <button onClick={() => { setIsAddingDocument(false); setNewDocument({ ...emptyDocument }); }} className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors">
-                                                <X className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                                            <div className="md:col-span-4">
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">File Name</label>
-                                                <Input placeholder="e.g. W-4 Form, Contract" value={newDocument.fileName || ''} onChange={e => setNewDocument({ ...newDocument, fileName: e.target.value })} />
-                                            </div>
-                                            <div className="md:col-span-4">
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Document</label>
-                                                <div className="flex items-center gap-3">
-                                                    {newDocument.fileUrl && <span className="text-xs text-emerald-600 font-medium">File attached ✓</span>}
-                                                    <label className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-[#0F4C75] hover:bg-blue-50/30 transition-all text-slate-600">
-                                                        <Upload className="w-3.5 h-3.5" />
-                                                        {newDocument.fileUrl ? 'Replace File' : 'Upload File'}
-                                                        <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" onChange={e => {
-                                                            const file = e.target.files?.[0];
-                                                            if (file) {
-                                                                const reader = new FileReader();
-                                                                reader.onloadend = () => setNewDocument({ ...newDocument, fileUrl: reader.result as string });
-                                                                reader.readAsDataURL(file);
-                                                            }
-                                                        }} />
-                                                    </label>
-                                                    {newDocument.fileUrl && (
-                                                        <button type="button" onClick={() => setNewDocument({ ...newDocument, fileUrl: '' })} className="text-xs text-red-500 hover:text-red-700 transition-colors">Remove</button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-2 pt-1">
-                                            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleAddDocument} disabled={savingDocument}>
-                                                <Plus className="w-3.5 h-3.5 mr-1" /> {savingDocument ? 'Adding...' : 'Add Document'}
-                                            </Button>
-                                            <Button size="sm" variant="outline" onClick={() => { setIsAddingDocument(false); setNewDocument({ ...emptyDocument }); }}>
-                                                Cancel
-                                            </Button>
-                                        </div>
+                                <DetailRow label="DOB" value={employee.dob} editNode={inlineEditSection === 'personal' ? <Input type="date" value={toDateInputValue(currentEmployee.dob)} onChange={e => setCurrentEmployee({ ...currentEmployee, dob: e.target.value })} className="h-8 min-w-[160px]" /> : undefined} />
+                                <DetailRow label="Address" value={employee.address} editNode={inlineEditSection === 'personal' ? <Input value={currentEmployee.address || ''} onChange={e => setCurrentEmployee({ ...currentEmployee, address: e.target.value })} className="h-8 w-full" /> : undefined} />
+                                <DetailRow label="City" value={employee.city} editNode={inlineEditSection === 'personal' ? <div className="min-w-[160px]"><SearchableSelect value={currentEmployee.city || ''} onChange={(v: any) => setCurrentEmployee({ ...currentEmployee, city: v })} options={cityOptions} /></div> : undefined} />
+                                <DetailRow label="State" value={employee.state} editNode={inlineEditSection === 'personal' ? <div className="min-w-[160px]"><SearchableSelect value={currentEmployee.state || ''} onChange={(v: any) => setCurrentEmployee({ ...currentEmployee, state: v })} options={stateOptions} /></div> : undefined} />
+                                <DetailRow label="Zip Code" value={employee.zip} editNode={inlineEditSection === 'personal' ? <Input value={currentEmployee.zip || ''} onChange={e => setCurrentEmployee({ ...currentEmployee, zip: e.target.value })} className="h-8 min-w-[160px]" /> : undefined} />
+                                <DetailRow label="Driver License" value={employee.driverLicense} editNode={inlineEditSection === 'personal' ? <Input value={currentEmployee.driverLicense || ''} onChange={e => setCurrentEmployee({ ...currentEmployee, driverLicense: e.target.value })} className="h-8 min-w-[160px]" /> : undefined} />
+
+                                {inlineEditSection === 'personal' && (
+                                    <div className="flex justify-end gap-2 mt-auto pt-4 border-t border-gray-100/50">
+                                        <Button size="sm" variant="outline" onClick={() => setInlineEditSection(null)}>Cancel</Button>
+                                        <Button size="sm" onClick={handleInlineSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
                                     </div>
                                 )}
+                            </SectionCard>
 
-                                {/* Inline Edit Document Form */}
-                                {editingDocIdx !== null && editingDoc && (
-                                    <div className="mb-4 p-4 bg-blue-50/50 rounded-xl border border-blue-100 space-y-3">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <h4 className="text-sm font-semibold text-slate-700">Edit Document #{editingDocIdx + 1}</h4>
-                                            <button onClick={() => { setEditingDocIdx(null); setEditingDoc(null); }} className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors">
-                                                <X className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                                            <div className="md:col-span-4">
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">File Name</label>
-                                                <Input placeholder="e.g. W-4 Form, Contract" value={editingDoc.fileName || ''} onChange={e => setEditingDoc({ ...editingDoc, fileName: e.target.value })} />
-                                            </div>
-                                            <div className="md:col-span-4">
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Document</label>
-                                                <div className="flex items-center gap-3">
-                                                    {editingDoc.fileUrl && (
-                                                        <button type="button" onClick={() => openFileUrl(editingDoc.fileUrl)} className="text-xs bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-lg font-medium hover:bg-emerald-100 transition-colors cursor-pointer flex items-center gap-1">
-                                                            <FileText className="w-3 h-3" /> View Current
-                                                        </button>
-                                                    )}
-                                                    <label className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-[#0F4C75] hover:bg-blue-50/30 transition-all text-slate-600">
-                                                        <Upload className="w-3.5 h-3.5" />
-                                                        {editingDoc.fileUrl ? 'Replace File' : 'Upload File'}
-                                                        <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" onChange={e => {
-                                                            const file = e.target.files?.[0];
-                                                            if (file) {
-                                                                const reader = new FileReader();
-                                                                reader.onloadend = () => setEditingDoc({ ...editingDoc, fileUrl: reader.result as string });
-                                                                reader.readAsDataURL(file);
-                                                            }
-                                                        }} />
-                                                    </label>
-                                                    {editingDoc.fileUrl && (
-                                                        <button type="button" onClick={() => setEditingDoc({ ...editingDoc, fileUrl: '' })} className="text-xs text-red-500 hover:text-red-700 transition-colors">Remove</button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-2 pt-1">
-                                            <Button size="sm" className="bg-[#0F4C75] hover:bg-[#0a3a5c] text-white" onClick={handleSaveDocEdit} disabled={savingDocument}>
-                                                {savingDocument ? 'Saving...' : 'Save Changes'}
-                                            </Button>
-                                            <Button size="sm" variant="outline" onClick={() => { setEditingDocIdx(null); setEditingDoc(null); }}>
-                                                Cancel
-                                            </Button>
-                                        </div>
+                            {/* Employment Details */}
+                            <SectionCard
+                                title="Employment Details"
+                                icon={Briefcase}
+                                action={
+                                    inlineEditSection !== 'employment' && (
+                                        <button
+                                            onClick={() => startInlineEdit('employment')}
+                                            className="p-1.5 rounded-lg text-indigo-500 hover:bg-white/50 hover:text-indigo-700 transition-colors"
+                                            title="Edit Employment Details"
+                                        >
+                                            <Pencil className="w-4 h-4" />
+                                        </button>
+                                    )
+                                }
+                            >
+                                <DetailRow label="Date Hired" value={employee.dateHired} editNode={inlineEditSection === 'employment' ? <Input type="date" value={toDateInputValue(currentEmployee.dateHired)} onChange={e => setCurrentEmployee({ ...currentEmployee, dateHired: e.target.value })} className="h-8 min-w-[160px]" /> : undefined} />
+                                <DetailRow label="App Role" value={employee.appRole} editNode={inlineEditSection === 'employment' ? <div className="min-w-[160px]"><SearchableSelect value={currentEmployee.appRole || ''} onChange={(v: any) => setCurrentEmployee({ ...currentEmployee, appRole: v })} options={appRoleOptions} /></div> : undefined} />
+                                <DetailRow label="Company Position" value={employee.companyPosition} editNode={inlineEditSection === 'employment' ? <div className="min-w-[160px]"><SearchableSelect value={currentEmployee.companyPosition || ''} onChange={(v: any) => setCurrentEmployee({ ...currentEmployee, companyPosition: v })} options={positionOptions} /></div> : undefined} />
+                                <DetailRow label="Designation" value={employee.designation} editNode={inlineEditSection === 'employment' ? <div className="min-w-[160px]"><SearchableSelect value={currentEmployee.designation || ''} onChange={(v: any) => setCurrentEmployee({ ...currentEmployee, designation: v })} options={designationOptions} /></div> : undefined} />
+                                <DetailRow label="Group No." value={employee.groupNo} editNode={inlineEditSection === 'employment' ? <Input value={currentEmployee.groupNo || ''} onChange={e => setCurrentEmployee({ ...currentEmployee, groupNo: e.target.value })} className="h-8 min-w-[160px]" /> : undefined} />
+                                <DetailRow label="Separation Date" value={employee.separationDate} editNode={inlineEditSection === 'employment' ? <Input type="date" value={toDateInputValue(currentEmployee.separationDate)} onChange={e => setCurrentEmployee({ ...currentEmployee, separationDate: e.target.value })} className="h-8 min-w-[160px]" /> : undefined} />
+                                <DetailRow label="Separation Reason" value={employee.separationReason} editNode={inlineEditSection === 'employment' ? <textarea value={currentEmployee.separationReason || ''} onChange={e => setCurrentEmployee({ ...currentEmployee, separationReason: e.target.value })} className="w-full min-h-[80px] p-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-y" placeholder="Enter reason..." /> : undefined} />
+
+                                {inlineEditSection === 'employment' && (
+                                    <div className="flex justify-end gap-2 mt-auto pt-4 border-t border-gray-100/50">
+                                        <Button size="sm" variant="outline" onClick={() => setInlineEditSection(null)}>Cancel</Button>
+                                        <Button size="sm" onClick={handleInlineSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
                                     </div>
                                 )}
+                            </SectionCard>
 
-                                {(employee.documents?.length ?? 0) > 0 ? (
-                                    <div className="overflow-x-auto">
+                            {/* Compliance & Documents */}
+                            <SectionCard
+                                title="Compliance"
+                                icon={FileText}
+                                action={
+                                    inlineEditSection !== 'compliance' && (
+                                        <button
+                                            onClick={() => startInlineEdit('compliance')}
+                                            className="p-1.5 rounded-lg text-indigo-500 hover:bg-white/50 hover:text-indigo-700 transition-colors"
+                                            title="Edit Compliance"
+                                        >
+                                            <Pencil className="w-4 h-4" />
+                                        </button>
+                                    )
+                                }
+                            >
+                                {(() => {
+                                    const renderCompEdit = (key: keyof Employee) => {
+                                        if (inlineEditSection !== 'compliance') return undefined;
+                                        const isChecked = currentEmployee[key] === 'Yes';
+                                        return (
+                                            <div className="flex items-center gap-3 pr-2 py-1 flex-1 justify-end">
+                                                <Switch
+                                                    checked={isChecked}
+                                                    onCheckedChange={(checked) => setCurrentEmployee({ ...currentEmployee, [key]: checked ? 'Yes' : 'No' })}
+                                                />
+                                            </div>
+                                        );
+                                    };
+
+                                    return (
+                                        <div className="flex flex-col h-full">
+                                            <div className="grid grid-cols-1 xl:grid-cols-3 gap-x-6 gap-y-0">
+                                                <DetailRow label="Application / Resume" value={employee.applicationResume} isLink href={employee.applicationResume} editNode={renderCompEdit('applicationResume')} />
+                                                <DetailRow label="Employee Handbook" value={employee.employeeHandbook} isLink href={employee.employeeHandbook} editNode={renderCompEdit('employeeHandbook')} />
+                                                <DetailRow label="W4 / I9 / DD" value={employee.quickbooksW4I9DD} isLink href={employee.quickbooksW4I9DD} editNode={renderCompEdit('quickbooksW4I9DD')} />
+                                                <DetailRow label="Emergency Contact" value={employee.emergencyContact} isLink href={employee.emergencyContact} editNode={renderCompEdit('emergencyContact')} />
+                                                <DetailRow label="DOT Release" value={employee.dotRelease} isLink href={employee.dotRelease} editNode={renderCompEdit('dotRelease')} />
+                                                <DetailRow label="DMV Pull Notice" value={employee.dmvPullNotifications} isLink href={employee.dmvPullNotifications} editNode={renderCompEdit('dmvPullNotifications')} />
+                                                <DetailRow label="Driving Record Permission" value={employee.drivingRecordPermission} isLink href={employee.drivingRecordPermission} editNode={renderCompEdit('drivingRecordPermission')} />
+                                                <DetailRow label="Background Check" value={employee.backgroundCheck} isLink href={employee.backgroundCheck} editNode={renderCompEdit('backgroundCheck')} />
+                                                <DetailRow label="Copy of DL" value={employee.copyOfDL} isLink href={employee.copyOfDL} editNode={renderCompEdit('copyOfDL')} />
+                                                <DetailRow label="Copy of SS" value={employee.copyOfSS} isLink href={employee.copyOfSS} editNode={renderCompEdit('copyOfSS')} />
+                                                <DetailRow label="LCP Tracker" value={employee.lcpTracker} isLink href={employee.lcpTracker} editNode={renderCompEdit('lcpTracker')} />
+                                                <DetailRow label="EDD" value={employee.edd} isLink href={employee.edd} editNode={renderCompEdit('edd')} />
+                                                <DetailRow label="Auto Insurance" value={employee.autoInsurance} isLink href={employee.autoInsurance} editNode={renderCompEdit('autoInsurance')} />
+                                                <DetailRow label="Veriforce / OQ" value={employee.veriforce} isLink href={employee.veriforce} editNode={renderCompEdit('veriforce')} />
+                                                <DetailRow label="Union Paperwork" value={employee.unionPaperwork1184} isLink href={employee.unionPaperwork1184} editNode={renderCompEdit('unionPaperwork1184')} />
+                                            </div>
+                                            {inlineEditSection === 'compliance' && (
+                                                <div className="flex justify-end gap-2 mt-auto pt-4 border-t border-gray-100/50">
+                                                    <Button size="sm" variant="outline" onClick={() => setInlineEditSection(null)}>Cancel</Button>
+                                                    <Button size="sm" onClick={handleInlineSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
+                            </SectionCard>
+                        </div>
+                    </div>
+
+                    <div className="bg-[#eef2f6] rounded-[40px] shadow-[12px_12px_24px_#d1d9e6,-12px_-12px_24px_#ffffff] p-4 mb-6">
+                        <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
+
+                            {/* Documents */}
+                            <div className="col-span-1">
+                                <SectionCard
+                                    title={`Documents (${employee.documents?.length || 0})`}
+                                    icon={FileText}
+                                    action={
+                                        <div className="flex items-center gap-1 sm:gap-2">
+                                            <div className="relative group/search">
+                                                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within/search:text-emerald-600 transition-colors" />
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Search docs..." 
+                                                    value={docSearch}
+                                                    onChange={(e) => setDocSearch(e.target.value)}
+                                                    className="pl-9 pr-3 py-1.5 text-[11px] border border-slate-200 bg-white shadow-sm rounded-full focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all w-[100px] sm:w-[130px] focus:w-[150px] sm:focus:w-[180px] outline-none"
+                                                />
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    setIsDocModalOpen(true);
+                                                    setCurrentDocModal({ ...emptyDocument });
+                                                    setCurrentDocModalIdx(null);
+                                                    setIsViewOnlyDoc(false);
+                                                }}
+                                                className="p-1.5 rounded-full text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 transition-colors flex-shrink-0"
+                                                title="Add Document"
+                                            >
+                                                <Plus className="w-5 h-5" />
+                                            </button>
+                                        </div>
+                                    }
+                                >
+
+                                    {(employee.documents?.length ?? 0) > 0 ? (
+                                        <div className="overflow-auto max-h-[500px]">
+                                            <div className="grid grid-cols-2 gap-4">
+                                                {employee.documents?.map((doc: any, i: number) => {
+                                                    if (docSearch) {
+                                                        const match = (doc.fileName || '').toLowerCase().includes(docSearch.toLowerCase()) || 
+                                                                      (doc.description || '').toLowerCase().includes(docSearch.toLowerCase());
+                                                        if (!match) return null;
+                                                    }
+                                                    const docFiles = doc.files?.length ? doc.files : (doc.fileUrl ? [doc.fileUrl] : []);
+                                                    const numFiles = docFiles.length;
+                                                    const currentIdx = docThumbIdx[i] || 0;
+                                                    const currentFile = docFiles[currentIdx];
+                                                    const isPdf = currentFile?.toLowerCase().includes('.pdf') || currentFile?.startsWith('data:application/pdf');
+                                                    const isImage = currentFile ? (currentFile.startsWith('data:image') || currentFile.match(/\.(jpeg|jpg|gif|png)$/i) || (currentFile.startsWith('/api/docs/') && !isPdf)) : false;
+
+                                                    return (
+                                                        <div key={i}
+                                                            className="relative bg-white border border-slate-200 rounded-xl shadow-sm transition-all flex flex-col overflow-hidden"
+                                                        >
+                                                            {/* Thumbnail Preview Area */}
+                                                            <div className="relative w-full h-[120px] bg-slate-50 flex items-center justify-center border-b border-slate-100 overflow-hidden group">
+                                                                {numFiles > 0 ? (
+                                                                    isImage ? (
+                                                                        <img src={currentFile} alt="Preview" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                                                                    ) : isPdf ? (
+                                                                        <iframe src={`${currentFile}#toolbar=0&navpanes=0&scrollbar=0`} className="w-full h-full border-0 pointer-events-none object-cover transition-transform duration-500 group-hover:scale-105" title="PDF Preview" />
+                                                                    ) : (
+                                                                        <div className="flex flex-col items-center gap-2 text-slate-400">
+                                                                            <FileText className="w-10 h-10 text-[#0F4C75]/40" />
+                                                                            <span className="text-[10px] uppercase font-bold text-slate-400">Document</span>
+                                                                        </div>
+                                                                    )
+                                                                ) : (
+                                                                    <span className="text-xs text-slate-400 font-medium">No preview</span>
+                                                                )}
+
+                                                                {numFiles > 1 && (
+                                                                    <>
+                                                                        <div className="absolute top-2 left-2 bg-black/60 shadow-md backdrop-blur-sm px-1.5 py-0.5 rounded text-[10px] text-white font-bold flex items-center gap-1 z-10">
+                                                                            {currentIdx + 1}/{numFiles}
+                                                                        </div>
+                                                                        {/* Arrow Navs */}
+                                                                        <div className="absolute inset-x-0 inset-y-0 flex items-center justify-between px-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                                                            <button
+                                                                                onClick={(e) => { e.stopPropagation(); setDocThumbIdx(prev => ({ ...prev, [i]: currentIdx > 0 ? currentIdx - 1 : numFiles - 1 })); }}
+                                                                                className="p-1 rounded-full bg-white/90 hover:bg-white text-slate-800 shadow transition-colors"
+                                                                            >
+                                                                                <ChevronLeft className="w-4 h-4" />
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={(e) => { e.stopPropagation(); setDocThumbIdx(prev => ({ ...prev, [i]: currentIdx < numFiles - 1 ? currentIdx + 1 : 0 })); }}
+                                                                                className="p-1 rounded-full bg-white/90 hover:bg-white text-slate-800 shadow transition-colors"
+                                                                            >
+                                                                                <ChevronRight className="w-4 h-4" />
+                                                                            </button>
+                                                                        </div>
+                                                                    </>
+                                                                )}
+                                                            </div>
+
+                                                            {/* Info Area */}
+                                                            <div className="flex flex-col p-3 flex-1">
+                                                                <div className="flex justify-between items-start gap-2">
+                                                                    <h5 className="text-sm font-bold text-slate-800 line-clamp-2 leading-tight" title={doc.fileName}>{doc.fileName || 'Untitled Document'}</h5>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Inline Actions (Always Visible) */}
+                                                            <div className="px-3 pb-3 pt-1 border-t border-slate-50 bg-slate-50/50 mt-auto flex items-center justify-between gap-2">
+                                                                {deletingDocIdx === i ? (
+                                                                    <div className="flex items-center gap-2 w-full justify-between">
+                                                                        <span className="text-[10px] font-bold text-red-600">Delete?</span>
+                                                                        <div className="flex gap-1.5">
+                                                                            <button
+                                                                                onClick={() => handleDeleteDocument(i)}
+                                                                                className="px-2.5 py-1 text-xs font-medium bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+                                                                                disabled={savingDocument}
+                                                                            >
+                                                                                {savingDocument ? '...' : 'Yes'}
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => setDeletingDocIdx(null)}
+                                                                                className="px-2.5 py-1 text-xs font-medium bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors"
+                                                                            >
+                                                                                No
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                ) : (
+                                                                    <>
+                                                                        {/* Buttons Area */}
+                                                                        <div className="flex items-center gap-1.5">
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    setIsDocModalOpen(true);
+                                                                                    setCurrentDocModal({ ...emptyDocument, ...doc, files: docFiles });
+                                                                                    setCurrentDocModalIdx(i);
+                                                                                    setIsViewOnlyDoc(false);
+                                                                                }}
+                                                                                className="p-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors"
+                                                                                title="Edit Document"
+                                                                            >
+                                                                                <Pencil className="w-4 h-4" />
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => setDeletingDocIdx(i)}
+                                                                                className="p-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                                                                                title="Delete Document"
+                                                                            >
+                                                                                <Trash2 className="w-4 h-4" />
+                                                                            </button>
+                                                                        </div>
+                                                                        {/* Inline File Count */}
+                                                                        {numFiles > 0 && <span className="text-[10px] whitespace-nowrap bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded font-bold border border-emerald-100">{numFiles} File{numFiles !== 1 ? 's' : ''}</span>}
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="py-8 text-center text-sm text-slate-400 italic">No documents uploaded yet</div>
+                                    )}
+                                </SectionCard>
+                            </div>
+
+                            {/* Drug Testing Records */}
+                            <div className="col-span-1">
+                                <SectionCard
+                                    title={`Drug Testing Records (${employee.drugTestingRecords?.length || 0})`}
+                                    icon={FlaskConical}
+                                    action={
+                                        <div className="flex items-center gap-1 sm:gap-2">
+                                            <div className="relative group/search">
+                                                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within/search:text-emerald-600 transition-colors" />
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Search records..." 
+                                                    value={drugSearch}
+                                                    onChange={(e) => setDrugSearch(e.target.value)}
+                                                    className="pl-9 pr-3 py-1.5 text-[11px] border border-slate-200 bg-white shadow-sm rounded-full focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all w-[100px] sm:w-[130px] focus:w-[150px] sm:focus:w-[180px] outline-none"
+                                                />
+                                            </div>
+                                            <button
+                                                onClick={() => { setIsAddingDrugTest(true); setOpenSections(prev => ({ ...prev, drugTesting: true })); }}
+                                                className="p-1.5 rounded-full text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 transition-colors flex-shrink-0"
+                                                title="Add Drug Test Record"
+                                            >
+                                                <Plus className="w-5 h-5" />
+                                            </button>
+                                        </div>
+                                    }
+                                >
+                                    {/* Add Drug Test Form */}
+                                    {isAddingDrugTest && (
+                                        <div className="mb-4 p-4 bg-emerald-50/50 rounded-xl border border-emerald-100 space-y-3">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <h4 className="text-sm font-semibold text-slate-700">Add New Drug Test Record</h4>
+                                                <button onClick={() => { setIsAddingDrugTest(false); setNewDrugTest({ ...emptyDrugTest }); }} className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors">
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Date</label>
+                                                    <Input type="date" value={toDateInputValue(newDrugTest.date)} onChange={e => setNewDrugTest({ ...newDrugTest, date: e.target.value })} />
+                                                </div>
+                                                <div className="md:col-span-3">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
+                                                    <Input placeholder="Brief description" value={newDrugTest.description || ''} onChange={e => setNewDrugTest({ ...newDrugTest, description: e.target.value })} />
+                                                </div>
+                                                <div className="md:col-span-4">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Documents (multiple allowed)</label>
+                                                    <div className="flex flex-wrap items-center gap-3">
+                                                        {(newDrugTest.files || []).length > 0 && <span className="text-xs text-emerald-600 font-medium">{(newDrugTest.files || []).length} file(s) attached ✓</span>}
+                                                        <label className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-[#0F4C75] hover:bg-blue-50/30 transition-all text-slate-600">
+                                                            <Upload className="w-3.5 h-3.5" />
+                                                            Add File
+                                                            <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" multiple onChange={e => {
+                                                                const fileList = e.target.files;
+                                                                if (fileList) {
+                                                                    Array.from(fileList).forEach(file => {
+                                                                        const reader = new FileReader();
+                                                                        reader.onloadend = () => {
+                                                                            setNewDrugTest((prev: any) => ({ ...prev, files: [...(prev.files || []), reader.result as string] }));
+                                                                        };
+                                                                        reader.readAsDataURL(file);
+                                                                    });
+                                                                }
+                                                                e.target.value = '';
+                                                            }} />
+                                                        </label>
+                                                        {(newDrugTest.files || []).map((_: any, idx: number) => (
+                                                            <button key={idx} type="button" onClick={() => setNewDrugTest((prev: any) => ({ ...prev, files: prev.files.filter((__: any, j: number) => j !== idx) }))} className="text-xs text-red-500 hover:text-red-700 transition-colors">
+                                                                Remove #{idx + 1}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2 pt-1">
+                                                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleAddDrugTest} disabled={savingDrugTest}>
+                                                    <Plus className="w-3.5 h-3.5 mr-1" /> {savingDrugTest ? 'Adding...' : 'Add Record'}
+                                                </Button>
+                                                <Button size="sm" variant="outline" onClick={() => { setIsAddingDrugTest(false); setNewDrugTest({ ...emptyDrugTest }); }}>
+                                                    Cancel
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Inline Edit Drug Test Form */}
+                                    {editingDrugTestIdx !== null && editingDrugTest && (
+                                        <div className="mb-4 p-4 bg-blue-50/50 rounded-xl border border-blue-100 space-y-3">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <h4 className="text-sm font-semibold text-slate-700">Edit Record #{editingDrugTestIdx + 1}</h4>
+                                                <button onClick={() => { setEditingDrugTestIdx(null); setEditingDrugTest(null); }} className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors">
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Date</label>
+                                                    <Input type="date" value={toDateInputValue(editingDrugTest.date)} onChange={e => setEditingDrugTest({ ...editingDrugTest, date: e.target.value })} />
+                                                </div>
+                                                <div className="md:col-span-3">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
+                                                    <Input placeholder="Brief description" value={editingDrugTest.description || ''} onChange={e => setEditingDrugTest({ ...editingDrugTest, description: e.target.value })} />
+                                                </div>
+                                                <div className="md:col-span-4">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Documents</label>
+                                                    <div className="flex flex-wrap items-center gap-3">
+                                                        {(editingDrugTest.files || []).map((f: string, fi: number) => (
+                                                            <div key={fi} className="flex items-center gap-1">
+                                                                <button type="button" onClick={() => openFileUrl(f)} className="text-xs bg-emerald-50 text-emerald-600 px-2 py-1 rounded-lg font-medium hover:bg-emerald-100 transition-colors cursor-pointer">File {fi + 1}</button>
+                                                                <button type="button" onClick={() => setEditingDrugTest({ ...editingDrugTest, files: editingDrugTest.files.filter((_: any, j: number) => j !== fi) })} className="text-xs text-red-500 hover:text-red-700">×</button>
+                                                            </div>
+                                                        ))}
+                                                        <label className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-[#0F4C75] hover:bg-blue-50/30 transition-all text-slate-600">
+                                                            <Upload className="w-3.5 h-3.5" />
+                                                            Add File
+                                                            <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" multiple onChange={e => {
+                                                                const fileList = e.target.files;
+                                                                if (fileList) {
+                                                                    Array.from(fileList).forEach(file => {
+                                                                        const reader = new FileReader();
+                                                                        reader.onloadend = () => {
+                                                                            setEditingDrugTest((prev: any) => ({ ...prev, files: [...(prev.files || []), reader.result as string] }));
+                                                                        };
+                                                                        reader.readAsDataURL(file);
+                                                                    });
+                                                                }
+                                                                e.target.value = '';
+                                                            }} />
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2 pt-1">
+                                                <Button size="sm" className="bg-[#0F4C75] hover:bg-[#0a3a5c] text-white" onClick={handleSaveDrugTestEdit} disabled={savingDrugTest}>
+                                                    {savingDrugTest ? 'Saving...' : 'Save Changes'}
+                                                </Button>
+                                                <Button size="sm" variant="outline" onClick={() => { setEditingDrugTestIdx(null); setEditingDrugTest(null); }}>
+                                                    Cancel
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {(employee.drugTestingRecords?.length ?? 0) > 0 ? (
+                                        <div className="overflow-auto max-h-[500px]">
+                                            <div className="grid grid-cols-2 gap-4">
+                                                {employee.drugTestingRecords?.map((rec: any, i: number) => {
+                                                    if (drugSearch) {
+                                                        const match = (rec.description || '').toLowerCase().includes(drugSearch.toLowerCase()) || 
+                                                                      (rec.type || '').toLowerCase().includes(drugSearch.toLowerCase());
+                                                        if (!match) return null;
+                                                    }
+                                                    const recFiles = rec.files?.length ? rec.files : (rec.fileUrl ? [rec.fileUrl] : []);
+                                                    const numFiles = recFiles.length;
+                                                    const currentIdx = drugTestingThumbIdx[i] || 0;
+                                                    const currentFile = recFiles[currentIdx];
+                                                    const isPdf = currentFile?.toLowerCase().includes('.pdf') || currentFile?.startsWith('data:application/pdf');
+                                                    const isImage = currentFile ? (currentFile.startsWith('data:image') || currentFile.match(/\.(jpeg|jpg|gif|png)$/i) || (currentFile.startsWith('/api/docs/') && !isPdf)) : false;
+
+                                                    return (
+                                                        <div key={i}
+                                                            className="relative bg-white border border-slate-200 rounded-xl shadow-sm transition-all flex flex-col overflow-hidden"
+                                                        >
+                                                            {/* Thumbnail Preview Area */}
+                                                            <div className="relative w-full h-[120px] bg-slate-50 flex items-center justify-center border-b border-slate-100 overflow-hidden group">
+                                                                {numFiles > 0 ? (
+                                                                    isImage ? (
+                                                                        <img src={currentFile} alt="Preview" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                                                                    ) : isPdf ? (
+                                                                        <iframe src={`${currentFile}#toolbar=0&navpanes=0&scrollbar=0`} className="w-full h-full border-0 pointer-events-none object-cover transition-transform duration-500 group-hover:scale-105" title="PDF Preview" />
+                                                                    ) : (
+                                                                        <div className="flex flex-col items-center gap-2 text-slate-400">
+                                                                            <FlaskConical className="w-10 h-10 text-blue-500/40" />
+                                                                            <span className="text-[10px] uppercase font-bold text-slate-400">Record</span>
+                                                                        </div>
+                                                                    )
+                                                                ) : (
+                                                                    <span className="text-xs text-slate-400 font-medium">No preview</span>
+                                                                )}
+
+                                                                {numFiles > 1 && (
+                                                                    <>
+                                                                        <div className="absolute top-2 left-2 bg-black/60 shadow-md backdrop-blur-sm px-1.5 py-0.5 rounded text-[10px] text-white font-bold flex items-center gap-1 z-10">
+                                                                            {currentIdx + 1}/{numFiles}
+                                                                        </div>
+                                                                        {/* Arrow Navs */}
+                                                                        <div className="absolute inset-x-0 inset-y-0 flex items-center justify-between px-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                                                            <button
+                                                                                onClick={(e) => { e.stopPropagation(); setDrugTestingThumbIdx(prev => ({ ...prev, [i]: currentIdx > 0 ? currentIdx - 1 : numFiles - 1 })); }}
+                                                                                className="p-1 rounded-full bg-white/90 hover:bg-white text-slate-800 shadow transition-colors"
+                                                                            >
+                                                                                <ChevronLeft className="w-4 h-4" />
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={(e) => { e.stopPropagation(); setDrugTestingThumbIdx(prev => ({ ...prev, [i]: currentIdx < numFiles - 1 ? currentIdx + 1 : 0 })); }}
+                                                                                className="p-1 rounded-full bg-white/90 hover:bg-white text-slate-800 shadow transition-colors"
+                                                                            >
+                                                                                <ChevronRight className="w-4 h-4" />
+                                                                            </button>
+                                                                        </div>
+                                                                    </>
+                                                                )}
+                                                            </div>
+
+                                                            {/* Info Area */}
+                                                            <div className="flex flex-col p-3 flex-1">
+                                                                <div className="flex justify-between items-start gap-2">
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-0.5">{formatDateDisplay(rec.date)}</span>
+                                                                        <h5 className="text-sm font-bold text-slate-800 line-clamp-2 leading-tight" title={rec.description}>{rec.description || 'Record'}</h5>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Inline Actions */}
+                                                            <div className="px-3 pb-3 pt-1 border-t border-slate-50 bg-slate-50/50 mt-auto flex items-center justify-between gap-2">
+                                                                {deletingDrugTestIdx === i ? (
+                                                                    <div className="flex items-center gap-2 w-full justify-between">
+                                                                        <span className="text-[10px] font-bold text-red-600">Delete?</span>
+                                                                        <div className="flex gap-1.5">
+                                                                            <button
+                                                                                onClick={() => handleDeleteDrugTest(i)}
+                                                                                className="px-2.5 py-1 text-xs font-medium bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+                                                                                disabled={savingDrugTest}
+                                                                            >
+                                                                                {savingDrugTest ? '...' : 'Yes'}
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => setDeletingDrugTestIdx(null)}
+                                                                                className="px-2.5 py-1 text-xs font-medium bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors"
+                                                                            >
+                                                                                No
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                ) : (
+                                                                    <>
+                                                                        {/* Buttons Area */}
+                                                                        <div className="flex items-center gap-1.5">
+                                                                            <button
+                                                                                onClick={() => { setEditingDrugTestIdx(i); setEditingDrugTest({ ...rec, files: rec.files || [] }); }}
+                                                                                className="p-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors"
+                                                                                title="Edit Record"
+                                                                            >
+                                                                                <Pencil className="w-4 h-4" />
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => setDeletingDrugTestIdx(i)}
+                                                                                className="p-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                                                                                title="Delete Record"
+                                                                            >
+                                                                                <Trash2 className="w-4 h-4" />
+                                                                            </button>
+                                                                        </div>
+                                                                        {/* Inline File Count */}
+                                                                        {numFiles > 0 && <span className="text-[10px] whitespace-nowrap bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded font-bold border border-emerald-100">{numFiles} File{numFiles !== 1 ? 's' : ''}</span>}
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="py-8 text-center text-sm text-slate-400 italic">No drug testing records yet</div>
+                                    )}
+                                </SectionCard>
+                            </div>
+
+                            {/* Training & Certifications */}
+                            <div className="col-span-1 xl:col-span-2">
+                                <SectionCard
+                                    title={`Training & Certifications (${employee.trainingCertifications?.length || 0})`}
+                                    icon={GraduationCap}
+                                    action={
+                                        <div className="flex items-center gap-1 sm:gap-2">
+                                            <div className="relative group/search">
+                                                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within/search:text-emerald-600 transition-colors" />
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Search training..." 
+                                                    value={trainingSearch}
+                                                    onChange={(e) => setTrainingSearch(e.target.value)}
+                                                    className="pl-9 pr-3 py-1 text-[10px] border border-slate-200 bg-white shadow-sm rounded-full focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all w-[100px] sm:w-[130px] focus:w-[150px] sm:focus:w-[180px] outline-none"
+                                                />
+                                            </div>
+                                            <button
+                                                onClick={() => { setIsAddingTraining(true); setOpenSections(prev => ({ ...prev, training: true })); }}
+                                                className="p-1.5 rounded-full text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 transition-colors flex-shrink-0"
+                                                title="Add Training / Certification"
+                                            >
+                                                <Plus className="w-5 h-5" />
+                                            </button>
+                                        </div>
+                                    }
+                                >
+                                    {/* Inline Edit Form */}
+                                    {editingTrainingIdx !== null && editingTraining && (
+                                        <div className="mb-4 p-4 bg-blue-50/50 rounded-xl border border-blue-100 space-y-3">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <h4 className="text-sm font-semibold text-slate-700">Edit Record #{editingTrainingIdx + 1}</h4>
+                                                <button onClick={() => { setEditingTrainingIdx(null); setEditingTraining(null); }} className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors">
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Category</label>
+                                                    <Select onValueChange={val => setEditingTraining({ ...editingTraining, category: val })} value={editingTraining.category || ''}>
+                                                        <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                                                        <SelectContent>
+                                                            {TRAINING_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Type</label>
+                                                    <Select onValueChange={val => setEditingTraining({ ...editingTraining, type: val })} value={editingTraining.type || ''}>
+                                                        <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                                                        <SelectContent>
+                                                            {TRAINING_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Frequency</label>
+                                                    <Select onValueChange={val => setEditingTraining({ ...editingTraining, frequency: val })} value={editingTraining.frequency || ''}>
+                                                        <SelectTrigger><SelectValue placeholder="Select frequency" /></SelectTrigger>
+                                                        <SelectContent>
+                                                            {TRAINING_FREQUENCIES.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Assigned Date</label>
+                                                    <Input type="date" value={toDateInputValue(editingTraining.assignedDate)} onChange={e => setEditingTraining({ ...editingTraining, assignedDate: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Completion Date</label>
+                                                    <Input type="date" value={toDateInputValue(editingTraining.completionDate)} onChange={e => setEditingTraining({ ...editingTraining, completionDate: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Renewal Date</label>
+                                                    <Input type="date" value={toDateInputValue(editingTraining.renewalDate)} onChange={e => setEditingTraining({ ...editingTraining, renewalDate: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Status</label>
+                                                    <Select onValueChange={val => setEditingTraining({ ...editingTraining, status: val })} value={editingTraining.status || ''}>
+                                                        <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+                                                        <SelectContent>
+                                                            {TRAINING_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div className="md:col-span-3">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
+                                                    <Input placeholder="Brief description" value={editingTraining.description || ''} onChange={e => setEditingTraining({ ...editingTraining, description: e.target.value })} />
+                                                </div>
+                                                <div className="md:col-span-4">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Document</label>
+                                                    <div className="flex items-center gap-3">
+                                                        {editingTraining.fileUrl && (
+                                                            <button type="button" onClick={() => openFileUrl(editingTraining.fileUrl)} className="text-xs bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-lg font-medium hover:bg-emerald-100 transition-colors cursor-pointer flex items-center gap-1">
+                                                                <FileText className="w-3.5 h-3.5" /> Current File
+                                                            </button>
+                                                        )}
+                                                        <label className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-[#0F4C75] hover:bg-blue-50/30 transition-all text-slate-600">
+                                                            <Upload className="w-3.5 h-3.5" />
+                                                            {editingTraining.fileUrl ? 'Replace File' : 'Upload File'}
+                                                            <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" onChange={e => {
+                                                                const file = e.target.files?.[0];
+                                                                if (file) {
+                                                                    const reader = new FileReader();
+                                                                    reader.onloadend = () => setEditingTraining({ ...editingTraining, fileUrl: reader.result as string });
+                                                                    reader.readAsDataURL(file);
+                                                                }
+                                                            }} />
+                                                        </label>
+                                                        {editingTraining.fileUrl && (
+                                                            <button type="button" onClick={() => setEditingTraining({ ...editingTraining, fileUrl: '' })} className="text-xs text-red-500 hover:text-red-700 transition-colors">
+                                                                Remove
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2 pt-1">
+                                                <Button size="sm" className="bg-[#0F4C75] hover:bg-[#0b3c5e] text-white" onClick={handleSaveTrainingEdit} disabled={savingTraining}>
+                                                    <Check className="w-3.5 h-3.5 mr-1" /> {savingTraining ? 'Saving...' : 'Save Changes'}
+                                                </Button>
+                                                <Button size="sm" variant="outline" onClick={() => { setEditingTrainingIdx(null); setEditingTraining(null); }}>
+                                                    Cancel
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Add New Record Form */}
+                                    {isAddingTraining && (
+                                        <div className="mb-4 p-4 bg-emerald-50/50 rounded-xl border border-emerald-100 space-y-3">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <h4 className="text-sm font-semibold text-slate-700">Add New Training / Certification</h4>
+                                                <button onClick={() => { setIsAddingTraining(false); setNewTraining({ ...emptyTraining }); }} className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors">
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Category</label>
+                                                    <Select onValueChange={val => setNewTraining({ ...newTraining, category: val })} value={newTraining.category || ''}>
+                                                        <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                                                        <SelectContent>
+                                                            {TRAINING_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Type</label>
+                                                    <Select onValueChange={val => setNewTraining({ ...newTraining, type: val })} value={newTraining.type || ''}>
+                                                        <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                                                        <SelectContent>
+                                                            {TRAINING_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Frequency</label>
+                                                    <Select onValueChange={val => setNewTraining({ ...newTraining, frequency: val })} value={newTraining.frequency || ''}>
+                                                        <SelectTrigger><SelectValue placeholder="Select frequency" /></SelectTrigger>
+                                                        <SelectContent>
+                                                            {TRAINING_FREQUENCIES.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Assigned Date</label>
+                                                    <Input type="date" value={toDateInputValue(newTraining.assignedDate)} onChange={e => setNewTraining({ ...newTraining, assignedDate: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Completion Date</label>
+                                                    <Input type="date" value={toDateInputValue(newTraining.completionDate)} onChange={e => setNewTraining({ ...newTraining, completionDate: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Renewal Date</label>
+                                                    <Input type="date" value={toDateInputValue(newTraining.renewalDate)} onChange={e => setNewTraining({ ...newTraining, renewalDate: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Status</label>
+                                                    <Select onValueChange={val => setNewTraining({ ...newTraining, status: val })} value={newTraining.status || ''}>
+                                                        <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+                                                        <SelectContent>
+                                                            {TRAINING_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div className="md:col-span-3">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
+                                                    <Input placeholder="Brief description" value={newTraining.description || ''} onChange={e => setNewTraining({ ...newTraining, description: e.target.value })} />
+                                                </div>
+                                                <div className="md:col-span-4">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Document</label>
+                                                    <div className="flex items-center gap-3">
+                                                        {newTraining.fileUrl && (
+                                                            <span className="text-xs text-emerald-600 font-medium">File attached ✓</span>
+                                                        )}
+                                                        <label className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-[#0F4C75] hover:bg-blue-50/30 transition-all text-slate-600">
+                                                            <Upload className="w-3.5 h-3.5" />
+                                                            {newTraining.fileUrl ? 'Replace File' : 'Upload File'}
+                                                            <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" onChange={e => {
+                                                                const file = e.target.files?.[0];
+                                                                if (file) {
+                                                                    const reader = new FileReader();
+                                                                    reader.onloadend = () => setNewTraining({ ...newTraining, fileUrl: reader.result as string });
+                                                                    reader.readAsDataURL(file);
+                                                                }
+                                                            }} />
+                                                        </label>
+                                                        {newTraining.fileUrl && (
+                                                            <button type="button" onClick={() => setNewTraining({ ...newTraining, fileUrl: '' })} className="text-xs text-red-500 hover:text-red-700 transition-colors">
+                                                                Remove
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2 pt-1">
+                                                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleAddTrainingRecord} disabled={savingTraining}>
+                                                    <Plus className="w-3.5 h-3.5 mr-1" /> {savingTraining ? 'Adding...' : 'Add Record'}
+                                                </Button>
+                                                <Button size="sm" variant="outline" onClick={() => { setIsAddingTraining(false); setNewTraining({ ...emptyTraining }); }}>
+                                                    Cancel
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    )}
+
+
+                                    <div className="overflow-auto max-h-[500px]">
                                         <table className="w-full text-sm">
                                             <thead>
                                                 <tr className="border-b border-slate-100">
-                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">File Name</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Category</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Type</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Frequency</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Assigned</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Completed</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Renewal</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Description</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Status</th>
                                                     <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">File</th>
                                                     <th className="text-right py-2 px-3 text-xs font-semibold text-slate-500 uppercase w-20">Actions</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {employee.documents?.map((doc: any, i: number) => (
-                                                    <tr key={i} className={`border-b border-slate-50 hover:bg-slate-50/50 ${editingDocIdx === i ? 'bg-blue-50/30' : ''}`}>
-                                                        <td className="py-2 px-3 text-slate-800 font-medium">{doc.fileName || '-'}</td>
-                                                        <td className="py-2 px-3">{doc.fileUrl ? <button onClick={() => openFileUrl(doc.fileUrl)} className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium hover:bg-emerald-100 transition-colors cursor-pointer">View File</button> : '-'}</td>
-                                                        <td className="py-2 px-3 text-right">
-                                                            <div className="flex items-center justify-end gap-1">
-                                                                <button
-                                                                    onClick={() => { setEditingDocIdx(i); setEditingDoc({ ...doc }); }}
-                                                                    className="p-1.5 text-slate-400 hover:text-[#0F4C75] hover:bg-blue-50 rounded-md transition-colors"
-                                                                    title="Edit document"
-                                                                >
-                                                                    <Pencil className="w-3.5 h-3.5" />
-                                                                </button>
-                                                                {deletingDocIdx === i ? (
-                                                                    <div className="flex items-center gap-1">
-                                                                        <button
-                                                                            onClick={() => handleDeleteDocument(i)}
-                                                                            className="p-1 text-xs bg-red-500 text-white rounded px-2 hover:bg-red-600 transition-colors"
-                                                                            disabled={savingDocument}
-                                                                        >
-                                                                            {savingDocument ? '...' : 'Yes'}
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={() => setDeletingDocIdx(null)}
-                                                                            className="p-1 text-xs bg-slate-200 text-slate-600 rounded px-2 hover:bg-slate-300 transition-colors"
-                                                                        >
-                                                                            No
-                                                                        </button>
-                                                                    </div>
-                                                                ) : (
-                                                                    <button
-                                                                        onClick={() => setDeletingDocIdx(i)}
-                                                                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
-                                                                        title="Delete document"
-                                                                    >
-                                                                        <Trash2 className="w-3.5 h-3.5" />
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                ) : (
-                                    <div className="py-8 text-center text-sm text-slate-400 italic">No documents uploaded yet</div>
-                                )}
-                            </AccordionCard>
-                        </div>
-
-                        {/* Drug Testing Records */}
-                        <div className="col-span-1 xl:col-span-2">
-                            <AccordionCard
-                                title={`Drug Testing Records (${employee.drugTestingRecords?.length || 0})`}
-                                icon={FlaskConical}
-                                isOpen={openSections['drugTesting']}
-                                onToggle={() => handleToggle('drugTesting')}
-                                action={
-                                    <button
-                                        onClick={() => { setIsAddingDrugTest(true); setOpenSections(prev => ({ ...prev, drugTesting: true })); }}
-                                        className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
-                                        title="Add Drug Test Record"
-                                    >
-                                        <Plus className="w-5 h-5" />
-                                    </button>
-                                }
-                            >
-                                {/* Add Drug Test Form */}
-                                {isAddingDrugTest && (
-                                    <div className="mb-4 p-4 bg-emerald-50/50 rounded-xl border border-emerald-100 space-y-3">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <h4 className="text-sm font-semibold text-slate-700">Add New Drug Test Record</h4>
-                                            <button onClick={() => { setIsAddingDrugTest(false); setNewDrugTest({ ...emptyDrugTest }); }} className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors">
-                                                <X className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                                            <div>
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Date</label>
-                                                <Input type="date" value={toDateInputValue(newDrugTest.date)} onChange={e => setNewDrugTest({ ...newDrugTest, date: e.target.value })} />
-                                            </div>
-                                            <div className="md:col-span-3">
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
-                                                <Input placeholder="Brief description" value={newDrugTest.description || ''} onChange={e => setNewDrugTest({ ...newDrugTest, description: e.target.value })} />
-                                            </div>
-                                            <div className="md:col-span-4">
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Documents (multiple allowed)</label>
-                                                <div className="flex flex-wrap items-center gap-3">
-                                                    {(newDrugTest.files || []).length > 0 && <span className="text-xs text-emerald-600 font-medium">{(newDrugTest.files || []).length} file(s) attached ✓</span>}
-                                                    <label className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-[#0F4C75] hover:bg-blue-50/30 transition-all text-slate-600">
-                                                        <Upload className="w-3.5 h-3.5" />
-                                                        Add File
-                                                        <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" multiple onChange={e => {
-                                                            const fileList = e.target.files;
-                                                            if (fileList) {
-                                                                Array.from(fileList).forEach(file => {
-                                                                    const reader = new FileReader();
-                                                                    reader.onloadend = () => {
-                                                                        setNewDrugTest((prev: any) => ({ ...prev, files: [...(prev.files || []), reader.result as string] }));
-                                                                    };
-                                                                    reader.readAsDataURL(file);
-                                                                });
-                                                            }
-                                                            e.target.value = '';
-                                                        }} />
-                                                    </label>
-                                                    {(newDrugTest.files || []).map((_: any, idx: number) => (
-                                                        <button key={idx} type="button" onClick={() => setNewDrugTest((prev: any) => ({ ...prev, files: prev.files.filter((__: any, j: number) => j !== idx) }))} className="text-xs text-red-500 hover:text-red-700 transition-colors">
-                                                            Remove #{idx + 1}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-2 pt-1">
-                                            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleAddDrugTest} disabled={savingDrugTest}>
-                                                <Plus className="w-3.5 h-3.5 mr-1" /> {savingDrugTest ? 'Adding...' : 'Add Record'}
-                                            </Button>
-                                            <Button size="sm" variant="outline" onClick={() => { setIsAddingDrugTest(false); setNewDrugTest({ ...emptyDrugTest }); }}>
-                                                Cancel
-                                            </Button>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Inline Edit Drug Test Form */}
-                                {editingDrugTestIdx !== null && editingDrugTest && (
-                                    <div className="mb-4 p-4 bg-blue-50/50 rounded-xl border border-blue-100 space-y-3">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <h4 className="text-sm font-semibold text-slate-700">Edit Record #{editingDrugTestIdx + 1}</h4>
-                                            <button onClick={() => { setEditingDrugTestIdx(null); setEditingDrugTest(null); }} className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors">
-                                                <X className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                                            <div>
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Date</label>
-                                                <Input type="date" value={toDateInputValue(editingDrugTest.date)} onChange={e => setEditingDrugTest({ ...editingDrugTest, date: e.target.value })} />
-                                            </div>
-                                            <div className="md:col-span-3">
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
-                                                <Input placeholder="Brief description" value={editingDrugTest.description || ''} onChange={e => setEditingDrugTest({ ...editingDrugTest, description: e.target.value })} />
-                                            </div>
-                                            <div className="md:col-span-4">
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Documents</label>
-                                                <div className="flex flex-wrap items-center gap-3">
-                                                    {(editingDrugTest.files || []).map((f: string, fi: number) => (
-                                                        <div key={fi} className="flex items-center gap-1">
-                                                            <button type="button" onClick={() => openFileUrl(f)} className="text-xs bg-emerald-50 text-emerald-600 px-2 py-1 rounded-lg font-medium hover:bg-emerald-100 transition-colors cursor-pointer">File {fi + 1}</button>
-                                                            <button type="button" onClick={() => setEditingDrugTest({ ...editingDrugTest, files: editingDrugTest.files.filter((_: any, j: number) => j !== fi) })} className="text-xs text-red-500 hover:text-red-700">×</button>
-                                                        </div>
-                                                    ))}
-                                                    <label className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-[#0F4C75] hover:bg-blue-50/30 transition-all text-slate-600">
-                                                        <Upload className="w-3.5 h-3.5" />
-                                                        Add File
-                                                        <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" multiple onChange={e => {
-                                                            const fileList = e.target.files;
-                                                            if (fileList) {
-                                                                Array.from(fileList).forEach(file => {
-                                                                    const reader = new FileReader();
-                                                                    reader.onloadend = () => {
-                                                                        setEditingDrugTest((prev: any) => ({ ...prev, files: [...(prev.files || []), reader.result as string] }));
-                                                                    };
-                                                                    reader.readAsDataURL(file);
-                                                                });
-                                                            }
-                                                            e.target.value = '';
-                                                        }} />
-                                                    </label>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-2 pt-1">
-                                            <Button size="sm" className="bg-[#0F4C75] hover:bg-[#0a3a5c] text-white" onClick={handleSaveDrugTestEdit} disabled={savingDrugTest}>
-                                                {savingDrugTest ? 'Saving...' : 'Save Changes'}
-                                            </Button>
-                                            <Button size="sm" variant="outline" onClick={() => { setEditingDrugTestIdx(null); setEditingDrugTest(null); }}>
-                                                Cancel
-                                            </Button>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {(employee.drugTestingRecords?.length ?? 0) > 0 ? (
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-sm">
-                                            <thead>
-                                                <tr className="border-b border-slate-100">
-                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Date</th>
-                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Description</th>
-                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Files</th>
-                                                    <th className="text-right py-2 px-3 text-xs font-semibold text-slate-500 uppercase w-20">Actions</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {employee.drugTestingRecords?.map((rec: any, i: number) => (
-                                                    <tr key={i} className={`border-b border-slate-50 hover:bg-slate-50/50 ${editingDrugTestIdx === i ? 'bg-blue-50/30' : ''}`}>
-                                                        <td className="py-2 px-3 text-slate-600">{formatDateDisplay(rec.date)}</td>
+                                                {employee.trainingCertifications?.map((rec: any, i: number) => (
+                                                    <tr key={i} className={`border-b border-slate-50 hover:bg-slate-50/50 ${editingTrainingIdx === i ? 'bg-blue-50/30' : ''}`}>
+                                                        <td className="py-2 px-3 text-slate-600">{rec.category || '-'}</td>
+                                                        <td className="py-2 px-3 text-slate-800 font-medium">{rec.type || '-'}</td>
+                                                        <td className="py-2 px-3 text-slate-600">{rec.frequency || '-'}</td>
+                                                        <td className="py-2 px-3 text-slate-600">{formatDateDisplay(rec.assignedDate)}</td>
+                                                        <td className="py-2 px-3 text-slate-600">{formatDateDisplay(rec.completionDate)}</td>
+                                                        <td className="py-2 px-3 text-slate-600">{formatDateDisplay(rec.renewalDate)}</td>
                                                         <td className="py-2 px-3 text-slate-600">{rec.description || '-'}</td>
                                                         <td className="py-2 px-3">
-                                                            {(rec.files && rec.files.length > 0) ? (
-                                                                <div className="flex flex-wrap gap-1">
-                                                                    {rec.files.map((f: string, fi: number) => (
-                                                                        <button key={fi} onClick={() => openFileUrl(f)} className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium hover:bg-emerald-100 transition-colors cursor-pointer">File {fi + 1}</button>
-                                                                    ))}
-                                                                </div>
-                                                            ) : rec.fileUrl ? <button onClick={() => openFileUrl(rec.fileUrl)} className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium hover:bg-emerald-100 transition-colors cursor-pointer">View File</button> : '-'}
+                                                            {rec.status ? (
+                                                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${rec.status === 'Completed' ? 'bg-emerald-50 text-emerald-600' : rec.status === 'Expired' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>{rec.status}</span>
+                                                            ) : '-'}
+                                                        </td>
+                                                        <td className="py-2 px-3">
+                                                            {rec.fileUrl ? (
+                                                                <button onClick={() => openFileUrl(rec.fileUrl)} className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium hover:bg-emerald-100 transition-colors cursor-pointer">
+                                                                    View File
+                                                                </button>
+                                                            ) : '-'}
                                                         </td>
                                                         <td className="py-2 px-3 text-right">
                                                             <div className="flex items-center justify-end gap-1">
                                                                 <button
-                                                                    onClick={() => { setEditingDrugTestIdx(i); setEditingDrugTest({ ...rec, files: rec.files || [] }); }}
+                                                                    onClick={() => { setEditingTrainingIdx(i); setEditingTraining({ ...rec }); }}
                                                                     className="p-1.5 text-slate-400 hover:text-[#0F4C75] hover:bg-blue-50 rounded-md transition-colors"
                                                                     title="Edit record"
                                                                 >
                                                                     <Pencil className="w-3.5 h-3.5" />
                                                                 </button>
-                                                                {deletingDrugTestIdx === i ? (
+                                                                {deletingTrainingIdx === i ? (
                                                                     <div className="flex items-center gap-1">
                                                                         <button
-                                                                            onClick={() => handleDeleteDrugTest(i)}
+                                                                            onClick={() => handleDeleteTrainingRecord(i)}
                                                                             className="p-1 text-xs bg-red-500 text-white rounded px-2 hover:bg-red-600 transition-colors"
-                                                                            disabled={savingDrugTest}
+                                                                            disabled={savingTraining}
                                                                         >
-                                                                            {savingDrugTest ? '...' : 'Yes'}
+                                                                            {savingTraining ? '...' : 'Yes'}
                                                                         </button>
                                                                         <button
-                                                                            onClick={() => setDeletingDrugTestIdx(null)}
+                                                                            onClick={() => setDeletingTrainingIdx(null)}
                                                                             className="p-1 text-xs bg-slate-200 text-slate-600 rounded px-2 hover:bg-slate-300 transition-colors"
                                                                         >
                                                                             No
@@ -1006,7 +1469,7 @@ export default function EmployeeViewPage() {
                                                                     </div>
                                                                 ) : (
                                                                     <button
-                                                                        onClick={() => setDeletingDrugTestIdx(i)}
+                                                                        onClick={() => setDeletingTrainingIdx(i)}
                                                                         className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
                                                                         title="Delete record"
                                                                     >
@@ -1020,310 +1483,8 @@ export default function EmployeeViewPage() {
                                             </tbody>
                                         </table>
                                     </div>
-                                ) : (
-                                    <div className="py-8 text-center text-sm text-slate-400 italic">No drug testing records yet</div>
-                                )}
-                            </AccordionCard>
-                        </div>
-
-                        {/* Training & Certifications */}
-                        <div className="col-span-1 xl:col-span-2">
-                            <AccordionCard
-                                title={`Training & Certifications (${employee.trainingCertifications?.length || 0})`}
-                                icon={GraduationCap}
-                                isOpen={openSections['training']}
-                                onToggle={() => handleToggle('training')}
-                                action={
-                                    <button
-                                        onClick={() => { setIsAddingTraining(true); setOpenSections(prev => ({ ...prev, training: true })); }}
-                                        className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
-                                        title="Add Training / Certification"
-                                    >
-                                        <Plus className="w-5 h-5" />
-                                    </button>
-                                }
-                            >
-                                {/* Inline Edit Form */}
-                                {editingTrainingIdx !== null && editingTraining && (
-                                    <div className="mb-4 p-4 bg-blue-50/50 rounded-xl border border-blue-100 space-y-3">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <h4 className="text-sm font-semibold text-slate-700">Edit Record #{editingTrainingIdx + 1}</h4>
-                                            <button onClick={() => { setEditingTrainingIdx(null); setEditingTraining(null); }} className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors">
-                                                <X className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                                            <div className="md:col-span-2">
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Category</label>
-                                                <Select onValueChange={val => setEditingTraining({ ...editingTraining, category: val })} value={editingTraining.category || ''}>
-                                                    <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-                                                    <SelectContent>
-                                                        {TRAINING_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Type</label>
-                                                <Select onValueChange={val => setEditingTraining({ ...editingTraining, type: val })} value={editingTraining.type || ''}>
-                                                    <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
-                                                    <SelectContent>
-                                                        {TRAINING_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Frequency</label>
-                                                <Select onValueChange={val => setEditingTraining({ ...editingTraining, frequency: val })} value={editingTraining.frequency || ''}>
-                                                    <SelectTrigger><SelectValue placeholder="Select frequency" /></SelectTrigger>
-                                                    <SelectContent>
-                                                        {TRAINING_FREQUENCIES.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Assigned Date</label>
-                                                <Input type="date" value={toDateInputValue(editingTraining.assignedDate)} onChange={e => setEditingTraining({ ...editingTraining, assignedDate: e.target.value })} />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Completion Date</label>
-                                                <Input type="date" value={toDateInputValue(editingTraining.completionDate)} onChange={e => setEditingTraining({ ...editingTraining, completionDate: e.target.value })} />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Renewal Date</label>
-                                                <Input type="date" value={toDateInputValue(editingTraining.renewalDate)} onChange={e => setEditingTraining({ ...editingTraining, renewalDate: e.target.value })} />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Status</label>
-                                                <Select onValueChange={val => setEditingTraining({ ...editingTraining, status: val })} value={editingTraining.status || ''}>
-                                                    <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
-                                                    <SelectContent>
-                                                        {TRAINING_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <div className="md:col-span-3">
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
-                                                <Input placeholder="Brief description" value={editingTraining.description || ''} onChange={e => setEditingTraining({ ...editingTraining, description: e.target.value })} />
-                                            </div>
-                                            <div className="md:col-span-4">
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Document</label>
-                                                <div className="flex items-center gap-3">
-                                                    {editingTraining.fileUrl && (
-                                                        <button type="button" onClick={() => openFileUrl(editingTraining.fileUrl)} className="text-xs bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-lg font-medium hover:bg-emerald-100 transition-colors cursor-pointer flex items-center gap-1">
-                                                            <FileText className="w-3.5 h-3.5" /> Current File
-                                                        </button>
-                                                    )}
-                                                    <label className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-[#0F4C75] hover:bg-blue-50/30 transition-all text-slate-600">
-                                                        <Upload className="w-3.5 h-3.5" />
-                                                        {editingTraining.fileUrl ? 'Replace File' : 'Upload File'}
-                                                        <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" onChange={e => {
-                                                            const file = e.target.files?.[0];
-                                                            if (file) {
-                                                                const reader = new FileReader();
-                                                                reader.onloadend = () => setEditingTraining({ ...editingTraining, fileUrl: reader.result as string });
-                                                                reader.readAsDataURL(file);
-                                                            }
-                                                        }} />
-                                                    </label>
-                                                    {editingTraining.fileUrl && (
-                                                        <button type="button" onClick={() => setEditingTraining({ ...editingTraining, fileUrl: '' })} className="text-xs text-red-500 hover:text-red-700 transition-colors">
-                                                            Remove
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-2 pt-1">
-                                            <Button size="sm" className="bg-[#0F4C75] hover:bg-[#0b3c5e] text-white" onClick={handleSaveTrainingEdit} disabled={savingTraining}>
-                                                <Check className="w-3.5 h-3.5 mr-1" /> {savingTraining ? 'Saving...' : 'Save Changes'}
-                                            </Button>
-                                            <Button size="sm" variant="outline" onClick={() => { setEditingTrainingIdx(null); setEditingTraining(null); }}>
-                                                Cancel
-                                            </Button>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Add New Record Form */}
-                                {isAddingTraining && (
-                                    <div className="mb-4 p-4 bg-emerald-50/50 rounded-xl border border-emerald-100 space-y-3">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <h4 className="text-sm font-semibold text-slate-700">Add New Training / Certification</h4>
-                                            <button onClick={() => { setIsAddingTraining(false); setNewTraining({ ...emptyTraining }); }} className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors">
-                                                <X className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                                            <div className="md:col-span-2">
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Category</label>
-                                                <Select onValueChange={val => setNewTraining({ ...newTraining, category: val })} value={newTraining.category || ''}>
-                                                    <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-                                                    <SelectContent>
-                                                        {TRAINING_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Type</label>
-                                                <Select onValueChange={val => setNewTraining({ ...newTraining, type: val })} value={newTraining.type || ''}>
-                                                    <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
-                                                    <SelectContent>
-                                                        {TRAINING_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Frequency</label>
-                                                <Select onValueChange={val => setNewTraining({ ...newTraining, frequency: val })} value={newTraining.frequency || ''}>
-                                                    <SelectTrigger><SelectValue placeholder="Select frequency" /></SelectTrigger>
-                                                    <SelectContent>
-                                                        {TRAINING_FREQUENCIES.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Assigned Date</label>
-                                                <Input type="date" value={toDateInputValue(newTraining.assignedDate)} onChange={e => setNewTraining({ ...newTraining, assignedDate: e.target.value })} />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Completion Date</label>
-                                                <Input type="date" value={toDateInputValue(newTraining.completionDate)} onChange={e => setNewTraining({ ...newTraining, completionDate: e.target.value })} />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Renewal Date</label>
-                                                <Input type="date" value={toDateInputValue(newTraining.renewalDate)} onChange={e => setNewTraining({ ...newTraining, renewalDate: e.target.value })} />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Status</label>
-                                                <Select onValueChange={val => setNewTraining({ ...newTraining, status: val })} value={newTraining.status || ''}>
-                                                    <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
-                                                    <SelectContent>
-                                                        {TRAINING_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <div className="md:col-span-3">
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
-                                                <Input placeholder="Brief description" value={newTraining.description || ''} onChange={e => setNewTraining({ ...newTraining, description: e.target.value })} />
-                                            </div>
-                                            <div className="md:col-span-4">
-                                                <label className="block text-xs font-medium text-slate-500 mb-1">Document</label>
-                                                <div className="flex items-center gap-3">
-                                                    {newTraining.fileUrl && (
-                                                        <span className="text-xs text-emerald-600 font-medium">File attached ✓</span>
-                                                    )}
-                                                    <label className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-[#0F4C75] hover:bg-blue-50/30 transition-all text-slate-600">
-                                                        <Upload className="w-3.5 h-3.5" />
-                                                        {newTraining.fileUrl ? 'Replace File' : 'Upload File'}
-                                                        <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" onChange={e => {
-                                                            const file = e.target.files?.[0];
-                                                            if (file) {
-                                                                const reader = new FileReader();
-                                                                reader.onloadend = () => setNewTraining({ ...newTraining, fileUrl: reader.result as string });
-                                                                reader.readAsDataURL(file);
-                                                            }
-                                                        }} />
-                                                    </label>
-                                                    {newTraining.fileUrl && (
-                                                        <button type="button" onClick={() => setNewTraining({ ...newTraining, fileUrl: '' })} className="text-xs text-red-500 hover:text-red-700 transition-colors">
-                                                            Remove
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-2 pt-1">
-                                            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleAddTrainingRecord} disabled={savingTraining}>
-                                                <Plus className="w-3.5 h-3.5 mr-1" /> {savingTraining ? 'Adding...' : 'Add Record'}
-                                            </Button>
-                                            <Button size="sm" variant="outline" onClick={() => { setIsAddingTraining(false); setNewTraining({ ...emptyTraining }); }}>
-                                                Cancel
-                                            </Button>
-                                        </div>
-                                    </div>
-                                )}
-
-
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-sm">
-                                        <thead>
-                                            <tr className="border-b border-slate-100">
-                                                <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Category</th>
-                                                <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Type</th>
-                                                <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Frequency</th>
-                                                <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Assigned</th>
-                                                <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Completed</th>
-                                                <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Renewal</th>
-                                                <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Description</th>
-                                                <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Status</th>
-                                                <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">File</th>
-                                                <th className="text-right py-2 px-3 text-xs font-semibold text-slate-500 uppercase w-20">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {employee.trainingCertifications?.map((rec: any, i: number) => (
-                                                <tr key={i} className={`border-b border-slate-50 hover:bg-slate-50/50 ${editingTrainingIdx === i ? 'bg-blue-50/30' : ''}`}>
-                                                    <td className="py-2 px-3 text-slate-600">{rec.category || '-'}</td>
-                                                    <td className="py-2 px-3 text-slate-800 font-medium">{rec.type || '-'}</td>
-                                                    <td className="py-2 px-3 text-slate-600">{rec.frequency || '-'}</td>
-                                                    <td className="py-2 px-3 text-slate-600">{formatDateDisplay(rec.assignedDate)}</td>
-                                                    <td className="py-2 px-3 text-slate-600">{formatDateDisplay(rec.completionDate)}</td>
-                                                    <td className="py-2 px-3 text-slate-600">{formatDateDisplay(rec.renewalDate)}</td>
-                                                    <td className="py-2 px-3 text-slate-600">{rec.description || '-'}</td>
-                                                    <td className="py-2 px-3">
-                                                        {rec.status ? (
-                                                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${rec.status === 'Completed' ? 'bg-emerald-50 text-emerald-600' : rec.status === 'Expired' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>{rec.status}</span>
-                                                        ) : '-'}
-                                                    </td>
-                                                    <td className="py-2 px-3">
-                                                        {rec.fileUrl ? (
-                                                            <button onClick={() => openFileUrl(rec.fileUrl)} className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium hover:bg-emerald-100 transition-colors cursor-pointer">
-                                                                View File
-                                                            </button>
-                                                        ) : '-'}
-                                                    </td>
-                                                    <td className="py-2 px-3 text-right">
-                                                        <div className="flex items-center justify-end gap-1">
-                                                            <button
-                                                                onClick={() => { setEditingTrainingIdx(i); setEditingTraining({ ...rec }); }}
-                                                                className="p-1.5 text-slate-400 hover:text-[#0F4C75] hover:bg-blue-50 rounded-md transition-colors"
-                                                                title="Edit record"
-                                                            >
-                                                                <Pencil className="w-3.5 h-3.5" />
-                                                            </button>
-                                                            {deletingTrainingIdx === i ? (
-                                                                <div className="flex items-center gap-1">
-                                                                    <button
-                                                                        onClick={() => handleDeleteTrainingRecord(i)}
-                                                                        className="p-1 text-xs bg-red-500 text-white rounded px-2 hover:bg-red-600 transition-colors"
-                                                                        disabled={savingTraining}
-                                                                    >
-                                                                        {savingTraining ? '...' : 'Yes'}
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => setDeletingTrainingIdx(null)}
-                                                                        className="p-1 text-xs bg-slate-200 text-slate-600 rounded px-2 hover:bg-slate-300 transition-colors"
-                                                                    >
-                                                                        No
-                                                                    </button>
-                                                                </div>
-                                                            ) : (
-                                                                <button
-                                                                    onClick={() => setDeletingTrainingIdx(i)}
-                                                                    className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
-                                                                    title="Delete record"
-                                                                >
-                                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </AccordionCard>
+                                </SectionCard>
+                            </div>
                         </div>
                     </div>
 
@@ -1684,6 +1845,105 @@ export default function EmployeeViewPage() {
                 </div>
             </Modal>
 
+            {/* Document Add/Edit/View Modal */}
+            <Modal isOpen={isDocModalOpen} onClose={() => setIsDocModalOpen(false)} title={isViewOnlyDoc ? "View Document" : currentDocModalIdx !== null ? "Edit Document" : "Add New Document"} maxWidth="2xl">
+                <div className="space-y-5">
+                    <div className="flex items-end gap-3 mt-1">
+                        <div className="flex-1 space-y-1">
+                            <label className="text-sm font-medium text-slate-700">File Name</label>
+                            <Input placeholder="e.g. W-4 Form, Contract" value={currentDocModal.fileName || ''} onChange={e => setCurrentDocModal({ ...currentDocModal, fileName: e.target.value })} disabled={isViewOnlyDoc} className="h-10" />
+                        </div>
+                        {!isViewOnlyDoc && (
+                            <label className="shrink-0 flex items-center justify-center gap-2 h-10 px-4 text-sm font-medium border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-emerald-500 hover:bg-emerald-50/50 transition-all text-slate-600 bg-white">
+                                <Upload className="w-4 h-4" />
+                                <span>Upload Files</span>
+                                <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" multiple onChange={e => {
+                                    const fileList = e.target.files;
+                                    if (fileList) {
+                                        Array.from(fileList).forEach(file => {
+                                            const reader = new FileReader();
+                                            reader.onloadend = () => {
+                                                setCurrentDocModal((prev: any) => ({ ...prev, files: [...(prev.files || []), reader.result as string] }));
+                                            };
+                                            reader.readAsDataURL(file);
+                                        });
+                                    }
+                                    e.target.value = '';
+                                }} />
+                            </label>
+                        )}
+                    </div>
+
+                        {(currentDocModal.files || []).length > 0 ? (
+                            <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                {(currentDocModal.files || []).map((fileUrl: string, idx: number) => {
+                                    const isPdf = fileUrl?.toLowerCase().includes('.pdf') || fileUrl?.startsWith('data:application/pdf');
+                                    const isImage = fileUrl ? (fileUrl.startsWith('data:image') || fileUrl.match(/\.(jpeg|jpg|gif|png)$/i) || (fileUrl.startsWith('/api/docs/') && !isPdf)) : false;
+
+                                    return (
+                                        <div key={idx} className="relative group border border-slate-200 rounded-xl overflow-hidden bg-slate-50 h-[100px] shadow-sm">
+                                            {isImage ? (
+                                                <img src={fileUrl} alt="Preview" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                                            ) : isPdf ? (
+                                                <iframe src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=0`} className="w-full h-full border-0 pointer-events-none object-cover transition-transform duration-500 group-hover:scale-105" title="PDF Preview" />
+                                            ) : (
+                                                <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 transition-transform duration-500 group-hover:scale-105">
+                                                    <FileText className="w-8 h-8 text-[#0F4C75]/40" />
+                                                    <span className="text-[10px] uppercase font-bold text-slate-400">Doc {idx + 1}</span>
+                                                </div>
+                                            )}
+                                            
+                                            {/* Action Overlay */}
+                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-[1px]">
+                                                <button type="button" onClick={() => openFileUrl(fileUrl)} className="p-1.5 bg-white/90 hover:bg-white text-slate-800 rounded-lg shadow-sm transition-colors" title="View File">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
+                                                </button>
+                                                {!isViewOnlyDoc && (
+                                                    <button type="button" onClick={() => setCurrentDocModal((prev: any) => ({ ...prev, files: prev.files.filter((_: any, j: number) => j !== idx) }))} className="p-1.5 bg-red-500/90 hover:bg-red-500 text-white rounded-lg shadow-sm transition-colors" title="Remove File">
+                                                        <X className="w-3.5 h-3.5" />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <div className="p-6 text-center text-sm font-medium text-slate-400 border border-dashed border-slate-200 rounded-lg bg-slate-50 mt-2">
+                                No files attached
+                            </div>
+                        )}
+                </div>
+
+                <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-slate-100">
+                    <Button variant="outline" onClick={() => setIsDocModalOpen(false)}>
+                        {isViewOnlyDoc ? 'Close' : 'Cancel'}
+                    </Button>
+                    {!isViewOnlyDoc && (
+                        <Button 
+                            className={`bg-[#0F4C75] text-white relative min-w-[160px] transition-all duration-300 ${savingDocument ? 'opacity-90 cursor-wait bg-[#0a3a5c]' : 'hover:bg-[#0a3a5c] shadow-sm hover:shadow'}`}
+                            onClick={handleDocModalSave} 
+                            disabled={savingDocument}
+                        >
+                            <div className="flex items-center justify-center gap-2">
+                                {savingDocument ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 animate-spin text-sky-300" />
+                                        <span className="animate-pulse font-medium tracking-wide">
+                                            {(currentDocModal?.files?.length ?? 0) > 0 ? 'Uploading Files...' : 'Saving...'}
+                                        </span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Save className="w-4 h-4" />
+                                        <span className="font-medium">Save Document</span>
+                                    </>
+                                )}
+                            </div>
+                        </Button>
+                    )}
+                </div>
+            </Modal>
 
         </div>
     );

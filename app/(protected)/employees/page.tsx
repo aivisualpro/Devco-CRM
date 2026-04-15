@@ -222,11 +222,10 @@ export default function EmployeesPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [search, setSearch] = useState('');
-    const [currentPage, setCurrentPage] = useState(1);
     const [activeTab, setActiveTab] = useState('active');
     const [visibleCount, setVisibleCount] = useState(20);
-    const itemsPerPage = 15;
-    const observerTarget = useRef(null);
+    const observerTargetMobile = useRef(null);
+    const observerTargetDesktop = useRef(null);
 
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -363,29 +362,25 @@ export default function EmployeesPage() {
         });
     }, [employees, activeTab, selectedPosition, selectedDesignation, search, sortConfig]);
 
-    const paginatedEmployees = filteredEmployees.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-    const mobileEmployees = filteredEmployees.slice(0, visibleCount);
-    const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
+    const visibleEmployees = filteredEmployees.slice(0, visibleCount);
 
     // Reset pagination and visible count when filters change
     useEffect(() => {
-        setCurrentPage(1);
         setVisibleCount(20);
     }, [search, activeTab, selectedPosition, selectedDesignation]);
 
     useEffect(() => {
         const observer = new IntersectionObserver(
             (entries) => {
-                if (entries[0].isIntersecting && visibleCount < filteredEmployees.length) {
+                if (entries.some(e => e.isIntersecting) && visibleCount < filteredEmployees.length) {
                     setVisibleCount(prev => prev + 20);
                 }
             },
-            { threshold: 1.0 }
+            { threshold: 0.1 }
         );
 
-        if (observerTarget.current) {
-            observer.observe(observerTarget.current);
-        }
+        if (observerTargetMobile.current) observer.observe(observerTargetMobile.current);
+        if (observerTargetDesktop.current) observer.observe(observerTargetDesktop.current);
 
         return () => observer.disconnect();
     }, [filteredEmployees.length, visibleCount]);
@@ -624,12 +619,12 @@ export default function EmployeesPage() {
                         <>
                             {/* Mobile Card View - 2 Columns */}
                             <div className="md:hidden grid grid-cols-2 gap-2 pb-8">
-                                {mobileEmployees.length === 0 ? (
+                                {visibleEmployees.length === 0 ? (
                                     <div className="col-span-2 text-center py-12 bg-white rounded-3xl border border-dashed border-slate-200">
                                         <p className="text-slate-500 font-medium">No employees found</p>
                                     </div>
                                 ) : (
-                                    mobileEmployees.map((emp) => (
+                                    visibleEmployees.map((emp) => (
                                         <div
                                             key={emp._id}
                                             className="bg-white rounded-2xl p-3 shadow-sm border border-slate-50 hover:border-slate-100 transition-all active:scale-[0.98] flex flex-col items-center text-center"
@@ -675,16 +670,13 @@ export default function EmployeesPage() {
                                         </div>
                                     ))
                                 )}
-                                <div ref={observerTarget} className="h-4 col-span-2" />
+                                <div ref={observerTargetMobile} className="h-4 col-span-2" />
                             </div>
 
                             {/* Desktop Table View */}
-                            <div className="hidden md:flex md:flex-col md:flex-1 md:min-h-0 h-full">
+                            <div className="hidden md:flex md:flex-col md:flex-1 md:min-h-0 h-full pb-4">
                                 <Table
                                     containerClassName="h-full"
-                                    footer={
-                                        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
-                                    }
                                 >
                                     <TableHead>
                                         <TableRow>
@@ -748,7 +740,7 @@ export default function EmployeesPage() {
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
-                                        {paginatedEmployees.length === 0 ? (
+                                        {visibleEmployees.length === 0 ? (
                                             <TableRow>
                                                 <TableCell colSpan={9} className="text-center py-8 text-gray-500">
                                                     <div className="flex flex-col items-center justify-center">
@@ -758,7 +750,7 @@ export default function EmployeesPage() {
                                                 </TableCell>
                                             </TableRow>
                                         ) : (
-                                            paginatedEmployees.map((emp) => (
+                                            visibleEmployees.map((emp) => (
                                                 <TableRow
                                                     key={emp._id}
                                                     onClick={() => router.push(`/employees/${encodeURIComponent(emp._id)}`)}
@@ -860,6 +852,9 @@ export default function EmployeesPage() {
                                                 </TableRow>
                                             ))
                                         )}
+                                        <tr ref={observerTargetDesktop} className="h-4 border-none hover:bg-transparent">
+                                            <td colSpan={9} />
+                                        </tr>
                                     </TableBody>
                                 </Table>
                             </div>

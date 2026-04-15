@@ -369,22 +369,23 @@ interface DetailRowProps {
     value: string | number | undefined | null;
     isLink?: boolean;
     href?: string;
+    editNode?: React.ReactNode;
 }
 
-export function DetailRow({ label, value, isLink, href }: DetailRowProps) {
+export function DetailRow({ label, value, isLink, href, editNode }: DetailRowProps) {
     return (
-        <div className="flex items-center justify-between py-3 px-4 border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors">
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-widest w-1/3">
+        <div className="flex items-center justify-between py-2 px-4 border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors">
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide w-1/2 mr-3">
                 {label}
             </div>
-            <div className={`flex-1 text-right text-sm font-medium ${isLink ? 'text-indigo-600' : 'text-slate-700'}`}>
-                {isLink ? (
+            <div className={`flex-1 flex justify-end text-right text-sm font-medium ${isLink && !editNode ? 'text-indigo-600' : 'text-slate-700'}`}>
+                {editNode || (isLink ? (
                     <a href={href} target="_blank" rel="noopener noreferrer" className="hover:underline break-all">
                         {value || '-'}
                     </a>
                 ) : (
                     <span className="break-words">{value || '-'}</span>
-                )}
+                ))}
             </div>
         </div>
     );

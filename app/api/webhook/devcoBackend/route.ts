@@ -93,7 +93,15 @@ async function uploadDocFileToR2(base64: string, key: string): Promise<string | 
     try {
         const contentTypeMatch = base64.match(/^data:([^;]+);base64,/);
         const contentType = contentTypeMatch?.[1] || 'application/octet-stream';
-        const url = await uploadToR2(base64, `employee-docs/${key}`, contentType);
+        
+        let ext = '';
+        if (contentType.includes('pdf')) ext = '.pdf';
+        else if (contentType.includes('jpeg') || contentType.includes('jpg')) ext = '.jpg';
+        else if (contentType.includes('png')) ext = '.png';
+        else if (contentType.includes('gif')) ext = '.gif';
+        else if (contentType.includes('msword') || contentType.includes('wordprocessingml')) ext = '.docx';
+
+        const url = await uploadToR2(base64, `employee-docs/${key}${ext}`, contentType);
         return url;
     } catch (error) {
         console.error('R2 Doc Upload Error:', error);
@@ -115,6 +123,14 @@ async function processEmployeeSubDocFiles(item: any, empId: string): Promise<any
             if (doc.fileUrl && doc.fileUrl.startsWith('data:')) {
                 const url = await uploadDocFileToR2(doc.fileUrl, `${safeId}_doc_${i}_${Date.now()}`);
                 if (url) item.documents[i].fileUrl = url;
+            }
+            if (Array.isArray(doc.files)) {
+                for (let j = 0; j < doc.files.length; j++) {
+                    if (typeof doc.files[j] === 'string' && doc.files[j].startsWith('data:')) {
+                        const url = await uploadDocFileToR2(doc.files[j], `${safeId}_doc_${i}_f${j}_${Date.now()}`);
+                        if (url) item.documents[i].files[j] = url;
+                    }
+                }
             }
         }
     }
