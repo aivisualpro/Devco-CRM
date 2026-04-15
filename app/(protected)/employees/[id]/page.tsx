@@ -140,6 +140,10 @@ export default function EmployeeViewPage() {
     const [savingDrugTest, setSavingDrugTest] = useState(false);
     const [deletingDrugTestIdx, setDeletingDrugTestIdx] = useState<number | null>(null);
 
+    const [isUploadingDoc, setIsUploadingDoc] = useState(false);
+    const [isUploadingDrug, setIsUploadingDrug] = useState(false);
+    const [isUploadingTraining, setIsUploadingTraining] = useState(false);
+
     const TRAINING_CATEGORIES = ['Other', 'HEAVY EQUIPMENT RELATED'];
     const TRAINING_TYPES = ['Union Bootcamp', 'Osha', 'First Aid', 'Veriforce', 'Trenching and Excavating', 'Additional Training', 'CPR/First Aid'];
     const TRAINING_FREQUENCIES = ['N/A', 'None', 'Once', 'One Time', 'W/R', 'Annually', 'Bi-Annually', 'Every 3 Years', 'Every 5 Years', 'As Needed'];
@@ -257,10 +261,46 @@ export default function EmployeeViewPage() {
     const getFileType = (url: string | undefined) => {
         if (!url) return { isImage: false, isPdf: false };
         const lowerUrl = url.toLowerCase();
-        const isPdf = lowerUrl.includes('.pdf') || url.startsWith('data:application/pdf');
+        const isPdf = lowerUrl.includes('.pdf') || url.startsWith('data:application/pdf') || lowerUrl.includes('.pdf');
         const isImage = url.startsWith('data:image') || /\.(jpeg|jpg|gif|png|webp)(\?|#|$)/i.test(url) || (url.startsWith('/api/docs/') && !isPdf);
         return { isImage, isPdf };
     };
+
+    const handleFileUpload = async (files: FileList | File[], onComplete: (urls: string[]) => void, folder = 'employees', setLoading?: (val: boolean) => void) => {
+        if (setLoading) setLoading(true);
+        const uploadedUrls: string[] = [];
+        
+        const fileArray = Array.from(files);
+        
+        for (let i = 0; i < fileArray.length; i++) {
+            const file = fileArray[i];
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('folder', folder);
+
+            try {
+                const res = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData,
+                });
+                const data = await res.json();
+                if (data.success && data.url) {
+                    uploadedUrls.push(data.url);
+                } else {
+                    toastError(`Failed to upload ${file.name}`);
+                }
+            } catch (err) {
+                console.error('Upload error:', err);
+                toastError(`Error uploading ${file.name}`);
+            }
+        }
+        
+        if (uploadedUrls.length > 0) {
+            onComplete(uploadedUrls);
+        }
+        if (setLoading) setLoading(false);
+    };
+
 
     const handleSaveDrugModal = async () => {
         if (!employee) return;
@@ -1583,15 +1623,10 @@ export default function EmployeeViewPage() {
                                 <Upload className="w-4 h-4" />
                                 <span>Upload Files</span>
                                 <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" multiple onChange={e => {
-                                    const fileList = e.target.files;
-                                    if (fileList) {
-                                        Array.from(fileList).forEach(file => {
-                                            const reader = new FileReader();
-                                            reader.onloadend = () => {
-                                                setCurrentDocModal((prev: any) => ({ ...prev, files: [...(prev.files || []), reader.result as string] }));
-                                            };
-                                            reader.readAsDataURL(file);
-                                        });
+                                    if (e.target.files) {
+                                        handleFileUpload(e.target.files, (urls) => {
+                                            setCurrentDocModal((prev: any) => ({ ...prev, files: [...(prev.files || []), ...urls] }));
+                                        }, 'documents', setIsUploadingDoc);
                                     }
                                     e.target.value = '';
                                 }} />
@@ -1691,15 +1726,10 @@ export default function EmployeeViewPage() {
                                     <Upload className="w-3 h-3" />
                                     <span>Upload Files</span>
                                     <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" multiple onChange={e => {
-                                        const fileList = e.target.files;
-                                        if (fileList) {
-                                            Array.from(fileList).forEach(file => {
-                                                const reader = new FileReader();
-                                                reader.onloadend = () => {
-                                                    setCurrentDrugModal((prev: any) => ({ ...prev, files: [...(prev.files || []), reader.result as string] }));
-                                                };
-                                                reader.readAsDataURL(file);
-                                            });
+                                        if (e.target.files) {
+                                            handleFileUpload(e.target.files, (urls) => {
+                                                setCurrentDrugModal((prev: any) => ({ ...prev, files: [...(prev.files || []), ...urls] }));
+                                            }, 'drug-testing', setIsUploadingDrug);
                                         }
                                         e.target.value = '';
                                     }} />
@@ -1755,12 +1785,12 @@ export default function EmployeeViewPage() {
                         <Button 
                             className="bg-[#0F4C75] hover:bg-[#0a3a5c] text-white rounded-full px-8 shadow-md"
                             onClick={handleSaveDrugModal}
-                            disabled={savingDrugTest}
+                            disabled={savingDrugTest || isUploadingDrug}
                         >
-                            {savingDrugTest ? (
+                            {savingDrugTest || isUploadingDrug ? (
                                 <div className="flex items-center gap-2">
                                     <Loader2 className="w-4 h-4 animate-spin" />
-                                    <span>Saving...</span>
+                                    <span>{isUploadingDrug ? 'Uploading...' : 'Saving...'}</span>
                                 </div>
                             ) : (
                                 <span>Save Changes</span>
@@ -1840,15 +1870,10 @@ export default function EmployeeViewPage() {
                                     <Upload className="w-3 h-3" />
                                     <span>Upload Files</span>
                                     <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" multiple onChange={e => {
-                                        const fileList = e.target.files;
-                                        if (fileList) {
-                                            Array.from(fileList).forEach(file => {
-                                                const reader = new FileReader();
-                                                reader.onloadend = () => {
-                                                    setCurrentTrainingModal((prev: any) => ({ ...prev, files: [...(prev.files || []), reader.result as string] }));
-                                                };
-                                                reader.readAsDataURL(file);
-                                            });
+                                        if (e.target.files && e.target.files.length > 0) {
+                                            handleFileUpload(e.target.files, (urls) => {
+                                                setCurrentTrainingModal((prev: any) => ({ ...prev, files: [...(prev.files || []), ...urls] }));
+                                            }, 'training', setIsUploadingTraining);
                                         }
                                         e.target.value = '';
                                     }} />
@@ -1911,12 +1936,12 @@ export default function EmployeeViewPage() {
                         <Button 
                             className="bg-[#0F4C75] hover:bg-[#0a3a5c] text-white rounded-full px-8 shadow-md"
                             onClick={handleSaveTrainingModal}
-                            disabled={savingTraining}
+                            disabled={savingTraining || isUploadingTraining}
                         >
-                            {savingTraining ? (
+                            {savingTraining || isUploadingTraining ? (
                                 <div className="flex items-center gap-2">
                                     <Loader2 className="w-4 h-4 animate-spin" />
-                                    <span>Saving...</span>
+                                    <span>{isUploadingTraining ? 'Uploading...' : 'Saving...'}</span>
                                 </div>
                             ) : (
                                 <span>Save Changes</span>

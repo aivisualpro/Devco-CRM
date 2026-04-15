@@ -55,7 +55,7 @@ export interface IEmployee extends Omit<Document, '_id'> {
     // Sub-document arrays
     documents?: Array<{ date?: string; type?: string; description?: string; fileUrl?: string; files?: string[]; fileName?: string; expiryDate?: string; createdAt?: string }>;
     drugTestingRecords?: Array<{ date?: string; type?: string; description?: string; fileUrl?: string; files?: string[]; createdBy?: string; createdAt?: string }>;
-    trainingCertifications?: Array<{ category?: string; type?: string; frequency?: string; assignedDate?: string; completionDate?: string; renewalDate?: string; description?: string; status?: string; fileUrl?: string; createdBy?: string; createdAt?: string }>;
+    trainingCertifications?: Array<{ category?: string; type?: string; frequency?: string; assignedDate?: string; completionDate?: string; renewalDate?: string; description?: string; status?: string; fileUrl?: string; files?: string[]; createdBy?: string; createdAt?: string }>;
 
     createdAt?: Date;
     updatedAt?: Date;
@@ -142,6 +142,7 @@ const EmployeeSchema: Schema = new Schema({
         description: { type: String },
         status: { type: String },
         fileUrl: { type: String },
+        files: [{ type: String }],
         createdBy: { type: String },
         createdAt: { type: String },
     }],
