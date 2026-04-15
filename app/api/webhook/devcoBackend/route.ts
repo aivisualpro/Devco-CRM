@@ -2798,7 +2798,7 @@ export async function POST(request: NextRequest) {
                 const empFilter: any = {};
                 if (!includeInactive) empFilter.status = { $ne: 'Inactive' };
                 const employees = await Employee.find(empFilter)
-                    .select('-documents -drugTestingRecords -trainingCertifications -reportFilters -password')
+                    .select('-reportFilters -password')
                     .sort({ firstName: 1 })
                     .lean();
                 // password already excluded via .select() above

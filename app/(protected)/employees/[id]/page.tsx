@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Save, Trash2, ArrowLeft, Briefcase, FileText, User, Pencil, FlaskConical, GraduationCap, X, Check, Plus, Upload, ChevronLeft, ChevronRight, Loader2, Search } from 'lucide-react';
+import { Save, Trash2, ArrowLeft, Briefcase, FileText, User, Pencil, FlaskConical, GraduationCap, X, Check, Plus, Upload, ChevronLeft, ChevronRight, Loader2, Search, Eye } from 'lucide-react';
 import { Header, Button, ConfirmModal, Modal, Input, SearchableSelect, UnderlineTabs, SaveButton, CancelButton, Tooltip, TooltipTrigger, TooltipContent, Switch } from '@/components/ui';
 import { SignaturePad } from '@/components/ui/SignaturePad';
 import { useToast } from '@/hooks/useToast';
@@ -128,15 +128,14 @@ export default function EmployeeViewPage() {
     const [activeDocCardIdx, setActiveDocCardIdx] = useState<number | null>(null);
     const [docSearch, setDocSearch] = useState('');
 
-    // Drug testing adding state
-    const [isAddingDrugTest, setIsAddingDrugTest] = useState(false);
+    const [isDrugModalOpen, setIsDrugModalOpen] = useState(false);
     const [drugSearch, setDrugSearch] = useState('');
     const [trainingSearch, setTrainingSearch] = useState('');
     const emptyDrugTest = { date: '', type: 'Drug / Alcohol Testing Auth', description: '', fileUrl: '', files: [] as string[] };
-    const [newDrugTest, setNewDrugTest] = useState<any>({ ...emptyDrugTest });
+    const [currentDrugModal, setCurrentDrugModal] = useState<any>({ ...emptyDrugTest });
+    const [currentDrugModalIdx, setCurrentDrugModalIdx] = useState<number | null>(null);
+    const [isViewOnlyDrug, setIsViewOnlyDrug] = useState(false);
     const [savingDrugTest, setSavingDrugTest] = useState(false);
-    const [editingDrugTestIdx, setEditingDrugTestIdx] = useState<number | null>(null);
-    const [editingDrugTest, setEditingDrugTest] = useState<any>(null);
     const [deletingDrugTestIdx, setDeletingDrugTestIdx] = useState<number | null>(null);
     const [drugTestingThumbIdx, setDrugTestingThumbIdx] = useState<Record<number, number>>({});
     const [activeDrugCardIdx, setActiveDrugCardIdx] = useState<number | null>(null);
@@ -322,54 +321,55 @@ export default function EmployeeViewPage() {
         }
     };
 
-    const handleAddDrugTest = async () => {
+    const getFileType = (url: string | undefined) => {
+        if (!url) return { isImage: false, isPdf: false };
+        const lowerUrl = url.toLowerCase();
+        const isPdf = lowerUrl.includes('.pdf') || url.startsWith('data:application/pdf');
+        const isImage = url.startsWith('data:image') || /\.(jpeg|jpg|gif|png|webp)(\?|#|$)/i.test(url) || (url.startsWith('/api/docs/') && !isPdf);
+        return { isImage, isPdf };
+    };
+
+    const handleSaveDrugModal = async () => {
         if (!employee) return;
-        if (!newDrugTest.type && !newDrugTest.description) {
-            toastError('Please enter at least a type or description');
+        if (!currentDrugModal.date) {
+            toastError('Please select a date');
             return;
         }
+
         setSavingDrugTest(true);
         try {
-            const files = newDrugTest.files || [];
-            const record = { ...newDrugTest, date: newDrugTest.date || new Date().toISOString().split('T')[0], fileUrl: files[0] || newDrugTest.fileUrl || '', files, createdAt: new Date().toISOString() };
-            const updated = [...(employee.drugTestingRecords || []), record];
-            const res = await apiCall('updateEmployee', { id: employee._id, item: { drugTestingRecords: updated } });
-            if (res.success) {
-                setEmployee({ ...employee, drugTestingRecords: updated });
-                success('Drug test record added');
-                setNewDrugTest({ ...emptyDrugTest });
-                setIsAddingDrugTest(false);
+            const currentRecords = [...(employee.drugTestingRecords || [])];
+            const updatedRecord = {
+                ...currentDrugModal,
+                date: currentDrugModal.date || new Date().toISOString().split('T')[0],
+            };
+
+            let newRecords;
+            if (currentDrugModalIdx !== null) {
+                newRecords = currentRecords.map((r, i) => i === currentDrugModalIdx ? updatedRecord : r);
             } else {
-                toastError('Failed to add record');
+                updatedRecord.createdAt = new Date().toISOString();
+                newRecords = [updatedRecord, ...currentRecords];
             }
-        } catch (e) {
-            toastError('Error adding record');
+
+            const res = await apiCall('updateEmployee', { id: employee._id, item: { drugTestingRecords: newRecords } });
+
+            if (res.success) {
+                setEmployee({ ...employee, drugTestingRecords: newRecords });
+                setIsDrugModalOpen(false);
+                success(currentDrugModalIdx !== null ? 'Record updated' : 'Record added');
+            } else {
+                toastError('Failed to save record');
+            }
+        } catch (error) {
+            console.error('Error saving drug test:', error);
+            toastError('Failed to save record');
         } finally {
             setSavingDrugTest(false);
         }
     };
 
-    const handleSaveDrugTestEdit = async () => {
-        if (!employee || editingDrugTestIdx === null || !editingDrugTest) return;
-        setSavingDrugTest(true);
-        try {
-            const updated = [...(employee.drugTestingRecords || [])];
-            updated[editingDrugTestIdx] = editingDrugTest;
-            const res = await apiCall('updateEmployee', { id: employee._id, item: { drugTestingRecords: updated } });
-            if (res.success) {
-                setEmployee({ ...employee, drugTestingRecords: updated });
-                success('Record updated');
-                setEditingDrugTestIdx(null);
-                setEditingDrugTest(null);
-            } else {
-                toastError('Failed to update record');
-            }
-        } catch (e) {
-            toastError('Error updating record');
-        } finally {
-            setSavingDrugTest(false);
-        }
-    };
+
 
     const handleDeleteDrugTest = async (index: number) => {
         if (!employee) return;
@@ -758,7 +758,7 @@ export default function EmployeeViewPage() {
                                                     placeholder="Search docs..." 
                                                     value={docSearch}
                                                     onChange={(e) => setDocSearch(e.target.value)}
-                                                    className="pl-9 pr-3 py-1.5 text-[11px] border border-slate-200 bg-white shadow-sm rounded-full focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all w-[100px] sm:w-[130px] focus:w-[150px] sm:focus:w-[180px] outline-none"
+                                                    className="pl-9 pr-3 py-1 text-[10px] border border-slate-200 bg-white shadow-sm rounded-full focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all w-[100px] sm:w-[130px] focus:w-[150px] sm:focus:w-[180px] outline-none"
                                                 />
                                             </div>
                                             <button
@@ -790,8 +790,7 @@ export default function EmployeeViewPage() {
                                                     const numFiles = docFiles.length;
                                                     const currentIdx = docThumbIdx[i] || 0;
                                                     const currentFile = docFiles[currentIdx];
-                                                    const isPdf = currentFile?.toLowerCase().includes('.pdf') || currentFile?.startsWith('data:application/pdf');
-                                                    const isImage = currentFile ? (currentFile.startsWith('data:image') || currentFile.match(/\.(jpeg|jpg|gif|png)$/i) || (currentFile.startsWith('/api/docs/') && !isPdf)) : false;
+                                                    const { isImage, isPdf } = getFileType(currentFile);
 
                                                     return (
                                                         <div key={i}
@@ -920,11 +919,16 @@ export default function EmployeeViewPage() {
                                                     placeholder="Search records..." 
                                                     value={drugSearch}
                                                     onChange={(e) => setDrugSearch(e.target.value)}
-                                                    className="pl-9 pr-3 py-1.5 text-[11px] border border-slate-200 bg-white shadow-sm rounded-full focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all w-[100px] sm:w-[130px] focus:w-[150px] sm:focus:w-[180px] outline-none"
+                                                    className="pl-9 pr-3 py-1 text-[10px] border border-slate-200 bg-white shadow-sm rounded-full focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all w-[100px] sm:w-[130px] focus:w-[150px] sm:focus:w-[180px] outline-none"
                                                 />
                                             </div>
                                             <button
-                                                onClick={() => { setIsAddingDrugTest(true); setOpenSections(prev => ({ ...prev, drugTesting: true })); }}
+                                                onClick={() => {
+                                                    setIsDrugModalOpen(true);
+                                                    setCurrentDrugModal({ ...emptyDrugTest });
+                                                    setCurrentDrugModalIdx(null);
+                                                    setIsViewOnlyDrug(false);
+                                                }}
                                                 className="p-1.5 rounded-full text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 transition-colors flex-shrink-0"
                                                 title="Add Drug Test Record"
                                             >
@@ -933,121 +937,7 @@ export default function EmployeeViewPage() {
                                         </div>
                                     }
                                 >
-                                    {/* Add Drug Test Form */}
-                                    {isAddingDrugTest && (
-                                        <div className="mb-4 p-4 bg-emerald-50/50 rounded-xl border border-emerald-100 space-y-3">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <h4 className="text-sm font-semibold text-slate-700">Add New Drug Test Record</h4>
-                                                <button onClick={() => { setIsAddingDrugTest(false); setNewDrugTest({ ...emptyDrugTest }); }} className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors">
-                                                    <X className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                                                <div>
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Date</label>
-                                                    <Input type="date" value={toDateInputValue(newDrugTest.date)} onChange={e => setNewDrugTest({ ...newDrugTest, date: e.target.value })} />
-                                                </div>
-                                                <div className="md:col-span-3">
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
-                                                    <Input placeholder="Brief description" value={newDrugTest.description || ''} onChange={e => setNewDrugTest({ ...newDrugTest, description: e.target.value })} />
-                                                </div>
-                                                <div className="md:col-span-4">
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Documents (multiple allowed)</label>
-                                                    <div className="flex flex-wrap items-center gap-3">
-                                                        {(newDrugTest.files || []).length > 0 && <span className="text-xs text-emerald-600 font-medium">{(newDrugTest.files || []).length} file(s) attached ✓</span>}
-                                                        <label className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-[#0F4C75] hover:bg-blue-50/30 transition-all text-slate-600">
-                                                            <Upload className="w-3.5 h-3.5" />
-                                                            Add File
-                                                            <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" multiple onChange={e => {
-                                                                const fileList = e.target.files;
-                                                                if (fileList) {
-                                                                    Array.from(fileList).forEach(file => {
-                                                                        const reader = new FileReader();
-                                                                        reader.onloadend = () => {
-                                                                            setNewDrugTest((prev: any) => ({ ...prev, files: [...(prev.files || []), reader.result as string] }));
-                                                                        };
-                                                                        reader.readAsDataURL(file);
-                                                                    });
-                                                                }
-                                                                e.target.value = '';
-                                                            }} />
-                                                        </label>
-                                                        {(newDrugTest.files || []).map((_: any, idx: number) => (
-                                                            <button key={idx} type="button" onClick={() => setNewDrugTest((prev: any) => ({ ...prev, files: prev.files.filter((__: any, j: number) => j !== idx) }))} className="text-xs text-red-500 hover:text-red-700 transition-colors">
-                                                                Remove #{idx + 1}
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-2 pt-1">
-                                                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleAddDrugTest} disabled={savingDrugTest}>
-                                                    <Plus className="w-3.5 h-3.5 mr-1" /> {savingDrugTest ? 'Adding...' : 'Add Record'}
-                                                </Button>
-                                                <Button size="sm" variant="outline" onClick={() => { setIsAddingDrugTest(false); setNewDrugTest({ ...emptyDrugTest }); }}>
-                                                    Cancel
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    )}
 
-                                    {/* Inline Edit Drug Test Form */}
-                                    {editingDrugTestIdx !== null && editingDrugTest && (
-                                        <div className="mb-4 p-4 bg-blue-50/50 rounded-xl border border-blue-100 space-y-3">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <h4 className="text-sm font-semibold text-slate-700">Edit Record #{editingDrugTestIdx + 1}</h4>
-                                                <button onClick={() => { setEditingDrugTestIdx(null); setEditingDrugTest(null); }} className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors">
-                                                    <X className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                                                <div>
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Date</label>
-                                                    <Input type="date" value={toDateInputValue(editingDrugTest.date)} onChange={e => setEditingDrugTest({ ...editingDrugTest, date: e.target.value })} />
-                                                </div>
-                                                <div className="md:col-span-3">
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
-                                                    <Input placeholder="Brief description" value={editingDrugTest.description || ''} onChange={e => setEditingDrugTest({ ...editingDrugTest, description: e.target.value })} />
-                                                </div>
-                                                <div className="md:col-span-4">
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Documents</label>
-                                                    <div className="flex flex-wrap items-center gap-3">
-                                                        {(editingDrugTest.files || []).map((f: string, fi: number) => (
-                                                            <div key={fi} className="flex items-center gap-1">
-                                                                <button type="button" onClick={() => openFileUrl(f)} className="text-xs bg-emerald-50 text-emerald-600 px-2 py-1 rounded-lg font-medium hover:bg-emerald-100 transition-colors cursor-pointer">File {fi + 1}</button>
-                                                                <button type="button" onClick={() => setEditingDrugTest({ ...editingDrugTest, files: editingDrugTest.files.filter((_: any, j: number) => j !== fi) })} className="text-xs text-red-500 hover:text-red-700">×</button>
-                                                            </div>
-                                                        ))}
-                                                        <label className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-[#0F4C75] hover:bg-blue-50/30 transition-all text-slate-600">
-                                                            <Upload className="w-3.5 h-3.5" />
-                                                            Add File
-                                                            <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" multiple onChange={e => {
-                                                                const fileList = e.target.files;
-                                                                if (fileList) {
-                                                                    Array.from(fileList).forEach(file => {
-                                                                        const reader = new FileReader();
-                                                                        reader.onloadend = () => {
-                                                                            setEditingDrugTest((prev: any) => ({ ...prev, files: [...(prev.files || []), reader.result as string] }));
-                                                                        };
-                                                                        reader.readAsDataURL(file);
-                                                                    });
-                                                                }
-                                                                e.target.value = '';
-                                                            }} />
-                                                        </label>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-2 pt-1">
-                                                <Button size="sm" className="bg-[#0F4C75] hover:bg-[#0a3a5c] text-white" onClick={handleSaveDrugTestEdit} disabled={savingDrugTest}>
-                                                    {savingDrugTest ? 'Saving...' : 'Save Changes'}
-                                                </Button>
-                                                <Button size="sm" variant="outline" onClick={() => { setEditingDrugTestIdx(null); setEditingDrugTest(null); }}>
-                                                    Cancel
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    )}
 
                                     {(employee.drugTestingRecords?.length ?? 0) > 0 ? (
                                         <div className="overflow-auto max-h-[500px]">
@@ -1062,12 +952,17 @@ export default function EmployeeViewPage() {
                                                     const numFiles = recFiles.length;
                                                     const currentIdx = drugTestingThumbIdx[i] || 0;
                                                     const currentFile = recFiles[currentIdx];
-                                                    const isPdf = currentFile?.toLowerCase().includes('.pdf') || currentFile?.startsWith('data:application/pdf');
-                                                    const isImage = currentFile ? (currentFile.startsWith('data:image') || currentFile.match(/\.(jpeg|jpg|gif|png)$/i) || (currentFile.startsWith('/api/docs/') && !isPdf)) : false;
+                                                    const { isImage, isPdf } = getFileType(currentFile);
 
                                                     return (
                                                         <div key={i}
-                                                            className="relative bg-white border border-slate-200 rounded-xl shadow-sm transition-all flex flex-col overflow-hidden"
+                                                            onClick={() => {
+                                                                setIsDrugModalOpen(true);
+                                                                setCurrentDrugModal({ ...rec });
+                                                                setCurrentDrugModalIdx(i);
+                                                                setIsViewOnlyDrug(true);
+                                                            }}
+                                                            className="relative bg-white border border-slate-200 rounded-xl shadow-sm transition-all flex flex-col overflow-hidden cursor-pointer hover:border-indigo-300 hover:shadow-md h-full"
                                                         >
                                                             {/* Thumbnail Preview Area */}
                                                             <div className="relative w-full h-[120px] bg-slate-50 flex items-center justify-center border-b border-slate-100 overflow-hidden group">
@@ -1120,48 +1015,35 @@ export default function EmployeeViewPage() {
                                                                 </div>
                                                             </div>
 
-                                                            {/* Inline Actions */}
+
                                                             <div className="px-3 pb-3 pt-1 border-t border-slate-50 bg-slate-50/50 mt-auto flex items-center justify-between gap-2">
                                                                 {deletingDrugTestIdx === i ? (
                                                                     <div className="flex items-center gap-2 w-full justify-between">
                                                                         <span className="text-[10px] font-bold text-red-600">Delete?</span>
                                                                         <div className="flex gap-1.5">
-                                                                            <button
-                                                                                onClick={() => handleDeleteDrugTest(i)}
-                                                                                className="px-2.5 py-1 text-xs font-medium bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
-                                                                                disabled={savingDrugTest}
-                                                                            >
-                                                                                {savingDrugTest ? '...' : 'Yes'}
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={() => setDeletingDrugTestIdx(null)}
-                                                                                className="px-2.5 py-1 text-xs font-medium bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors"
-                                                                            >
-                                                                                No
-                                                                            </button>
+                                                                            <button onClick={(e) => { e.stopPropagation(); handleDeleteDrugTest(i); }} className="px-2.5 py-1 text-xs font-medium bg-red-500 text-white rounded hover:bg-red-600 transition-colors" disabled={savingDrugTest}>{savingDrugTest ? '...' : 'Yes'}</button>
+                                                                            <button onClick={(e) => { e.stopPropagation(); setDeletingDrugTestIdx(null); }} className="px-2.5 py-1 text-xs font-medium bg-slate-200 text-slate-600 rounded hover:bg-slate-300 transition-colors">No</button>
                                                                         </div>
                                                                     </div>
                                                                 ) : (
                                                                     <>
-                                                                        {/* Buttons Area */}
                                                                         <div className="flex items-center gap-1.5">
-                                                                            <button
-                                                                                onClick={() => { setEditingDrugTestIdx(i); setEditingDrugTest({ ...rec, files: rec.files || [] }); }}
+                                                                            <button 
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setIsDrugModalOpen(true);
+                                                                                    setCurrentDrugModal({ ...rec, files: rec.files || [] });
+                                                                                    setCurrentDrugModalIdx(i);
+                                                                                    setIsViewOnlyDrug(false);
+                                                                                }}
                                                                                 className="p-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors"
-                                                                                title="Edit Record"
+                                                                                title="Edit record"
                                                                             >
                                                                                 <Pencil className="w-4 h-4" />
                                                                             </button>
-                                                                            <button
-                                                                                onClick={() => setDeletingDrugTestIdx(i)}
-                                                                                className="p-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
-                                                                                title="Delete Record"
-                                                                            >
-                                                                                <Trash2 className="w-4 h-4" />
-                                                                            </button>
+                                                                            <button onClick={(e) => { e.stopPropagation(); setDeletingDrugTestIdx(i); }} className="p-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors" title="Delete record"><Trash2 className="w-4 h-4" /></button>
                                                                         </div>
-                                                                        {/* Inline File Count */}
-                                                                        {numFiles > 0 && <span className="text-[10px] whitespace-nowrap bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded font-bold border border-emerald-100">{numFiles} File{numFiles !== 1 ? 's' : ''}</span>}
+                                                                        {numFiles > 0 && <span className="text-[10px] whitespace-nowrap bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded font-bold border border-emerald-100 italic">{numFiles} Attachment{numFiles !== 1 ? 's' : ''}</span>}
                                                                     </>
                                                                 )}
                                                             </div>
@@ -1421,65 +1303,73 @@ export default function EmployeeViewPage() {
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {employee.trainingCertifications?.map((rec: any, i: number) => (
-                                                    <tr key={i} className={`border-b border-slate-50 hover:bg-slate-50/50 ${editingTrainingIdx === i ? 'bg-blue-50/30' : ''}`}>
-                                                        <td className="py-2 px-3 text-slate-600">{rec.category || '-'}</td>
-                                                        <td className="py-2 px-3 text-slate-800 font-medium">{rec.type || '-'}</td>
-                                                        <td className="py-2 px-3 text-slate-600">{rec.frequency || '-'}</td>
-                                                        <td className="py-2 px-3 text-slate-600">{formatDateDisplay(rec.assignedDate)}</td>
-                                                        <td className="py-2 px-3 text-slate-600">{formatDateDisplay(rec.completionDate)}</td>
-                                                        <td className="py-2 px-3 text-slate-600">{formatDateDisplay(rec.renewalDate)}</td>
-                                                        <td className="py-2 px-3 text-slate-600">{rec.description || '-'}</td>
-                                                        <td className="py-2 px-3">
-                                                            {rec.status ? (
-                                                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${rec.status === 'Completed' ? 'bg-emerald-50 text-emerald-600' : rec.status === 'Expired' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>{rec.status}</span>
-                                                            ) : '-'}
-                                                        </td>
-                                                        <td className="py-2 px-3">
-                                                            {rec.fileUrl ? (
-                                                                <button onClick={() => openFileUrl(rec.fileUrl)} className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium hover:bg-emerald-100 transition-colors cursor-pointer">
-                                                                    View File
-                                                                </button>
-                                                            ) : '-'}
-                                                        </td>
-                                                        <td className="py-2 px-3 text-right">
-                                                            <div className="flex items-center justify-end gap-1">
-                                                                <button
-                                                                    onClick={() => { setEditingTrainingIdx(i); setEditingTraining({ ...rec }); }}
-                                                                    className="p-1.5 text-slate-400 hover:text-[#0F4C75] hover:bg-blue-50 rounded-md transition-colors"
-                                                                    title="Edit record"
-                                                                >
-                                                                    <Pencil className="w-3.5 h-3.5" />
-                                                                </button>
-                                                                {deletingTrainingIdx === i ? (
-                                                                    <div className="flex items-center gap-1">
-                                                                        <button
-                                                                            onClick={() => handleDeleteTrainingRecord(i)}
-                                                                            className="p-1 text-xs bg-red-500 text-white rounded px-2 hover:bg-red-600 transition-colors"
-                                                                            disabled={savingTraining}
-                                                                        >
-                                                                            {savingTraining ? '...' : 'Yes'}
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={() => setDeletingTrainingIdx(null)}
-                                                                            className="p-1 text-xs bg-slate-200 text-slate-600 rounded px-2 hover:bg-slate-300 transition-colors"
-                                                                        >
-                                                                            No
-                                                                        </button>
-                                                                    </div>
-                                                                ) : (
-                                                                    <button
-                                                                        onClick={() => setDeletingTrainingIdx(i)}
-                                                                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
-                                                                        title="Delete record"
-                                                                    >
-                                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                {employee.trainingCertifications?.map((rec: any, i: number) => {
+                                                    if (trainingSearch) {
+                                                        const match = (rec.category || '').toLowerCase().includes(trainingSearch.toLowerCase()) || 
+                                                                      (rec.type || '').toLowerCase().includes(trainingSearch.toLowerCase()) ||
+                                                                      (rec.description || '').toLowerCase().includes(trainingSearch.toLowerCase());
+                                                        if (!match) return null;
+                                                    }
+                                                    return (
+                                                        <tr key={i} className={`border-b border-slate-50 hover:bg-slate-50/50 ${editingTrainingIdx === i ? 'bg-blue-50/30' : ''}`}>
+                                                            <td className="py-2 px-3 text-slate-600">{rec.category || '-'}</td>
+                                                            <td className="py-2 px-3 text-slate-800 font-medium">{rec.type || '-'}</td>
+                                                            <td className="py-2 px-3 text-slate-600">{rec.frequency || '-'}</td>
+                                                            <td className="py-2 px-3 text-slate-600">{formatDateDisplay(rec.assignedDate)}</td>
+                                                            <td className="py-2 px-3 text-slate-600">{formatDateDisplay(rec.completionDate)}</td>
+                                                            <td className="py-2 px-3 text-slate-600">{formatDateDisplay(rec.renewalDate)}</td>
+                                                            <td className="py-2 px-3 text-slate-600">{rec.description || '-'}</td>
+                                                            <td className="py-2 px-3">
+                                                                {rec.status ? (
+                                                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${rec.status === 'Completed' ? 'bg-emerald-50 text-emerald-600' : rec.status === 'Expired' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>{rec.status}</span>
+                                                                ) : '-'}
+                                                            </td>
+                                                            <td className="py-2 px-3">
+                                                                {rec.fileUrl ? (
+                                                                    <button onClick={() => openFileUrl(rec.fileUrl)} className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium hover:bg-emerald-100 transition-colors cursor-pointer">
+                                                                        View File
                                                                     </button>
-                                                                )}
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                ))}
+                                                                ) : '-'}
+                                                            </td>
+                                                            <td className="py-2 px-3 text-right">
+                                                                <div className="flex items-center justify-end gap-1">
+                                                                    <button
+                                                                        onClick={() => { setEditingTrainingIdx(i); setEditingTraining({ ...rec }); }}
+                                                                        className="p-1.5 text-slate-400 hover:text-[#0F4C75] hover:bg-blue-50 rounded-md transition-colors"
+                                                                        title="Edit record"
+                                                                    >
+                                                                        <Pencil className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                    {deletingTrainingIdx === i ? (
+                                                                        <div className="flex items-center gap-1">
+                                                                            <button
+                                                                                onClick={() => handleDeleteTrainingRecord(i)}
+                                                                                className="p-1 text-xs bg-red-500 text-white rounded px-2 hover:bg-red-600 transition-colors"
+                                                                                disabled={savingTraining}
+                                                                            >
+                                                                                {savingTraining ? '...' : 'Yes'}
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => setDeletingTrainingIdx(null)}
+                                                                                className="p-1 text-xs bg-slate-200 text-slate-600 rounded px-2 hover:bg-slate-300 transition-colors"
+                                                                            >
+                                                                                No
+                                                                            </button>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <button
+                                                                            onClick={() => setDeletingTrainingIdx(i)}
+                                                                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                                                                            title="Delete record"
+                                                                        >
+                                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
                                             </tbody>
                                         </table>
                                     </div>
@@ -1877,8 +1767,7 @@ export default function EmployeeViewPage() {
                         {(currentDocModal.files || []).length > 0 ? (
                             <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
                                 {(currentDocModal.files || []).map((fileUrl: string, idx: number) => {
-                                    const isPdf = fileUrl?.toLowerCase().includes('.pdf') || fileUrl?.startsWith('data:application/pdf');
-                                    const isImage = fileUrl ? (fileUrl.startsWith('data:image') || fileUrl.match(/\.(jpeg|jpg|gif|png)$/i) || (fileUrl.startsWith('/api/docs/') && !isPdf)) : false;
+                                    const { isImage, isPdf } = getFileType(fileUrl);
 
                                     return (
                                         <div key={idx} className="relative group border border-slate-200 rounded-xl overflow-hidden bg-slate-50 h-[100px] shadow-sm">
@@ -1940,6 +1829,107 @@ export default function EmployeeViewPage() {
                                     </>
                                 )}
                             </div>
+                        </Button>
+                    )}
+                </div>
+            </Modal>
+
+            {/* Drug Testing Add/Edit Modal */}
+            <Modal isOpen={isDrugModalOpen} onClose={() => setIsDrugModalOpen(false)} title={isViewOnlyDrug ? "View Record" : currentDrugModalIdx !== null ? "Edit Record" : "Add New Drug Test"} maxWidth="2xl">
+                <div className="space-y-4 pt-2">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Test Date</label>
+                            <Input type="date" value={toDateInputValue(currentDrugModal.date)} onChange={e => setCurrentDrugModal({ ...currentDrugModal, date: e.target.value })} disabled={isViewOnlyDrug} className="h-10" />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Description</label>
+                            <Input placeholder="e.g. Annual Random Test" value={currentDrugModal.description || ''} onChange={e => setCurrentDrugModal({ ...currentDrugModal, description: e.target.value })} disabled={isViewOnlyDrug} className="h-10" />
+                        </div>
+                    </div>
+
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between px-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Attached Files</label>
+                            {!isViewOnlyDrug && (
+                                <label className="flex items-center gap-2 px-3 py-1.5 text-[10px] font-bold border border-slate-200 rounded-full cursor-pointer hover:bg-indigo-50 hover:border-indigo-300 transition-all text-slate-600 shadow-sm bg-white">
+                                    <Upload className="w-3 h-3" />
+                                    <span>Upload Files</span>
+                                    <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" multiple onChange={e => {
+                                        const fileList = e.target.files;
+                                        if (fileList) {
+                                            Array.from(fileList).forEach(file => {
+                                                const reader = new FileReader();
+                                                reader.onloadend = () => {
+                                                    setCurrentDrugModal((prev: any) => ({ ...prev, files: [...(prev.files || []), reader.result as string] }));
+                                                };
+                                                reader.readAsDataURL(file);
+                                            });
+                                        }
+                                        e.target.value = '';
+                                    }} />
+                                </label>
+                            )}
+                        </div>
+
+                        {(currentDrugModal.files || []).length > 0 ? (
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                {(currentDrugModal.files || []).map((fileUrl: string, idx: number) => {
+                                    const { isImage, isPdf } = getFileType(fileUrl);
+
+                                    return (
+                                        <div key={idx} className="relative group border border-slate-200 rounded-xl overflow-hidden bg-slate-50 h-[100px] shadow-sm">
+                                            {isImage ? (
+                                                <img src={fileUrl} alt="Preview" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                                            ) : isPdf ? (
+                                                <iframe src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=0`} className="w-full h-full border-0 pointer-events-none object-cover transition-transform duration-500 group-hover:scale-105" title="PDF Preview" />
+                                            ) : (
+                                                <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 transition-transform duration-500 group-hover:scale-105">
+                                                    <FlaskConical className="w-8 h-8 text-indigo-400/40" />
+                                                    <span className="text-[10px] uppercase font-bold text-slate-400 italic">File {idx + 1}</span>
+                                                </div>
+                                            )}
+                                            
+                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-[1px]">
+                                                <button type="button" onClick={() => openFileUrl(fileUrl)} className="p-1.5 bg-white/90 hover:bg-white text-slate-800 rounded-lg shadow-sm transition-colors">
+                                                    <Eye className="w-3.5 h-3.5" />
+                                                </button>
+                                                {!isViewOnlyDrug && (
+                                                    <button type="button" onClick={() => setCurrentDrugModal((prev: any) => ({ ...prev, files: prev.files.filter((_: any, j: number) => j !== idx) }))} className="p-1.5 bg-red-500/90 hover:bg-red-500 text-white rounded-lg shadow-sm transition-colors">
+                                                        <X className="w-3.5 h-3.5" />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <div className="p-10 text-center text-[11px] font-medium text-slate-400 border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                                No files attached to this record
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="flex justify-end gap-2 mt-8 pt-4 border-t border-slate-100">
+                    <Button variant="outline" onClick={() => setIsDrugModalOpen(false)} className="rounded-full px-6">
+                        {isViewOnlyDrug ? 'Close' : 'Cancel'}
+                    </Button>
+                    {!isViewOnlyDrug && (
+                        <Button 
+                            className="bg-[#0F4C75] hover:bg-[#0a3a5c] text-white rounded-full px-8 shadow-md"
+                            onClick={handleSaveDrugModal}
+                            disabled={savingDrugTest}
+                        >
+                            {savingDrugTest ? (
+                                <div className="flex items-center gap-2">
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    <span>Saving...</span>
+                                </div>
+                            ) : (
+                                <span>Save Changes</span>
+                            )}
                         </Button>
                     )}
                 </div>

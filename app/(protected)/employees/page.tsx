@@ -57,6 +57,11 @@ interface Employee {
     unionPaperwork1184?: string;
     profilePicture?: string;
     signature?: string;
+
+    // Record Arrays
+    documents?: any[];
+    drugTestingRecords?: any[];
+    trainingCertifications?: any[];
 }
 
 
@@ -729,6 +734,9 @@ export default function EmployeesPage() {
                                             >
                                                 App Role
                                             </TableHeader>
+                                            <TableHeader className="text-center">Docs</TableHeader>
+                                            <TableHeader className="text-center">Drug Test</TableHeader>
+                                            <TableHeader className="text-center">Training</TableHeader>
                                             <TableHeader
                                                 onClick={() => handleSort('status')}
                                                 sortable={true}
@@ -802,6 +810,21 @@ export default function EmployeesPage() {
                                                             }
                                                             return <RoleBadge value={emp.appRole || ''} />;
                                                         })()}
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        <div className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 font-bold text-xs border border-indigo-100 shadow-sm">
+                                                            {emp.documents?.length || 0}
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        <div className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 font-bold text-xs border border-emerald-100 shadow-sm">
+                                                            {emp.drugTestingRecords?.length || 0}
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        <div className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-amber-50 text-amber-600 font-bold text-xs border border-amber-100 shadow-sm">
+                                                            {emp.trainingCertifications?.length || 0}
+                                                        </div>
                                                     </TableCell>
                                                     <TableCell>
                                                         <Badge variant={emp.status === 'Active' ? 'success' : 'default'}>
