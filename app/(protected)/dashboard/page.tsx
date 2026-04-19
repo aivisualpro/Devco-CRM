@@ -351,7 +351,15 @@ const TodoColumn = ({
                                 );
                             })}
                             {item.estimate && (
-                                <span className="ml-2 text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md border border-blue-100 whitespace-nowrap">{item.estimate}</span>
+                                <span 
+                                    className="ml-2 text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 hover:text-blue-700 cursor-pointer px-1.5 py-0.5 rounded-md border border-blue-200 whitespace-nowrap transition-colors"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        window.open(`/estimates/${encodeURIComponent(item.estimate!)}`, '_self');
+                                    }}
+                                >
+                                    {item.estimate}
+                                </span>
                             )}
                         </div>
 
@@ -4193,8 +4201,14 @@ function DashboardContent() {
                                                                 
                                                             <div className="flex items-center gap-2">
                                                                 {msg.estimate && (
-                                                                    <span className={`text-[8px] font-bold px-1.5 py-px rounded uppercase tracking-tight leading-none ${isMe ? 'bg-white/20 text-white border border-white/20' : 'bg-[#0F4C75]/10 text-[#0F4C75] border border-[#0F4C75]/15'}`}>
-                                                                        #{msg.estimate.value || msg.estimate}
+                                                                    <span 
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            window.open(`/estimates/${encodeURIComponent((msg.estimate as any).value || msg.estimate)}`, "_self");
+                                                                        }}
+                                                                        className={`cursor-pointer hover:opacity-80 text-[8px] font-bold px-1.5 py-px rounded uppercase tracking-tight leading-none ${isMe ? 'bg-white/20 text-white border border-white/20' : 'bg-[#0F4C75]/10 text-[#0F4C75] border border-[#0F4C75]/15'}`}
+                                                                    >
+                                                                        #{(msg.estimate as any).value || msg.estimate}
                                                                     </span>
                                                                 )}
                                                                 <span className={`text-[8px] uppercase tracking-widest font-medium opacity-60 shrink-0 ${isMe ? 'text-white' : 'text-slate-400'}`}>
@@ -4426,7 +4440,12 @@ function DashboardContent() {
                                              <div className="flex items-center gap-2 mb-1 px-1">
                                                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Linking:</span>
                                                 <div className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full flex items-center gap-1">
-                                                    <span className="text-[10px] font-bold">{chatEstimate.label}</span>
+                                                    <span 
+                                                        className="text-[10px] font-bold cursor-pointer hover:underline"
+                                                        onClick={() => window.open(`/estimates/${encodeURIComponent(chatEstimate.value)}`, '_self')}
+                                                    >
+                                                        {chatEstimate.label}
+                                                    </span>
                                                     <button 
                                                         type="button"
                                                         onClick={() => setChatEstimate(null)}
