@@ -1077,8 +1077,9 @@ export function EstimateHeaderCard({
                                                 <div
                                                     id="field-status"
                                                     onClick={() => !isStatusLocked && setActiveDropdown(activeDropdown === 'status' ? null : 'status')}
+                                                    onDoubleClick={() => isStatusLocked && setActiveDropdown(activeDropdown === 'status' ? null : 'status')}
                                                     className={`
-                                        w-12 h-12 rounded-full flex items-center justify-center ${isStatusLocked ? 'cursor-default' : 'cursor-pointer'} transition-all duration-300 relative overflow-hidden
+                                        w-12 h-12 rounded-full flex items-center justify-center cursor-pointer transition-all duration-300 relative overflow-hidden
                                                 ${isDropdownOpen
                                                             ? 'shadow-[inset_4px_4px_8px_rgba(0,0,0,0.2)]'
                                                             : hasValue
