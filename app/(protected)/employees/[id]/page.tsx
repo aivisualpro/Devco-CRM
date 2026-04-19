@@ -66,7 +66,7 @@ interface Employee {
 }
 
 const SectionCard = ({ title, icon: Icon, children, action }: any) => (
-    <div className="flex flex-col h-full min-h-[280px] bg-white/30 rounded-2xl shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] p-4 relative overflow-hidden">
+    <div className="flex flex-col h-full min-h-[280px] bg-white/30 rounded-2xl shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] p-4 relative">
         <div className="w-full flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
                 {Icon && <Icon className="w-4 h-4 text-indigo-400" />}
@@ -481,7 +481,11 @@ export default function EmployeeViewPage() {
                 const getUnique = (key: keyof Employee) => Array.from(new Set(emps.map(e => e[key]).filter(Boolean))) as string[];
                 setAppRoleOptions(getUnique('appRole'));
                 setPositionOptions(getUnique('companyPosition'));
-                setDesignationOptions(getUnique('designation'));
+                setDesignationOptions([
+                    'Project Manager',
+                    'Foreman',
+                    'Insured Driver'
+                ]);
                 setCityOptions(getUnique('city'));
                 setStateOptions(getUnique('state'));
             }
@@ -704,10 +708,12 @@ export default function EmployeeViewPage() {
                                 <DetailRow label="Date Hired" value={employee.dateHired} editNode={inlineEditSection === 'employment' ? <Input type="date" value={toDateInputValue(currentEmployee.dateHired)} onChange={e => setCurrentEmployee({ ...currentEmployee, dateHired: e.target.value })} className="h-8 min-w-[160px]" /> : undefined} />
                                 <DetailRow label="App Role" value={employee.appRole} editNode={inlineEditSection === 'employment' ? <div className="min-w-[160px]"><SearchableSelect value={currentEmployee.appRole || ''} onChange={(v: any) => setCurrentEmployee({ ...currentEmployee, appRole: v })} options={appRoleOptions} /></div> : undefined} />
                                 <DetailRow label="Company Position" value={employee.companyPosition} editNode={inlineEditSection === 'employment' ? <div className="min-w-[160px]"><SearchableSelect value={currentEmployee.companyPosition || ''} onChange={(v: any) => setCurrentEmployee({ ...currentEmployee, companyPosition: v })} options={positionOptions} /></div> : undefined} />
-                                <DetailRow label="Designation" value={employee.designation} editNode={inlineEditSection === 'employment' ? <div className="min-w-[160px]"><SearchableSelect value={currentEmployee.designation || ''} onChange={(v: any) => setCurrentEmployee({ ...currentEmployee, designation: v })} options={designationOptions} /></div> : undefined} />
+                                <DetailRow label="Designation" value={employee.designation} editNode={inlineEditSection === 'employment' ? <div className="min-w-[160px]"><SearchableSelect multiple value={currentEmployee.designation ? currentEmployee.designation.split(',').map((s: string) => s.trim()).filter(Boolean) : []} onChange={(v: any) => setCurrentEmployee({ ...currentEmployee, designation: Array.isArray(v) ? v.join(', ') : v })} options={designationOptions} /></div> : undefined} />
                                 <DetailRow label="Group No." value={employee.groupNo} editNode={inlineEditSection === 'employment' ? <Input value={currentEmployee.groupNo || ''} onChange={e => setCurrentEmployee({ ...currentEmployee, groupNo: e.target.value })} className="h-8 min-w-[160px]" /> : undefined} />
                                 <DetailRow label="Separation Date" value={employee.separationDate} editNode={inlineEditSection === 'employment' ? <Input type="date" value={toDateInputValue(currentEmployee.separationDate)} onChange={e => setCurrentEmployee({ ...currentEmployee, separationDate: e.target.value })} className="h-8 min-w-[160px]" /> : undefined} />
-                                <DetailRow label="Separation Reason" value={employee.separationReason} editNode={inlineEditSection === 'employment' ? <textarea value={currentEmployee.separationReason || ''} onChange={e => setCurrentEmployee({ ...currentEmployee, separationReason: e.target.value })} className="w-full min-h-[80px] p-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-y" placeholder="Enter reason..." /> : undefined} />
+                                {!!(inlineEditSection === 'employment' ? currentEmployee.separationDate : employee.separationDate) && (
+                                    <DetailRow label="Separation Reason" value={employee.separationReason} editNode={inlineEditSection === 'employment' ? <textarea value={currentEmployee.separationReason || ''} onChange={e => setCurrentEmployee({ ...currentEmployee, separationReason: e.target.value })} className="w-full min-h-[80px] p-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-y" placeholder="Enter reason..." /> : undefined} />
+                                )}
 
                                 {inlineEditSection === 'employment' && (
                                     <div className="flex justify-end gap-2 mt-auto pt-4 border-t border-gray-100/50">

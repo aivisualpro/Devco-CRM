@@ -990,19 +990,21 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
                                                         </FormItem>
                                                     )}
                                                 />
-                                                <FormField
-                                                    control={form.control}
-                                                    name="separationReason"
-                                                    render={({ field }) => (
-                                                        <FormItem>
-                                                            <FormLabel className="text-red-900">Reason</FormLabel>
-                                                            <FormControl>
-                                                                <Input placeholder="Reason for leaving" {...field} />
-                                                            </FormControl>
-                                                            <FormMessage />
-                                                        </FormItem>
-                                                    )}
-                                                />
+                                                {!!form.watch("separationDate") && (
+                                                    <FormField
+                                                        control={form.control}
+                                                        name="separationReason"
+                                                        render={({ field }) => (
+                                                            <FormItem>
+                                                                <FormLabel className="text-red-900">Reason</FormLabel>
+                                                                <FormControl>
+                                                                    <Input placeholder="Reason for leaving" {...field} value={field.value || ''} />
+                                                                </FormControl>
+                                                                <FormMessage />
+                                                            </FormItem>
+                                                        )}
+                                                    />
+                                                )}
                                             </div>
                                         )}
 
