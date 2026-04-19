@@ -40,6 +40,7 @@ import { usePermissions } from "@/hooks/usePermissions"
 const DESIGNATION_OPTIONS = [
     { id: 'Project Manager', label: 'Project Manager', value: 'Project Manager' },
     { id: 'Foreman', label: 'Foreman', value: 'Foreman' },
+    { id: 'Insured Driver', label: 'Insured Driver', value: 'Insured Driver' },
 ];
 
 const INITIAL_COMPANY_POSITIONS = [
