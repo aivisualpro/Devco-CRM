@@ -431,7 +431,14 @@ export const DJTModal = ({
                                         <div>
                                             <p className="text-[10px] font-bold text-slate-400 uppercase">Created By</p>
                                             {(() => {
-                                                const creator = initialData.employees.find((e: any) => e.value === selectedDJT.createdBy);
+                                                const scheduleId = selectedDJT.schedule_id || selectedDJT._id || selectedDJT.scheduleRef?._id;
+                                                const scheduleDoc = selectedDJT.scheduleRef || schedules.find(s => String(s._id) === String(scheduleId));
+                                                const creatorEmail = selectedDJT.createdBy;
+                                                const creator = initialData?.employees?.find((e: any) => 
+                                                    e.value === String(creatorEmail).trim().toLowerCase() ||
+                                                    e.label === creatorEmail ||
+                                                    e.email === creatorEmail
+                                                );
                                                 if (creator) {
                                                     return (
                                                         <div className="flex items-center gap-2 mt-1">
@@ -442,7 +449,7 @@ export const DJTModal = ({
                                                         </div>
                                                     );
                                                 }
-                                                return <p className="text-sm font-bold text-slate-700 truncate">{selectedDJT.createdBy || 'Unknown'}</p>;
+                                                return <p className="text-sm font-bold text-slate-700 truncate">{creatorEmail || 'Unknown'}</p>;
                                             })()}
                                         </div>
                                         <div>

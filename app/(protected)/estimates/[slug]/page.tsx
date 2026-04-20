@@ -569,12 +569,17 @@ export default function EstimateViewPage() {
             if (slug.includes('-V')) {
                 result = await apiCall('getEstimateBySlug', { slug });
             } else {
-                // Try fetching by estimate number first (handles links without version from dashboard)
+                // Slug is a base estimate number (e.g. "25-0590") without version.
+                // Resolve to the latest version and redirect to the canonical versioned URL.
                 const propResult = await apiCall('getEstimatesByProposal', { estimateNumber: slug });
                 if (propResult.success && Array.isArray(propResult.result) && propResult.result.length > 0) {
                     // Pick latest version
                     const sorted = propResult.result.sort((a: any, b: any) => (b.versionNumber || 0) - (a.versionNumber || 0));
-                    result = { success: true, result: sorted[0] };
+                    const latest = sorted[0];
+                    // _id contains the versioned slug (e.g. "25-0590-V1")
+                    const versionedSlug = latest._id || `${latest.estimate}-V${latest.versionNumber || 1}`;
+                    router.replace(`/estimates/${versionedSlug}`);
+                    return;
                 } else {
                     // Fallback to ID lookup
                     result = await apiCall('getEstimateById', { id: slug });

@@ -11,8 +11,11 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/useToast';
 import { DJTModal } from '../../jobs/schedules/components/DJTModal';
+import { EmailModal } from '../../jobs/schedules/components/EmailModal';
 import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
+import { useRouter } from 'next/navigation';
+import { DJTCard } from './components/DJTCard';
 
 interface Signature {
     employee: string;
@@ -88,6 +91,10 @@ export default function JobTicketPage() {
     const [activeSignatureEmployee, setActiveSignatureEmployee] = useState<string | null>(null);
     const [isSavingSignature, setIsSavingSignature] = useState(false);
     const [isGeneratingDJTPDF, setIsGeneratingDJTPDF] = useState(false);
+    const [emailModalOpen, setEmailModalOpen] = useState(false);
+    const [emailTo, setEmailTo] = useState('');
+    const [isSendingEmail, setIsSendingEmail] = useState(false);
+    const router = useRouter();
 
     // Create New DJT Flow State
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -128,47 +135,46 @@ export default function JobTicketPage() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            // 1. Fetch DJTs (Paginated)
-            const djtRes = await fetch('/api/djt', {
+            // Run independent requests concurrently
+            const djtPromise = fetch('/api/djt', {
                 method: 'POST',
                 body: JSON.stringify({ 
                     action: 'getDJTs',
-                    payload: { 
-                        page: currentPage, 
-                        limit: itemsPerPage,
-                        search 
-                    }
+                    payload: { page: currentPage, limit: itemsPerPage, search }
                 })
-            });
-            const djtData = await djtRes.json();
-            
-            if (djtData.success) {
-                 setDjts(djtData.result.djts);
-                 setTotalDJTs(djtData.result.total);
-            }
+            }).then(res => res.json());
 
-            // 2. Fetch Schedules (For dropdown & Initial Data)
-            // Load once if empty
+            let schedulePromise: Promise<any> | null = null;
             if (schedules.length === 0) {
-                const res = await fetch('/api/schedules', {
+                schedulePromise = fetch('/api/schedules', {
                     method: 'POST',
                     body: JSON.stringify({ 
                         action: 'getSchedulesPage',
                         payload: {
-                            startDate: new Date(new Date().setMonth(new Date().getMonth() - 6)).toISOString()
+                            startDate: new Date(new Date().setMonth(new Date().getMonth() - 6)).toISOString(),
+                            limit: 500 // Increased limit for better dropdown population
                         }
                     }) 
-                });
+                }).then(res => res.json());
+            }
 
-                const data = await res.json();
+            // Wait for both to finish simultaneously
+            const [djtData, scheduleData] = await Promise.all([
+                djtPromise,
+                schedulePromise
+            ]);
+            
+            if (djtData?.success) {
+                 setDjts(djtData.result.djts);
+                 setTotalDJTs(djtData.result.total);
+            }
 
-                if (data.success) {
-                    setSchedules(data.result.schedules || []);
-                    setEmployees(data.result.initialData.employees || []);
-                    setEstimates(data.result.initialData.estimates || []);
-                    setClients(data.result.initialData.clients || []);
-                    setEquipmentItems(data.result.initialData.equipmentItems || []);
-                }
+            if (scheduleData?.success) {
+                setSchedules(scheduleData.result.schedules || []);
+                setEmployees(scheduleData.result.initialData?.employees || []);
+                setEstimates(scheduleData.result.initialData?.estimates || []);
+                setClients(scheduleData.result.initialData?.clients || []);
+                setEquipmentItems(scheduleData.result.initialData?.equipmentItems || []);
             }
         } catch (err) {
             console.error('Error fetching data:', err);
@@ -399,79 +405,71 @@ export default function JobTicketPage() {
         }
     };
 
-    const handleDownloadDjtPdf = async () => {
-        if (!selectedDJT) return;
+    const getDJTPdfVariables = (targetDJT: any) => {
+        const schedule = targetDJT.scheduleRef || schedules.find(s => s._id === (targetDJT.schedule_id || targetDJT._id));
+        const estimate = estimates.find((e: any) => {
+            const estNum = e.value || e.estimate || e.estimateNum;
+            return estNum && schedule?.estimate && String(estNum).trim() === String(schedule.estimate).trim();
+        });
+        const client = clients.find((c: any) => c._id === schedule?.customerId || c.name === schedule?.customerName);
+
+        const variables: Record<string, any> = {
+            dailyJobDescription: targetDJT.dailyJobDescription || '',
+            customerPrintName: targetDJT.customerPrintName || '',
+            customerId: client?.name || schedule?.customerName || '',
+            contactName: estimate?.contactName || estimate?.contact || '',
+            contactPhone: estimate?.contactPhone || estimate?.phone || '',
+            jobAddress: estimate?.jobAddress || estimate?.address || schedule?.jobLocation || '',
+            customerName: schedule?.customerName || '',
+            jobLocation: schedule?.jobLocation || '',
+            estimate: schedule?.estimate || '',
+            estimateNum: schedule?.estimate || '',
+            projectName: estimate?.projectTitle || estimate?.projectName || '',
+            foremanName: schedule?.foremanName || '',
+            date: targetDJT.date ? new Date(targetDJT.date).toLocaleDateString() : '',
+            day: new Date(targetDJT.date || schedule?.fromDate || new Date()).toLocaleDateString('en-US', { weekday: 'long' }),
+        };
+
+        if (targetDJT.customerSignature) variables['customerSignature'] = targetDJT.customerSignature;
+
+        for (let i = 1; i <= 15; i++) {
+            variables[`sig_name_${i}`] = '';
+            variables[`sig_img_${i}`] = '';
+            variables[`Print Name_${i}`] = '';
+            variables[`Times_${i}`] = '';
+        }
+
+        if (targetDJT.signatures && targetDJT.signatures.length > 0) {
+            variables.hasSignatures = true;
+            targetDJT.signatures.forEach((sig: any, index: number) => {
+                const empName = employees.find(e => e.value === sig.employee)?.label || sig.employee;
+                const idx = index + 1;
+                variables[`sig_name_${idx}`] = empName;
+                variables[`sig_img_${idx}`] = sig.signature;
+                variables[`Print Name_${idx}`] = empName;
+                
+                const timesheet = schedule?.timesheet?.find((t: any) => t.employee === sig.employee);
+                if (timesheet) {
+                    const inTime = new Date(timesheet.clockIn).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', timeZone: 'UTC'});
+                    const outTime = new Date(timesheet.clockOut).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', timeZone: 'UTC'});
+                    variables[`Times_${idx}`] = `${inTime} - ${outTime}`;
+                }
+            });
+        } else {
+            variables.hasSignatures = false;
+        }
+
+        return variables;
+    };
+
+    const handleDownloadDjtPdf = async (djtOverride?: any) => {
+        const targetDJT = djtOverride || selectedDJT;
+        if (!targetDJT) return;
         setIsGeneratingDJTPDF(true);
         try {
             const templateId = '1cN4CpzsvuKLYXtmSANeyqTTlL3HPc7XEyFsjfNwzo-8';
-            
-            // Build variables from selectedDJT and its parent schedule
-            // In this view, scheduleRef is attached directly to djt
-            const schedule = selectedDJT.scheduleRef || schedules.find(s => s._id === (selectedDJT.schedule_id || selectedDJT._id));
-            
-            // Find matching estimate for contact info - match by estimate number (value field)
-            const estimate = estimates.find((e: any) => {
-                const estNum = e.value || e.estimate || e.estimateNum;
-                return estNum && schedule?.estimate && String(estNum).trim() === String(schedule.estimate).trim();
-            });
-            
-            // Find matching client for customer name
-            const client = clients.find(c => c._id === schedule?.customerId || c.name === schedule?.customerName);
-            
-            // Combine fields
-            const variables: Record<string, any> = {
-                dailyJobDescription: selectedDJT.dailyJobDescription || '',
-                customerPrintName: selectedDJT.customerPrintName || '',
-                
-                // Customer name from clients collection or schedule
-                customerId: client?.name || schedule?.customerName || '',
-                // Contact info from estimate
-                contactName: estimate?.contactName || estimate?.contact || '',
-                contactPhone: estimate?.contactPhone || estimate?.phone || '',
-                jobAddress: estimate?.jobAddress || estimate?.address || schedule?.jobLocation || '',
-                // Other schedule info
-                customerName: schedule?.customerName || '',
-                jobLocation: schedule?.jobLocation || '',
-                estimate: schedule?.estimate || '',
-                estimateNum: schedule?.estimate || '',
-                projectName: estimate?.projectTitle || estimate?.projectName || '',
-                foremanName: schedule?.foremanName || '',
-                date: new Date(selectedDJT.date || schedule?.fromDate || new Date()).toLocaleDateString('en-US', { timeZone: 'UTC' }),
-                day: new Date(selectedDJT.date || schedule?.fromDate || new Date()).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' }),
-            };
-
-            // Customer Signature
-            if (selectedDJT.customerSignature) {
-                variables['customerSignature'] = selectedDJT.customerSignature;
-            }
-
-            // Prepare multiple signatures (Clear slots up to 15)
-            for (let i = 1; i <= 15; i++) {
-                variables[`sig_name_${i}`] = '';
-                variables[`sig_img_${i}`] = '';
-                variables[`Print Name_${i}`] = '';
-                variables[`Times_${i}`] = '';
-            }
-
-            if (selectedDJT.signatures && selectedDJT.signatures.length > 0) {
-                variables.hasSignatures = true;
-                selectedDJT.signatures.forEach((sig: any, index: number) => {
-                    const empName = employees.find(e => e.value === sig.employee)?.label || sig.employee;
-                    const idx = index + 1;
-                    variables[`sig_name_${idx}`] = empName;
-                    variables[`sig_img_${idx}`] = sig.signature;
-                    variables[`Print Name_${idx}`] = empName;
-                    
-                     const timesheet = schedule?.timesheet?.find((t: any) => t.employee === sig.employee);
-                     if (timesheet) {
-                         const inTime = new Date(timesheet.clockIn).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', timeZone: 'UTC'});
-                         const outTime = new Date(timesheet.clockOut).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', timeZone: 'UTC'});
-                         variables[`Times_${idx}`] = `${inTime} - ${outTime}`;
-                     }
-                });
-            } else {
-                variables.hasSignatures = false;
-            }
+            const variables = getDJTPdfVariables(targetDJT);
+            const schedule = targetDJT.scheduleRef || schedules.find((s: any) => s._id === (targetDJT.schedule_id || targetDJT._id));
 
             const response = await fetch('/api/generate-google-pdf', {
                 method: 'POST',
@@ -500,6 +498,59 @@ export default function JobTicketPage() {
             error(err.message || 'Failed to download DJT PDF');
         } finally {
             setIsGeneratingDJTPDF(false);
+        }
+    };
+
+    const handleEmailOpen = (djt: any) => {
+        setSelectedDJT(djt);
+        setEmailTo(djt.clientEmail || '');
+        setEmailModalOpen(true);
+    };
+
+    const handleConfirmEmail = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedDJT || !emailTo) return;
+
+        setIsSendingEmail(true);
+        try {
+            const templateId = '1cN4CpzsvuKLYXtmSANeyqTTlL3HPc7XEyFsjfNwzo-8';
+            const variables = getDJTPdfVariables(selectedDJT);
+
+            const pdfRes = await fetch('/api/generate-google-pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ templateId, variables })
+            });
+
+            if (!pdfRes.ok) throw new Error('Failed to generate PDF');
+            const blob = await pdfRes.blob();
+
+            const reader = new FileReader();
+            reader.readAsDataURL(blob);
+            reader.onloadend = async () => {
+                const base64data = reader.result as string;
+                const emailRes = await fetch('/api/email-jha', { // Wait, do I have a dedicated DJT email endpoint or email-jha logic? The api/email-jha route likely supports generalized PDFs for DJT as well! Let's just use email-jha or similar!
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        to: emailTo,
+                        pdfBase64: base64data,
+                        docName: 'DJT',
+                        projectName: variables.projectName || variables.customerName || 'Project'
+                    })
+                });
+
+                const data = await emailRes.json();
+                if (data.success) {
+                    success('Email sent successfully!');
+                    setEmailModalOpen(false);
+                } else error(data.error || 'Failed to send email');
+                setIsSendingEmail(false);
+            };
+        } catch (err) {
+            console.error('Email error:', err);
+            error('Failed to send email');
+            setIsSendingEmail(false);
         }
     };
 
@@ -564,146 +615,25 @@ export default function JobTicketPage() {
 
                         {/* Card Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-5">
-                            {paginatedDJTs.map((djt: any, idx: number) => {
-                                const schedule = djt.scheduleRef;
-                                const clientName = getClientName(schedule);
-                                const dateStr = (djt.date || schedule?.fromDate) ? new Date(djt.date || schedule?.fromDate).toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A';
-                                const creator = employees.find(e => e.value === djt.createdBy);
-                                const sigCount = (djt.signatures || []).length;
-                                const eqCount = (djt.equipmentUsed || []).length;
-                                const hasCustSig = !!djt.customerSignature;
-
-                                return (
-                                    <div
-                                        key={djt._id || idx}
-                                        className="group bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-lg hover:border-slate-300 transition-all duration-300 overflow-hidden cursor-pointer flex flex-col"
-                                        onClick={() => handleViewOpen(djt)}
-                                    >
-                                        {/* Card Header - Gradient Accent */}
-                                        <div className="relative px-5 pt-4 pb-3 bg-gradient-to-r from-[#0F4C75]/[0.04] to-transparent border-b border-slate-100">
-                                            <div className="flex items-start justify-between">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0F4C75] to-[#1B6CA8] text-white flex items-center justify-center shrink-0 shadow-sm">
-                                                        <FileText size={18} />
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-[13px] font-bold text-slate-800 leading-tight">{dateStr}</p>
-                                                        <p className="text-[11px] text-slate-400 mt-0.5">{djt.djtTime || '--:--'}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-1.5">
-                                                    {hasCustSig ? (
-                                                        <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-2 py-1 rounded-lg">
-                                                            <Check size={10} /> Signed
-                                                        </span>
-                                                    ) : (
-                                                        <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-600 border border-amber-200 text-[10px] font-bold px-2 py-1 rounded-lg">
-                                                            Pending
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Card Body */}
-                                        <div className="px-5 py-4 flex-1 flex flex-col gap-3.5">
-                                            {/* Client & Estimate */}
-                                            <div className="flex items-center justify-between gap-2">
-                                                <p className="text-sm font-semibold text-slate-700 truncate flex-1">{clientName}</p>
-                                                <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2.5 py-1 rounded-lg border border-slate-200 shrink-0 tracking-wide">
-                                                    {schedule?.estimate || 'No Est'}
-                                                </span>
-                                            </div>
-
-                                            {/* Description */}
-                                            <div className="bg-slate-50/80 rounded-xl px-3.5 py-2.5 border border-slate-100 min-h-[52px]">
-                                                <p className="text-[11px] text-slate-500 line-clamp-3 leading-relaxed">
-                                                    {djt.dailyJobDescription || 'No description provided'}
-                                                </p>
-                                            </div>
-
-                                            {/* Equipment */}
-                                            {eqCount > 0 && (
-                                                <div>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Equipment ({eqCount})</p>
-                                                    <div className="flex flex-wrap gap-1.5">
-                                                        {(djt.equipmentUsed || []).slice(0, 3).map((eq: any, i: number) => {
-                                                            const eqItem = equipmentItems.find((e: any) => String(e.value) === String(eq.equipment));
-                                                            const name = eqItem ? eqItem.label : (eq.equipment || 'Equipment');
-                                                            return (
-                                                                <div key={i} className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
-                                                                    <span className="text-[10px] font-semibold text-slate-700 truncate max-w-[100px]" title={name}>{name}</span>
-                                                                    <span className={cn("text-[8px] font-bold px-1 py-0.5 rounded", eq.type?.toLowerCase() === 'rental' ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600')}>
-                                                                        {eq.type?.toUpperCase() || 'OWNED'}
-                                                                    </span>
-                                                                    <span className="text-[9px] text-slate-400 font-medium">×{eq.qty || 1}</span>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                        {eqCount > 3 && <span className="text-[10px] text-slate-400 font-medium self-center">+{eqCount - 3} more</span>}
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {/* Signatures */}
-                                            <div>
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Signatures</p>
-                                                {sigCount > 0 ? (
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="flex -space-x-2">
-                                                            {(djt.signatures || []).slice(0, 5).map((sig: any, i: number) => {
-                                                                const emp = employees.find(e => e.value === sig.employee);
-                                                                return (
-                                                                    <div key={i} className="w-7 h-7 rounded-full border-2 border-white bg-emerald-50 flex items-center justify-center overflow-hidden shadow-sm relative" title={emp?.label || sig.employee}>
-                                                                        {emp?.image ? <img src={emp.image} alt="" className="w-full h-full object-cover" /> : <span className="text-[9px] font-bold text-emerald-700">{(emp?.label?.[0] || '?').toUpperCase()}</span>}
-                                                                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-[1.5px] border-white flex items-center justify-center">
-                                                                            <Check size={6} className="text-white" />
-                                                                        </div>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                            {sigCount > 5 && (
-                                                                <div className="w-7 h-7 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[9px] font-bold text-slate-500">+{sigCount - 5}</div>
-                                                            )}
-                                                        </div>
-                                                        <span className="text-[10px] text-emerald-600 font-semibold">{sigCount} signed</span>
-                                                    </div>
-                                                ) : (
-                                                    <p className="text-[11px] text-slate-300 italic">No signatures yet</p>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {/* Card Footer */}
-                                        <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
-                                            <div className="flex items-center gap-2 min-w-0">
-                                                {creator ? (
-                                                    <>
-                                                        <div className="w-5 h-5 rounded-full bg-slate-200 overflow-hidden shrink-0">
-                                                            {creator.image ? <img src={creator.image} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[8px] font-bold text-slate-500">{creator.label?.[0]}</div>}
-                                                        </div>
-                                                        <span className="text-[10px] text-slate-500 font-medium truncate">{creator.label}</span>
-                                                    </>
-                                                ) : (
-                                                    <span className="text-[10px] text-slate-400 truncate">{djt.createdBy || 'Unknown'}</span>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center gap-0.5" onClick={e => e.stopPropagation()}>
-                                                {canEdit && (
-                                                    <button onClick={() => handleEditOpen(djt)} className="p-1.5 rounded-lg text-slate-400 hover:text-[#0F4C75] hover:bg-[#0F4C75]/5 transition-colors" title="Edit">
-                                                        <Edit size={14} />
-                                                    </button>
-                                                )}
-                                                {canDelete && (
-                                                    <button onClick={() => handleDelete(djt)} className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Delete">
-                                                        <Trash2 size={14} />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                            {paginatedDJTs.map((djt: any, idx: number) => (
+                                <DJTCard
+                                    key={djt._id || idx}
+                                    djt={djt}
+                                    schedule={djt.scheduleRef}
+                                    clientName={getClientName(djt.scheduleRef)}
+                                    employees={employees}
+                                    equipmentItems={equipmentItems}
+                                    canViewEstimates={can(MODULES.ESTIMATES, ACTIONS.VIEW)}
+                                    canEdit={canEdit}
+                                    canDelete={canDelete}
+                                    onView={handleViewOpen}
+                                    onEdit={handleEditOpen}
+                                    onDelete={handleDelete}
+                                    onDownloadPDF={handleDownloadDjtPdf}
+                                    onEmail={handleEmailOpen}
+                                    router={router}
+                                />
+                            ))}
                         </div>
 
                         {/* Pagination */}
@@ -830,6 +760,17 @@ export default function JobTicketPage() {
                     handleDownloadPDF={handleDownloadDjtPdf}
                 />
             )}
+
+            {/* Email Modal */}
+            <EmailModal
+                isOpen={emailModalOpen}
+                onClose={() => !isSendingEmail && setEmailModalOpen(false)}
+                emailTo={emailTo}
+                setEmailTo={setEmailTo}
+                handleEmailConfirm={handleConfirmEmail}
+                isSending={isSendingEmail}
+                title="Email DJT Document"
+            />
         </div>
     );
 }

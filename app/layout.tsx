@@ -3,6 +3,7 @@ import { GeistSans } from "geist/font/sans";
 import "./globals.css";
 import { ToasterProvider } from "@/components/ui/ToasterProvider";
 import OrientationLock from "@/components/OrientationLock";
+import DbMigrator from "@/components/DbMigrator";
 
 export const metadata: Metadata = {
   title: "DEVCO | ERP",
@@ -45,6 +46,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
       </head>
       <body className="antialiased" suppressHydrationWarning>
+        <DbMigrator />
         {children}
         <ToasterProvider />
         <OrientationLock />

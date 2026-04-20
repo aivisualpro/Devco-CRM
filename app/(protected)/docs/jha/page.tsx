@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
-    Plus, Search, FileText, Edit, Trash2, Loader2, Check
+    Plus, Search, FileText, Edit, Trash2, Loader2, Check, User, AlertTriangle
 } from 'lucide-react';
 import { 
     Header, Pagination, Button,
@@ -11,8 +11,11 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/useToast';
 import { JHAModal } from '../../jobs/schedules/components/JHAModal';
+import { EmailModal } from '../../jobs/schedules/components/EmailModal';
 import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
+import { useRouter } from 'next/navigation';
+import { JHACard } from './components/JHACard';
 
 interface Signature {
     employee: string;
@@ -21,6 +24,7 @@ interface Signature {
 }
 
 interface JHA {
+    _id?: string;
     schedule_id?: string;
     scheduleRef?: Schedule;
     date?: string;
@@ -56,11 +60,13 @@ interface Employee {
 export default function JHAPage() {
     const { success, error } = useToast();
     const { can } = usePermissions();
+    const router = useRouter();
     
     // Permissions
     const canCreate = can(MODULES.JHA, ACTIONS.CREATE);
     const canEdit = can(MODULES.JHA, ACTIONS.EDIT);
     const canDelete = can(MODULES.JHA, ACTIONS.DELETE);
+    const canViewEstimates = can(MODULES.ESTIMATES, ACTIONS.VIEW);
     
     // Data State
     const [jhas, setJhas] = useState<JHA[]>([]);
@@ -81,8 +87,10 @@ export default function JHAPage() {
     const [selectedJHA, setSelectedJHA] = useState<JHA | null>(null);
     const [isEditMode, setIsEditMode] = useState(false);
     const [activeSignatureEmployee, setActiveSignatureEmployee] = useState<string | null>(null);
-    const [isGeneratingPDF, setIsGeneratingPDF] = useState(false); // eslint-disable-line @typescript-eslint/no-unused-vars
-    const [emailModalOpen, setEmailModalOpen] = useState(false); // eslint-disable-line @typescript-eslint/no-unused-vars
+    const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+    const [emailModalOpen, setEmailModalOpen] = useState(false);
+    const [emailTo, setEmailTo] = useState('');
+    const [isSendingEmail, setIsSendingEmail] = useState(false);
 
     // Create New JHA Flow State
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -123,44 +131,43 @@ export default function JHAPage() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            // 1. Fetch JHAs (Paginated)
-            const jhaRes = await fetch('/api/jha', {
-                method: 'POST',
-                body: JSON.stringify({ 
-                    action: 'getJHAs',
-                    payload: { 
-                        page: currentPage, 
-                        limit: itemsPerPage,
-                        search 
-                    }
-                })
-            });
-            const jhaData = await jhaRes.json();
-            
-            if (jhaData.success) {
+            const promises: Promise<any>[] = [
+                fetch('/api/jha', {
+                    method: 'POST',
+                    body: JSON.stringify({ 
+                        action: 'getJHAs',
+                        payload: { page: currentPage, limit: itemsPerPage, search }
+                    })
+                }).then(r => r.json())
+            ];
+
+            if (schedules.length === 0) {
+                 promises.push(
+                     fetch('/api/schedules', {
+                        method: 'POST',
+                        body: JSON.stringify({ 
+                            action: 'getSchedulesPage',
+                            payload: {
+                                // 2 months lookback is more than enough for available JHA assignments, vastly improving speed
+                                startDate: new Date(new Date().setMonth(new Date().getMonth() - 2)).toISOString()
+                            }
+                        }) 
+                    }).then(r => r.json())
+                 );
+            }
+
+            const [jhaData, schedData] = await Promise.all(promises);
+
+            if (jhaData?.success) {
                  setJhas(jhaData.result.jhas);
                  setTotalJHAs(jhaData.result.total);
             }
 
-            if (schedules.length === 0) {
-                 const res = await fetch('/api/schedules', {
-                    method: 'POST',
-                    body: JSON.stringify({ 
-                        action: 'getSchedulesPage',
-                        payload: {
-                            startDate: new Date(new Date().setMonth(new Date().getMonth() - 6)).toISOString()
-                        }
-                    }) 
-                });
-
-                const data = await res.json();
-
-                if (data.success) {
-                    setSchedules(data.result.schedules || []);
-                    setEmployees(data.result.initialData.employees || []);
-                    setEstimates(data.result.initialData.estimates || []);
-                    setClients(data.result.initialData.clients || []);
-                }
+            if (schedData?.success) {
+                setSchedules(schedData.result.schedules || []);
+                setEmployees(schedData.result.initialData.employees || []);
+                setEstimates(schedData.result.initialData.estimates || []);
+                setClients(schedData.result.initialData.clients || []);
             }
 
         } catch (err) {
@@ -344,13 +351,223 @@ export default function JHAPage() {
         }
     };
 
-    // Placeholder for PDF download
-    const handleDownloadPDF = () => {
-        setIsGeneratingPDF(true);
-        setTimeout(() => {
-             setIsGeneratingPDF(false);
-             success('PDF Download not implemented in this view yet');
-        }, 1000);
+    const handleDownloadPDF = async (jhaOverride?: any, setCardDownloading?: (b: boolean) => void) => {
+        const target = jhaOverride || selectedJHA;
+        if (!target) return;
+        
+        if (setCardDownloading) setCardDownloading(true);
+        else setIsGeneratingPDF(true);
+        
+        try {
+            const templateId = '164zwSdl2631kZ4mRUVtzWhg5oewL0wy6RVCgPQig258';
+            const schedule = schedules.find(s => s._id === target.schedule_id) || target.scheduleRef;
+            
+            const estimate = estimates.find((e: any) => {
+                const estNum = e.value || e.estimate || e.estimateNum;
+                return estNum && schedule?.estimate && String(estNum).trim() === String(schedule.estimate).trim();
+            });
+
+            const client = clients.find((c: any) => c._id === schedule?.customerId || c.name === schedule?.customerName);
+
+            const variables: Record<string, any> = {
+                ...target,
+                customerId: client?.name || schedule?.customerName || '',
+                contactName: estimate?.contactName || estimate?.contact || '',
+                contactPhone: estimate?.contactPhone || estimate?.phone || '',
+                jobAddress: estimate?.jobAddress || schedule?.jobLocation || '',
+                estimate: schedule?.estimate || '',
+                estimateNum: schedule?.estimate || '',
+                customerName: schedule?.customerName || '',
+                jobLocation: schedule?.jobLocation || '',
+                foremanName: schedule?.foremanName || '',
+                projectName: estimate?.projectTitle || estimate?.projectName || '',
+                date: target.date ? new Date(target.date).toLocaleDateString() : '',
+                day: new Date(target.date || schedule?.fromDate || new Date()).toLocaleDateString('en-US', { weekday: 'long' }),
+            };
+
+            const booleanFields = [
+                'operatingMiniEx', 'operatingAVacuumTruck', 'excavatingTrenching', 'acConcWork',
+                'operatingBackhoe', 'workingInATrench', 'trafficControl', 'roadWork', 'operatingHdd',
+                'confinedSpace', 'settingUgBoxes', 'otherDailyWork', 'sidewalks', 'heatAwareness',
+                'ladderWork', 'overheadLifting', 'materialHandling', 'roadHazards', 'heavyLifting',
+                'highNoise', 'pinchPoints', 'sharpObjects', 'trippingHazards', 'otherJobsiteHazards',
+                'stagingAreaDiscussed', 'rescueProceduresDiscussed', 'evacuationRoutesDiscussed',
+                'emergencyContactNumberWillBe911', 'firstAidAndCPREquipmentOnsite', 'closestHospitalDiscussed'
+            ];
+            booleanFields.forEach(f => {
+                if (variables[f] === true || variables[f] === 'TRUE' || variables[f] === 'Yes' || variables[f] === '1') {
+                    variables[f] = '✔️';
+                } else {
+                    variables[f] = '';
+                }
+            });
+
+            for (let i = 1; i <= 15; i++) {
+                variables[`sig_name_${i}`] = '';
+                variables[`sig_img_${i}`] = '';
+                variables[`Print Name_${i}`] = '';
+                variables[`_ComputedName_${i}`] = '';
+            }
+
+            if (variables.signatures && variables.signatures.length > 0) {
+                variables.hasSignatures = true;
+                variables.signatures.forEach((sig: any, index: number) => {
+                    const empName = employees.find(e => e.value === sig.employee)?.label || sig.employee;
+                    const idx = index + 1;
+                    variables[`sig_name_${idx}`] = empName;
+                    variables[`sig_img_${idx}`] = sig.signature;
+                    variables[`Print Name_${idx}`] = empName;
+                    variables[`_ComputedName_${idx}`] = empName;
+                    if (idx === 1) variables[`_ComputedName`] = empName;
+                });
+            } else {
+                variables.hasSignatures = false;
+            }
+
+            const response = await fetch('/api/generate-google-pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ templateId, variables }) });
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = 'JHA.pdf'; a.click();
+                success('PDF Downloaded');
+            } else {
+                let errText = 'Failed to download PDF';
+                try { const dt = await response.json(); if (dt.error) errText = dt.error; } catch(e){}
+                error(errText);
+            }
+        } catch (e) { 
+            console.error(e); 
+            error('Failed to download PDF');
+        } finally { 
+            if (setCardDownloading) setCardDownloading(false);
+            else setIsGeneratingPDF(false); 
+        }
+    };
+
+    const handleEmailJHA = (jha: any) => {
+        setSelectedJHA({ ...jha });
+        setEmailTo(jha.clientEmail || '');
+        setEmailModalOpen(true);
+    };
+
+    const handleConfirmEmail = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedJHA || !emailTo) return;
+
+        setIsSendingEmail(true);
+        try {
+            const templateId = '164zwSdl2631kZ4mRUVtzWhg5oewL0wy6RVCgPQig258';
+            const schedule = schedules.find(s => s._id === selectedJHA.schedule_id) || selectedJHA.scheduleRef;
+            
+            const estimate = estimates.find((e: any) => {
+                const estNum = e.value || e.estimate || e.estimateNum;
+                return estNum && schedule?.estimate && String(estNum).trim() === String(schedule.estimate).trim();
+            });
+
+            const client = clients.find((c: any) => c._id === schedule?.customerId || c.name === schedule?.customerName);
+
+            const variables: Record<string, any> = {
+                ...selectedJHA,
+                customerId: client?.name || schedule?.customerName || '',
+                contactName: estimate?.contactName || estimate?.contact || '',
+                contactPhone: estimate?.contactPhone || estimate?.phone || '',
+                jobAddress: estimate?.jobAddress || schedule?.jobLocation || '',
+                estimate: schedule?.estimate || '',
+                estimateNum: schedule?.estimate || '',
+                customerName: schedule?.customerName || '',
+                jobLocation: schedule?.jobLocation || '',
+                foremanName: schedule?.foremanName || '',
+                projectName: estimate?.projectTitle || estimate?.projectName || '',
+                date: selectedJHA.date ? new Date(selectedJHA.date).toLocaleDateString() : '',
+                day: new Date(selectedJHA.date || schedule?.fromDate || new Date()).toLocaleDateString('en-US', { weekday: 'long' }),
+            };
+
+            const booleanFields = [
+                'operatingMiniEx', 'operatingAVacuumTruck', 'excavatingTrenching', 'acConcWork',
+                'operatingBackhoe', 'workingInATrench', 'trafficControl', 'roadWork', 'operatingHdd',
+                'confinedSpace', 'settingUgBoxes', 'otherDailyWork', 'sidewalks', 'heatAwareness',
+                'ladderWork', 'overheadLifting', 'materialHandling', 'roadHazards', 'heavyLifting',
+                'highNoise', 'pinchPoints', 'sharpObjects', 'trippingHazards', 'otherJobsiteHazards',
+                'stagingAreaDiscussed', 'rescueProceduresDiscussed', 'evacuationRoutesDiscussed',
+                'emergencyContactNumberWillBe911', 'firstAidAndCPREquipmentOnsite', 'closestHospitalDiscussed'
+            ];
+            booleanFields.forEach(f => {
+                if (variables[f] === true || variables[f] === 'TRUE' || variables[f] === 'Yes' || variables[f] === '1') {
+                    variables[f] = '✔️';
+                } else {
+                    variables[f] = '';
+                }
+            });
+
+            for (let i = 1; i <= 15; i++) {
+                variables[`sig_name_${i}`] = '';
+                variables[`sig_img_${i}`] = '';
+                variables[`Print Name_${i}`] = '';
+                variables[`_ComputedName_${i}`] = '';
+            }
+
+            if (variables.signatures && variables.signatures.length > 0) {
+                variables.hasSignatures = true;
+                variables.signatures.forEach((sig: any, index: number) => {
+                    const empName = employees.find(e => e.value === sig.employee)?.label || sig.employee;
+                    const idx = index + 1;
+                    variables[`sig_name_${idx}`] = empName;
+                    variables[`sig_img_${idx}`] = sig.signature;
+                    variables[`Print Name_${idx}`] = empName;
+                    variables[`_ComputedName_${idx}`] = empName;
+                    if (idx === 1) variables[`_ComputedName`] = empName;
+                });
+            } else {
+                variables.hasSignatures = false;
+            }
+
+            const pdfRes = await fetch('/api/generate-google-pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ templateId, variables })
+            });
+
+            if (!pdfRes.ok) throw new Error('Failed to generate PDF');
+            const blob = await pdfRes.blob();
+
+            const reader = new FileReader();
+            reader.readAsDataURL(blob);
+            reader.onloadend = async () => {
+                const base64data = reader.result as string;
+
+                const emailRes = await fetch('/api/email-jha', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        emailTo,
+                        subject: 'JHA Document',
+                        emailBody: 'Please find attached JHA document',
+                        attachment: base64data,
+                        jhaId: selectedJHA._id,
+                        scheduleId: selectedJHA.schedule_id || selectedJHA.scheduleRef?._id
+                    })
+                });
+
+                const emailData = await emailRes.json();
+                if (emailData.success) {
+                    success('PDF emailed successfully!');
+                    setEmailModalOpen(false);
+                    setEmailTo('');
+                    
+                    const updatedJha = { ...selectedJHA, emailCounter: (selectedJHA.emailCounter || 0) + 1 };
+                    setSelectedJHA(updatedJha);
+                    setJhas(prev => prev.map(j => j._id === updatedJha._id ? updatedJha : j));
+                } else {
+                    error(emailData.error || 'Failed to email PDF');
+                }
+                setIsSendingEmail(false);
+            };
+        } catch (e: any) {
+            console.error('Email PDF Error:', e);
+            error(e.message || 'Failed to email PDF');
+            setIsSendingEmail(false);
+        }
     };
 
     return (
@@ -393,149 +610,29 @@ export default function JHAPage() {
                     </div>
                 ) : (
                     <>
-                        {/* Stats Bar */}
-                        <div className="flex items-center gap-3 mb-5 flex-wrap">
-                            <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3.5 py-2 shadow-sm">
-                                <div className="w-2 h-2 rounded-full bg-[#0F4C75]" />
-                                <span className="text-xs font-bold text-slate-700">{totalJHAs}</span>
-                                <span className="text-xs text-slate-400">Total</span>
-                            </div>
-                            <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3.5 py-2 shadow-sm">
-                                <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                                <span className="text-xs font-bold text-slate-700">{paginatedJHAs.filter((j: any) => (j.signatures || []).length > 0).length}</span>
-                                <span className="text-xs text-slate-400">Signed</span>
-                            </div>
-                            <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3.5 py-2 shadow-sm">
-                                <div className="w-2 h-2 rounded-full bg-amber-400" />
-                                <span className="text-xs font-bold text-slate-700">{paginatedJHAs.filter((j: any) => !(j.signatures || []).length).length}</span>
-                                <span className="text-xs text-slate-400">No Signatures</span>
-                            </div>
-                        </div>
-
                         {/* Card Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-5">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                             {paginatedJHAs.map((jha: any, idx: number) => {
                                 const schedule = jha.scheduleRef;
                                 const clientName = getClientName(schedule);
-                                const dateStr = (jha.date || schedule?.fromDate) ? new Date(jha.date || schedule?.fromDate).toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A';
-                                const creator = employees.find(e => e.value === jha.createdBy);
-                                const sigCount = (jha.signatures || []).length;
-
+                                const dateStr = (jha.date || schedule?.fromDate) ? new Date(jha.date || schedule?.fromDate).toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' }) : 'N/A';
                                 return (
-                                    <div
-                                        key={jha._id || idx}
-                                        className="group bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-lg hover:border-slate-300 transition-all duration-300 overflow-hidden cursor-pointer flex flex-col"
-                                        onClick={() => handleViewOpen(jha)}
-                                    >
-                                        {/* Card Header - Gradient Accent */}
-                                        <div className="relative px-5 pt-4 pb-3 bg-gradient-to-r from-[#0F4C75]/[0.04] to-transparent border-b border-slate-100">
-                                            <div className="flex items-start justify-between">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0F4C75] to-[#1B6CA8] text-white flex items-center justify-center shrink-0 shadow-sm">
-                                                        <FileText size={18} />
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-[13px] font-bold text-slate-800 leading-tight">{dateStr}</p>
-                                                        <p className="text-[11px] text-slate-400 mt-0.5">{jha.jhaTime || '--:--'}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-1.5">
-                                                    {sigCount > 0 ? (
-                                                        <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-2 py-1 rounded-lg">
-                                                            <Check size={10} /> {sigCount} Signed
-                                                        </span>
-                                                    ) : (
-                                                        <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-600 border border-amber-200 text-[10px] font-bold px-2 py-1 rounded-lg">
-                                                            No Signatures
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Card Body */}
-                                        <div className="px-5 py-4 flex-1 flex flex-col gap-3.5">
-                                            {/* Client & Estimate */}
-                                            <div className="flex items-center justify-between gap-2">
-                                                <p className="text-sm font-semibold text-slate-700 truncate flex-1">{clientName}</p>
-                                                <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2.5 py-1 rounded-lg border border-slate-200 shrink-0 tracking-wide">
-                                                    {schedule?.estimate || 'No Est'}
-                                                </span>
-                                            </div>
-
-                                            {/* USA Numbers */}
-                                            <div className="bg-slate-50/80 rounded-xl px-3.5 py-2.5 border border-slate-100">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="flex-1">
-                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">USA No.</p>
-                                                        <p className="text-sm font-mono font-semibold text-slate-700 mt-0.5">{jha.usaNo || '—'}</p>
-                                                    </div>
-                                                    {jha.subcontractorUSANo && (
-                                                        <div className="flex-1 border-l border-slate-200 pl-4">
-                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Sub USA No.</p>
-                                                            <p className="text-sm font-mono font-semibold text-slate-700 mt-0.5">{jha.subcontractorUSANo}</p>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            {/* Signatures */}
-                                            <div>
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Signatures</p>
-                                                {sigCount > 0 ? (
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="flex -space-x-2">
-                                                            {(jha.signatures || []).slice(0, 5).map((sig: any, i: number) => {
-                                                                const emp = employees.find(e => e.value === sig.employee);
-                                                                return (
-                                                                    <div key={i} className="w-7 h-7 rounded-full border-2 border-white bg-emerald-50 flex items-center justify-center overflow-hidden shadow-sm relative" title={emp?.label || sig.employee}>
-                                                                        {emp?.image ? <img src={emp.image} alt="" className="w-full h-full object-cover" /> : <span className="text-[9px] font-bold text-emerald-700">{(emp?.label?.[0] || '?').toUpperCase()}</span>}
-                                                                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-[1.5px] border-white flex items-center justify-center">
-                                                                            <Check size={6} className="text-white" />
-                                                                        </div>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                            {sigCount > 5 && (
-                                                                <div className="w-7 h-7 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[9px] font-bold text-slate-500">+{sigCount - 5}</div>
-                                                            )}
-                                                        </div>
-                                                        <span className="text-[10px] text-emerald-600 font-semibold">{sigCount} signed</span>
-                                                    </div>
-                                                ) : (
-                                                    <p className="text-[11px] text-slate-300 italic">No signatures yet</p>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {/* Card Footer */}
-                                        <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
-                                            <div className="flex items-center gap-2 min-w-0">
-                                                {creator ? (
-                                                    <>
-                                                        <div className="w-5 h-5 rounded-full bg-slate-200 overflow-hidden shrink-0">
-                                                            {creator.image ? <img src={creator.image} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[8px] font-bold text-slate-500">{creator.label?.[0]}</div>}
-                                                        </div>
-                                                        <span className="text-[10px] text-slate-500 font-medium truncate">{creator.label}</span>
-                                                    </>
-                                                ) : (
-                                                    <span className="text-[10px] text-slate-400 truncate">{jha.createdBy || 'Unknown'}</span>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center gap-0.5" onClick={e => e.stopPropagation()}>
-                                                {canEdit && (
-                                                    <button onClick={() => handleEditOpen(jha)} className="p-1.5 rounded-lg text-slate-400 hover:text-[#0F4C75] hover:bg-[#0F4C75]/5 transition-colors" title="Edit">
-                                                        <Edit size={14} />
-                                                    </button>
-                                                )}
-                                                {canDelete && (
-                                                    <button onClick={() => handleDelete(jha)} className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Delete">
-                                                        <Trash2 size={14} />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
+                                    <JHACard
+                                        key={`${jha._id || 'jha'}-${idx}`}
+                                        jha={jha}
+                                        schedule={schedule}
+                                        clientName={clientName}
+                                        employees={employees}
+                                        canViewEstimates={canViewEstimates}
+                                        canEdit={canEdit}
+                                        canDelete={canDelete}
+                                        onView={handleViewOpen}
+                                        onEdit={handleEditOpen}
+                                        onDelete={handleDelete}
+                                        onDownloadPDF={handleDownloadPDF}
+                                        onEmail={handleEmailJHA}
+                                        router={router}
+                                    />
                                 );
                             })}
                         </div>
@@ -664,6 +761,17 @@ export default function JHAPage() {
                     setActiveSignatureEmployee={setActiveSignatureEmployee}
                 />
             )}
+
+            {/* Email Modal */}
+            <EmailModal
+                isOpen={emailModalOpen}
+                onClose={() => !isSendingEmail && setEmailModalOpen(false)}
+                emailTo={emailTo}
+                setEmailTo={setEmailTo}
+                handleEmailConfirm={handleConfirmEmail}
+                isSending={isSendingEmail}
+                title="Email JHA Document"
+            />
         </div>
     );
 }

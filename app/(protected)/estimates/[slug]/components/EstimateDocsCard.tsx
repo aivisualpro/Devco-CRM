@@ -8,10 +8,15 @@ import type { UploadedFile } from '@/components/ui';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { format } from 'date-fns';
 import { usePermissions } from '@/hooks/usePermissions';
-import { MODULES, DATA_SCOPE } from '@/lib/permissions/types';
+import { MODULES, DATA_SCOPE, ACTIONS } from '@/lib/permissions/types';
 import { JHAModal } from '@/app/(protected)/jobs/schedules/components/JHAModal';
 import { DJTModal } from '@/app/(protected)/jobs/schedules/components/DJTModal';
+import { EmailModal } from '@/app/(protected)/jobs/schedules/components/EmailModal';
+import { getDJTPdfVariablesBase } from '@/lib/djtHelper';
 import { getLocalNowISO } from '@/lib/scheduleUtils';
+import { useRouter } from 'next/navigation';
+import { JHACard } from '@/app/(protected)/docs/jha/components/JHACard';
+import { DJTCard } from '@/app/(protected)/docs/job-tickets/components/DJTCard';
 
 // Google Doc Template IDs
 const DOC_TEMPLATES: Record<string, string> = {
@@ -98,7 +103,8 @@ interface EstimateDocsCardProps {
 }
 
 export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, formData, employees = [], onUpdate, planningOptions = [], activeClient, chartData, onOpenVendorsModal }) => {
-    const { user: currentUser, getDataScope } = usePermissions();
+    const { user: currentUser, getDataScope, can } = usePermissions();
+    const router = useRouter();
     const [generatingDoc, setGeneratingDoc] = useState<string | null>(null);
     const [generatingIndex, setGeneratingIndex] = useState<number | null>(null);
     const [generatingProgress, setGeneratingProgress] = useState(0);
@@ -134,6 +140,12 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     const [isGeneratingJHAPDF, setIsGeneratingJHAPDF] = useState(false);
     const [activeSignatureEmployee, setActiveSignatureEmployee] = useState<string | null>(null);
     const [emailModalOpen, setEmailModalOpen] = useState(false);
+    const [emailTo, setEmailTo] = useState('');
+    const [isSendingEmail, setIsSendingEmail] = useState(false);
+
+    const [djtEmailModalOpen, setDjtEmailModalOpen] = useState(false);
+    const [djtEmailTo, setDjtEmailTo] = useState('');
+    const [isSendingDjtEmail, setIsSendingDjtEmail] = useState(false);
 
     // DJT Modal State
     const [djtModalOpen, setDjtModalOpen] = useState(false);
@@ -370,91 +382,50 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             if (!formData?.estimate) return;
             setLoadingJobDocs(true);
             try {
-                // 1. First get schedules for this estimate number
-                const schedRes = await fetch('/api/schedules', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getSchedules', payload: {} })
-                });
-                const schedData = await schedRes.json();
-                const allSchedules = schedData.success ? (schedData.result || []) : [];
-                const filteredSchedules = allSchedules.filter(
-                    (s: any) => String(s.estimate || '').trim() === String(formData.estimate || '').trim()
-                );
+                // Run Independent API calls in parallel for optimal performance
+                const [schedRes, initRes, jhaRes, djtRes, phRes, vsRes] = await Promise.all([
+                    fetch('/api/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getSchedulesByEstimate', payload: { estimateNumber: formData.estimate } }) }),
+                    fetch('/api/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getInitialData', payload: {} }) }),
+                    fetch('/api/jha', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getJHAs', payload: { page: 1, limit: 500, estimate: formData.estimate } }) }),
+                    fetch('/api/djt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getDJTs', payload: { page: 1, limit: 500, estimate: formData.estimate } }) }),
+                    fetch('/api/pothole-logs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getPotholeLogs', payload: { estimate: formData.estimate } }) }),
+                    fetch('/api/vendor-subs-docs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getVendorSubsDocs', payload: { estimate: formData.estimate } }) })
+                ]);
+
+                const [schedData, initData, jhaData, djtData, phData, vsData] = await Promise.all([
+                    schedRes.json(), initRes.json(), jhaRes.json(), djtRes.json(), phRes.json(), vsRes.json()
+                ]);
+
+                const filteredSchedules = schedData.success ? (schedData.result || []) : [];
                 setEstimateSchedules(filteredSchedules);
                 const scheduleIds = filteredSchedules.map((s: any) => String(s._id));
 
-                // Fetch equipment items for DJT modal
-                const initRes = await fetch('/api/schedules', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getInitialData', payload: {} })
-                });
-                const initData = await initRes.json();
                 if (initData.success && initData.result?.equipmentItems) {
                     setEquipmentItems(initData.result.equipmentItems);
                 }
 
-                // 2. Fetch JHA records for these schedules
-                const jhaRes = await fetch('/api/jha', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getJHAs', payload: { page: 1, limit: 500 } })
-                });
-                const jhaData = await jhaRes.json();
                 if (jhaData.success && jhaData.result?.jhas) {
-                    const filtered = jhaData.result.jhas.filter(
-                        (j: any) => scheduleIds.includes(String(j.schedule_id || ''))
-                    );
-                    setJhaRecords(filtered);
+                    const filtered = jhaData.result.jhas.filter((j: any) => scheduleIds.includes(String(j.schedule_id || '')));
+                    setJhaRecords(filtered.length > 0 ? filtered : jhaData.result.jhas);
                 }
 
-                // 3. Fetch DJT (Job Tickets) for this estimate (API looks up schedules internally)
-                const djtRes = await fetch('/api/djt', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getDJTs', payload: { page: 1, limit: 500, estimate: formData.estimate } })
-                });
-                const djtData = await djtRes.json();
                 if (djtData.success && djtData.result?.djts) {
-                    // Deduplicate by schedule_id (keep first/latest per schedule)
                     const uniqueDjts = Array.from(new Map(djtData.result.djts.map((d: any) => [String(d.schedule_id), d])).values());
                     setJobTicketRecords(uniqueDjts);
                 }
 
-                // 4. Fetch Pothole Logs (directly by estimate)
-                const phRes = await fetch('/api/pothole-logs', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getPotholeLogs', payload: { estimate: formData.estimate } })
-                });
-                const phData = await phRes.json();
                 if (phData.success) {
                     setPotholeLogRecords(phData.result || []);
                 }
 
-                // 5. Fetch Pre-Bore Logs (embedded in schedules)
                 const pbLogs: any[] = [];
                 for (const sched of filteredSchedules) {
                     if (sched.preBore && Array.isArray(sched.preBore) && sched.preBore.length > 0) {
-                        sched.preBore.forEach((pb: any) => {
-                            pbLogs.push({
-                                ...pb,
-                                scheduleId: sched._id,
-                                scheduleTitle: sched.title,
-                            });
-                        });
+                        sched.preBore.forEach((pb: any) => pbLogs.push({ ...pb, scheduleId: sched._id, scheduleTitle: sched.title }));
                     }
                 }
                 setPreBoreLogRecords(pbLogs);
 
-                // 6. Fetch Vendor & Subs docs
-                const vsRes = await fetch('/api/vendor-subs-docs', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getVendorSubsDocs', payload: { estimate: formData.estimate } })
-                });
-                const vsData = await vsRes.json();
                 if (vsData.success) setVendorSubsDocs(vsData.result || []);
 
             } catch (err) {
@@ -472,31 +443,31 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         if (!formData?.estimate) return;
         setLoadingJobDocs(true);
         try {
-            const schedRes = await fetch('/api/schedules', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'getSchedules', payload: {} })
-            });
-            const schedData = await schedRes.json();
-            const allSchedules = schedData.success ? (schedData.result || []) : [];
-            const filteredSchedules = allSchedules.filter(
-                (s: any) => String(s.estimate || '').trim() === String(formData.estimate || '').trim()
-            );
+            const [schedRes, jhaRes, djtRes, phRes, vsRes] = await Promise.all([
+                fetch('/api/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getSchedulesByEstimate', payload: { estimateNumber: formData.estimate } }) }),
+                fetch('/api/jha', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getJHAs', payload: { page: 1, limit: 500, estimate: formData.estimate } }) }),
+                fetch('/api/djt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getDJTs', payload: { page: 1, limit: 500, estimate: formData.estimate } }) }),
+                fetch('/api/pothole-logs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getPotholeLogs', payload: { estimate: formData.estimate } }) }),
+                fetch('/api/vendor-subs-docs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getVendorSubsDocs', payload: { estimate: formData.estimate } }) })
+            ]);
+
+            const [schedData, jhaData, djtData, phData, vsData] = await Promise.all([
+                schedRes.json(), jhaRes.json(), djtRes.json(), phRes.json(), vsRes.json()
+            ]);
+
+            const filteredSchedules = schedData.success ? (schedData.result || []) : [];
             setEstimateSchedules(filteredSchedules);
             const scheduleIds = filteredSchedules.map((s: any) => String(s._id));
 
-            const jhaRes = await fetch('/api/jha', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getJHAs', payload: { page: 1, limit: 500 } }) });
-            const jhaData = await jhaRes.json();
-            if (jhaData.success && jhaData.result?.jhas) setJhaRecords(jhaData.result.jhas.filter((j: any) => scheduleIds.includes(String(j.schedule_id || ''))));
+            if (jhaData.success && jhaData.result?.jhas) {
+                const filtered = jhaData.result.jhas.filter((j: any) => scheduleIds.includes(String(j.schedule_id || '')));
+                setJhaRecords(filtered.length > 0 ? filtered : jhaData.result.jhas);
+            }
 
-            const djtRes = await fetch('/api/djt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getDJTs', payload: { page: 1, limit: 500, estimate: formData.estimate } }) });
-            const djtData = await djtRes.json();
             if (djtData.success && djtData.result?.djts) {
                 setJobTicketRecords(Array.from(new Map(djtData.result.djts.map((d: any) => [String(d.schedule_id), d])).values()));
             }
 
-            const phRes = await fetch('/api/pothole-logs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getPotholeLogs', payload: { estimate: formData.estimate } }) });
-            const phData = await phRes.json();
             if (phData.success) setPotholeLogRecords(phData.result || []);
 
             const pbLogs: any[] = [];
@@ -507,9 +478,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             }
             setPreBoreLogRecords(pbLogs);
 
-            const vsRes2 = await fetch('/api/vendor-subs-docs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getVendorSubsDocs', payload: { estimate: formData.estimate } }) });
-            const vsData2 = await vsRes2.json();
-            if (vsData2.success) setVendorSubsDocs(vsData2.result || []);
+            if (vsData.success) setVendorSubsDocs(vsData.result || []);
         } catch (err) { console.error(err); } finally { setLoadingJobDocs(false); }
     }, [formData?.estimate]);
 
@@ -714,13 +683,78 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         } catch (e) { console.error(e); }
     };
 
-    const handleDownloadJHAPDF = async () => {
-        if (!selectedJHA) return;
-        setIsGeneratingJHAPDF(true);
+    const handleDownloadJHAPDF = async (jhaOverride?: any, setCardDownloading?: (b: boolean) => void) => {
+        const target = jhaOverride || selectedJHA;
+        if (!target) return;
+        
+        if (setCardDownloading) setCardDownloading(true);
+        else setIsGeneratingJHAPDF(true);
+        
         try {
             const templateId = '164zwSdl2631kZ4mRUVtzWhg5oewL0wy6RVCgPQig258';
-            const schedule = estimateSchedules.find(s => s._id === selectedJHA.schedule_id);
-            const variables: any = { ...selectedJHA, customerName: schedule?.customerName, date: localeDateString(selectedJHA.date) || new Date().toLocaleDateString() };
+            let schedule = estimateSchedules.find(s => s._id === target.schedule_id);
+            if (!schedule && target.scheduleRef) {
+                schedule = typeof target.scheduleRef === 'string' ? null : target.scheduleRef;
+            }
+            if (!schedule) {
+                schedule = { customerName: formData?.customerName };
+            }
+
+            const variables: any = { 
+                ...target, 
+                customerId: schedule?.customerName || formData?.customerName || '',
+                contactName: formData?.contactName || formData?.contact || '',
+                contactPhone: formData?.contactPhone || formData?.phone || '',
+                jobAddress: formData?.jobAddress || schedule?.jobLocation || '',
+                estimateNum: schedule?.estimate || formData?.estimate || '',
+                estimate: schedule?.estimate || formData?.estimate || '',
+                customerName: schedule?.customerName || formData?.customerName || '',
+                jobLocation: schedule?.jobLocation || '',
+                foremanName: schedule?.foremanName || '',
+                projectName: formData?.projectTitle || formData?.projectName || '',
+                date: localeDateString(target.date) || new Date().toLocaleDateString(),
+                day: new Date(target.date || schedule?.fromDate || new Date()).toLocaleDateString('en-US', { weekday: 'long' })
+            };
+
+            const booleanFields = [
+                'operatingMiniEx', 'operatingAVacuumTruck', 'excavatingTrenching', 'acConcWork',
+                'operatingBackhoe', 'workingInATrench', 'trafficControl', 'roadWork', 'operatingHdd',
+                'confinedSpace', 'settingUgBoxes', 'otherDailyWork', 'sidewalks', 'heatAwareness',
+                'ladderWork', 'overheadLifting', 'materialHandling', 'roadHazards', 'heavyLifting',
+                'highNoise', 'pinchPoints', 'sharpObjects', 'trippingHazards', 'otherJobsiteHazards',
+                'stagingAreaDiscussed', 'rescueProceduresDiscussed', 'evacuationRoutesDiscussed',
+                'emergencyContactNumberWillBe911', 'firstAidAndCPREquipmentOnsite', 'closestHospitalDiscussed'
+            ];
+            booleanFields.forEach(f => {
+                if (variables[f] === true || variables[f] === 'TRUE' || variables[f] === 'Yes' || variables[f] === '1') {
+                    variables[f] = '✔️';
+                } else {
+                    variables[f] = '';
+                }
+            });
+
+            for (let i = 1; i <= 15; i++) {
+                variables[`sig_name_${i}`] = '';
+                variables[`sig_img_${i}`] = '';
+                variables[`Print Name_${i}`] = '';
+                variables[`_ComputedName_${i}`] = '';
+            }
+
+            if (variables.signatures && variables.signatures.length > 0) {
+                variables.hasSignatures = true;
+                variables.signatures.forEach((sig: any, index: number) => {
+                    const empName = normalizedEmployees.find(e => e.value === sig.employee)?.label || sig.employee;
+                    const idx = index + 1;
+                    variables[`sig_name_${idx}`] = empName;
+                    variables[`sig_img_${idx}`] = sig.signature;
+                    variables[`Print Name_${idx}`] = empName;
+                    variables[`_ComputedName_${idx}`] = empName;
+                    if (idx === 1) variables[`_ComputedName`] = empName;
+                });
+            } else {
+                variables.hasSignatures = false;
+            }
+
             const response = await fetch('/api/generate-google-pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ templateId, variables }) });
             if (response.ok) {
                 const blob = await response.blob();
@@ -728,8 +762,130 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 const a = document.createElement('a');
                 a.href = url; a.download = 'JHA.pdf'; a.click();
                 toast.success('PDF Downloaded');
+            } else {
+                toast.error('Failed to download PDF');
             }
-        } catch (e) { console.error(e); } finally { setIsGeneratingJHAPDF(false); }
+        } catch (e) { console.error(e); } finally { 
+            if (setCardDownloading) setCardDownloading(false);
+            else setIsGeneratingJHAPDF(false); 
+        }
+    };
+
+    const handleEmailJHA = (jha: any) => {
+        setSelectedJHA(jha);
+        setEmailTo(jha.clientEmail || formData?.contactEmail || '');
+        setEmailModalOpen(true);
+    };
+
+    const handleConfirmEmailJHA = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedJHA || !emailTo) return;
+
+        setIsSendingEmail(true);
+        try {
+            const templateId = '164zwSdl2631kZ4mRUVtzWhg5oewL0wy6RVCgPQig258';
+            let schedule = estimateSchedules.find(s => s._id === selectedJHA.schedule_id);
+            if (!schedule && selectedJHA.scheduleRef) {
+                schedule = typeof selectedJHA.scheduleRef === 'string' ? null : selectedJHA.scheduleRef;
+            }
+            if (!schedule) {
+                // Mock a schedule object for getClientName
+                schedule = { customerName: formData?.customerName };
+            }
+            
+            const clientName = schedule?.customerName || formData?.customerName || '';
+
+            const variables: any = { 
+                ...selectedJHA, 
+                customerName: clientName,
+                date: new Date(selectedJHA.date || new Date()).toLocaleDateString() 
+            };
+
+            const booleanFields = [
+                'operatingMiniEx', 'operatingAVacuumTruck', 'excavatingTrenching', 'acConcWork',
+                'operatingBackhoe', 'workingInATrench', 'trafficControl', 'roadWork', 'operatingHdd',
+                'confinedSpace', 'settingUgBoxes', 'otherDailyWork', 'sidewalks', 'heatAwareness',
+                'ladderWork', 'overheadLifting', 'materialHandling', 'roadHazards', 'heavyLifting',
+                'highNoise', 'pinchPoints', 'sharpObjects', 'trippingHazards', 'otherJobsiteHazards',
+                'stagingAreaDiscussed', 'rescueProceduresDiscussed', 'evacuationRoutesDiscussed',
+                'emergencyContactNumberWillBe911', 'firstAidAndCPREquipmentOnsite', 'closestHospitalDiscussed'
+            ];
+            booleanFields.forEach(f => {
+                if (variables[f] === true || variables[f] === 'TRUE' || variables[f] === 'Yes' || variables[f] === '1') {
+                    variables[f] = '✔️';
+                } else {
+                    variables[f] = '';
+                }
+            });
+
+            for (let i = 1; i <= 15; i++) {
+                variables[`sig_name_${i}`] = '';
+                variables[`sig_img_${i}`] = '';
+                variables[`Print Name_${i}`] = '';
+                variables[`_ComputedName_${i}`] = '';
+            }
+
+            if (variables.signatures && variables.signatures.length > 0) {
+                variables.hasSignatures = true;
+                variables.signatures.forEach((sig: any, index: number) => {
+                    const empName = normalizedEmployees.find(e => e.value === sig.employee)?.label || sig.employee;
+                    const idx = index + 1;
+                    variables[`sig_name_${idx}`] = empName;
+                    variables[`sig_img_${idx}`] = sig.signature;
+                    variables[`Print Name_${idx}`] = empName;
+                    variables[`_ComputedName_${idx}`] = empName;
+                    if (idx === 1) variables[`_ComputedName`] = empName;
+                });
+            } else {
+                variables.hasSignatures = false;
+            }
+
+            const pdfRes = await fetch('/api/generate-google-pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ templateId, variables })
+            });
+
+            if (!pdfRes.ok) throw new Error('Failed to generate PDF');
+            const blob = await pdfRes.blob();
+
+            const reader = new FileReader();
+            reader.readAsDataURL(blob);
+            reader.onloadend = async () => {
+                const base64data = reader.result as string;
+
+                const emailRes = await fetch('/api/email-jha', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        emailTo,
+                        subject: 'JHA Document',
+                        emailBody: 'Please find attached JHA document',
+                        attachment: base64data,
+                        jhaId: selectedJHA._id,
+                        scheduleId: selectedJHA.schedule_id || selectedJHA.scheduleRef?._id || ''
+                    })
+                });
+
+                const emailData = await emailRes.json();
+                if (emailData.success) {
+                    toast.success('PDF emailed successfully!');
+                    setEmailModalOpen(false);
+                    setEmailTo('');
+                    
+                    const updatedJha = { ...selectedJHA, emailCounter: (selectedJHA.emailCounter || 0) + 1 };
+                    setSelectedJHA(updatedJha);
+                    setJhaRecords(prev => prev.map(j => j._id === updatedJha._id ? updatedJha : j));
+                } else {
+                    toast.error(emailData.error || 'Failed to email PDF');
+                }
+                setIsSendingEmail(false);
+            };
+        } catch (e: any) {
+            console.error('Email PDF Error:', e);
+            toast.error(e.message || 'Failed to email PDF');
+            setIsSendingEmail(false);
+        }
     };
 
     // --- DJT Handlers ---
@@ -752,6 +908,95 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 refetchJobDocs();
             } else toast.error(data.error || 'Failed to save DJT');
         } catch (e) { console.error(e); toast.error('Error saving DJT'); }
+    };
+
+    const handleDeleteDJT = async (djt: any) => {
+        if (!confirm('Are you sure you want to delete this Job Ticket?')) return;
+        try {
+            const res = await fetch('/api/djt', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'deleteDJT', payload: { id: djt._id } })
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast.success('Job Ticket deleted successfully');
+                refetchJobDocs();
+            } else toast.error('Failed to delete Job Ticket');
+        } catch (err) { toast.error('Error deleting job ticket'); }
+    };
+
+    const handleDownloadDJTPdf = async (djt: any) => {
+        setIsGeneratingDJTPDF(true);
+        try {
+            const scheduleMatch = estimateSchedules.find(s => String(s._id) === String(djt.schedule_id)) || djt.scheduleRef;
+            const variables = getDJTPdfVariablesBase(djt, scheduleMatch || {}, formData || {}, formData?.clientName || '', normalizedEmployees);
+            const templateId = '1cN4CpzsvuKLYXtmSANeyqTTlL3HPc7XEyFsjfNwzo-8';
+            const response = await fetch('/api/generate-google-pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ templateId, variables })
+            });
+            if (!response.ok) throw new Error('Failed to generate PDF');
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `DJT_${variables.customerName || 'Client'}_${variables.date || 'Date'}.pdf`);
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode?.removeChild(link);
+            toast.success('Successfully downloaded Job Ticket PDF');
+        } catch (e: any) {
+            toast.error(e.message || 'Failed to download PDF');
+        } finally { setIsGeneratingDJTPDF(false); }
+    };
+
+    const handleEmailDJTOpen = (djt: any) => {
+        setSelectedDJT(djt);
+        setDjtEmailTo(djt.clientEmail || formData?.contactEmail || '');
+        setDjtEmailModalOpen(true);
+    };
+
+    const handleConfirmEmailDJT = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedDJT || !djtEmailTo) return;
+        setIsSendingDjtEmail(true);
+        try {
+            const scheduleMatch = estimateSchedules.find(s => String(s._id) === String(selectedDJT.schedule_id)) || selectedDJT.scheduleRef;
+            const variables = getDJTPdfVariablesBase(selectedDJT, scheduleMatch || {}, formData || {}, formData?.clientName || '', normalizedEmployees);
+            const templateId = '1cN4CpzsvuKLYXtmSANeyqTTlL3HPc7XEyFsjfNwzo-8';
+            const pdfRes = await fetch('/api/generate-google-pdf', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ templateId, variables })
+            });
+
+            if (!pdfRes.ok) throw new Error('Failed to generate PDF');
+            const blob = await pdfRes.blob();
+            const reader = new FileReader();
+            reader.readAsDataURL(blob);
+            reader.onloadend = async () => {
+                const base64data = reader.result as string;
+                const emailRes = await fetch('/api/email-jha', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        to: djtEmailTo,
+                        pdfBase64: base64data,
+                        docName: 'Job Ticket',
+                        projectName: variables.projectName || variables.customerName || 'Project'
+                    })
+                });
+                const data = await emailRes.json();
+                if (data.success) {
+                    toast.success('Email sent successfully!');
+                    setDjtEmailModalOpen(false);
+                } else toast.error('Failed to send email');
+                setIsSendingDjtEmail(false);
+            };
+        } catch (err) {
+            toast.error('Failed to send email');
+            setIsSendingDjtEmail(false);
+        }
     };
 
     const handleSaveDJTSignature = async (data: any) => {
@@ -4688,79 +4933,25 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     <Loader2 className="w-5 h-5 animate-spin text-orange-500" />
                                 </div>
                             ) : jhaRecords.length > 0 ? jhaRecords.map((jha: any, idx: number) => {
-                                const creator = normalizedEmployees.find(e => e.value === jha.createdBy);
-                                const sigs = (jha.signatures || []).filter((s: any) => s.employee && s.signature);
+                                const schedule = jha.scheduleRef || estimateSchedules.find(s => s._id === jha.schedule_id);
+                                const clientName = schedule?.customerName || formData?.customerName || 'Unknown Client';
                                 return (
-                                    <div
+                                    <JHACard
                                         key={`${jha._id || 'jha'}-${idx}`}
-                                        onClick={() => handleViewJHA(jha)}
-                                        className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-orange-50/60 hover:shadow-md hover:border-orange-200 transition-all duration-300"
-                                    >
-                                        <div className="flex justify-between items-start mb-1">
-                                            <div>
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                                    {safeFormatDate(jha.date, 'MM/dd/yyyy')}
-                                                </p>
-                                                <p className="text-xs font-black text-slate-800 truncate">
-                                                    {jha.scheduleRef?.title || jha.computedTitle || 'JHA Record'}
-                                                </p>
-                                            </div>
-                                            <Eye className="w-3.5 h-3.5 text-orange-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                        </div>
-                                        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                                            {jha.usaNo && (
-                                                <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-600 border border-orange-100">
-                                                    USA #{jha.usaNo}
-                                                </span>
-                                            )}
-                                            <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-slate-100">
-                                                {jha.jhaTime || '-'}
-                                            </span>
-                                        </div>
-                                        {/* Creator */}
-                                        <div className="flex items-center gap-2 mt-2.5 pt-2 border-t border-slate-100/50">
-                                            <div className="w-5 h-5 rounded-full bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
-                                                {creator?.image ? (
-                                                    <img src={creator.image} className="w-full h-full object-cover" alt="" />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-[8px] font-black text-slate-500">
-                                                        {(creator?.label || jha.createdBy || '?')[0]?.toUpperCase()}
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <span className="text-[10px] font-bold text-slate-500 truncate">{creator?.label || jha.createdBy || '-'}</span>
-                                        </div>
-                                        {/* Signature Avatars */}
-                                        {sigs.length > 0 && (
-                                            <div className="flex items-center gap-1 mt-2">
-                                                <div className="flex -space-x-1.5">
-                                                    {sigs.slice(0, 6).map((sig: any, sIdx: number) => {
-                                                        const emp = normalizedEmployees.find(e => e.value === sig.employee);
-                                                        return (
-                                                            <div
-                                                                key={sIdx}
-                                                                className="w-5 h-5 rounded-full border-2 border-white bg-green-50 overflow-hidden shrink-0 relative"
-                                                                title={emp?.label || sig.employee}
-                                                            >
-                                                                {emp?.image ? (
-                                                                    <img src={emp.image} className="w-full h-full object-cover" alt="" />
-                                                                ) : (
-                                                                    <div className="w-full h-full flex items-center justify-center text-[7px] font-black text-green-700">
-                                                                        {(emp?.label || sig.employee || '?')[0]?.toUpperCase()}
-                                                                    </div>
-                                                                )}
-                                                                <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full border border-white" />
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                                {sigs.length > 6 && (
-                                                    <span className="text-[8px] font-bold text-slate-400 ml-0.5">+{sigs.length - 6}</span>
-                                                )}
-                                                <span className="text-[8px] font-bold text-green-600 ml-auto">{sigs.length} signed</span>
-                                            </div>
-                                        )}
-                                    </div>
+                                        jha={jha}
+                                        schedule={schedule}
+                                        clientName={clientName}
+                                        employees={normalizedEmployees}
+                                        canViewEstimates={can(MODULES.ESTIMATES, ACTIONS.VIEW)}
+                                        canEdit={can(MODULES.JHA, ACTIONS.EDIT)}
+                                        canDelete={can(MODULES.JHA, ACTIONS.DELETE)}
+                                        onView={handleViewJHA}
+                                        onEdit={handleViewJHA}
+                                        onDelete={() => {}} // No delete handler currently passed in estimate view
+                                        onDownloadPDF={handleDownloadJHAPDF}
+                                        onEmail={handleEmailJHA}
+                                        router={router}
+                                    />
                                 );
                             }) : (
                                 <p className="text-[10px] text-slate-400 font-bold text-center py-4">No JHA records</p>
@@ -4788,128 +4979,25 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     <Loader2 className="w-5 h-5 animate-spin text-cyan-500" />
                                 </div>
                             ) : jobTicketRecords.length > 0 ? jobTicketRecords.map((djt: any, idx: number) => {
-                                const creator = normalizedEmployees.find(e => e.value === djt.createdBy);
-                                const sigs = (djt.signatures || []).filter((s: any) => s.employee && s.signature);
-                                // Equipment cost: owned only
-                                const eqCost = (djt.equipmentUsed || []).reduce((sum: number, eq: any) => {
-                                    if (eq.type?.toLowerCase() === 'owned') {
-                                        return sum + (Number(eq.qty) || 0) * (Number(eq.cost) || 0);
-                                    }
-                                    return sum;
-                                }, 0);
-                                const ownedCount = (djt.equipmentUsed || []).filter((eq: any) => eq.type?.toLowerCase() === 'owned').length;
-                                const rentalCount = (djt.equipmentUsed || []).filter((eq: any) => eq.type?.toLowerCase() === 'rental').length;
+                                const scheduleMatch = estimateSchedules.find(s => String(s._id) === String(djt.schedule_id)) || djt.scheduleRef;
                                 return (
-                                    <div
-                                        key={`${djt._id || 'djt'}-${idx}`}
-                                        onClick={() => handleViewDJT(djt)}
-                                        className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-cyan-50/60 hover:shadow-md hover:border-cyan-200 transition-all duration-300"
-                                    >
-                                        <div className="flex justify-between items-start mb-1">
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                                    {(djt.date || djt.scheduleRef?.fromDate)
-                                                        ? (toLocalDate(djt.date || djt.scheduleRef?.fromDate) || new Date()).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
-                                                        : safeFormatDate(djt.createdAt, 'MM/dd/yyyy')
-                                                    }
-                                                    {djt.schedule_id && (
-                                                        <span className="text-slate-300 ml-1.5">· {djt.schedule_id}</span>
-                                                    )}
-                                                </p>
-                                                <p className="text-xs font-black text-slate-800 truncate">
-                                                    {djt.scheduleRef?.title || 'Job Ticket'}
-                                                </p>
-                                            </div>
-                                            <Eye className="w-3.5 h-3.5 text-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                        </div>
-                                        {djt.dailyJobDescription && (
-                                            <p className="text-[10px] text-slate-500 font-medium truncate mt-1">
-                                                {djt.dailyJobDescription}
-                                            </p>
-                                        )}
-                                        {/* Cost Badges */}
-                                        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                                            {eqCost > 0 && (
-                                                <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-100" title="Equipment (Owned)">
-                                                    🔧 ${eqCost.toLocaleString()}
-                                                </span>
-                                            )}
-                                            {djt.djtCost > 0 && (
-                                                <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100" title="Total Cost">
-                                                    💰 ${(djt.djtCost || 0).toLocaleString()}
-                                                </span>
-                                            )}
-                                            {ownedCount > 0 && (
-                                                <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100">
-                                                    {ownedCount} Owned
-                                                </span>
-                                            )}
-                                            {rentalCount > 0 && (
-                                                <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-600 border border-purple-100">
-                                                    {rentalCount} Rental
-                                                </span>
-                                            )}
-                                        </div>
-                                        {/* Equipment Names */}
-                                        {(djt.equipmentUsed || []).length > 0 && (
-                                            <div className="flex flex-wrap gap-1 mt-1.5">
-                                                {(djt.equipmentUsed || []).slice(0, 3).map((eq: any, eIdx: number) => {
-                                                    const eqName = equipmentItems.find(e => String(e.value) === String(eq.equipment))?.label || eq.equipment;
-                                                    return (
-                                                        <span key={eIdx} className="text-[7px] font-bold text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded-full border border-slate-100 truncate max-w-[120px]" title={eqName}>
-                                                            {eqName}
-                                                        </span>
-                                                    );
-                                                })}
-                                                {(djt.equipmentUsed || []).length > 3 && (
-                                                    <span className="text-[7px] font-bold text-slate-400">+{(djt.equipmentUsed || []).length - 3}</span>
-                                                )}
-                                            </div>
-                                        )}
-                                        {/* Creator */}
-                                        <div className="flex items-center gap-2 mt-2.5 pt-2 border-t border-slate-100/50">
-                                            <div className="w-5 h-5 rounded-full bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
-                                                {creator?.image ? (
-                                                    <img src={creator.image} className="w-full h-full object-cover" alt="" />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-[8px] font-black text-slate-500">
-                                                        {(creator?.label || djt.createdBy || '?')[0]?.toUpperCase()}
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <span className="text-[10px] font-bold text-slate-500 truncate">{creator?.label || djt.createdBy || '-'}</span>
-                                        </div>
-                                        {/* Signature Avatars */}
-                                        {sigs.length > 0 && (
-                                            <div className="flex items-center gap-1 mt-2">
-                                                <div className="flex -space-x-1.5">
-                                                    {sigs.slice(0, 6).map((sig: any, sIdx: number) => {
-                                                        const emp = normalizedEmployees.find(e => e.value === sig.employee);
-                                                        return (
-                                                            <div
-                                                                key={sIdx}
-                                                                className="w-5 h-5 rounded-full border-2 border-white bg-green-50 overflow-hidden shrink-0 relative"
-                                                                title={emp?.label || sig.employee}
-                                                            >
-                                                                {emp?.image ? (
-                                                                    <img src={emp.image} className="w-full h-full object-cover" alt="" />
-                                                                ) : (
-                                                                    <div className="w-full h-full flex items-center justify-center text-[7px] font-black text-green-700">
-                                                                        {(emp?.label || sig.employee || '?')[0]?.toUpperCase()}
-                                                                    </div>
-                                                                )}
-                                                                <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full border border-white" />
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                                {sigs.length > 6 && (
-                                                    <span className="text-[8px] font-bold text-slate-400 ml-0.5">+{sigs.length - 6}</span>
-                                                )}
-                                                <span className="text-[8px] font-bold text-green-600 ml-auto">{sigs.length} signed</span>
-                                            </div>
-                                        )}
-                                    </div>
+                                    <DJTCard
+                                        key={djt._id || idx}
+                                        djt={djt}
+                                        schedule={scheduleMatch || {}}
+                                        clientName={scheduleMatch?.customerName || formData?.clientName || 'Unknown Client'}
+                                        employees={normalizedEmployees}
+                                        equipmentItems={equipmentItems}
+                                        canViewEstimates={can(MODULES.ESTIMATES, ACTIONS.VIEW)}
+                                        canEdit={can(MODULES.ESTIMATES, ACTIONS.EDIT)}
+                                        canDelete={can(MODULES.ESTIMATES, ACTIONS.DELETE)}
+                                        onView={handleViewDJT}
+                                        onEdit={can(MODULES.ESTIMATES, ACTIONS.EDIT) ? handleViewDJT : undefined}
+                                        onDelete={can(MODULES.ESTIMATES, ACTIONS.DELETE) ? handleDeleteDJT : undefined}
+                                        onDownloadPDF={handleDownloadDJTPdf}
+                                        onEmail={handleEmailDJTOpen}
+                                        router={router}
+                                    />
                                 );
                             }) : (
                                 <p className="text-[10px] text-slate-400 font-bold text-center py-4">No job tickets</p>
@@ -5133,6 +5221,28 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 isGeneratingPDF={isGeneratingJHAPDF}
                 handleDownloadPDF={handleDownloadJHAPDF}
                 setEmailModalOpen={setEmailModalOpen}
+            />
+
+            {/* Email JHA Modal */}
+            <EmailModal
+                isOpen={emailModalOpen}
+                onClose={() => !isSendingEmail && setEmailModalOpen(false)}
+                emailTo={emailTo}
+                setEmailTo={setEmailTo}
+                handleEmailConfirm={handleConfirmEmailJHA}
+                isSending={isSendingEmail}
+                title="Email JHA Document"
+            />
+
+            {/* Email DJT Modal */}
+            <EmailModal
+                isOpen={djtEmailModalOpen}
+                onClose={() => !isSendingDjtEmail && setDjtEmailModalOpen(false)}
+                emailTo={djtEmailTo}
+                setEmailTo={setDjtEmailTo}
+                handleEmailConfirm={handleConfirmEmailDJT}
+                isSending={isSendingDjtEmail}
+                title="Email Job Ticket Document"
             />
 
             {/* DJT Modal (reused from schedules) */}

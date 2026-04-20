@@ -430,6 +430,7 @@ export async function POST(request: NextRequest) {
                                 usaNo: 1, 
                                 subcontractorUSANo: 1,
                                 createdBy: 1, 
+                                createdAt: 1,
                                 schedule_id: 1,
                                 
                                 // Include all fields explicitly or via root merge? Explicit is safer for UI

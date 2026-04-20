@@ -3497,7 +3497,7 @@ function DashboardContent() {
                                                             dailyJobDescription: '',
                                                             customerPrintName: '',
                                                             customerSignature: '',
-                                                            createdBy: '', 
+                                                            createdBy: currentUser?.email || '', 
                                                             clientEmail: '',
                                                             emailCounter: 0
                                                         });
