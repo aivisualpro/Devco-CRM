@@ -117,6 +117,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     });
     const [selectedViewContract, setSelectedViewContract] = useState<any>(null);
     const [contractIndexToDelete, setContractIndexToDelete] = useState<number | null>(null);
+    const [editingContractIndex, setEditingContractIndex] = useState<number | null>(null);
 
     // Aggregated Receipts & Billing Tickets State
     const [aggregatedReceipts, setAggregatedReceipts] = useState<any[]>([]);
@@ -2791,10 +2792,22 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             return;
         }
 
-        const updatedContracts = [...signedContracts, {
-            ...newContract,
-            amount: parseFloat(newContract.amount) || 0
-        }];
+        let updatedContracts = [...signedContracts];
+        if (editingContractIndex !== null) {
+            updatedContracts[editingContractIndex] = {
+                ...updatedContracts[editingContractIndex],
+                ...newContract,
+                amount: parseFloat(newContract.amount) || 0
+            };
+        } else {
+            updatedContracts.push({
+                ...newContract,
+                amount: parseFloat(newContract.amount) || 0,
+                createdAt: new Date().toISOString(),
+                createdBy: currentUser?.email || 'Unknown User'
+            });
+        }
+
         onUpdate('signedContracts', updatedContracts);
         setIsSignedContractModalOpen(false);
         setNewContract({
@@ -2802,7 +2815,20 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             amount: '',
             attachments: []
         });
-        toast.success('Signed contract added');
+        setEditingContractIndex(null);
+        toast.success(editingContractIndex !== null ? 'Signed contract updated' : 'Signed contract added');
+    };
+
+    const handleEditContract = (index: number, e: React.MouseEvent) => {
+        e.stopPropagation();
+        const contract = signedContracts[index];
+        setEditingContractIndex(index);
+        setNewContract({
+            date: contract.date || format(new Date(), 'yyyy-MM-dd'),
+            amount: String(contract.amount || ''),
+            attachments: contract.attachments || []
+        });
+        setIsSignedContractModalOpen(true);
     };
 
     const handleRemoveContract = (idx: number) => {
@@ -4673,77 +4699,157 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
                 {/* Column 6: Signed Contracts */}
                 <div className="space-y-4">
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-white flex items-center justify-center shadow-md">
-                            <FileCheck className="w-4 h-4" />
+                    <div className="flex items-center justify-between gap-1 mb-2 mt-0.5">
+                        <div className="flex items-center gap-2 shrink-0">
+                            <div className="w-7 h-7 rounded-[10px] bg-gradient-to-br from-amber-500 to-amber-600 text-white flex items-center justify-center shadow-sm">
+                                <FileCheck className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <h4 className="text-sm font-bold text-amber-700 tracking-tight">Signed Contracts</h4>
+                                <span className="text-[9px] bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full font-black">
+                                    {signedContracts.length}
+                                </span>
+                            </div>
                         </div>
-                        <h4 className="text-sm font-bold text-amber-700">Signed Contracts</h4>
-                        <span className="text-[10px] bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full font-bold">
-                            {signedContracts.length}
-                        </span>
-                        <button
-                            onClick={() => setIsSignedContractModalOpen(true)}
-                            className="ml-auto p-1.5 bg-amber-100 text-amber-600 rounded-lg hover:bg-amber-200 transition-colors"
-                        >
-                            <Plus className="w-4 h-4" />
-                        </button>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                            {(() => {
+                                const total = signedContracts.reduce((sum: number, c: any) => sum + (c.amount || 0), 0);
+                                return (
+                                    <div className="flex items-center gap-2.5 bg-white/90 px-2 py-1 rounded-lg shadow-sm border border-slate-100 shrink-0">
+                                        <div className="text-center pl-0.5 pr-0.5">
+                                            <p className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest mb-[1px]">Total ({signedContracts.length})</p>
+                                            <p className="text-[12px] font-black text-[#0F4C75] leading-none">${total.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                            <button
+                                onClick={() => {
+                                    setEditingContractIndex(null);
+                                    setNewContract({ date: format(new Date(), 'yyyy-MM-dd'), amount: '', attachments: [] });
+                                    setIsSignedContractModalOpen(true);
+                                }}
+                                className="p-1.5 px-2 bg-amber-100 text-amber-600 rounded-[10px] hover:bg-amber-200 shadow-[inset_0_1px_2px_rgba(255,255,255,0.7)] transition-colors shrink-0 flex items-center justify-center ml-0.5"
+                            >
+                                <Plus className="w-4 h-4" />
+                            </button>
+                        </div>
                     </div>
 
                     <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto">
 
                         <div className="grid grid-cols-1 gap-3">
-                            {signedContracts.length > 0 ? signedContracts.map((contract: any, idx: number) => (
-                                <div
-                                    key={idx}
-                                    onClick={() => setSelectedViewContract(contract)}
-                                    className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-white/80 hover:shadow-md transition-all duration-300"
-                                >
-                                    <div className="flex justify-between items-start mb-2">
-                                        <div>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                                {safeFormatDate(contract.date, 'MM/dd/yyyy')}
-                                            </p>
-                                            <p className="text-sm font-black text-slate-800">
-                                                ${(contract.amount || 0).toLocaleString()}
-                                            </p>
-                                        </div>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleRemoveContract(idx);
-                                            }}
-                                            className="p-1 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                                        >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
-                                    </div>
+                            {signedContracts.length > 0 ? signedContracts.map((contract: any, idx: number) => {
+                                const fmt = (dateStr: any) => {
+                                    if (!dateStr || dateStr === 'N/A') return 'N/A';
+                                    try {
+                                        const d = new Date(dateStr);
+                                        const normalizedDate = dateStr.includes('T') ? d : new Date(dateStr + 'T12:00:00Z');
+                                        if (isNaN(normalizedDate.getTime())) return dateStr;
+                                        const mm = String(normalizedDate.getUTCMonth() + 1).padStart(2, '0');
+                                        const dd = String(normalizedDate.getUTCDate()).padStart(2, '0');
+                                        const yy = String(normalizedDate.getUTCFullYear()).slice(-2);
+                                        return `${mm}/${dd}/${yy}`;
+                                    } catch { return dateStr; }
+                                };
 
-                                    {contract.attachments && contract.attachments.length > 0 && (
-                                        <div className="space-y-1">
-                                            {contract.attachments.map((file: any, fIdx: number) => (
-                                                <button
-                                                    key={fIdx}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleFileDownload(file.url, file.name);
-                                                    }}
-                                                    className="flex items-center gap-2 w-full text-left px-2 py-1.5 rounded-lg bg-slate-50/80 border border-slate-100 hover:bg-amber-50 hover:border-amber-200 hover:shadow-sm transition-all duration-200 group/file"
-                                                    title={`Download ${file.name}`}
-                                                >
-                                                    {file.type?.startsWith('image/') ? (
-                                                        <ImageIcon className="w-3.5 h-3.5 text-amber-600 flex-shrink-0 group-hover/file:scale-110 transition-transform" />
-                                                    ) : (
-                                                        <Paperclip className="w-3.5 h-3.5 text-amber-600 flex-shrink-0 group-hover/file:scale-110 transition-transform" />
-                                                    )}
-                                                    <span className="text-[10px] font-medium text-slate-600 truncate group-hover/file:text-amber-700 transition-colors">
-                                                        {file.name || `File ${fIdx + 1}`}
-                                                    </span>
-                                                </button>
-                                            ))}
+                                return (
+                                    <div
+                                        key={idx}
+                                        onClick={() => setSelectedViewContract(contract)}
+                                        className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm relative group cursor-pointer hover:bg-slate-50 hover:shadow-md hover:border-slate-300 transition-all duration-300 flex flex-col gap-3"
+                                    >
+                                        {/* Row 1: Date & Amount */}
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                                                {safeFormatDate(contract.date, 'MM/dd/yyyy')}
+                                            </span>
+                                            <span className="text-xl font-black text-slate-900 tracking-tight">
+                                                ${(contract.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                                            </span>
                                         </div>
-                                    )}
-                                </div>
-                            )) : (
+
+                                        {/* Row 2: Attachments */}
+                                        {contract.attachments && contract.attachments.length > 0 && (
+                                            <div className="flex flex-col gap-2">
+                                                {contract.attachments.map((file: any, fIdx: number) => (
+                                                    <button
+                                                        key={fIdx}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleFileDownload(file.url, file.name);
+                                                        }}
+                                                        className="w-full flex items-center justify-between p-2 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white hover:border-slate-300 transition-all group/file shadow-sm focus:outline-none"
+                                                        title={`Download ${file.name}`}
+                                                    >
+                                                        <div className="flex items-center gap-3 overflow-hidden">
+                                                            <div className="shrink-0 w-8 h-8 rounded-lg bg-amber-100/50 flex items-center justify-center">
+                                                                {file.type?.startsWith('image/') ? (
+                                                                    <ImageIcon className="w-4 h-4 text-amber-600" />
+                                                                ) : (
+                                                                    <Paperclip className="w-4 h-4 text-amber-600" />
+                                                                )}
+                                                            </div>
+                                                            <span className="text-xs font-bold text-slate-700 truncate text-left">
+                                                                {file.name || `File ${fIdx + 1}`}
+                                                            </span>
+                                                        </div>
+                                                        <div className="shrink-0 w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 group-hover/file:text-blue-600 group-hover/file:border-blue-300 group-hover/file:shadow-md transition-all ml-2">
+                                                            <Download className="w-3.5 h-3.5" />
+                                                        </div>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Row 3: createdBy, createdAt, actions */}
+                                        <div className="mt-1 pt-3 border-t border-slate-100 flex items-center justify-between">
+                                            <div className="flex items-center gap-4">
+                                                {(contract.createdBy || contract.createdAt) && (
+                                                    <div className="flex items-center gap-2">
+                                                        <TooltipProvider>
+                                                            {(() => {
+                                                                const creator = getEmployeeData(contract.createdBy);
+                                                                return (
+                                                                    <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                            <div className="w-6 h-6 rounded-full border border-slate-200 bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600 shadow-sm overflow-hidden">
+                                                                                {creator?.image ? <img src={creator.image} className="w-full h-full object-cover" /> : (contract.createdBy?.[0]?.toUpperCase() || 'U')}
+                                                                            </div>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent><p>Created By: {creator?.label || contract.createdBy || 'Unknown'}</p></TooltipContent>
+                                                                    </Tooltip>
+                                                                );
+                                                            })()}
+                                                        </TooltipProvider>
+                                                        {contract.createdAt && (
+                                                            <span className="text-[10px] font-bold text-slate-400 tracking-wider">
+                                                                {fmt(contract.createdAt)}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                            </div>
+                                            <div className="flex gap-2 transition-opacity duration-300 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+                                                <button 
+                                                    onClick={(e) => handleEditContract(idx, e)} 
+                                                    className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 shadow-sm text-slate-500 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-all flex items-center justify-center"
+                                                >
+                                                    <Pencil className="w-3.5 h-3.5" />
+                                                </button>
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); handleRemoveContract(idx); }} 
+                                                    className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 shadow-sm text-slate-500 hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition-all flex items-center justify-center"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            }) : (
                                 <p className="text-[10px] text-slate-400 font-bold text-center py-4">No contracts</p>
                             )}
                         </div>
@@ -4752,138 +4858,136 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
                 {/* Column 7: Receipts & Costs */}
                 <div className="space-y-4">
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-pink-500 to-pink-600 text-white flex items-center justify-center shadow-md">
-                            <Receipt className="w-4 h-4" />
+                    <div className="flex items-center justify-between gap-1 mb-2 mt-0.5">
+                        <div className="flex items-center gap-2 shrink-0">
+                            <div className="w-7 h-7 rounded-[10px] bg-gradient-to-br from-pink-500 to-pink-600 text-white flex items-center justify-center shadow-sm">
+                                <Receipt className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <h4 className="text-sm font-bold text-pink-700 tracking-tight">Receipts</h4>
+                                <span className="text-[9px] bg-pink-100 text-pink-600 px-1.5 py-0.5 rounded-full font-black">
+                                    {receiptsAndCosts.length}
+                                </span>
+                            </div>
                         </div>
-                        <h4 className="text-sm font-bold text-pink-700">Receipts & Costs</h4>
-                        <span className="text-[10px] bg-pink-100 text-pink-600 px-2 py-0.5 rounded-full font-bold">
-                            {receiptsAndCosts.length}
-                        </span>
-                        <button
-                            onClick={handleAddReceipt}
-                            className="ml-auto p-1.5 bg-pink-100 text-pink-600 rounded-lg hover:bg-pink-200 transition-colors"
-                        >
-                            <Plus className="w-4 h-4" />
-                        </button>
-                    </div>
 
-                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto">
-
-                        <div className="grid grid-cols-3 gap-1 mb-4 pb-3 border-b border-slate-200/50">
+                        <div className="flex items-center gap-1.5 shrink-0">
                             {(() => {
-                                const rects = receiptsAndCosts.filter((r: any) => r.type === 'Receipt').reduce((sum: number, r: any) => sum + (r.amount || 0), 0);
-                                const invs = receiptsAndCosts.filter((r: any) => r.type === 'Invoice').reduce((sum: number, r: any) => sum + (r.amount || 0), 0);
+                                const receiptsArr = receiptsAndCosts.filter((r: any) => r.type === 'Receipt');
+                                const invoicesArr = receiptsAndCosts.filter((r: any) => r.type === 'Invoice');
+                                const rects = receiptsArr.reduce((sum: number, r: any) => sum + (r.amount || 0), 0);
+                                const invs = invoicesArr.reduce((sum: number, r: any) => sum + (r.amount || 0), 0);
                                 const total = rects + invs;
                                 return (
-                                    <>
-                                        <div className="text-center border-r border-slate-200/50 pr-1">
-                                            <p className="text-[6px] font-black text-slate-400 uppercase tracking-tighter mb-1">Receipts</p>
-                                            <p className="text-[9px] font-black text-pink-600">${rects.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+                                    <div className="flex items-center gap-2.5 bg-white/90 px-2 py-1 rounded-lg shadow-sm border border-slate-100 shrink-0">
+                                        <div className="text-center pr-2.5 border-r border-slate-200/60">
+                                            <p className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest mb-[1px]">Receipts ({receiptsArr.length})</p>
+                                            <p className="text-[11px] font-black text-pink-600 leading-none">${rects.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
                                         </div>
-                                        <div className="text-center border-r border-slate-200/50 px-1">
-                                            <p className="text-[6px] font-black text-slate-400 uppercase tracking-tighter mb-1">Invoices</p>
-                                            <p className="text-[9px] font-black text-indigo-600">${invs.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+                                        <div className="text-center pr-2.5 border-r border-slate-200/60">
+                                            <p className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest mb-[1px]">Invoices ({invoicesArr.length})</p>
+                                            <p className="text-[11px] font-black text-indigo-600 leading-none">${invs.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
                                         </div>
-                                        <div className="text-center pl-1">
-                                            <p className="text-[6px] font-black text-slate-400 uppercase tracking-tighter mb-1">Total</p>
-                                            <p className="text-[10px] font-black text-[#0F4C75]">${total.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+                                        <div className="text-center pl-0.5">
+                                            <p className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest mb-[1px]">Total ({receiptsAndCosts.length})</p>
+                                            <p className="text-[12px] font-black text-[#0F4C75] leading-none">${total.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
                                         </div>
-                                    </>
+                                    </div>
                                 );
                             })()}
+                            <button
+                                onClick={handleAddReceipt}
+                                className="p-1.5 px-2 bg-pink-100 text-pink-600 rounded-[10px] hover:bg-pink-200 shadow-[inset_0_1px_2px_rgba(255,255,255,0.7)] transition-colors shrink-0 flex items-center justify-center ml-0.5"
+                            >
+                                <Plus className="w-4 h-4" />
+                            </button>
                         </div>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto pt-4">
                         <div className="grid grid-cols-1 gap-3">
                             {receiptsAndCosts.length > 0 ? [...receiptsAndCosts]
                                 .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
                                 .map((item: any, mapIdx: number) => {
-                                    const originalIdx = receiptsAndCosts.findIndex((r: any) => r._id === item._id);
+                                    const originalIdx = receiptsAndCosts.indexOf(item);
+                                    const fmt = (dateStr: any) => {
+                                        if (!dateStr || dateStr === 'N/A') return 'N/A';
+                                        try {
+                                            const d = new Date(dateStr);
+                                            // Handle timezone offsets ensuring the date string doesn't shift backward if it's purely yyyy-mm-dd
+                                            const normalizedDate = dateStr.includes('T') ? d : new Date(dateStr + 'T12:00:00Z');
+                                            if (isNaN(normalizedDate.getTime())) return dateStr;
+                                            const mm = String(normalizedDate.getUTCMonth() + 1).padStart(2, '0');
+                                            const dd = String(normalizedDate.getUTCDate()).padStart(2, '0');
+                                            const yy = String(normalizedDate.getUTCFullYear()).slice(-2);
+                                            return `${mm}/${dd}/${yy}`;
+                                        } catch { return dateStr; }
+                                    };
+
                                     return (
                                         <div
                                             key={`receipt-${mapIdx}`}
                                             onClick={() => setSelectedReceipt(item)}
-                                            className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-white/80 hover:shadow-md transition-all duration-300"
+                                            className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm relative group cursor-pointer hover:bg-slate-50 hover:shadow-md hover:border-slate-300 transition-all duration-300 flex flex-col gap-3"
                                         >
-                                            <div className="flex justify-between items-start mb-1">
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex flex-col gap-1 mb-1.5">
-                                                        <span className={`w-fit text-[8px] font-black uppercase tracking-tighter px-1 rounded ${item.type === 'Invoice' ? 'bg-indigo-100 text-indigo-600' : 'bg-pink-100 text-pink-600'}`}>
-                                                            {item.type}
-                                                        </span>
-                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate">
-                                                            {item.vendor || 'Unknown Vendor'}
-                                                        </p>
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <p className="text-sm font-black text-slate-800">
-                                                            ${(item.amount || 0).toLocaleString()}
-                                                        </p>
-                                                        {item.upload?.length > 0 && (
-                                                            <span className="flex items-center gap-0.5 text-[8px] font-bold text-slate-400">
-                                                                <Paperclip className="w-2 h-2" />
-                                                                {item.upload.length}
-                                                            </span>
-                                                        )}
-                                                    </div>
+                                            {/* Row 1: type, amount, vendor */}
+                                            <div className="flex justify-between items-start">
+                                                <div className="flex flex-col gap-1.5 max-w-[70%]">
+                                                    <span className={`w-fit text-xs font-black uppercase tracking-widest px-2.5 py-1 rounded-md shadow-sm ${item.type === 'Invoice' ? 'bg-indigo-100 text-indigo-700 border border-indigo-200/50' : 'bg-pink-100 text-pink-700 border border-pink-200/50'}`}>
+                                                        {item.type || 'Receipt'}
+                                                    </span>
+                                                    <span className="text-sm font-bold text-slate-500 uppercase tracking-widest truncate">
+                                                        {item.vendor || 'UNKNOWN VENDOR'}
+                                                    </span>
                                                 </div>
-                                                <div className="flex gap-1">
-                                                    <button
-                                                        onClick={(e) => handleEditReceipt(originalIdx, e)}
-                                                        className="p-1 text-slate-300 hover:text-blue-500 transition-colors opacity-0 group-hover:opacity-100"
-                                                    >
-                                                        <Pencil className="w-3.5 h-3.5" />
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setReceiptToDelete(originalIdx);
-                                                        }}
-                                                        className="p-1 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                                                    >
-                                                        <Trash2 className="w-3.5 h-3.5" />
-                                                    </button>
+                                                <span className="shrink-0 text-2xl font-black text-slate-900 tracking-tight">
+                                                    ${(item.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </span>
+                                            </div>
+
+                                            {/* Row 2: date, dueDate, paymentDate */}
+                                            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs font-semibold text-slate-600 mt-1">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="text-[10px] uppercase tracking-widest text-slate-400 font-black">Date:</span>
+                                                    <span>{fmt(item.date)}</span>
+                                                </div>
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="text-[10px] uppercase tracking-widest text-slate-400 font-black">Due:</span>
+                                                    <span>{fmt(item.dueDate || item.due)}</span>
+                                                </div>
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="text-[10px] uppercase tracking-widest text-slate-400 font-black">Paid:</span>
+                                                    <span className={item.paymentDate || item.dateOfPayment ? 'text-emerald-600' : ''}>{fmt(item.paymentDate || item.dateOfPayment)}</span>
                                                 </div>
                                             </div>
 
-                                            <div className="flex flex-wrap items-center gap-1.5 mb-2">
-                                                <span className={`text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full border ${item.approvalStatus === 'Approved' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-slate-50 text-slate-400 border-slate-100'}`}>
+                                            {/* Row 3: remarks */}
+                                            <div className="text-sm text-slate-700 italic bg-amber-50/50 p-2.5 rounded-lg border border-amber-100/50 line-clamp-3">
+                                                {item.remarks ? `"${item.remarks}"` : "No remarks provided"}
+                                            </div>
+
+                                            {/* Row 4: approvalStatus, status */}
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className={`text-xs font-bold uppercase tracking-widest px-2.5 py-1 rounded-full border ${item.approvalStatus === 'Approved' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
                                                     {item.approvalStatus || 'Not Approved'}
                                                 </span>
-                                                {item.status === 'Devco Paid' && (
-                                                    <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100">
-                                                        Devco Paid
-                                                    </span>
-                                                )}
+                                                <span className={`text-xs font-bold uppercase tracking-widest px-2.5 py-1 rounded-full border ${item.status === 'Devco Paid' || item.status === 'Paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : item.status ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>
+                                                    {item.status || 'No Status'}
+                                                </span>
                                             </div>
 
-                                            <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100/50">
-                                                <span className="text-[10px] text-slate-400 font-bold">{item.date}</span>
-                                                <div className="flex items-center gap-2">
-                                                    {/* Creator & Tags */}
-                                                    <div className="flex -space-x-1.5">
+                                            {/* Row 6: tag */}
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tags:</span>
+                                                {item.tag && item.tag.length > 0 ? (
+                                                    <div className="flex -space-x-2">
                                                         <TooltipProvider>
-                                                            {/* Creator */}
-                                                            {(() => {
-                                                                const creator = getEmployeeData(item.createdBy);
-                                                                return (
-                                                                    <Tooltip>
-                                                                        <TooltipTrigger asChild>
-                                                                            <div className="w-5 h-5 rounded-full border border-white bg-slate-100 flex items-center justify-center text-[7px] font-bold text-slate-500 shadow-sm overflow-hidden">
-                                                                                {creator?.image ? <img src={creator.image} className="w-full h-full object-cover" /> : (item.createdBy?.[0]?.toUpperCase() || 'U')}
-                                                                            </div>
-                                                                        </TooltipTrigger>
-                                                                        <TooltipContent><p>Created By: {creator?.label || item.createdBy}</p></TooltipContent>
-                                                                    </Tooltip>
-                                                                );
-                                                            })()}
-
-                                                            {/* Tags */}
-                                                            {(item.tag || []).slice(0, 2).map((tagMail: string, i: number) => {
+                                                            {(item.tag || []).slice(0, 5).map((tagMail: string, i: number) => {
                                                                 const tagEmp = getEmployeeData(tagMail);
                                                                 return (
                                                                     <Tooltip key={i}>
                                                                         <TooltipTrigger asChild>
-                                                                            <div className="w-5 h-5 rounded-full border border-white bg-[#0F4C75] flex items-center justify-center text-[7px] font-bold text-white shadow-sm overflow-hidden">
+                                                                            <div className="w-8 h-8 rounded-full border-2 border-white bg-[#0F4C75] flex items-center justify-center text-xs font-bold text-white shadow-sm overflow-hidden z-10 hover:z-20 relative transition-transform hover:scale-110">
                                                                                 {tagEmp?.image ? <img src={tagEmp.image} className="w-full h-full object-cover" /> : (tagMail?.[0]?.toUpperCase() || 'T')}
                                                                             </div>
                                                                         </TooltipTrigger>
@@ -4891,12 +4995,97 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                                     </Tooltip>
                                                                 );
                                                             })}
-                                                            {(item.tag || []).length > 2 && (
-                                                                <div className="w-5 h-5 rounded-full border border-white bg-slate-50 flex items-center justify-center text-[7px] font-bold text-slate-400 shadow-sm">
-                                                                    +{(item.tag || []).length - 2}
+                                                            {(item.tag || []).length > 5 && (
+                                                                <div className="w-8 h-8 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 shadow-sm z-10 relative">
+                                                                    +{(item.tag || []).length - 5}
                                                                 </div>
                                                             )}
                                                         </TooltipProvider>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-xs font-bold text-slate-400 italic">No Tags</span>
+                                                )}
+                                            </div>
+
+                                            {/* Row 7: upload (list items) */}
+                                            <div className="flex flex-col gap-2 mt-2">
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 text-left pt-1">
+                                                    Attachments {item.upload && `(${item.upload.length})`}
+                                                </span>
+                                                {item.upload && item.upload.length > 0 ? (
+                                                    <div className="flex flex-col gap-2 pb-1">
+                                                        {item.upload.map((fileUrl: any, i: number) => {
+                                                            const url = typeof fileUrl === 'string' ? fileUrl : (fileUrl.url || fileUrl.preview || '');
+                                                            let name = typeof fileUrl === 'string' ? 'Download' : (fileUrl.name || 'Attachment');
+                                                            if (!url) return null;
+                                                            const isPdf = url.toLowerCase().endsWith('.pdf') || url.startsWith('data:application/pdf');
+                                                            const isImg = url.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/i) || url.startsWith('data:image/');
+                                                            if (name === 'Download' && isPdf) {
+                                                                // Extract filename from URL if it's a direct s3/cloudinary string without object properties
+                                                                const parts = url.split('/');
+                                                                name = parts[parts.length - 1] || 'Document.pdf';
+                                                            }
+                                                            return (
+                                                                <button
+                                                                    key={i}
+                                                                    onClick={(e) => { e.stopPropagation(); handleFileDownload(url, name); }}
+                                                                    className="w-full flex items-center justify-between p-2 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white hover:border-slate-300 transition-all group shadow-sm focus:outline-none"
+                                                                >
+                                                                    <div className="flex items-center gap-3 overflow-hidden">
+                                                                        <div className="shrink-0 w-8 h-8 rounded-lg bg-pink-100/50 flex items-center justify-center">
+                                                                            {isImg ? (
+                                                                                <ImageIcon className="w-4 h-4 text-pink-600" />
+                                                                            ) : (
+                                                                                <FileText className="w-4 h-4 text-pink-600" />
+                                                                            )}
+                                                                        </div>
+                                                                        <span className="text-xs font-bold text-slate-700 truncate text-left">
+                                                                            {name}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="shrink-0 w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 group-hover:text-blue-600 group-hover:border-blue-300 group-hover:shadow-md transition-all ml-2">
+                                                                        <Download className="w-3.5 h-3.5" />
+                                                                    </div>
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-xs font-bold text-slate-400 italic pb-2">No files attached</span>
+                                                )}
+                                            </div>
+
+                                            {/* Row 8: createdBy & createdAt */}
+                                            <div className="mt-2 pt-3 border-t border-slate-100 flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <TooltipProvider>
+                                                        {(() => {
+                                                            const creator = getEmployeeData(item.createdBy);
+                                                            return (
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <div className="w-6 h-6 rounded-full border border-slate-200 bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600 shadow-sm overflow-hidden">
+                                                                            {creator?.image ? <img src={creator.image} className="w-full h-full object-cover" /> : (item.createdBy?.[0]?.toUpperCase() || 'U')}
+                                                                        </div>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent><p>Created By: {creator?.label || item.createdBy}</p></TooltipContent>
+                                                                </Tooltip>
+                                                            );
+                                                        })()}
+                                                    </TooltipProvider>
+                                                    <span className="text-xs font-bold text-slate-500 tracking-wide">{getEmployeeData(item.createdBy)?.label || item.createdBy || 'Unknown'}</span>
+                                                </div>
+                                                <div className="flex items-center gap-4">
+                                                    <span className="text-[10px] font-bold text-slate-400 tracking-wider">
+                                                        {fmt(item.createdAt)}
+                                                    </span>
+                                                    <div className="flex gap-2 transition-opacity duration-300 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+                                                        <button onClick={(e) => handleEditReceipt(originalIdx, e)} className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 shadow-sm text-slate-500 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-all flex items-center justify-center">
+                                                            <Pencil className="w-3.5 h-3.5" />
+                                                        </button>
+                                                        <button onClick={(e) => { e.stopPropagation(); setReceiptToDelete(originalIdx); }} className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 shadow-sm text-slate-500 hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition-all flex items-center justify-center">
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                        </button>
                                                     </div>
                                                 </div>
                                             </div>
