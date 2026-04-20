@@ -11,6 +11,8 @@ import {
 import { Modal, Badge, Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/ui';
 import { EstimateChat } from '@/components/ui/EstimateChat';
 import { calculateTimesheetData, formatDateOnly, formatTimeOnly } from '@/lib/timeCardUtils';
+import { usePermissions } from '@/hooks/usePermissions';
+import { MODULES, ACTIONS } from '@/lib/permissions/types';
 
 export interface ConstantData {
     _id?: string;
@@ -91,6 +93,8 @@ export const ScheduleDetailsPopup: React.FC<ScheduleDetailsPopupProps> = ({
     onToggleObjective,
     currentUserEmail
 }) => {
+    const { can } = usePermissions();
+    const canViewEstimates = can(MODULES.ESTIMATES, ACTIONS.VIEW);
     const [isMobile, setIsMobile] = useState(false);
     const [activeTab, setActiveTab] = useState<'aerial' | 'planning' | 'timecard' | 'chat' | 'pothole' | 'prebore'>('aerial');
 
@@ -268,9 +272,14 @@ export const ScheduleDetailsPopup: React.FC<ScheduleDetailsPopupProps> = ({
                         {/* ROW 3: Estimate | Date | Times */}
                         <div className="flex flex-wrap items-stretch gap-3 h-9">
                             {schedule.estimate && (
-                                <Badge className="bg-slate-100 text-slate-600 border border-slate-200 h-full flex items-center justify-center px-4 rounded-lg text-sm font-bold">
+                                <div 
+                                    className={`transition-colors border border-slate-200 h-full flex items-center justify-center px-4 rounded-lg text-sm font-bold ${canViewEstimates ? 'bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-[#0F4C75] cursor-pointer' : 'bg-slate-50 text-slate-500'}`}
+                                    onClick={() => {
+                                        if (canViewEstimates) window.open(`/estimates/${encodeURIComponent(schedule.estimate as string)}`, '_self');
+                                    }}
+                                >
                                     Est: {schedule.estimate}
-                                </Badge>
+                                </div>
                             )}
                             <div className="flex items-center gap-2 bg-slate-50 px-3 rounded-lg border border-slate-100 h-full">
                                 <Calendar size={14} className="text-[#0F4C75]" />
@@ -666,7 +675,13 @@ export const ScheduleDetailsPopup: React.FC<ScheduleDetailsPopupProps> = ({
                                                                     {formatDateOnly(ts.clockIn) || '-'}
                                                                 </TableCell>
                                                                 <TableCell className="text-center w-[90px] shrink-0">
-                                                                    <span className="text-[10px] font-medium text-slate-600 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100 uppercase tracking-tighter">
+                                                                    <span 
+                                                                        className={`text-[10px] font-medium uppercase tracking-tighter px-2 py-0.5 rounded-lg border ${canViewEstimates && (schedule.estimate || ts.estimate) ? 'text-slate-600 hover:text-[#0F4C75] bg-slate-50 hover:bg-blue-50 border-slate-100 hover:border-blue-200 cursor-pointer transition-colors' : 'text-slate-600 bg-slate-50 border-slate-200'}`}
+                                                                        onClick={() => {
+                                                                            const estToUse = schedule.estimate || ts.estimate;
+                                                                            if (canViewEstimates && estToUse) window.open(`/estimates/${encodeURIComponent(estToUse as string)}`, '_self');
+                                                                        }}
+                                                                    >
                                                                         {schedule.estimate ? schedule.estimate.replace(/-[vV]\d+$/, '') : (ts.estimate || '-')}
                                                                     </span>
                                                                 </TableCell>
@@ -734,7 +749,12 @@ export const ScheduleDetailsPopup: React.FC<ScheduleDetailsPopupProps> = ({
                                                                     {formatDateOnly(ts.clockIn)}
                                                                 </TableCell>
                                                                 <TableCell className="text-center w-[90px] shrink-0">
-                                                                    <span className="text-[10px] font-medium text-slate-600 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100 uppercase tracking-tighter">
+                                                                    <span 
+                                                                        className={`text-[10px] font-medium uppercase tracking-tighter px-2 py-0.5 rounded-lg border ${canViewEstimates && schedule.estimate ? 'text-slate-600 hover:text-[#0F4C75] bg-slate-50 hover:bg-blue-50 border-slate-100 hover:border-blue-200 cursor-pointer transition-colors' : 'text-slate-600 bg-slate-50 border-slate-200'}`}
+                                                                        onClick={() => {
+                                                                            if (canViewEstimates && schedule.estimate) window.open(`/estimates/${encodeURIComponent(schedule.estimate as string)}`, '_self');
+                                                                        }}
+                                                                    >
                                                                         {schedule.estimate ? schedule.estimate.replace(/-[vV]\d+$/, '') : '-'}
                                                                     </span>
                                                                 </TableCell>

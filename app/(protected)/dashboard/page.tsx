@@ -19,7 +19,7 @@ import { UploadButton } from '@/components/ui/UploadButton';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/useToast';
 import { usePermissions } from '@/hooks/usePermissions';
-import { MODULES } from '@/lib/permissions/types';
+import { MODULES, ACTIONS } from '@/lib/permissions/types';
 import { ScheduleDetailsPopup } from '@/components/ui/ScheduleDetailsPopup';
 import { ScheduleCard, ScheduleItem } from '../jobs/schedules/components/ScheduleCard';
 import { ScheduleFormModal } from '../jobs/schedules/components/ScheduleFormModal';
@@ -253,7 +253,8 @@ const TodoColumn = ({
     onDelete,
     employees,
     currentUserEmail,
-    isSuperAdmin
+    isSuperAdmin,
+    canViewEstimates
 }: { 
     title: string; 
     items: TodoItem[]; 
@@ -268,6 +269,7 @@ const TodoColumn = ({
     employees: DashboardEmployee[];
     currentUserEmail: string;
     isSuperAdmin: boolean;
+    canViewEstimates?: boolean;
 }) => (
     <div 
         className="flex-1 min-w-[200px] bg-slate-100 rounded-xl p-3"
@@ -351,11 +353,13 @@ const TodoColumn = ({
                                 );
                             })}
                             {item.estimate && (
-                                <span 
-                                    className="ml-2 text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 hover:text-blue-700 cursor-pointer px-1.5 py-0.5 rounded-md border border-blue-200 whitespace-nowrap transition-colors"
+                                 <span 
+                                    className={`ml-2 text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md border border-blue-200 whitespace-nowrap transition-colors ${canViewEstimates ? 'cursor-pointer hover:bg-blue-100 hover:text-blue-700' : ''}`}
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        window.open(`/estimates/${encodeURIComponent(item.estimate!)}`, '_self');
+                                        if (canViewEstimates) {
+                                            window.open(`/estimates/${encodeURIComponent(item.estimate!)}`, '_self');
+                                        }
                                     }}
                                 >
                                     {item.estimate}
@@ -878,7 +882,8 @@ const TaskFormModal = ({
 function DashboardContent() {
     const router = useRouter();
     const { success, error: showError } = useToast();
-    const { user, isSuperAdmin, canField, permissions } = usePermissions();
+    const { user, isSuperAdmin, canField, permissions, can } = usePermissions();
+    const canViewEstimates = can(MODULES.ESTIMATES, ACTIONS.VIEW);
     const [currentUser, setCurrentUser] = useState<any>(null);
     const userEmail = user?.email || currentUser?.email || '';
     
@@ -3014,6 +3019,7 @@ function DashboardContent() {
                                         employees={initialData.employees}
                                         currentUserEmail={userEmail}
                                         isSuperAdmin={isSuperAdmin}
+                                        canViewEstimates={canViewEstimates}
                                     />
                                     <TodoColumn 
                                         title="In Progress" 
@@ -3029,6 +3035,7 @@ function DashboardContent() {
                                         employees={initialData.employees}
                                         currentUserEmail={userEmail}
                                         isSuperAdmin={isSuperAdmin}
+                                        canViewEstimates={canViewEstimates}
                                     />
                                     <TodoColumn 
                                         title="Done" 
@@ -3044,6 +3051,7 @@ function DashboardContent() {
                                         employees={initialData.employees}
                                         currentUserEmail={userEmail}
                                         isSuperAdmin={isSuperAdmin}
+                                        canViewEstimates={canViewEstimates}
                                     />
                                 </div>
                                 
@@ -4204,9 +4212,11 @@ function DashboardContent() {
                                                                     <span 
                                                                         onClick={(e) => {
                                                                             e.stopPropagation();
-                                                                            window.open(`/estimates/${encodeURIComponent((msg.estimate as any).value || msg.estimate)}`, "_self");
+                                                                            if (canViewEstimates) {
+                                                                                window.open(`/estimates/${encodeURIComponent((msg.estimate as any).value || msg.estimate)}`, "_self");
+                                                                            }
                                                                         }}
-                                                                        className={`cursor-pointer hover:opacity-80 text-[8px] font-bold px-1.5 py-px rounded uppercase tracking-tight leading-none ${isMe ? 'bg-white/20 text-white border border-white/20' : 'bg-[#0F4C75]/10 text-[#0F4C75] border border-[#0F4C75]/15'}`}
+                                                                        className={`${canViewEstimates ? 'cursor-pointer hover:opacity-80' : ''} text-[8px] font-bold px-1.5 py-px rounded uppercase tracking-tight leading-none ${isMe ? 'bg-white/20 text-white border border-white/20' : 'bg-[#0F4C75]/10 text-[#0F4C75] border border-[#0F4C75]/15'}`}
                                                                     >
                                                                         #{(msg.estimate as any).value || msg.estimate}
                                                                     </span>
@@ -4441,8 +4451,10 @@ function DashboardContent() {
                                                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Linking:</span>
                                                 <div className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full flex items-center gap-1">
                                                     <span 
-                                                        className="text-[10px] font-bold cursor-pointer hover:underline"
-                                                        onClick={() => window.open(`/estimates/${encodeURIComponent(chatEstimate.value)}`, '_self')}
+                                                        className={`text-[10px] font-bold ${canViewEstimates ? 'cursor-pointer hover:underline' : ''}`}
+                                                        onClick={() => {
+                                                            if (canViewEstimates) window.open(`/estimates/${encodeURIComponent(chatEstimate.value)}`, '_self');
+                                                        }}
                                                     >
                                                         {chatEstimate.label}
                                                     </span>

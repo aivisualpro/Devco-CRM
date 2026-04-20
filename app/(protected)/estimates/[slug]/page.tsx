@@ -38,7 +38,7 @@ import {
 } from '@/lib/estimateCalculations';
 import { CalendarClock } from 'lucide-react';
 import { ScheduleItem } from '@/app/(protected)/jobs/schedules/components/ScheduleCard';
-
+import { TimeCardContent } from '@/app/(protected)/jobs/time-cards/page';
 
 const DRAFT_KEY_PREFIX = 'estimate_draft_';
 
@@ -272,7 +272,8 @@ export default function EstimateViewPage() {
         estimateDocs: false,
         lineItems: true,
         proposal: true,
-        schedules: true
+        schedules: true,
+        timesheet: false
     });
     const [showSectionMenu, setShowSectionMenu] = useState(false);
 
@@ -424,6 +425,7 @@ export default function EstimateViewPage() {
                             lineItems: emp.estimateSettings.includes('Line Items'),
                             proposal: emp.estimateSettings.includes('Proposal'),
                             schedules: emp.estimateSettings.includes('Schedules'),
+                            timesheet: emp.estimateSettings.includes('Timesheet'),
                             aerialLayout: emp.estimateSettings.includes('Aerial Layout')
                         });
                     }
@@ -450,6 +452,7 @@ export default function EstimateViewPage() {
             if (visibleSections.lineItems) settings.push('Line Items');
             if (visibleSections.proposal) settings.push('Proposal');
             if (visibleSections.schedules) settings.push('Schedules');
+            if (visibleSections.timesheet) settings.push('Timesheet');
             if (visibleSections.aerialLayout) settings.push('Aerial Layout');
 
             try {
@@ -2095,6 +2098,7 @@ export default function EstimateViewPage() {
                                         { id: 'aerialLayout', label: 'Aerial Layout', value: 'aerialLayout' },
                                         { id: 'estimateDocs', label: 'Job Docs', value: 'estimateDocs' },
                                         { id: 'schedules', label: 'Schedules', value: 'schedules' },
+                                        { id: 'timesheet', label: 'Timesheet', value: 'timesheet' },
                                         { id: 'lineItems', label: 'Line Items', value: 'lineItems' },
                                         { id: 'proposal', label: 'Proposal', value: 'proposal' }
                                     ]}
@@ -2245,6 +2249,13 @@ export default function EstimateViewPage() {
                                 equipmentCatalog={equipmentCatalog}
                                 overheadCatalog={overheadCatalog}
                             />
+                        </div>
+                    )}
+
+                    {/* Timesheet Section */}
+                    {visibleSections.timesheet && (
+                        <div className="mt-4 lg:mt-6 mb-2 animation-fade-in relative z-0 h-[600px] border border-slate-200 rounded-3xl overflow-hidden shadow-sm bg-white">
+                            <TimeCardContent estimateFilter={estimate?.estimate || estimate?.proposalNo} isEmbedded={true} />
                         </div>
                     )}
                 </div>

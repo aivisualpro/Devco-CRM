@@ -54,16 +54,20 @@ interface TableRowProps {
     onClick?: () => void;
 }
 
-export function TableRow({ children, className = '', onClick }: TableRowProps) {
-    return (
-        <tr
-            className={`hover:bg-gray-50/50 transition-colors ${onClick ? 'cursor-pointer' : ''} ${className}`}
-            onClick={onClick}
-        >
-            {children}
-        </tr>
-    );
-}
+export const TableRow = React.forwardRef<HTMLTableRowElement, TableRowProps>(
+    ({ children, className = '', onClick }, ref) => {
+        return (
+            <tr
+                ref={ref}
+                className={`hover:bg-gray-50/50 transition-colors ${onClick ? 'cursor-pointer' : ''} ${className}`}
+                onClick={onClick}
+            >
+                {children}
+            </tr>
+        );
+    }
+);
+TableRow.displayName = 'TableRow';
 
 interface TableHeaderProps {
     children: React.ReactNode;
@@ -76,13 +80,14 @@ interface TableHeaderProps {
 
 export function TableHeader({ children, className = '', onClick, sortable, sortDirection, style }: TableHeaderProps) {
     const isCentered = className.includes('text-center');
+    const isRight = className.includes('text-right');
     return (
         <th
             className={`p-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider bg-[#f9fafb] ${onClick || sortable ? 'cursor-pointer hover:bg-white select-none transition-colors group' : ''} ${className}`}
             onClick={onClick}
             style={style}
         >
-            <div className={`flex items-center gap-1 ${isCentered ? 'justify-center' : ''}`}>
+            <div className={`flex items-center gap-1 ${isCentered ? 'justify-center' : isRight ? 'justify-end' : ''}`}>
                 {children}
                 {(sortable || sortDirection) && (
                     <span className="flex flex-col">

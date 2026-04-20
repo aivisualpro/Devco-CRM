@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import {
     ChevronRight, ChevronLeft, ChevronDown, User, Calendar as CalendarIcon,
-    MapPin, Truck, Trash2, Edit, RotateCcw, FileText, Clock, RefreshCcw, Plus, CheckCircle2, X, Search, HardHat
+    MapPin, Truck, Trash2, Edit, RotateCcw, FileText, Clock, RefreshCcw, Plus, CheckCircle2, X, Search, HardHat, Loader2
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -323,9 +323,11 @@ const generateWeeksForPicker = (): { id: string; label: string; value: string; w
 
 // --- Components ---
 
-function TimeCardContent() {
+export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter?: string, isEmbedded?: boolean } = {}) {
+    const isActuallyEmbedded = isEmbedded || !!estimateFilter;
     const { success, error: toastError } = useToast();
     const { can, getDataScope: getScope, isSuperAdmin } = usePermissions();
+    const canViewEstimates = can(MODULES.ESTIMATES, ACTIONS.VIEW);
     const canEdit = can(MODULES.TIME_CARDS, ACTIONS.EDIT);
     const canDelete = can(MODULES.TIME_CARDS, ACTIONS.DELETE);
     const canCreate = can(MODULES.TIME_CARDS, ACTIONS.CREATE);
@@ -340,7 +342,8 @@ function TimeCardContent() {
 
     // Filters
     const [filEmployee, setFilEmployee] = useState('');
-    const [filEstimate, setFilEstimate] = useState('');
+    const [filEstimate, setFilEstimate] = useState(estimateFilter || '');
+    useEffect(() => { if (estimateFilter) setFilEstimate(estimateFilter); }, [estimateFilter]);
     const [filType, setFilType] = useState('');
     const [includeDriveTime, setIncludeDriveTime] = useState(true);
     const [includeSiteTime, setIncludeSiteTime] = useState(true);
@@ -409,7 +412,7 @@ function TimeCardContent() {
     }, []);
 
     // Pagination
-    const [currentPage, setCurrentPage] = useState(1);
+    const [visibleCount, setVisibleCount] = useState(50);
     const ITEMS_PER_PAGE = 50;
 
     // Delete Confirm State
@@ -512,7 +515,7 @@ function TimeCardContent() {
         setFilEmployee('');
         setFilEstimate('');
         setFilType('');
-        setCurrentPage(1);
+        setVisibleCount(50);
     };
 
     const hasFilters = filEmployee || filEstimate || filType || sidebarEmployeeFilter;
@@ -980,17 +983,39 @@ function TimeCardContent() {
         });
     }, [filteredRecords, selectedNode, selectedEmployeeEmail]);
 
+    const desktopTableTotals = useMemo(() => {
+        let drive = 0;
+        let site = 0;
+        tableData.forEach(ts => {
+            if (ts.type?.toLowerCase().includes('drive')) {
+                drive = r2(drive + (ts.hoursVal || 0));
+            } else {
+                site = r2(site + (ts.hoursVal || 0));
+            }
+        });
+        return { drive, site };
+    }, [tableData]);
+
     // Reset pagination
     useEffect(() => {
-        setCurrentPage(1);
+        setVisibleCount(50);
     }, [filEmployee, filEstimate, filType, selectedNode, includeDriveTime, includeSiteTime, sidebarEmployeeFilter]);
 
     const paginatedData = useMemo(() => {
-        const start = (currentPage - 1) * ITEMS_PER_PAGE;
-        return tableData.slice(start, start + ITEMS_PER_PAGE);
-    }, [tableData, currentPage]);
+        return tableData.slice(0, visibleCount);
+    }, [tableData, visibleCount]);
 
-    const totalPages = Math.ceil(tableData.length / ITEMS_PER_PAGE);
+    const observer = useRef<IntersectionObserver | null>(null);
+    const lastRowRef = useCallback((node: HTMLTableRowElement | null) => {
+        if (loading) return;
+        if (observer.current) observer.current.disconnect();
+        observer.current = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting) {
+                setVisibleCount(v => Math.min(v + 50, tableData.length));
+            }
+        }, { threshold: 0.1 });
+        if (node) observer.current.observe(node);
+    }, [loading, tableData.length]);
 
 
     const triggerSpecialFieldModal = (ts: TimesheetEntry, field: 'dumpWashout' | 'shopTime') => {
@@ -1589,7 +1614,8 @@ function TimeCardContent() {
 
     if (isMobile) {
         return (
-            <div className="flex flex-col h-full bg-slate-50">
+            <div className={`flex flex-col h-full ${isActuallyEmbedded ? 'bg-transparent' : 'bg-slate-50'}`}>
+                {!isActuallyEmbedded && (
                 <Header
                     hideLogo={false}
                     centerContent={
@@ -1621,6 +1647,7 @@ function TimeCardContent() {
                         </div>
                     }
                 />
+                )}
                 <div className="flex-1 overflow-auto p-4 space-y-4">
                     {/* Summary Header */}
                     <div className="flex items-center justify-between px-2">
@@ -1652,7 +1679,7 @@ function TimeCardContent() {
                                     <TableRow className="hover:bg-transparent border-slate-100">
                                         {canViewAll && <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-left w-[90px]">Employee</TableHeader>}
                                         <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">Date</TableHeader>
-                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[110px]">Estimate</TableHeader>
+                                        {!isActuallyEmbedded && <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[110px]">Estimate</TableHeader>}
                                         <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">Washout</TableHeader>
                                         <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">Shop</TableHeader>
                                         <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right w-[80px]">Dist</TableHeader>
@@ -1671,11 +1698,13 @@ function TimeCardContent() {
                                                 <TableCell className="text-center text-[11px] font-medium text-slate-600">
                                                     {formatDateOnly(ts.clockIn)}
                                                 </TableCell>
+                                                {!isActuallyEmbedded && (
                                                 <TableCell className="text-center">
                                                     <span className="text-[10px] font-medium text-slate-600 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100 uppercase tracking-tighter">
                                                         {ts.estimate ? ts.estimate.replace(/-[vV]\d+$/, '') : '-'}
                                                     </span>
                                                 </TableCell>
+                                                )}
                                                 <TableCell className="text-center">
                                                     {ts.dumpWashout ? (
                                                         <span className="text-[10px] font-black uppercase bg-orange-500 text-white px-2 py-1 rounded shadow-sm inline-flex items-center gap-1 min-w-[70px] justify-center">
@@ -1771,11 +1800,13 @@ function TimeCardContent() {
                                                 <TableCell className="text-center text-[11px] font-medium text-slate-600">
                                                     {formatDateOnly(ts.clockIn)}
                                                 </TableCell>
+                                                {!isActuallyEmbedded && (
                                                 <TableCell className="text-center">
                                                     <span className="text-[10px] font-medium text-slate-600 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100 uppercase tracking-tighter">
                                                         {ts.estimate ? ts.estimate.replace(/-[vV]\d+$/, '') : '-'}
                                                     </span>
                                                 </TableCell>
+                                                )}
                                                 <TableCell className="text-center text-[11px] font-medium text-slate-600">
                                                     {formatTimeOnly(ts.clockIn)}
                                                 </TableCell>
@@ -1830,8 +1861,9 @@ function TimeCardContent() {
     }
 
     return (
-        <div className="flex flex-col h-full bg-slate-50">
+        <div className={`flex flex-col h-full ${isActuallyEmbedded ? 'bg-transparent' : 'bg-slate-50'}`}>
             {/* Desktop View */}
+            {!isActuallyEmbedded && (
             <Header
                 hideLogo={false}
                 rightContent={
@@ -1861,12 +1893,14 @@ function TimeCardContent() {
                     </div>
                 }
             />
+            )}
 
 
-            <main className="flex-1 min-h-0 flex flex-col max-w-[1920px] w-full mx-auto overflow-hidden p-4">
+            <main className={`flex-1 min-h-0 flex flex-col max-w-[1920px] w-full mx-auto overflow-hidden ${isActuallyEmbedded ? 'px-0' : 'p-4'}`}>
                 <div className="flex-1 flex gap-4 min-h-0">
 
                     {/* Left Sidebar - Tree View */}
+                    {!isActuallyEmbedded && (
                     <div className="w-[280px] bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col overflow-hidden shrink-0">
                         <div className="p-3 border-b border-slate-100 bg-slate-50/50">
                             <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-2">Grouping</h3>
@@ -2115,32 +2149,42 @@ function TimeCardContent() {
                             })}
                         </div>
                     </div>
+                    )}
 
                     {/* Right Content - Table */}
                     <div className="flex-1 bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col relative z-20">
                         <div className="px-4 py-1 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 rounded-t-3xl relative z-30">
                             <div className="flex items-baseline gap-3">
                                 <h2 className="text-sm font-black text-slate-700 uppercase tracking-widest">
-                                    Records
+                                    {isActuallyEmbedded ? 'Timesheet' : 'Records'}
                                 </h2>
                                 <p className="text-xs text-slate-400 font-bold">
                                     {tableData.length} entries
                                 </p>
                             </div>
 
-                            {/* Filters Removed as per request */}
-
+                            <div className="flex items-center gap-4">
+                                <div className="flex flex-col items-end">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">Drive Time</span>
+                                    <span className="text-sm font-black text-blue-600">{desktopTableTotals.drive.toFixed(2)} hrs</span>
+                                </div>
+                                <div className="w-px h-6 bg-slate-200" />
+                                <div className="flex flex-col items-end">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">Site Time</span>
+                                    <span className="text-sm font-black text-emerald-600">{desktopTableTotals.site.toFixed(2)} hrs</span>
+                                </div>
+                            </div>
                         </div>
 
-                        <div className="flex-1 overflow-auto custom-scrollbar p-0 rounded-b-3xl">
-                            <Table containerClassName="flex-1">
+                        <div className="flex-1 flex flex-col min-h-0 p-0 rounded-b-3xl">
+                            <Table containerClassName="flex-1 h-full !min-h-0 border-none rounded-none w-full !bg-transparent custom-scrollbar">
                                 <TableHead className="bg-white/80 backdrop-blur-md shadow-sm">
                                     <TableRow>
                                         <TableHeader className="text-[11px] uppercase font-bold text-slate-400 w-[160px] text-left">Employee</TableHeader>
                                         <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[100px]">Date</TableHeader>
                                         <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[70px]">Type</TableHeader>
-                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[110px]">Estimate #</TableHeader>
-                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-left w-[140px]">Project</TableHeader>
+                                        {!isActuallyEmbedded && <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[110px]">Estimate #</TableHeader>}
+                                        {!isActuallyEmbedded && <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-left w-[240px]">Project</TableHeader>}
                                         <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[120px]">In</TableHeader>
                                         <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[120px]">Out</TableHeader>
                                         <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-left w-[90px]">Dist (Mi)</TableHeader>
@@ -2155,8 +2199,8 @@ function TimeCardContent() {
                                                 <TableCell><div className="flex items-center gap-2"><Skeleton className="w-6 h-6 rounded-full" /><Skeleton className="h-3 w-24" /></div></TableCell>
                                                 <TableCell><Skeleton className="h-3 w-16 mx-auto" /></TableCell>
                                                 <TableCell><Skeleton className="h-5 w-6 mx-auto rounded-lg" /></TableCell>
-                                                <TableCell><Skeleton className="h-3 w-16 mx-auto" /></TableCell>
-                                                <TableCell><Skeleton className="h-3 w-24" /></TableCell>
+                                                {!isActuallyEmbedded && <TableCell><Skeleton className="h-3 w-16 mx-auto" /></TableCell>}
+                                                {!isActuallyEmbedded && <TableCell><Skeleton className="h-3 w-24" /></TableCell>}
                                                 <TableCell><Skeleton className="h-3 w-12 mx-auto" /></TableCell>
                                                 <TableCell><Skeleton className="h-3 w-12 mx-auto" /></TableCell>
                                                 <TableCell><Skeleton className="h-3 w-10 mx-auto" /></TableCell>
@@ -2169,7 +2213,11 @@ function TimeCardContent() {
                                         const isQuickEditing = quickEditingId === recordId;
 
                                         return (
-                                            <TableRow key={`${ts._id || 'ts'}-${idx}-${ts.clockIn}`} className={`group hover:bg-[#F1F5F9] transition-all cursor-default ${isQuickEditing ? 'bg-orange-50/50' : ''}`}>
+                                            <TableRow 
+                                                ref={idx === paginatedData.length - 1 ? lastRowRef : null}
+                                                key={`${ts._id || 'ts'}-${idx}-${ts.clockIn}`} 
+                                                className={`group hover:bg-[#F1F5F9] transition-all cursor-default ${isQuickEditing ? 'bg-orange-50/50' : ''}`}
+                                            >
                                                 <TableCell className="relative overflow-hidden">
                                                     <div className="absolute left-0 top-0 bottom-0 w-0 group-hover:w-1 bg-[#0F4C75] transition-all" />
                                                     <div className="flex items-center gap-2.5">
@@ -2208,16 +2256,25 @@ function TimeCardContent() {
                                                         </TooltipContent>
                                                     </Tooltip>
                                                 </TableCell>
+                                                {!isActuallyEmbedded && (
                                                 <TableCell className="text-center">
-                                                    <span className="text-[11px] font-medium text-slate-600 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100 uppercase tracking-tighter">
+                                                    <span 
+                                                        className={`text-[11px] font-medium uppercase tracking-tighter px-2 py-0.5 rounded-lg border ${canViewEstimates && ts.estimate ? 'text-blue-600 bg-blue-50 border-blue-200 cursor-pointer hover:bg-blue-100' : 'text-slate-600 bg-slate-50 border-slate-100'}`}
+                                                        onClick={() => {
+                                                            if (canViewEstimates && ts.estimate) window.open(`/estimates/${encodeURIComponent(ts.estimate)}`, '_self');
+                                                        }}
+                                                    >
                                                         {ts.estimate || '-'}
                                                     </span>
                                                 </TableCell>
+                                                )}
+                                                {!isActuallyEmbedded && (
                                                 <TableCell className="text-left">
-                                                    <span className="text-xs font-medium text-slate-600 truncate block max-w-[140px]" title={ts.projectName}>
+                                                    <span className="text-xs font-medium text-slate-600 truncate block max-w-[240px]" title={ts.projectName}>
                                                         {ts.projectName || '-'}
                                                     </span>
                                                 </TableCell>
+                                                )}
                                                 <TableCell className="text-center text-xs text-slate-500">
                                                     {ts.type?.toLowerCase().includes('drive') ? (
                                                         <div className="flex flex-col items-center">
@@ -2422,13 +2479,13 @@ function TimeCardContent() {
                             </Table>
                         </div>
 
-                        <div className="p-1">
-                            <Pagination
-                                currentPage={currentPage}
-                                totalPages={totalPages || 1}
-                                onPageChange={setCurrentPage}
-                            />
-                        </div>
+                        {visibleCount < tableData.length && (
+                            <div className="p-4 text-center">
+                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center justify-center gap-2">
+                                    <Loader2 size={12} className="animate-spin" /> Loading more records...
+                                </span>
+                            </div>
+                        )}
                     </div>
                 </div>
             </main>
