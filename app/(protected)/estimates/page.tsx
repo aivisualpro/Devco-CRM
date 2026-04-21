@@ -849,7 +849,7 @@ export default function EstimatesPage() {
                                                     { value: 'Asphalt & Concrete', label: 'AC', color: 'bg-red-500' }
                                                 ].filter(s => est.services?.includes(s.value));
 
-                                                const isLast = index === paginatedEstimates.length - 1;
+
 
                                                 return (
                                                     <TableRow
@@ -861,9 +861,7 @@ export default function EstimatesPage() {
                                                         }}
                                                     >
                                                         <TableCell className="font-medium text-gray-900 text-[10px] whitespace-nowrap">
-                                                            <div ref={isLast ? lastEstimateRef : undefined}>
-                                                                {est.estimate || '-'}
-                                                            </div>
+                                                            {est.estimate || '-'}
                                                         </TableCell>
                                                         {!showFinals && (
                                                             <TableCell>
