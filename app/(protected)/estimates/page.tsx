@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Eye, Calendar, User, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, HelpCircle, Upload, Loader2, Lock } from 'lucide-react';
 import { startOfMonth, endOfMonth, subMonths, parse, isValid, isWithinInterval } from 'date-fns';
@@ -79,7 +79,16 @@ export default function EstimatesPage() {
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
     const [isFetchingMore, setIsFetchingMore] = useState(false);
-    const observer = useRef<IntersectionObserver | null>(null);
+
+    // Use refs for scroll handler so it always sees latest values without re-attaching
+    const hasMoreRef = useRef(hasMore);
+    const isFetchingMoreRef = useRef(isFetchingMore);
+    const loadingRef = useRef(loading);
+    const pageRef = useRef(page);
+    useEffect(() => { hasMoreRef.current = hasMore; }, [hasMore]);
+    useEffect(() => { isFetchingMoreRef.current = isFetchingMore; }, [isFetchingMore]);
+    useEffect(() => { loadingRef.current = loading; }, [loading]);
+    useEffect(() => { pageRef.current = page; }, [page]);
 
     // Debounced Search, Filter & Sort Effect
     useEffect(() => {
@@ -143,23 +152,23 @@ export default function EstimatesPage() {
         }
     };
 
-    // Infinite Scroll Observer Trigger — uses scrollContainerRef as root so it works inside overflow containers on mobile
-    const lastEstimateRef = useCallback((node: HTMLDivElement) => {
-        if (loading || isFetchingMore) return;
-        if (observer.current) observer.current.disconnect();
+    // Scroll-based infinite load — attach once, reads latest state via refs
+    useEffect(() => {
+        const container = scrollContainerRef.current;
+        if (!container) return;
 
-        observer.current = new IntersectionObserver(entries => {
-            if (entries[0].isIntersecting && hasMore) {
-                fetchEstimates(page + 1, true);
+        const handleScroll = () => {
+            if (loadingRef.current || isFetchingMoreRef.current || !hasMoreRef.current) return;
+            const { scrollTop, scrollHeight, clientHeight } = container;
+            if (scrollTop + clientHeight >= scrollHeight - 250) {
+                fetchEstimates(pageRef.current + 1, true);
             }
-        }, {
-            root: scrollContainerRef.current,
-            rootMargin: '0px 0px 200px 0px',
-            threshold: 0
-        });
+        };
 
-        if (node) observer.current.observe(node);
-    }, [loading, isFetchingMore, hasMore, page, search, activeFilter]);
+        container.addEventListener('scroll', handleScroll, { passive: true });
+        return () => container.removeEventListener('scroll', handleScroll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
 
     const statusOptions = useMemo(() => {
@@ -743,8 +752,8 @@ export default function EstimatesPage() {
                                     })
                                 )}
 
-                                {/* Mobile infinite scroll sentinel — observed by IntersectionObserver */}
-                                <div ref={lastEstimateRef} className="h-4" />
+                                {/* Scroll bottom padding so last card clears bottom nav */}
+                                <div className="h-4" />
 
                                 {/* Loading spinner — only shown while actively fetching more */}
                                 {isFetchingMore && (
