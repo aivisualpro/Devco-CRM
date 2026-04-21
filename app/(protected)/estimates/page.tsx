@@ -60,6 +60,7 @@ export default function EstimatesPage() {
     }, []);
     const [visibleCount, setVisibleCount] = useState(15);
     const observerTarget = useRef(null);
+    const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
     const [showKnowledgeBase, setShowKnowledgeBase] = useState(false);
 
@@ -142,7 +143,7 @@ export default function EstimatesPage() {
         }
     };
 
-    // Infinite Scroll Observer Trigger
+    // Infinite Scroll Observer Trigger — uses scrollContainerRef as root so it works inside overflow containers on mobile
     const lastEstimateRef = useCallback((node: HTMLDivElement) => {
         if (loading || isFetchingMore) return;
         if (observer.current) observer.current.disconnect();
@@ -151,6 +152,10 @@ export default function EstimatesPage() {
             if (entries[0].isIntersecting && hasMore) {
                 fetchEstimates(page + 1, true);
             }
+        }, {
+            root: scrollContainerRef.current,
+            rootMargin: '0px 0px 200px 0px',
+            threshold: 0
         });
 
         if (node) observer.current.observe(node);
@@ -595,7 +600,7 @@ export default function EstimatesPage() {
                     </div>
                 </div>
 
-                <div className="flex-1 min-h-0 pb-4 overflow-y-auto">
+                <div ref={scrollContainerRef} className="flex-1 min-h-0 pb-4 overflow-y-auto">
                     {loading ? (
                         <>
                             {/* Mobile Loading Skeleton */}
@@ -632,12 +637,9 @@ export default function EstimatesPage() {
                                             ? est.proposalWriter
                                             : est.proposalWriter ? [est.proposalWriter] : [];
 
-                                        const isLast = index === paginatedEstimates.length - 1;
-
                                         return (
                                             <div
                                                 key={est._id}
-                                                ref={isLast ? lastEstimateRef : undefined}
                                                 className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 active:scale-[0.98] transition-all"
                                                 onClick={() => {
                                                     const slug = est.estimate ? `${est.estimate}-V${est.versionNumber || 1}` : est._id;
@@ -741,8 +743,11 @@ export default function EstimatesPage() {
                                     })
                                 )}
 
-                                {/* Mobile infinite scroll trigger */}
-                                {hasMore && (
+                                {/* Mobile infinite scroll sentinel — observed by IntersectionObserver */}
+                                <div ref={lastEstimateRef} className="h-4" />
+
+                                {/* Loading spinner — only shown while actively fetching more */}
+                                {isFetchingMore && (
                                     <div className="flex justify-center py-4">
                                         <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
                                     </div>
