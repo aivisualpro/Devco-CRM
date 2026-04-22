@@ -166,6 +166,40 @@ export async function POST(req: Request) {
 
         console.log(`Fetched ${liveProjects.length} live project(s) from QuickBooks`);
 
+        // Pre-compute devcoCost from Schedules so it can be stored on each project document.
+        // This prevents the projects API from ever needing to query the Schedules collection.
+        const allProposalNumbers = liveProjects
+            .map((lp: any) => (lp.project || lp.DisplayName || '').match(/^([^_]+)_/)?.[1]?.trim())
+            .filter(Boolean);
+
+        let devcoCostMap = new Map<string, number>();
+        try {
+            const { default: OverheadItem } = await import('@/lib/models/OverheadItem');
+            const { Schedule } = await import('@/lib/models');
+            const overheads = await OverheadItem.find({}).lean();
+            const getOverheadCost = (name: string) => {
+                const item = (overheads as any[]).find(c => (c.overhead || '').trim().toLowerCase() === name.toLowerCase());
+                return Number(item?.dailyRate) || 0;
+            };
+            const overheadRate = getOverheadCost('Devco Overhead') + getOverheadCost('Risk Factor');
+
+            const schedules = await (Schedule as any).find(
+                { estimate: { $in: allProposalNumbers } },
+                { estimate: 1, djt: 1 }
+            ).lean();
+
+            schedules.forEach((s: any) => {
+                if (!s.estimate) return;
+                const equipmentCost = s.djt?.djtCost || 0;
+                const hasDjt = !!s.djt;
+                const ticketCost = hasDjt ? equipmentCost + overheadRate : 0;
+                devcoCostMap.set(s.estimate, (devcoCostMap.get(s.estimate) || 0) + ticketCost);
+            });
+            console.log(`Built devcoCostMap for ${devcoCostMap.size} proposals`);
+        } catch (e) {
+            console.warn('Could not compute devcoCost during sync:', e);
+        }
+
         let addedCount = 0;
         let updatedCount = 0;
 
@@ -185,7 +219,9 @@ export async function POST(req: Request) {
                     projectId: lp.Id,
                     amount: t.amount,
                     memo: t.memo
-                }))
+                })),
+                income: lp.income || 0,
+                qbCost: lp.cost || 0
             };
 
             // Extract Proposal Number from project name (digits before _)
@@ -193,10 +229,13 @@ export async function POST(req: Request) {
             const proposalMatch = projectName.match(/^([^_]+)_/);
             const extractedProposalNumber = proposalMatch ? proposalMatch[1].trim() : undefined;
 
+            // Add pre-computed devcoCost so the projects API never needs to query Schedules
+            const devcoCost = extractedProposalNumber ? (devcoCostMap.get(extractedProposalNumber) || 0) : 0;
+
             const existingProject = await DevcoQuickBooks.findOne({ projectId: lp.Id });
-            
+
             // Only update proposalNumber if it's a new project or current proposalNumber is empty
-            const finalUpdateData: any = { ...updateData };
+            const finalUpdateData: any = { ...updateData, devcoCost };
             if (extractedProposalNumber && (!existingProject || !existingProject.proposalNumber)) {
                 finalUpdateData.proposalNumber = extractedProposalNumber;
             }

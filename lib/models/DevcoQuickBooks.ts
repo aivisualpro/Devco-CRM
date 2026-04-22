@@ -22,6 +22,9 @@ export interface IDevcoQuickBooks extends Document {
     manualOriginalContract?: number;
     manualChangeOrders?: number;
     transactions: IQuickBooksTransaction[];
+    income: number;
+    qbCost: number;
+    devcoCost: number;
     createdAt?: Date;
     updatedAt?: Date;
 }
@@ -47,7 +50,10 @@ const DevcoQuickBooksSchema = new Schema({
     proposalNumber: { type: String },
     manualOriginalContract: { type: Number },
     manualChangeOrders: { type: Number },
-    transactions: { type: [QuickBooksTransactionSchema], default: [] }
+    transactions: { type: [QuickBooksTransactionSchema], default: [] },
+    income: { type: Number, default: 0 },
+    qbCost: { type: Number, default: 0 },
+    devcoCost: { type: Number, default: 0 }
 }, {
     timestamps: true,
     collection: 'devcoquickbooks'

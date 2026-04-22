@@ -537,7 +537,7 @@ export async function getProjectProfitability(projectId: string) {
         const accessToken = await getAccessToken();
         
         // We'll use a broader date range or let it default to 'This Fiscal Year-to-date'
-        const url = `${BASE_URL}/v3/company/${QBO_REALM_ID}/reports/ProfitAndLoss?customer=${projectId}&minorversion=70&summarize_column_by=Total`;
+        const url = `${BASE_URL}/v3/company/${QBO_REALM_ID}/reports/ProfitAndLoss?customer=${projectId}&minorversion=70&summarize_column_by=Total&date_macro=All`;
         
         const response = await fetch(url, {
             headers: {

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
-import { DevcoQuickBooks, Schedule } from '@/lib/models';
+import { DevcoQuickBooks } from '@/lib/models';
 
 export async function GET() {
     try {
@@ -8,22 +8,39 @@ export async function GET() {
 
         console.log('Fetching QuickBooks projects from MongoDB...');
 
-        // Fetch projects from MongoDB and sort by newest first
-        const projects = await DevcoQuickBooks.find({}).sort({ createdAt: -1 });
+        // Fetch projects excluding the massive transactions array (not needed here).
+        // income, qbCost, and devcoCost are pre-computed and stored directly on
+        // each document during Sync, so no Schedule/OverheadItem queries needed.
+        const projects = await DevcoQuickBooks.find({})
+            .select('-transactions')
+            .sort({ createdAt: -1 })
+            .lean();
+
+        console.log(`Fetched ${projects.length} projects from DevcoQuickBooks`);
 
         // Fetch matching estimates to get contract amounts, writers, and change orders
-        const proposalNumbers = projects.map(p => p.proposalNumber).filter((n): n is string => !!n);
+        const proposalNumbers = projects
+            .map(p => p.proposalNumber)
+            .filter((n): n is string => !!n);
 
         const { default: Estimate } = await import('@/lib/models/Estimate');
 
-        const allRelatedEstimates = await Estimate.find({
-            estimate: { $in: proposalNumbers }
-        } as any, { _id: 1, estimate: 1, grandTotal: 1, subTotal: 1, proposalWriter: 1, isChangeOrder: 1, versionNumber: 1, status: 1 });
+        const allRelatedEstimates = await Estimate.find(
+            { estimate: { $in: proposalNumbers } } as any,
+            { _id: 1, estimate: 1, grandTotal: 1, subTotal: 1, proposalWriter: 1, isChangeOrder: 1, versionNumber: 1, status: 1 }
+        ).lean();
 
-        // Map proposalNumber -> { originalContract, changeOrders, writers, slug }
-        const estimateDataMap = new Map();
+        // Map proposalNumber -> { originalContract, changeOrders, writers, estimateId }
+        const estimateDataMap = new Map<string, {
+            originalContract: number;
+            originalContractCost: number;
+            changeOrdersTotal: number;
+            proposalWriters: string[];
+            latestVersion: number;
+            estimateId: any;
+        }>();
 
-        allRelatedEstimates.forEach(e => {
+        allRelatedEstimates.forEach((e: any) => {
             if (!e.estimate) return;
 
             if (!estimateDataMap.has(e.estimate)) {
@@ -31,13 +48,13 @@ export async function GET() {
                     originalContract: 0,
                     originalContractCost: 0,
                     changeOrdersTotal: 0,
-                    proposalWriters: [] as string[],
+                    proposalWriters: [],
                     latestVersion: -1,
                     estimateId: e._id
                 });
             }
 
-            const data = estimateDataMap.get(e.estimate);
+            const data = estimateDataMap.get(e.estimate)!;
 
             if (e.isChangeOrder) {
                 const status = (e.status || '').toLowerCase();
@@ -45,7 +62,6 @@ export async function GET() {
                     data.changeOrdersTotal += (e.grandTotal || 0);
                 }
             } else {
-                // If it's a normal estimate, we want the latest version for original contract amount and writers
                 if ((e.versionNumber || 0) > data.latestVersion) {
                     data.originalContract = e.grandTotal || 0;
                     data.originalContractCost = e.subTotal || 0;
@@ -60,49 +76,20 @@ export async function GET() {
             }
         });
 
-        const allRelatedSchedules = await Schedule.find({
-            estimate: { $in: proposalNumbers }
-        } as any, { estimate: 1, djt: 1 });
-
-        // Get overhead rates for per-ticket cost calculations
-        const { default: OverheadItem } = await import('@/lib/models/OverheadItem');
-        const overheads = await OverheadItem.find({}).lean();
-        const getOverheadCost = (name: string) => {
-            const item = overheads.find((c: any) => (c.overhead || '').trim().toLowerCase() === name.toLowerCase());
-            return Number(item?.dailyRate) || 0;
-        };
-        const overheadRate = getOverheadCost('Devco Overhead') + getOverheadCost('Risk Factor');
-
-        const devcoCostMap = new Map();
-        allRelatedSchedules.forEach(s => {
-            if (!s.estimate) return;
-            // djtCost only stores equipment costs; add overhead rate per ticket
-            const equipmentCost = s.djt?.djtCost || 0;
-            const hasDjt = !!s.djt;
-            const ticketCost = hasDjt ? equipmentCost + overheadRate : 0;
-            devcoCostMap.set(s.estimate, (devcoCostMap.get(s.estimate) || 0) + ticketCost);
-        });
-
         // Map MongoDB projects to the format expected by the UI
         const formattedProjects = projects.map(p => {
-            const transactions = (p as any).transactions || [];
-            let income = 0;
-            let qbCost = 0;
-
-            transactions.forEach((t: any) => {
-                const amount = t.amount || 0;
-                if (t.transactionType?.toLowerCase() === 'invoice') {
-                    income += amount;
-                } else {
-                    qbCost += amount;
-                }
-            });
+            const income = p.income || 0;
+            const qbCost = p.qbCost || 0;
+            // devcoCost is pre-computed during Sync and stored directly on the document
+            const devcoCost = p.devcoCost || 0;
+            const totalProjectCost = qbCost + devcoCost;
 
             const estData = p.proposalNumber ? estimateDataMap.get(p.proposalNumber) : null;
-            const proposalSlug = p.proposalNumber ? (estData?.latestVersion > 0 ? `${p.proposalNumber}-V${estData.latestVersion}` : estData?.estimateId) : null;
-
-            const devcoCost = p.proposalNumber ? (devcoCostMap.get(p.proposalNumber) || 0) : 0;
-            const totalProjectCost = qbCost + devcoCost;
+            const proposalSlug = p.proposalNumber
+                ? (estData && estData.latestVersion > 0
+                    ? `${p.proposalNumber}-V${estData.latestVersion}`
+                    : estData?.estimateId)
+                : null;
 
             return {
                 Id: p.projectId,
@@ -110,8 +97,8 @@ export async function GET() {
                 CompanyName: p.customer,
                 FullyQualifiedName: `${p.customer}:${p.project}`,
                 MetaData: { CreateTime: p.startDate || p.createdAt },
-                income, // Revenue Earned to Date
-                cost: totalProjectCost,   // Cost of Revenue Earned (QB Cost + Devco Cost)
+                income,
+                cost: totalProjectCost,
                 profitMargin: income > 0 ? Math.round(((income - totalProjectCost) / income) * 100) : 0,
                 status: p.status,
                 proposalNumber: p.proposalNumber,
@@ -132,7 +119,7 @@ export async function GET() {
             };
         });
 
-        console.log(`Found ${formattedProjects.length} projects in MongoDB`);
+        console.log(`Returning ${formattedProjects.length} formatted projects`);
         return NextResponse.json(formattedProjects);
     } catch (error: any) {
         console.error('Error fetching QuickBooks projects from MongoDB:', error);

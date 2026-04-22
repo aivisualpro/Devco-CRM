@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ChevronDown, FileText, Package, Calculator, Sliders, Users, Contact, Briefcase, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, AlertTriangle, Truck, Wrench, Settings, BarChart, FileCheck, Search, Bell, BookOpen, Command, LogOut, User as UserIcon, Clock, Import, X, Menu, MessageSquare, GraduationCap, Activity, Receipt, MapPin, Download } from 'lucide-react';
+import { ChevronDown, FileText, Package, Calculator, Sliders, Users, Contact, Briefcase, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, AlertTriangle, Truck, Wrench, Settings, BarChart, FileCheck, Search, Bell, BookOpen, Command, LogOut, User as UserIcon, Clock, Import, X, Menu, MessageSquare, GraduationCap, Activity, Receipt, MapPin, Download, RefreshCw } from 'lucide-react';
 import { MyDropDown } from './MyDropDown';
 import NotificationBell from './NotificationBell';
 
@@ -100,6 +100,8 @@ interface HeaderProps {
         clearFilters: () => void;
         onExportExcel?: () => void;
         isExporting?: boolean;
+        onRefresh?: () => void;
+        isRefreshing?: boolean;
     };
 }
 
@@ -330,6 +332,19 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                                 <Download className="w-3 h-3" />
                                             )}
                                             <span className="hidden sm:inline">{wipReportFilters.isExporting ? 'Exporting...' : 'Export'}</span>
+                                        </button>
+                                    )}
+
+                                    {/* Sync All Button */}
+                                    {wipReportFilters.onRefresh && (
+                                        <button
+                                            onClick={wipReportFilters.onRefresh}
+                                            disabled={wipReportFilters.isRefreshing}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0F4C75] hover:bg-[#3282B8] text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all shadow-sm hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
+                                            title="Sync all projects from QuickBooks"
+                                        >
+                                            <RefreshCw className={`w-3 h-3 ${wipReportFilters.isRefreshing ? 'animate-spin' : ''}`} />
+                                            <span className="hidden sm:inline">{wipReportFilters.isRefreshing ? 'Syncing...' : 'Sync'}</span>
                                         </button>
                                     )}
 

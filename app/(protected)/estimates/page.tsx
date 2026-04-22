@@ -152,23 +152,29 @@ export default function EstimatesPage() {
         }
     };
 
-    // Scroll-based infinite load — attach once, reads latest state via refs
+    // IntersectionObserver-based infinite load — works regardless of which element scrolls
     useEffect(() => {
-        const container = scrollContainerRef.current;
-        if (!container) return;
+        const sentinel = observerTarget.current;
+        if (!sentinel) return;
 
-        const handleScroll = () => {
-            if (loadingRef.current || isFetchingMoreRef.current || !hasMoreRef.current) return;
-            const { scrollTop, scrollHeight, clientHeight } = container;
-            if (scrollTop + clientHeight >= scrollHeight - 250) {
-                fetchEstimates(pageRef.current + 1, true);
-            }
-        };
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (
+                    entries[0].isIntersecting &&
+                    !loadingRef.current &&
+                    !isFetchingMoreRef.current &&
+                    hasMoreRef.current
+                ) {
+                    fetchEstimates(pageRef.current + 1, true);
+                }
+            },
+            { threshold: 0.1 }
+        );
 
-        container.addEventListener('scroll', handleScroll, { passive: true });
-        return () => container.removeEventListener('scroll', handleScroll);
+        observer.observe(sentinel);
+        return () => observer.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [loading]); // re-attach after initial load completes so sentinel is in DOM
 
 
     const statusOptions = useMemo(() => {
@@ -1058,7 +1064,8 @@ export default function EstimatesPage() {
                                                 );
                                             })
                                         )}
-                                        {visibleCount < filteredEstimates.length && (
+                                        {/* Sentinel row — always rendered when more data exists so IntersectionObserver can detect it */}
+                                        {hasMore && (
                                             <TableRow>
                                                 <TableCell colSpan={20} className="p-0 border-none">
                                                     <div ref={observerTarget} className="h-4 w-full" />

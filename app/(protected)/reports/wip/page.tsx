@@ -722,7 +722,9 @@ function WIPReportContent() {
                     hasActiveFilters,
                     clearFilters,
                     onExportExcel: handleExportExcel,
-                    isExporting
+                    isExporting,
+                    onRefresh: () => fetchProjects(true),
+                    isRefreshing: refreshing
                 }}
             />
             
