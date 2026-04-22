@@ -273,7 +273,7 @@ export async function POST(req: NextRequest) {
                 return NextResponse.json({ success: false, error: 'No recipients configured.' }, { status: 400 });
             }
 
-            const dateStr = getTodayPST();
+            const dateStr = body.date || getTodayPST();
             const { html, stats } = await generateDailySummaryHTML(dateStr);
 
             const fromName = config.fromName || 'DEVCO Notifications';

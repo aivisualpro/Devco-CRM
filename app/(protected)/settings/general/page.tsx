@@ -228,6 +228,8 @@ export default function GeneralSettings() {
     const [emailBotSaving, setEmailBotSaving] = useState(false);
     const [emailBotSending, setEmailBotSending] = useState(false);
     const [emailBotRecipients, setEmailBotRecipients] = useState<string[]>([]);
+    const [showForceSendModal, setShowForceSendModal] = useState(false);
+    const [forceSendDate, setForceSendDate] = useState(() => new Date().toISOString().split('T')[0]);
     const [emailBotSubject, setEmailBotSubject] = useState('Everyday Summary Report');
     const [emailBotFromName, setEmailBotFromName] = useState('DEVCO Notifications');
     const [emailBotBody, setEmailBotBody] = useState('Hi Team,\n\nPlease find below the daily summary report for today\'s operations.\n\nBest regards,\nDEVCO CRM');
@@ -550,7 +552,7 @@ export default function GeneralSettings() {
         }
     };
 
-    const executeForceSend = async () => {
+    const executeForceSend = async (targetDate?: string) => {
         setEmailBotSending(true);
         try {
             // Save first to ensure latest config is used
@@ -573,7 +575,8 @@ export default function GeneralSettings() {
             const res = await fetch('/api/email-bot', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'sendNow' })
+                body: JSON.stringify({ action: 'sendNow', date: targetDate })
+
             });
             const data = await res.json();
             if (data.success) {
@@ -591,31 +594,8 @@ export default function GeneralSettings() {
     };
 
     const handleForceSend = () => {
-        toast((t) => (
-            <div className="flex flex-col gap-3">
-                <div className="flex items-center gap-2">
-                    <Zap className="w-4 h-4 text-violet-500" />
-                    <span className="font-bold text-sm text-slate-800">Send daily summary report now?</span>
-                </div>
-                <p className="text-xs text-slate-500">
-                    This will email the report to {emailBotRecipients.length} recipient{emailBotRecipients.length !== 1 ? 's' : ''} immediately.
-                </p>
-                <div className="flex items-center gap-2 justify-end">
-                    <button
-                        onClick={() => toast.dismiss(t.id)}
-                        className="px-3 py-1.5 text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={() => { toast.dismiss(t.id); executeForceSend(); }}
-                        className="px-3 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-700 hover:to-pink-700 rounded-lg transition-all shadow-sm"
-                    >
-                        Send Now
-                    </button>
-                </div>
-            </div>
-        ), { duration: 10000, style: { maxWidth: '380px', padding: '16px' } });
+        console.log("Force Send clicked!");
+        setShowForceSendModal(true);
     };
 
     const toggleEmailBotRecipient = (email: string) => {
@@ -2207,6 +2187,72 @@ export default function GeneralSettings() {
                     )}
                 </div>
             </div>
+
+
+            {/* Force Send Date Modal */}
+            {showForceSendModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div 
+                        className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-violet-50/50 to-pink-50/50">
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center">
+                                    <Zap className="w-4 h-4 text-violet-600" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-800 text-base">Send Summary Now</h3>
+                                    <p className="text-[11px] font-semibold text-violet-500 uppercase tracking-wider">Manual Override</p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setShowForceSendModal(false)}
+                                className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        
+                        <div className="p-6 space-y-4">
+                            <p className="text-sm text-slate-600">
+                                This will generate and email the daily summary report to <strong className="text-slate-800">{emailBotRecipients.length} recipient{emailBotRecipients.length !== 1 ? 's' : ''}</strong> immediately.
+                            </p>
+                            
+                            <div className="space-y-2">
+                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest block">Report Date</label>
+                                <input 
+                                    type="date"
+                                    value={forceSendDate}
+                                    onChange={(e) => setForceSendDate(e.target.value)}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-700 font-bold focus:outline-none focus:ring-2 focus:ring-violet-200 focus:border-violet-300 transition-all"
+                                />
+                                <p className="text-[10px] text-slate-400">Select the date you want to pull data for.</p>
+                            </div>
+                        </div>
+
+                        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+                            <button
+                                onClick={() => setShowForceSendModal(false)}
+                                className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700 bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-xl transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setShowForceSendModal(false);
+                                    executeForceSend(forceSendDate);
+                                }}
+                                disabled={emailBotSending}
+                                className="px-5 py-2 text-sm font-bold text-white bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-700 hover:to-pink-700 rounded-xl transition-all shadow-md shadow-violet-200 flex items-center gap-2 disabled:opacity-50"
+                            >
+                                {emailBotSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                                Send Report
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
