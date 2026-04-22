@@ -43,6 +43,7 @@ interface TimesheetEntry {
     hours?: number;
     dumpQty?: number; // New Consolidated
     shopQty?: number; // New Consolidated
+    createdBy?: string;
 
     // Computed locally
     hoursVal?: number;
@@ -1302,6 +1303,38 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
     const handleSaveEdit = async () => {
         if (!editingRecord || !editForm.scheduleId) return;
 
+        const isDriveTime = editForm.type?.trim().toLowerCase() === 'drive time';
+        const empEmail = editForm.employee || editingRecord.employee || '';
+        
+        // --- OVERLAP CHECK ---
+        if (!isDriveTime && editForm.clockIn && editForm.clockOut) {
+            const newIn = new Date(editForm.clockIn).getTime();
+            const newOut = new Date(editForm.clockOut).getTime();
+            
+            if (newOut <= newIn) {
+                return toastError("Clock Out must be after Clock In");
+            }
+
+            const selectedSchedule = rawSchedules.find(s => s._id === editForm.scheduleId);
+            const existingEmployeeRecords = (selectedSchedule?.timesheet || []).filter(t => 
+                t.employee === empEmail && 
+                t.type !== 'Drive Time' &&
+                (t._id || t.recordId) !== (editingRecord._id || editingRecord.recordId)
+            );
+            
+            for (const t of existingEmployeeRecords) {
+                if (t.clockIn && t.clockOut) {
+                    const existIn = new Date(t.clockIn).getTime();
+                    const existOut = new Date(t.clockOut).getTime();
+                    
+                    if (newIn < existOut && newOut > existIn) {
+                        return toastError("This time entry overlaps with an existing record for this employee.");
+                    }
+                }
+            }
+        }
+        // ----------------------
+
         const originalSchedules = [...rawSchedules];
 
         try {
@@ -1381,6 +1414,9 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
         if (!isDriveTime && !addForm.clockIn) {
             return toastError("Clock In is required for Site Time");
         }
+        if (!isDriveTime && !addForm.clockOut) {
+            return toastError("Clock Out is required for Site Time");
+        }
 
         // Find the selected schedule to get its fromDate
         const selectedSchedule = rawSchedules.find(s => s._id === addForm.scheduleId);
@@ -1389,6 +1425,31 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
         // For Drive Time, use schedule's fromDate; for Site Time, use provided clockIn
         const recordClockIn = isDriveTime ? (scheduleFromDate || new Date().toISOString()) : (addForm.clockIn as string);
 
+        // --- OVERLAP CHECK ---
+        if (!isDriveTime && recordClockIn && addForm.clockOut) {
+            const newIn = new Date(recordClockIn).getTime();
+            const newOut = new Date(addForm.clockOut as string).getTime();
+            
+            if (newOut <= newIn) {
+                return toastError("Clock Out must be after Clock In");
+            }
+
+            const existingEmployeeRecords = (selectedSchedule?.timesheet || []).filter(t => t.employee === addForm.employee && t.type !== 'Drive Time');
+            
+            for (const t of existingEmployeeRecords) {
+                if (t.clockIn && t.clockOut) {
+                    const existIn = new Date(t.clockIn).getTime();
+                    const existOut = new Date(t.clockOut).getTime();
+                    
+                    // Overlap occurs if New Start < Exist End AND New End > Exist Start
+                    if (newIn < existOut && newOut > existIn) {
+                        return toastError("This time entry overlaps with an existing record for this employee.");
+                    }
+                }
+            }
+        }
+        // ----------------------
+
         const originalSchedules = [...rawSchedules];
         const newRecord: TimesheetEntry = {
             ...addForm,
@@ -1396,6 +1457,7 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
             employee: addForm.employee as string,
             scheduleId: addForm.scheduleId as string,
             clockIn: recordClockIn,
+            createdBy: currentUser?.email,
             createdAt: new Date().toISOString()
         } as TimesheetEntry;
 
@@ -2232,7 +2294,14 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className="text-center">
-                                                    <span className="text-xs font-medium text-slate-500">{formatDateOnly(ts.clockIn)}</span>
+                                                    <div className="flex flex-col items-center">
+                                                        <span className="text-xs font-medium text-slate-500">{formatDateOnly(ts.clockIn)}</span>
+                                                        {ts.createdBy && (
+                                                            <span className="text-[9px] text-slate-300 font-medium truncate max-w-[80px] mt-0.5" title={`Created by: ${ts.createdBy}`}>
+                                                                {ts.createdBy.split('@')[0]}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </TableCell>
                                                 <TableCell className="text-center">
                                                     <Tooltip>
@@ -2493,7 +2562,7 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
             <Modal
                 isOpen={!!editingRecord}
                 onClose={() => setEditingRecord(null)}
-                title="Edit Timecard Record"
+                title={`Edit Timecard Record${editForm?.scheduleId ? ` - ${editForm.scheduleId}` : ''}`}
                 maxWidth="2xl"
                 noBlur={true}
                 footer={
@@ -2768,7 +2837,7 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
             <Modal
                 isOpen={isAddModalOpen}
                 onClose={() => setIsAddModalOpen(false)}
-                title="Add Timecard Record"
+                title={`Add Timecard Record${addForm?.scheduleId ? ` - ${addForm.scheduleId}` : ''}`}
                 maxWidth="2xl"
                 noBlur={true}
                 footer={
