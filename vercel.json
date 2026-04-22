@@ -6,6 +6,10 @@
     "app/api/**/*.ts": {
       "memory": 1024,
       "maxDuration": 60
+    },
+    "app/api/cron/daily-summary/route.ts": {
+      "memory": 1024,
+      "maxDuration": 300
     }
   },
   "crons": [

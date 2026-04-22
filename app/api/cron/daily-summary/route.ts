@@ -21,9 +21,13 @@ export async function GET(req: NextRequest) {
         }
 
         // Call the email-bot API internally
-        const baseUrl = process.env.NEXTAUTH_URL || process.env.VERCEL_URL 
-            ? `https://${process.env.VERCEL_URL}` 
-            : 'http://localhost:3000';
+        // Fix: proper operator precedence — NEXTAUTH_URL first, then VERCEL_URL, then localhost
+        const baseUrl = process.env.NEXTAUTH_URL
+            ? process.env.NEXTAUTH_URL
+            : process.env.VERCEL_URL
+                ? `https://${process.env.VERCEL_URL}`
+                : 'http://localhost:3000';
+
 
         const res = await fetch(`${baseUrl}/api/email-bot`, {
             method: 'POST',
