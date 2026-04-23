@@ -106,17 +106,30 @@ async function generateDailySummaryHTML(dateStr: string): Promise<{ html: string
         });
     });
 
+    // Compute Reg/OT split: Reg = min(8, siteHours), OT = max(0, siteHours - 8)
+    const r2 = (n: number) => Math.round(n * 100) / 100;
+
     const timesheetRows = Array.from(tsMap.entries())
         .sort((a, b) => (empMap.get(a[0]) || a[0]).localeCompare(empMap.get(b[0]) || b[0]))
-        .map(([email, data]) => `
+        .map(([email, data]) => {
+            const siteReg = r2(Math.min(8, data.siteHours));
+            const siteOt = r2(Math.max(0, data.siteHours - 8));
+            const siteTot = data.siteHours;
+            const hasOt = siteOt > 0;
+            return `
             <tr>
                 <td style="padding:10px 14px;border:1px solid #e2e8f0;font-size:13px;color:#334155;font-weight:600;">${empMap.get(email) || email}</td>
-                <td style="padding:10px 14px;border:1px solid #e2e8f0;font-size:13px;color:#334155;text-align:center;">${data.siteHours.toFixed(2)}</td>
+                <td style="padding:10px 14px;border:1px solid #e2e8f0;font-size:13px;color:#334155;text-align:center;">${siteReg.toFixed(2)}</td>
+                <td style="padding:10px 14px;border:1px solid #e2e8f0;font-size:13px;text-align:center;${hasOt ? 'color:#dc2626;font-weight:700;' : 'color:#334155;'}">${siteOt.toFixed(2)}</td>
+                <td style="padding:10px 14px;border:1px solid #e2e8f0;font-size:13px;color:#334155;text-align:center;font-weight:600;">${siteTot.toFixed(2)}</td>
                 <td style="padding:10px 14px;border:1px solid #e2e8f0;font-size:13px;color:#334155;text-align:center;">${data.driveHours.toFixed(2)}</td>
                 <td style="padding:10px 14px;border:1px solid #e2e8f0;font-size:13px;color:#334155;text-align:center;font-weight:700;">${data.totalHours.toFixed(2)}</td>
-            </tr>`);
+            </tr>`;
+        });
 
     const totalSite = Array.from(tsMap.values()).reduce((s, v) => s + v.siteHours, 0);
+    const totalSiteReg = r2(Array.from(tsMap.values()).reduce((s, v) => s + Math.min(8, v.siteHours), 0));
+    const totalSiteOt = r2(Array.from(tsMap.values()).reduce((s, v) => s + Math.max(0, v.siteHours - 8), 0));
     const totalDrive = Array.from(tsMap.values()).reduce((s, v) => s + v.driveHours, 0);
     const totalAll = Math.round((totalSite + totalDrive) * 100) / 100;
 
@@ -192,18 +205,25 @@ async function generateDailySummaryHTML(dateStr: string): Promise<{ html: string
                     <table style="width:100%;border-collapse:collapse;border-radius:12px;overflow:hidden;">
                         <thead>
                             <tr>
-                                <th style="padding:10px 14px;background:#0f172a;color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:left;border:1px solid #1e293b;">Employee Name</th>
-                                <th style="padding:10px 14px;background:#0f172a;color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:center;border:1px solid #1e293b;">Site Hours</th>
-                                <th style="padding:10px 14px;background:#0f172a;color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:center;border:1px solid #1e293b;">Drive Hours</th>
-                                <th style="padding:10px 14px;background:#0f172a;color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:center;border:1px solid #1e293b;">Total Hours</th>
+                                <th rowspan="2" style="padding:10px 14px;background:#0f172a;color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:left;border:1px solid #1e293b;vertical-align:middle;">Employee Name</th>
+                                <th colspan="3" style="padding:8px 14px;background:#0f172a;color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:center;border:1px solid #1e293b;">Site Hours</th>
+                                <th rowspan="2" style="padding:10px 14px;background:#0f172a;color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:center;border:1px solid #1e293b;vertical-align:middle;">Drive Hours</th>
+                                <th rowspan="2" style="padding:10px 14px;background:#0f172a;color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:center;border:1px solid #1e293b;vertical-align:middle;">Total Hours</th>
+                            </tr>
+                            <tr>
+                                <th style="padding:6px 14px;background:#1e293b;color:#94a3b8;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;text-align:center;border:1px solid #334155;">Reg</th>
+                                <th style="padding:6px 14px;background:#1e293b;color:#fca5a5;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;text-align:center;border:1px solid #334155;">OT</th>
+                                <th style="padding:6px 14px;background:#1e293b;color:#94a3b8;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;text-align:center;border:1px solid #334155;">Total</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${timesheetRows.join('')}
                             <tr style="background:#f8fafc;">
                                 <td style="padding:10px 14px;border:1px solid #e2e8f0;font-size:13px;color:#0f172a;font-weight:800;">TOTAL</td>
-                                <td style="padding:10px 14px;border:1px solid #e2e8f0;font-size:13px;color:#0f172a;font-weight:800;text-align:center;">${totalSite.toFixed(2)}</td>
-                                <td style="padding:10px 14px;border:1px solid #e2e8f0;font-size:13px;color:#0f172a;font-weight:800;text-align:center;">${totalDrive.toFixed(2)}</td>
+                                <td style="padding:10px 14px;border:1px solid #e2e8f0;font-size:13px;color:#0f172a;font-weight:800;text-align:center;">${totalSiteReg.toFixed(2)}</td>
+                                <td style="padding:10px 14px;border:1px solid #e2e8f0;font-size:13px;color:#dc2626;font-weight:800;text-align:center;">${totalSiteOt.toFixed(2)}</td>
+                                <td style="padding:10px 14px;border:1px solid #e2e8f0;font-size:13px;color:#0f172a;font-weight:800;text-align:center;">${r2(totalSite).toFixed(2)}</td>
+                                <td style="padding:10px 14px;border:1px solid #e2e8f0;font-size:13px;color:#0f172a;font-weight:800;text-align:center;">${r2(totalDrive).toFixed(2)}</td>
                                 <td style="padding:10px 14px;border:1px solid #e2e8f0;font-size:13px;color:#0f172a;font-weight:800;text-align:center;">${totalAll.toFixed(2)}</td>
                             </tr>
                         </tbody>
