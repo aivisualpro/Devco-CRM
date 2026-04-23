@@ -208,7 +208,7 @@ function PayrollReportContent() {
             value: id,
             label: `${e.value}${e.projectTitle ? ' - ' + e.projectTitle : ''}`,
             estimate: e.value
-        })).sort((a, b) => a.label.localeCompare(b.label));
+        })).sort((a, b) => (a.label || '').localeCompare(b.label || ''));
     }, [estimatesMap]);
 
     const editingCalculated = useMemo(() => {
@@ -218,11 +218,11 @@ function PayrollReportContent() {
 
     const employeeOptions = useMemo(() => {
         const emps = Object.values(employeesMap).map(e => ({
-            label: e.label || e.value,
+            label: e.label || e.value || '',
             value: e.value,
             image: e.image,
             initials: e.initials || (e.label ? e.label.split(' ').map((n: string) => n[0]).join('').substring(0, 2) : '??')
-        })).sort((a, b) => a.label.localeCompare(b.label));
+        })).sort((a, b) => (a.label || '').localeCompare(b.label || ''));
         return emps;
     }, [employeesMap]);
 
@@ -283,7 +283,7 @@ function PayrollReportContent() {
                 label: e ? `${e.value}${e.projectTitle ? ' - ' + e.projectTitle : ''}` : id,
                 estimate: e?.value || id
             };
-        }).sort((a, b) => a.label.localeCompare(b.label));
+        }).sort((a, b) => (a.label || '').localeCompare(b.label || ''));
     }, [rawSchedules, currentWeekStart, weekEnd, estimatesMap, filterCertified]);
 
     const filteredEmployeeOptions = useMemo(() => {
@@ -637,7 +637,7 @@ function PayrollReportContent() {
 
             return {
                 employee: ew.email,
-                name: (employeesMap[ew.email] || employeesMap[Object.keys(employeesMap).find(k => k.toLowerCase() === ew.email) || ''])?.label || ew.email,
+                name: (employeesMap[ew.email] || employeesMap[Object.keys(employeesMap).find(k => k.toLowerCase() === ew.email) || ''])?.label || ew.email || 'Unknown',
                 address: (employeesMap[ew.email] || employeesMap[Object.keys(employeesMap).find(k => k.toLowerCase() === ew.email) || ''])?.address || 'N/A',
                 ssNumber: (employeesMap[ew.email] || employeesMap[Object.keys(employeesMap).find(k => k.toLowerCase() === ew.email) || ''])?.ssNumber || '',
                 phone: (employeesMap[ew.email] || employeesMap[Object.keys(employeesMap).find(k => k.toLowerCase() === ew.email) || ''])?.phone || 'N/A',
@@ -662,7 +662,7 @@ function PayrollReportContent() {
                     drive: rawDriveEntries
                 }
             } as EmployeeReport;
-        }).filter(emp => emp.totalHrs > 0 || filterEmployee !== 'all').sort((a, b) => a.name.localeCompare(b.name));
+        }).filter(emp => emp.totalHrs > 0 || filterEmployee !== 'all').sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     }, [rawSchedules, currentWeekStart, employeesMap, estimatesMap, filterEmployee, filterEstimate, filterCertified]);
 
     const weekDays = Array.from({ length: 7 }, (_, i) => {
