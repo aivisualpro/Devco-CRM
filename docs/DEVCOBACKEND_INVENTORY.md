@@ -53,15 +53,15 @@
 | [ ] | `previewProposal` | READ | `API /api/misc` |  |
 | [ ] | `generateProposal` | WRITE | `API /api/misc` |  |
 | [ ] | `generateProposalFromPages` | WRITE | `API /api/misc` |  |
-| [ ] | `getEmployees` | READ | `GET /api/employees` | MUST redact password - see BLOCKER 1 |
-| [ ] | `getEmployeeById` | READ | `GET /api/employees` |  |
-| [ ] | `addEmployee` | WRITE | `POST/PATCH/DELETE /api/employees` |  |
-| [ ] | `updateEmployee` | WRITE | `POST/PATCH/DELETE /api/employees` |  |
-| [ ] | `deleteEmployee` | DELETE | `POST/PATCH/DELETE /api/employees` |  |
-| [ ] | `importEmployeeCertifications` | WRITE | `POST/PATCH/DELETE /api/employees` |  |
-| [ ] | `importEmployeeDocuments` | WRITE | `POST/PATCH/DELETE /api/employees` |  |
+| [x] | `getEmployees` | READ | `GET /api/employees` | MUST redact password - see BLOCKER 1 |
+| [x] | `getEmployeeById` | READ | `GET /api/employees/[id]` |  |
+| [x] | `addEmployee` | WRITE | `POST /api/employees` |  |
+| [x] | `updateEmployee` | WRITE | `PATCH /api/employees/[id]` |  |
+| [x] | `deleteEmployee` | DELETE | `DELETE /api/employees/[id]` |  |
+| [x] | `importEmployeeCertifications` | WRITE | `POST /api/employees/certifications` |  |
+| [x] | `importEmployeeDocuments` | WRITE | `POST /api/employees/documents` |  |
+| [x] | `importEmployees` | WRITE | `POST /api/employees/import` |  |
 | [ ] | `importDrugTestingRecords` | WRITE | `API /api/misc` |  |
-| [ ] | `importEmployees` | WRITE | `POST/PATCH/DELETE /api/employees` |  |
 | [ ] | `importReceiptsAndCosts` | WRITE | `API /api/misc` |  |
 | [ ] | `importPlanningDocs` | WRITE | `API /api/misc` |  |
 | [ ] | `updateReceiptsAndCosts` | WRITE | `API /api/misc` |  |

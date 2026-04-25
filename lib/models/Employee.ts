@@ -153,6 +153,12 @@ const EmployeeSchema: Schema = new Schema({
 });
 
 
+EmployeeSchema.index({ email: 1 }, { unique: true, sparse: true });
+EmployeeSchema.index({ status: 1 });
+EmployeeSchema.index({ groupNo: 1 });
+EmployeeSchema.index({ isScheduleActive: 1, status: 1 });
+EmployeeSchema.index({ firstName: 'text', lastName: 'text', email: 'text' });
+
 // Force fresh model registration to pick up schema changes across hot reloads
 if (mongoose.models.Employee) {
     delete mongoose.models.Employee;

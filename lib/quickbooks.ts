@@ -37,9 +37,11 @@ export async function getAccessToken() {
     }
 
     // Log which credentials we are using (masking secrets)
-    console.log('Refreshing QuickBooks token...');
-    console.log(`Using Client ID: ${QBO_CLIENT_ID.substring(0, 5)}...`);
-    console.log(`Using Refresh Token Source: ${dbToken ? 'Database' : 'Environment'}`);
+    if (process.env.NODE_ENV !== 'production') {
+        console.log('Refreshing QuickBooks token...');
+        console.log(`Using Client ID: ${QBO_CLIENT_ID.substring(0, 5)}...`);
+        console.log(`Using Refresh Token Source: ${dbToken ? 'Database' : 'Environment'}`);
+    }
 
     const auth = Buffer.from(`${QBO_CLIENT_ID}:${QBO_CLIENT_SECRET}`).toString('base64');
 
@@ -72,7 +74,7 @@ export async function getAccessToken() {
 
     // AUTO-REFRESH LOGIC: Update the token for next time
     if (data.refresh_token) {
-        console.log('Received new Refresh Token. Persisting to storage...');
+        if (process.env.NODE_ENV !== 'production') console.log('Received new Refresh Token. Persisting to storage...');
         
         // 1. Persist to MongoDB (Primary Storage)
         try {
@@ -87,7 +89,7 @@ export async function getAccessToken() {
                 },
                 { upsert: true, new: true }
             );
-            console.log('Successfully updated Token in MongoDB.');
+            if (process.env.NODE_ENV !== 'production') console.log('Successfully updated Token in MongoDB.');
         } catch (dbError) {
             console.error('Failed to save token to MongoDB:', dbError);
         }
@@ -110,7 +112,7 @@ export async function getAccessToken() {
                     }
                     
                     fs.writeFileSync(envPath, envContent);
-                    console.log('Successfully updated .env.local with new refresh token.');
+                    if (process.env.NODE_ENV !== 'production') console.log('Successfully updated .env.local with new refresh token.');
                 }
             } catch (filesysError) {
                 console.error('Failed to write new token to .env.local:', filesysError);
@@ -130,9 +132,11 @@ export async function qboQuery(query: string) {
         const accessToken = await getAccessToken();
         const url = `${BASE_URL}/v3/company/${QBO_REALM_ID}/query?query=${encodeURIComponent(query)}&minorversion=70`;
 
-        console.log(`QBO Environment: ${IS_PRODUCTION ? 'PRODUCTION' : 'SANDBOX'}`);
-        console.log(`QBO Full URL: ${url}`);
-        console.log(`QBO Query Request: ${query}`);
+        if (process.env.NODE_ENV !== 'production') {
+            console.log(`QBO Environment: ${IS_PRODUCTION ? 'PRODUCTION' : 'SANDBOX'}`);
+            console.log(`QBO Full URL: ${url}`);
+            console.log(`QBO Query Request: ${query}`);
+        }
 
         const response = await fetch(url, {
             headers: {
@@ -175,15 +179,15 @@ async function fetchAllOfType(type: string) {
     while (true) {
         batchCount++;
         const query = `SELECT * FROM ${type} STARTPOSITION ${start} MAXRESULTS ${limit}`;
-        console.log(`Fetching ${type} batch ${batchCount}: start=${start}, limit=${limit}`);
+        if (process.env.NODE_ENV !== 'production') console.log(`Fetching ${type} batch ${batchCount}: start=${start}, limit=${limit}`);
         try {
             const data = await qboQuery(query);
             const results = data?.QueryResponse?.[type] || [];
-            console.log(`Batch ${batchCount} fetched ${results.length} ${type} records`);
+            if (process.env.NODE_ENV !== 'production') console.log(`Batch ${batchCount} fetched ${results.length} ${type} records`);
             all.push(...results);
             totalFetched += results.length;
             if (results.length < limit) {
-                console.log(`Completed fetching ${type}: total batches=${batchCount}, total records=${totalFetched}`);
+                if (process.env.NODE_ENV !== 'production') console.log(`Completed fetching ${type}: total batches=${batchCount}, total records=${totalFetched}`);
                 break;
             }
             start += limit;
@@ -207,11 +211,11 @@ async function fetchAllOfType(type: string) {
 
 export async function getProjects() {
     try {
-        console.log('Fetching all customers/projects...');
+        if (process.env.NODE_ENV !== 'production') console.log('Fetching all customers/projects...');
         const customers = await fetchAllOfType('Customer');
         const projects = customers.filter((c: any) => c.IsProject === true || c.Job === true);
 
-        console.log(`Found ${projects.length} projects. Returning basic project data without transactions.`);
+        if (process.env.NODE_ENV !== 'production') console.log(`Found ${projects.length} projects. Returning basic project data without transactions.`);
 
         // Return projects with basic info, transactions will be fetched separately using reports
         const finalizedProjects = projects.map(p => {
@@ -233,7 +237,7 @@ export async function getProjects() {
             };
         });
 
-        console.log(`Successfully fetched ${finalizedProjects.length} projects.`);
+        if (process.env.NODE_ENV !== 'production') console.log(`Successfully fetched ${finalizedProjects.length} projects.`);
         return finalizedProjects;
     } catch (error) {
         console.error('Error in getProjects:', error);
@@ -243,7 +247,7 @@ export async function getProjects() {
 
 export async function getSingleProject(projectId: string) {
     try {
-        console.log(`Fetching project details for ID: ${projectId}...`);
+        if (process.env.NODE_ENV !== 'production') console.log(`Fetching project details for ID: ${projectId}...`);
         
         // 1. Fetch the Customer/Project details
         const customerData = await qboQuery(`SELECT * FROM Customer WHERE Id = '${projectId}'`);
@@ -251,7 +255,7 @@ export async function getSingleProject(projectId: string) {
         
         if (!lp) throw new Error('Project not found in QuickBooks');
         
-        console.log(`Syncing project: ${lp.DisplayName} (ID: ${lp.Id}, IsProject: ${lp.IsProject}, Job: ${lp.Job})`);
+        if (process.env.NODE_ENV !== 'production') console.log(`Syncing project: ${lp.DisplayName} (ID: ${lp.Id}, IsProject: ${lp.IsProject}, Job: ${lp.Job})`);
 
         // 2. Fetch profitability
         const profitability = await getProjectProfitability(projectId);
@@ -261,7 +265,7 @@ export async function getSingleProject(projectId: string) {
         try {
             const accessToken = await getAccessToken();
             const reportUrl = `${BASE_URL}/v3/company/${QBO_REALM_ID}/reports/ProfitAndLossDetail?customer=${projectId}&date_macro=All&minorversion=70`;
-            console.log(`Fetching ProfitAndLossDetail report for customer ${projectId}...`);
+            if (process.env.NODE_ENV !== 'production') console.log(`Fetching ProfitAndLossDetail report for customer ${projectId}...`);
             
             const reportResponse = await fetch(reportUrl, {
                 headers: {
@@ -326,13 +330,13 @@ export async function getSingleProject(projectId: string) {
                 }
                 
                 transactionsData = Array.from(transactionsMap.values());
-                console.log(`Parsed ${transactionsData.length} transactions from ProfitAndLossDetail report`);
+                if (process.env.NODE_ENV !== 'production') console.log(`Parsed ${transactionsData.length} transactions from ProfitAndLossDetail report`);
             } else {
                 const errorText = await reportResponse.text();
-                console.log(`ProfitAndLossDetail report failed: ${reportResponse.status}`, errorText);
+                if (process.env.NODE_ENV !== 'production') console.log(`ProfitAndLossDetail report failed: ${reportResponse.status}`, errorText);
             }
         } catch (e) {
-            console.log('Error fetching ProfitAndLossDetail report:', e);
+            if (process.env.NODE_ENV !== 'production') console.log('Error fetching ProfitAndLossDetail report:', e);
         }
 
         // 4. Robust status mapping
@@ -375,7 +379,7 @@ export async function getAllCustomers() {
 }
 export async function getProjectTransactions(projectId: string) {
     try {
-        console.log(`Fetching transactions for project/customer ID: ${projectId}...`);
+        if (process.env.NODE_ENV !== 'production') console.log(`Fetching transactions for project/customer ID: ${projectId}...`);
         
         // Fetch relevant transaction types
         // Invoices and Payments can be filtered by CustomerRef directly in the query
@@ -430,7 +434,7 @@ export async function getProjectTransactions(projectId: string) {
         const purchases = (purchasesData || [])
             .map(p => {
                 // DEBUG: Log if we find the specific transactions from the screenshot
-                if (JSON.stringify(p).includes("Jose Hernandez") || JSON.stringify(p).includes("Joseph Dziuk")) {
+                if (process.env.NODE_ENV !== 'production' && (JSON.stringify(p).includes("Jose Hernandez") || JSON.stringify(p).includes("Joseph Dziuk"))) {
                     console.log(`DEBUG: Found payroll check for ${JSON.stringify(p).includes("Jose Hernandez") ? "Jose Hernandez" : "Joseph Dziuk"}. Data:`, JSON.stringify(p).substring(0, 500));
                 }
                 return p;
@@ -533,7 +537,7 @@ export async function getProjectTransactions(projectId: string) {
 
 export async function getProjectProfitability(projectId: string) {
     try {
-        console.log(`Fetching Profit & Loss report for project: ${projectId}...`);
+        if (process.env.NODE_ENV !== 'production') console.log(`Fetching Profit & Loss report for project: ${projectId}...`);
         const accessToken = await getAccessToken();
         
         // We'll use a broader date range or let it default to 'This Fiscal Year-to-date'
@@ -558,14 +562,14 @@ export async function getProjectProfitability(projectId: string) {
         const parseRows = (rows: any[]) => {
             rows.forEach(row => {
                 // Check if this row is a summary row for Income, Expense, or Net Income
-                const rowName = row.Summary?.ColData?.[0]?.value || '';
+                const rowName = (row.Summary?.ColData?.[0]?.value || '').trim().toLowerCase();
                 const rowValue = parseFloat(row.Summary?.ColData?.[1]?.value || '0');
 
-                if (rowName.toLowerCase().includes('total income')) {
+                if (rowName === 'total income') {
                     totalIncome = rowValue;
-                } else if (rowName.toLowerCase().includes('total expense') || rowName.toLowerCase().includes('total cost of goods sold')) {
+                } else if (rowName === 'total expenses' || rowName === 'total cost of goods sold') {
                     totalCost += rowValue;
-                } else if (rowName.toLowerCase().includes('net income')) {
+                } else if (rowName === 'net income') {
                     netProfit = rowValue;
                 }
 
@@ -580,14 +584,14 @@ export async function getProjectProfitability(projectId: string) {
             parseRows(data.Rows.Row);
         }
 
-        // Final fallback: if netProfit wasn't found specifically but we have income/cost
-        if (netProfit === 0 && totalIncome !== 0) {
-            netProfit = totalIncome - totalCost;
+        // Project Cost in QuickBooks is always effectively Income - Net Profit
+        if (netProfit !== 0 || totalIncome !== 0) {
+            totalCost = totalIncome - netProfit;
         }
 
         const profitMargin = totalIncome > 0 ? (netProfit / totalIncome) * 100 : 0;
 
-        console.log(`Report Results for ${projectId}: Income=${totalIncome}, Cost=${totalCost}, Profit=${netProfit}`);
+        if (process.env.NODE_ENV !== 'production') console.log(`Report Results for ${projectId}: Income=${totalIncome}, Cost=${totalCost}, Profit=${netProfit}`);
 
         return {
             income: totalIncome,

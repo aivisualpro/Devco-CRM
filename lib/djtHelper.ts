@@ -1,3 +1,4 @@
+import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
 export const getDJTPdfVariablesBase = (targetDJT: any, schedule: any, estimate: any, clientName: string, employees: any[]) => {
     const variables: Record<string, any> = {
         dailyJobDescription: targetDJT.dailyJobDescription || '',
@@ -12,7 +13,7 @@ export const getDJTPdfVariablesBase = (targetDJT: any, schedule: any, estimate: 
         estimateNum: schedule?.estimate || estimate?.estimate || '',
         projectName: estimate?.projectTitle || estimate?.projectName || '',
         foremanName: schedule?.foremanName || '',
-        date: targetDJT.date ? new Date(targetDJT.date).toLocaleDateString() : '',
+        date: targetDJT.date ? formatWallDate(targetDJT.date) : '',
         day: new Date(targetDJT.date || schedule?.fromDate || new Date()).toLocaleDateString('en-US', { weekday: 'long' }),
     };
 
@@ -36,8 +37,8 @@ export const getDJTPdfVariablesBase = (targetDJT: any, schedule: any, estimate: 
             
             const timesheet = schedule?.timesheet?.find((t: any) => t.employee === sig.employee);
             if (timesheet) {
-                const inTime = new Date(timesheet.clockIn).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', timeZone: 'UTC'});
-                const outTime = new Date(timesheet.clockOut).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', timeZone: 'UTC'});
+                const inTime = formatWallTime(timesheet.clockIn);
+                const outTime = formatWallTime(timesheet.clockOut);
                 variables[`Times_${idx}`] = `${inTime} - ${outTime}`;
             }
         });

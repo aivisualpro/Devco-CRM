@@ -35,7 +35,7 @@ export async function createNotifications(params: CreateNotificationParams): Pro
             });
 
         if (uniqueRecipients.length === 0) {
-            console.log('[Notifications] No unique recipients after dedup, skipping');
+            if (process.env.NODE_ENV !== 'production') console.log('[Notifications] No unique recipients after dedup, skipping');
             return;
         }
 
@@ -61,7 +61,7 @@ export async function createNotifications(params: CreateNotificationParams): Pro
         }
 
         const result = await db.collection('notifications').insertMany(docs);
-        console.log(`[Notifications] ✅ Created ${result.insertedCount} notification(s) for: ${uniqueRecipients.join(', ')}`);
+        if (process.env.NODE_ENV !== 'production') console.log(`[Notifications] ✅ Created ${result.insertedCount} notification(s) for: ${uniqueRecipients.join(', ')}`);
     } catch (error) {
         console.error('[Notifications] ❌ Failed to create notifications:', error);
     }

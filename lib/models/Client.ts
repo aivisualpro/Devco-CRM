@@ -38,6 +38,7 @@ export interface IClient {
     documents?: IClientDocument[];
     createdAt?: Date;
     updatedAt?: Date;
+    primaryContact?: any;
 }
 
 const ClientDocumentSchema = new Schema({
@@ -80,12 +81,26 @@ const ClientSchema: Schema = new Schema({
     }
 }, { timestamps: true });
 
+ClientSchema.virtual('primaryContact').get(function(this: any) {
+    if (this.contacts && this.contacts.length > 0) {
+        return this.contacts.find((c: any) => c.primary) || this.contacts.find((c: any) => c.active) || this.contacts[0];
+    }
+    return null;
+});
+ClientSchema.set('toJSON', { virtuals: true });
+ClientSchema.set('toObject', { virtuals: true });
+
+ClientSchema.index({ name: 1 });
+ClientSchema.index({ 'contacts.0.email': 1 });
+ClientSchema.index({ createdAt: -1 });
+ClientSchema.index({ name: 'text', 'contacts.email': 'text', 'contacts.name': 'text' });
+
 // Prevent model overwrite in development, but ensure schema changes are picked up
 if (process.env.NODE_ENV === 'development') {
     console.log('[MODEL] Deleting Client model from cache for HMR');
     delete mongoose.models.Client;
 }
 const Client: Model<IClient> = mongoose.models.Client || mongoose.model<IClient>('Client', ClientSchema);
-console.log('[MODEL] Client model registered/retrieved');
+if (process.env.NODE_ENV !== 'production') console.log('[MODEL] Client model registered/retrieved');
 
 export default Client;

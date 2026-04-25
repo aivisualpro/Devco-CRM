@@ -31,7 +31,7 @@ export async function sendSMS(to: string, body: string): Promise<boolean> {
     const url = `https://${SIGNALWIRE_SPACE_URL}/api/laml/2010-04-01/Accounts/${SIGNALWIRE_PROJECT_ID}/Messages.json`;
     const encodedAuth = Buffer.from(`${SIGNALWIRE_PROJECT_ID}:${SIGNALWIRE_API_TOKEN}`).toString('base64');
 
-    console.log(`[SignalWire] Sending SMS to ${cleanTo} (original: "${to}")`);
+    if (process.env.NODE_ENV !== 'production') console.log(`[SignalWire] Sending SMS to ${cleanTo} (original: "${to}")`);
 
     try {
         const res = await fetch(url, {
@@ -54,7 +54,7 @@ export async function sendSMS(to: string, body: string): Promise<boolean> {
         }
 
         const json = await res.json();
-        console.log(`[SignalWire] ✅ SMS queued. SID: ${json.sid}, Status: ${json.status}`);
+        if (process.env.NODE_ENV !== 'production') console.log(`[SignalWire] ✅ SMS queued. SID: ${json.sid}, Status: ${json.status}`);
         return true;
     } catch (err) {
         console.error(`[SignalWire] ❌ Network error sending SMS to ${cleanTo}:`, err);

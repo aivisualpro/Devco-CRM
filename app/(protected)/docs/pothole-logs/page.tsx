@@ -196,17 +196,7 @@ export default function PotholeLogsPage() {
                     })
                 }),
                 fetch(`/api/estimates?limit=500`),
-                fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'getEmployees',
-                        payload: {
-                            limit: 200,
-                            projection: { _id: 1, email: 1, firstName: 1, lastName: 1, profilePicture: 1 }
-                        }
-                    })
-                })
+                fetch(`/api/employees`)
             ]);
 
             const [logsData, estimatesData, employeesData] = await Promise.all([logsRes.json(), estimatesRes.json(), employeesRes.json()]);

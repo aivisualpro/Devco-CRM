@@ -1,4 +1,4 @@
-
+import { normalizeWallClock, formatWallTime, formatWallDate } from './format/date';
 
 // Constants
 export const SPEED_MPH = 55;
@@ -8,70 +8,14 @@ export const r2 = (n: number) => Math.round(n * 100) / 100;
 export const EARTH_RADIUS_MI = 3958.8;
 export const DRIVING_FACTOR = 1.50;
 
-export const robustNormalizeISO = (str?: string) => {
-    if (!str) return '';
-    // If it's already standard ISO-Z, return it
-    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/.test(str)) return str;
-
-    // Handle M/D/YYYY H:mm:ss AM/PM
-    const mdMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(:(\d{2}))?(\s+(AM|PM))?/i);
-    if (mdMatch) {
-        const m = mdMatch[1].padStart(2, '0');
-        const d = mdMatch[2].padStart(2, '0');
-        const y = mdMatch[3];
-        let h = parseInt(mdMatch[4]);
-        const min = mdMatch[5].padStart(2, '0');
-        const sec = mdMatch[7] ? mdMatch[7].padStart(2, '0') : '00';
-        const ampm = mdMatch[9] ? mdMatch[9].toUpperCase() : null;
-
-        if (ampm === 'PM' && h < 12) h += 12;
-        if (ampm === 'AM' && h === 12) h = 0;
-
-        const hStr = String(h).padStart(2, '0');
-        return `${y}-${m}-${d}T${hStr}:${min}:${sec}.000Z`;
-    }
-
-    // Handle YYYY-MM-DDTHH:mm
-    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(str)) {
-        // Just append :00.000Z if missing
-        // But check if it already has seconds
-        const base = str.slice(0, 16); // up to mm
-        return `${base}:00.000Z`;
-    }
-
-    // Last resort: Date object as UTC
-    try {
-        const date = new Date(str.includes('Z') || str.includes('UTC') ? str : str + ' UTC');
-        if (!isNaN(date.getTime())) return date.toISOString();
-    } catch { }
-
-    return str;
-};
+export const robustNormalizeISO = normalizeWallClock;
 
 export const formatTimeOnly = (dateStr?: string) => {
-    if (!dateStr) return '-';
-    const normalized = robustNormalizeISO(dateStr);
-    const match = normalized.match(/T(\d{2}):(\d{2})/);
-    if (match) {
-        let [, hStr, mStr] = match;
-        let h = parseInt(hStr);
-        const ampm = h >= 12 ? 'PM' : 'AM';
-        h = h % 12;
-        if (h === 0) h = 12;
-        return `${h}:${mStr} ${ampm}`;
-    }
-    return dateStr;
+    return formatWallTime(dateStr) || '-';
 };
 
 export const formatDateOnly = (dateStr?: string) => {
-    if (!dateStr) return '-';
-    const normalized = robustNormalizeISO(dateStr);
-    const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (match) {
-        const [, y, m, d] = match;
-        return `${m}/${d}/${y}`;
-    }
-    return dateStr;
+    return formatWallDate(dateStr, 'short') || '-';
 };
 
 export const haversine = (lat1: number, lon1: number, lat2: number, lon2: number) => {

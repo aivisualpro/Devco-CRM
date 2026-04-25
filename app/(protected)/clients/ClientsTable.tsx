@@ -105,11 +105,7 @@ export default function ClientsTable({ initialData }: { initialData: any[] }) {
 
     const fetchEmployees = async () => {
         try {
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'getEmployees' })
-            });
+            const res = await fetch(`/api/employees`);
             const data = await res.json();
             if (data.success) {
                 setEmployees(data.result || []);

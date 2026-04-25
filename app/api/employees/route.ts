@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import { Employee } from '@/lib/models';
 import { parsePagination, parseSearch, buildPaginationResponse } from '@/lib/api/pagination';
+import { uploadImage, processEmployeeSubDocFiles } from '@/lib/employeeUploadUtils';
 
 export async function GET(req: NextRequest) {
     try {
@@ -78,5 +79,30 @@ export async function GET(req: NextRequest) {
     } catch (error) {
         console.error('Error fetching employees:', error);
         return NextResponse.json({ error: 'Failed to fetch employees' }, { status: 500 });
+    }
+}
+
+export async function POST(req: NextRequest) {
+    try {
+        await connectToDatabase();
+        const item = await req.json();
+                if (!item || !item.email) return NextResponse.json({ success: false, error: 'Missing employee data or email' }, { status: 400 });
+                let profilePictureUrl = item.profilePicture;
+                if (item.profilePicture && item.profilePicture.startsWith('data:image')) {
+                    const uploaded = await uploadImage(item.profilePicture, item.email);
+                    if (uploaded) profilePictureUrl = uploaded;
+                }
+                let signatureUrl = item.signature;
+                if (item.signature && item.signature.startsWith('data:image')) {
+                    const uploaded = await uploadImage(item.signature, `${item.email}_signature`);
+                    if (uploaded) signatureUrl = uploaded;
+                }
+                // Upload any base64 files in sub-document arrays to R2
+                await processEmployeeSubDocFiles(item, item.email);
+                const employeeData = { ...item, _id: item.email, profilePicture: profilePictureUrl, signature: signatureUrl };
+                const newEmployee = await Employee.create(employeeData);
+                return NextResponse.json({ success: true, result: newEmployee });
+    } catch (error: any) {
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 }

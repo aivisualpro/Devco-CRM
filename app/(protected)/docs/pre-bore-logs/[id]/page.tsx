@@ -118,11 +118,7 @@ export default function PreBoreLogDetailPage() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'getPreBoreLogDetail', payload: { scheduleId, preBoreId } })
                 }),
-                fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getEmployees', payload: { limit: 500 } })
-                })
+                fetch(`/api/employees`)
             ]);
 
             const [logData, empData] = await Promise.all([logRes.json(), empRes.json()]);

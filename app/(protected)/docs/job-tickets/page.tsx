@@ -147,11 +147,7 @@ export default function JobTicketPage() {
         if (supportLoaded) return;
         try {
             const [empRes, schedRes, estRes, clientRes, eqRes] = await Promise.all([
-                fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getEmployees' })
-                }).then(r => r.json()),
+                fetch(`/api/employees`).then(r => r.json()),
                 fetch('/api/schedules', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },

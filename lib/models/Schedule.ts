@@ -1,5 +1,21 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
+/**
+ * DESIGN CONTRACT: Wall-Clock / Floating Dates
+ *
+ * `fromDate` and `toDate` (and other similar user-entered dates) are stored 
+ * as `type: Date` in MongoDB, but they represent WALL-CLOCK time.
+ * They are stored as fake-UTC strings where the UTC components equal the 
+ * captured wall-clock components.
+ * 
+ * Example: 5:00 PM local time is stored exactly as 17:00:00.000Z.
+ * 
+ * DO NOT cast these to Local Date objects on the frontend using `new Date()` 
+ * without extracting the UTC components. 
+ * Use `formatWallDate` and `<WallDate />` for display.
+ * Use `normalizeWallClock` before saving to force standard fake-UTC.
+ */
+
 export interface IPreBoreLogItem {
     _id?: string;
     rodNumber: string;
@@ -70,7 +86,7 @@ export interface ISchedule extends Document {
     DJTSignatures?: any[];
     todayObjectives?: IObjective[];
     changeOfScope?: IChangeOfScope[];
-    syncedToAppSheet?: boolean;
+
     isDayOffApproved?: boolean;
     historyLog?: IHistoryLog[];
 }
@@ -294,7 +310,7 @@ const ScheduleSchema = new Schema({
         }],
         default: []
     },
-    syncedToAppSheet: { type: Boolean, default: false },
+
     isDayOffApproved: { type: Boolean, default: false },
     historyLog: {
         type: [{
@@ -314,7 +330,12 @@ ScheduleSchema.index({ fromDate: -1 });
 ScheduleSchema.index({ projectManager: 1 });
 ScheduleSchema.index({ foremanName: 1 });
 ScheduleSchema.index({ assignees: 1 });
-ScheduleSchema.index({ customerId: 1 });
+ScheduleSchema.index({ fromDate: 1, assignees: 1 });
+
+ScheduleSchema.index({ customerId: 1, scheduledDate: -1 });
+ScheduleSchema.index({ estimate: 1 });
+ScheduleSchema.index({ scheduledDate: -1 });
+ScheduleSchema.index({ status: 1 });
 
 if (mongoose.models.Schedule) {
     delete mongoose.models.Schedule;

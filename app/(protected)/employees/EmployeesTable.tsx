@@ -185,11 +185,7 @@ export default function EmployeesTable({ initialData }: { initialData?: any[] })
     const handleDelete = async () => {
         if (!employeeToDelete) return;
         try {
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'deleteEmployee', payload: { id: employeeToDelete._id } })
-            });
+            const res = await fetch(`/api/employees/${employeeToDelete._id}`, { method: 'DELETE' });
             const data = await res.json();
             if (data.success) {
                 success('Employee deleted successfully');

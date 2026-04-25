@@ -867,10 +867,10 @@ export default function ImportsPage() {
                 const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
                 if (!data || data.length === 0) throw new Error("No data found in CSV");
 
-                const res = await fetch('/api/webhook/devcoBackend', {
+                const res = await fetch('/api/employees/certifications', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'importEmployeeCertifications', payload: { records: data } })
+                    body: JSON.stringify({ records: data })
                 });
                 const resData = await res.json();
                 if (resData.success) {
@@ -935,10 +935,10 @@ export default function ImportsPage() {
                 const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
                 if (!data || data.length === 0) throw new Error("No data found in CSV");
 
-                const res = await fetch('/api/webhook/devcoBackend', {
+                const res = await fetch('/api/employees/documents', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'importEmployeeDocuments', payload: { records: data } })
+                    body: JSON.stringify({ records: data })
                 });
                 const resData = await res.json();
                 if (resData.success) {

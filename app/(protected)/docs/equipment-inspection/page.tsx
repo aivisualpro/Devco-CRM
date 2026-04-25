@@ -183,11 +183,7 @@ export default function EquipmentInspectionPage() {
                 }),
                 fetch(`/api/estimates?limit=1000`),
                 fetch('/api/vehicle-docs'),
-                fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getEmployees', payload: { limit: 500 } })
-                })
+                fetch(`/api/employees`)
             ]);
 
             const [inspData, estData, vehData, empData] = await Promise.all([

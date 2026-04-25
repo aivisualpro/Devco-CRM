@@ -12,6 +12,7 @@ import {
     DATA_SCOPE,
     MODULES,
 } from '@/lib/permissions/types';
+import { getCachedPermissions } from '@/lib/permissions/cache';
 
 // =====================================
 // SUPER ADMIN CHECK
@@ -27,114 +28,116 @@ export function isSuperAdmin(appRole?: string): boolean {
 // Computes full permissions from role + overrides
 // =====================================
 export async function getUserPermissions(userId: string): Promise<UserPermissions | null> {
-    await connectToDatabase();
+    return getCachedPermissions(userId, async () => {
+        await connectToDatabase();
 
-    // Get user with role info
-    const user = await Employee.findById(userId).lean();
-    if (!user) return null;
+        // Get user with role info
+        const user = await Employee.findById(userId).select('-password -refreshToken -__v').lean();
+        if (!user) return null;
 
-    // Check if user is active
-    if (user.status !== 'Active') return null;
+        // Check if user is active
+        if (user.status !== 'Active') return null;
 
-    // Super Admin bypasses all checks
-    if (isSuperAdmin(user.appRole)) {
-        return {
-            userId,
-            roleName: 'Super Admin',
-            isSuperAdmin: true,
-            department: user.groupNo,
-            modules: [], // Empty because Super Admin has all permissions
-            lastUpdated: new Date(),
-        };
-    }
-
-    // Get user's role
-    const role = user.appRole ? await Role.findOne({ name: user.appRole, isActive: true }).lean() : null;
-    
-    // Get user-specific overrides
-    const overrides = await UserPermissionOverride.find({ userId }).lean();
-
-    // Build permissions from role
-    const modulePermissions: Map<ModuleKey, ModulePermission> = new Map();
-    
-    if (role?.permissions) {
-        for (const perm of role.permissions) {
-            modulePermissions.set(perm.module as ModuleKey, { ...perm } as ModulePermission);
+        // Super Admin bypasses all checks
+        if (isSuperAdmin(user.appRole)) {
+            return {
+                userId,
+                roleName: 'Super Admin',
+                isSuperAdmin: true,
+                department: user.groupNo,
+                modules: [], // Empty because Super Admin has all permissions
+                lastUpdated: new Date(),
+            };
         }
-    }
 
-    // Default Chat Permission Injection (Fix for missing chat access in existing roles)
-    if (!modulePermissions.has(MODULES.CHAT)) {
-        modulePermissions.set(MODULES.CHAT, {
-            module: MODULES.CHAT,
-            actions: [ACTIONS.VIEW, ACTIONS.CREATE] as ActionKey[],
-            dataScope: DATA_SCOPE.SELF as DataScopeKey
-        });
-    }
-    
-    // Default Company Docs Permission Injection
-    if (!modulePermissions.has(MODULES.COMPANY_DOCS)) {
-        modulePermissions.set(MODULES.COMPANY_DOCS, {
-            module: MODULES.COMPANY_DOCS,
-            actions: [ACTIONS.VIEW] as ActionKey[],
-            dataScope: DATA_SCOPE.ALL as DataScopeKey
-        });
-    }
-
-    // Default Vehicle Equipment Permission Injection
-    if (!modulePermissions.has(MODULES.VEHICLE_EQUIPMENT)) {
-        modulePermissions.set(MODULES.VEHICLE_EQUIPMENT, {
-            module: MODULES.VEHICLE_EQUIPMENT,
-            actions: [ACTIONS.VIEW] as ActionKey[],
-            dataScope: DATA_SCOPE.ALL as DataScopeKey
-        });
-    }
-
-    // Apply overrides
-    for (const override of overrides) {
-        const existing = modulePermissions.get(override.module as ModuleKey);
+        // Get user's role
+        const role = user.appRole ? await Role.findOne({ name: user.appRole, isActive: true }).lean() : null;
         
-        if (existing) {
-            // Apply grants
-            if (override.grant) {
-                existing.actions = [...new Set([...existing.actions, ...override.grant as ActionKey[]])];
+        // Get user-specific overrides
+        const overrides = await UserPermissionOverride.find({ userId }).lean();
+
+        // Build permissions from role
+        const modulePermissions: Map<ModuleKey, ModulePermission> = new Map();
+        
+        if (role?.permissions) {
+            for (const perm of role.permissions) {
+                modulePermissions.set(perm.module as ModuleKey, { ...perm } as ModulePermission);
             }
-            // Apply revokes
-            if (override.revoke) {
-                existing.actions = existing.actions.filter(a => !override.revoke!.includes(a as any));
-            }
-            // Override data scope if specified
-            if (override.dataScope) {
-                existing.dataScope = override.dataScope as DataScopeKey;
-            }
-            // Field permissions
-            if (override.fieldGrant) {
-                existing.fieldPermissions = [...(existing.fieldPermissions || []), ...override.fieldGrant];
-            }
-            if (override.fieldRevoke && existing.fieldPermissions) {
-                const revokeSet = new Set(override.fieldRevoke.map(f => f.field));
-                existing.fieldPermissions = existing.fieldPermissions.filter(f => !revokeSet.has(f.field));
-            }
-        } else if (override.grant && override.grant.length > 0) {
-            // Create new permission from override grants
-            modulePermissions.set(override.module as ModuleKey, {
-                module: override.module as ModuleKey,
-                actions: override.grant as ActionKey[],
-                dataScope: override.dataScope as DataScopeKey || DATA_SCOPE.SELF,
-                fieldPermissions: override.fieldGrant,
+        }
+
+        // Default Chat Permission Injection (Fix for missing chat access in existing roles)
+        if (!modulePermissions.has(MODULES.CHAT)) {
+            modulePermissions.set(MODULES.CHAT, {
+                module: MODULES.CHAT,
+                actions: [ACTIONS.VIEW, ACTIONS.CREATE] as ActionKey[],
+                dataScope: DATA_SCOPE.SELF as DataScopeKey
             });
         }
-    }
+        
+        // Default Company Docs Permission Injection
+        if (!modulePermissions.has(MODULES.COMPANY_DOCS)) {
+            modulePermissions.set(MODULES.COMPANY_DOCS, {
+                module: MODULES.COMPANY_DOCS,
+                actions: [ACTIONS.VIEW] as ActionKey[],
+                dataScope: DATA_SCOPE.ALL as DataScopeKey
+            });
+        }
 
-    return {
-        userId,
-        roleId: role?._id,
-        roleName: role?.name || 'No Role',
-        isSuperAdmin: false,
-        department: user.groupNo,
-        modules: Array.from(modulePermissions.values()),
-        lastUpdated: new Date(),
-    };
+        // Default Vehicle Equipment Permission Injection
+        if (!modulePermissions.has(MODULES.VEHICLE_EQUIPMENT)) {
+            modulePermissions.set(MODULES.VEHICLE_EQUIPMENT, {
+                module: MODULES.VEHICLE_EQUIPMENT,
+                actions: [ACTIONS.VIEW] as ActionKey[],
+                dataScope: DATA_SCOPE.ALL as DataScopeKey
+            });
+        }
+
+        // Apply overrides
+        for (const override of overrides) {
+            const existing = modulePermissions.get(override.module as ModuleKey);
+            
+            if (existing) {
+                // Apply grants
+                if (override.grant) {
+                    existing.actions = [...new Set([...existing.actions, ...override.grant as ActionKey[]])];
+                }
+                // Apply revokes
+                if (override.revoke) {
+                    existing.actions = existing.actions.filter(a => !override.revoke!.includes(a as any));
+                }
+                // Override data scope if specified
+                if (override.dataScope) {
+                    existing.dataScope = override.dataScope as DataScopeKey;
+                }
+                // Field permissions
+                if (override.fieldGrant) {
+                    existing.fieldPermissions = [...(existing.fieldPermissions || []), ...override.fieldGrant];
+                }
+                if (override.fieldRevoke && existing.fieldPermissions) {
+                    const revokeSet = new Set(override.fieldRevoke.map(f => f.field));
+                    existing.fieldPermissions = existing.fieldPermissions.filter(f => !revokeSet.has(f.field));
+                }
+            } else if (override.grant && override.grant.length > 0) {
+                // Create new permission from override grants
+                modulePermissions.set(override.module as ModuleKey, {
+                    module: override.module as ModuleKey,
+                    actions: override.grant as ActionKey[],
+                    dataScope: override.dataScope as DataScopeKey || DATA_SCOPE.SELF,
+                    fieldPermissions: override.fieldGrant,
+                });
+            }
+        }
+
+        return {
+            userId,
+            roleId: role?._id,
+            roleName: role?.name || 'No Role',
+            isSuperAdmin: false,
+            department: user.groupNo,
+            modules: Array.from(modulePermissions.values()),
+            lastUpdated: new Date(),
+        };
+    });
 }
 
 // =====================================

@@ -95,11 +95,7 @@ export default function TrainingsPage() {
                 setLoading(false);
                 return;
             }
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'getEmployeeById', payload: { id: email } })
-            });
+            const res = await fetch(`/api/employees/${email}`);
             const data = await res.json();
             if (data.success) {
                 setEmployee(data.result);

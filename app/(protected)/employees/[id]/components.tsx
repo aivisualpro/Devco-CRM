@@ -65,13 +65,10 @@ export function EmployeeHeaderCard({ employee, onUpdate, animate, onEditSignatur
         
         setSaving(true);
         try {
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
+            const res = await fetch(`/api/employees/${employee._id}`, {
+                method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    action: 'updateEmployee', 
-                    payload: { id: employee._id, item: { password: newPassword } }
-                })
+                body: JSON.stringify({ id: employee._id, item: { password: newPassword } })
             });
             const data = await res.json();
             if (data.success) {

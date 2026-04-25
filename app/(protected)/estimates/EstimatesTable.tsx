@@ -323,11 +323,7 @@ export default function EstimatesTable({ initialData }: { initialData?: any[] })
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'getConstants' })
                 }),
-                fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getEmployees' })
-                }),
+                fetch(`/api/employees`),
                 fetch(`/api/clients`)
             ]);
             const constData = await constRes.json();

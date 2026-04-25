@@ -327,11 +327,7 @@ export default function GeneralSettings() {
         setWorkflowLoading(true);
         try {
             if (employees.length === 0) {
-                const empRes = await fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getEmployees' })
-                });
+                const empRes = await fetch(`/api/employees`);
                 const empData = await empRes.json();
                 if (empData.success) setEmployees(empData.result || []);
             }
@@ -351,11 +347,7 @@ export default function GeneralSettings() {
         setEmailBotLoading(true);
         try {
             if (employees.length === 0) {
-                const empRes = await fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getEmployees' })
-                });
+                const empRes = await fetch(`/api/employees`);
                 const empData = await empRes.json();
                 if (empData.success) setEmployees(empData.result || []);
             }

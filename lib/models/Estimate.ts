@@ -108,7 +108,7 @@ export interface IEstimate extends Document {
             thumbnailUrl?: string;
         }>;
     }>;
-    syncedToAppSheet?: boolean;
+
 
     // Totals & Meta
     subTotal?: number;
@@ -333,7 +333,7 @@ const EstimateSchema = new Schema({
             thumbnailUrl: { type: String }
         }]
     }],
-    syncedToAppSheet: { type: Boolean, default: false },
+
 
     // Line Items
     labor: { type: [Object], default: [] },
@@ -458,6 +458,10 @@ EstimateSchema.index({ estimate: 1 });
 EstimateSchema.index({ status: 1 });
 EstimateSchema.index({ customerId: 1 });
 
+
+EstimateSchema.index({ estimate: 1, status: 1 });   // compound
+EstimateSchema.index({ customerId: 1, createdAt: -1 });
+EstimateSchema.index({ title: 'text', description: 'text', estimate: 'text' });
 
 // Force model recompilation to ensure schema changes are picked up
 if (mongoose.models.Estimate) {

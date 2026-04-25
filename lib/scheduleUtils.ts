@@ -305,3 +305,28 @@ export const getCurrentWeekDates = (): string[] => {
     }
     return dates;
 };
+
+/**
+ * Derives a dashboard weekId (MM/DD-MM/DD) from a given Date or date string.
+ * This ensures mutations properly revalidate the correct week cache.
+ */
+export const getWeekIdFromDate = (dateInput?: string | Date | null): string => {
+    let d = new Date();
+    if (dateInput) {
+        d = new Date(dateInput);
+        if (isNaN(d.getTime())) d = new Date();
+    }
+    
+    const day = d.getDay();
+    const diff = day === 0 ? -6 : 1 - day; // Monday start
+    
+    const start = new Date(d);
+    start.setDate(d.getDate() + diff);
+    
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    
+    const fmt = (dt: Date) => `${String(dt.getMonth() + 1).padStart(2, '0')}/${String(dt.getDate()).padStart(2, '0')}`;
+    
+    return `${fmt(start)}-${fmt(end)}`;
+};

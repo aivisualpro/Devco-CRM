@@ -125,6 +125,10 @@ const JHASchema: Schema = new Schema({
     timestamps: true
 });
 
+JHASchema.index({ schedule_id: 1 });
+JHASchema.index({ date: -1 });
+JHASchema.index({ createdAt: -1 });
+
 // Force model recompilation to ensure schema changes are picked up
 if (mongoose.models.JHA) {
     delete mongoose.models.JHA;

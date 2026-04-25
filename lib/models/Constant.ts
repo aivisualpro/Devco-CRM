@@ -28,6 +28,9 @@ const ConstantSchema = new Schema<IConstant>({
     updatedAt: { type: Date, default: Date.now }
 }, { timestamps: true, collection: 'constantItems' });
 
+ConstantSchema.index({ type: 1 });
+ConstantSchema.index({ type: 1, value: 1 });
+
 const Constant: Model<IConstant> = mongoose.models.Constant || mongoose.model<IConstant>('Constant', ConstantSchema);
 
 export default Constant;

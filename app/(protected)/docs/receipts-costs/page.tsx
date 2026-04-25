@@ -154,11 +154,7 @@ export default function ReceiptsCostsPage() {
         fetchEstimates();
 
         // Fetch employees
-        fetch('/api/webhook/devcoBackend', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'getEmployees' })
-        })
+        fetch(`/api/employees`)
             .then(res => res.json())
             .then(data => {
                 if (data.success) setEmployees(data.result || []);

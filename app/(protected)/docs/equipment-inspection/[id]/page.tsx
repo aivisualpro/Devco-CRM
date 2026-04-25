@@ -85,11 +85,7 @@ export default function EquipmentInspectionDetailPage() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'getById', payload: { id } })
                 }),
-                fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getEmployees', payload: { limit: 500 } })
-                })
+                fetch(`/api/employees`)
             ]);
 
             const [inspData, empData] = await Promise.all([inspRes.json(), empRes.json()]);

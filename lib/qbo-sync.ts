@@ -1,18 +1,21 @@
+/**
+ * Touching QBO fields? Update /lib/qbo-sync-contract.ts FIRST.
+ */
 import { DevcoQuickBooks } from '@/lib/models';
 import { getSingleProject, qboQuery } from '@/lib/quickbooks';
 import { connectToDatabase } from '@/lib/db';
+import { QBO_OWNED_FIELDS, MERGE_RULES } from '@/lib/qbo-sync-contract';
 
 export async function syncProjectToDb(projectId: string) {
     await connectToDatabase();
     
-    console.log(`[QBO-SYNC] Syncing project ${projectId} to MongoDB...`);
+    if (process.env.NODE_ENV !== 'production') console.log(`[QBO-SYNC] Syncing project ${projectId} to MongoDB...`);
     
     // 1. Fetch live data from QBO
     // This function automatically fetches Customer details + Profitability + Transactions (via Reports)
     const lp = await getSingleProject(projectId);
     
-    // 2. Prepare update data
-    const updateData = {
+    const updateData: any = {
         project: lp.project || lp.DisplayName,
         customer: lp.customer || lp.CompanyName || lp.FullyQualifiedName.split(':')[0],
         startDate: lp.MetaData?.CreateTime ? new Date(lp.MetaData.CreateTime) : undefined,
@@ -37,11 +40,23 @@ export async function syncProjectToDb(projectId: string) {
     // 4. Update DB
     const existingProject = await DevcoQuickBooks.findOne({ projectId: lp.Id });
     
-    const finalUpdateData: any = { ...updateData };
+    const finalUpdateData: any = {};
     
-    // Only update proposalNumber if it's a new project or current proposalNumber is empty
-    if (extractedProposalNumber && (!existingProject || !existingProject.proposalNumber)) {
-        finalUpdateData.proposalNumber = extractedProposalNumber;
+    // Only set QBO owned fields that are present
+    for (const field of QBO_OWNED_FIELDS) {
+        if (updateData[field] !== undefined) {
+            finalUpdateData[field] = updateData[field];
+        }
+    }
+
+    if (MERGE_RULES.transactions === 'replaceAll') {
+        finalUpdateData.transactions = updateData.transactions;
+    }
+    
+    if (MERGE_RULES.proposalNumber === 'fillOnlyIfEmpty') {
+        if (extractedProposalNumber && (!existingProject || !existingProject.proposalNumber)) {
+            finalUpdateData.proposalNumber = extractedProposalNumber;
+        }
     }
     
     await DevcoQuickBooks.findOneAndUpdate(
@@ -50,7 +65,7 @@ export async function syncProjectToDb(projectId: string) {
         { upsert: true, new: true, runValidators: true }
     );
     
-    console.log(`[QBO-SYNC] Successfully synced project ${projectId}`);
+    if (process.env.NODE_ENV !== 'production') console.log(`[QBO-SYNC] Successfully synced project ${projectId}`);
     return lp;
 }
 

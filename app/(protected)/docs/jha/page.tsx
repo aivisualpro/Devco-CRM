@@ -142,11 +142,7 @@ export default function JHAPage() {
         try {
             // Lightweight parallel calls — no getSchedulesPage mega-query
             const [empRes, schedRes, estRes, clientRes] = await Promise.all([
-                fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getEmployees' })
-                }).then(r => r.json()),
+                fetch(`/api/employees`).then(r => r.json()),
                 fetch('/api/schedules', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },

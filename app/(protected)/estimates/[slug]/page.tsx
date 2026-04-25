@@ -490,16 +490,13 @@ export default function EstimateViewPage() {
             if (visibleSections.aerialLayout) settings.push('Aerial Layout');
 
             try {
-                await fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
+                await fetch(`/api/employees/${userEmail}`, {
+                    method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        action: 'updateEmployee',
-                        payload: {
                             id: userEmail,
                             item: { estimateSettings: settings }
-                        }
-                    })
+                        })
                 });
             } catch (err) {
                 console.error('Failed to save settings', err);

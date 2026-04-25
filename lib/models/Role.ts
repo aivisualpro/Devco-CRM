@@ -53,7 +53,7 @@ if (process.env.NODE_ENV !== 'production' && mongoose.models.Role) {
 }
 
 const Role: Model<IRole> = mongoose.models.Role || mongoose.model<IRole>('Role', RoleSchema);
-console.log('[MODEL] Role model registered/retrieved');
+if (process.env.NODE_ENV !== 'production') console.log('[MODEL] Role model registered/retrieved');
 export default Role;
 
 // =====================================

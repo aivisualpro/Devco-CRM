@@ -139,11 +139,7 @@ export default function PotholeLogDetailsPage() {
             }
 
             // Fetch employees
-            const empRes = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'getEmployees', payload: { limit: 500 } })
-            });
+            const empRes = await fetch(`/api/employees`);
             const empData = await empRes.json();
             if (empData.success) setEmployees(empData.result || []);
 
