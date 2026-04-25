@@ -56,11 +56,7 @@ export function ContactSelector({ value, customerId, filterType, onChange }: Con
         const fetchClientContacts = async () => {
             setLoading(true);
             try {
-                const res = await fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getClientById', payload: { id: customerId } })
-                });
+                const res = await fetch(`/api/clients/${customerId}`);
                 const data = await res.json();
                 if (data.success && data.result) {
                     const clientContacts = data.result.contacts || [];
@@ -134,13 +130,10 @@ export function ContactSelector({ value, customerId, filterType, onChange }: Con
 
         try {
             const updatedContacts = [...contacts, newContact];
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
+            const res = await fetch(`/api/clients/${customerId}`, {
+                method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'updateClient',
-                    payload: { id: customerId, item: { contacts: updatedContacts } }
-                })
+                body: JSON.stringify({ id: customerId, item: { contacts: updatedContacts } })
             });
             const data = await res.json();
             if (data.success) {

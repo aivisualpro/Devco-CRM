@@ -24,11 +24,7 @@ export function AddressSelector({ value, customerId, onChange }: AddressSelector
         const fetchClientAddresses = async () => {
             setLoading(true);
             try {
-                const res = await fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getClientById', payload: { id: customerId } })
-                });
+                const res = await fetch(`/api/clients/${customerId}`);
                 const data = await res.json();
                 if (data.success && data.result) {
                     const addresses = data.result.addresses || [];
@@ -67,13 +63,10 @@ export function AddressSelector({ value, customerId, onChange }: AddressSelector
 
             try {
                 const updatedAddresses = [...options, newVal];
-                const res = await fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
+                const res = await fetch(`/api/clients/${customerId}`, {
+                    method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'updateClient',
-                        payload: { id: customerId, item: { addresses: updatedAddresses } }
-                    })
+                    body: JSON.stringify({ id: customerId, item: { addresses: updatedAddresses } })
                 });
                 const data = await res.json();
                 if (data.success) {

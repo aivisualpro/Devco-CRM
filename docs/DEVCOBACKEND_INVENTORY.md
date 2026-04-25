@@ -26,16 +26,17 @@
 | [ ] | `deleteCatalogueItem` | DELETE | `API /api/catalogue` |  |
 | [ ] | `addLineItem` | WRITE | `API /api/catalogue` |  |
 | [ ] | `updateLineItem` | WRITE | `API /api/catalogue` |  |
+| [x] | `getClients` | READ | `GET /api/clients` |  |
+| [x] | `getClientById` | READ | `GET /api/clients/[id]` |  |
+| [x] | `addClient` | WRITE | `POST /api/clients` |  |
+| [x] | `updateClient` | WRITE | `PATCH /api/clients/[id]` |  |
+| [x] | `deleteClient` | DELETE | `DELETE /api/clients/[id]` |  |
+| [x] | `importClients` | WRITE | `POST /api/clients/import` |  |
 | [ ] | `deleteLineItem` | DELETE | `API /api/catalogue` |  |
 | [ ] | `getConstants` | READ | `API /api/catalogue` |  |
 | [ ] | `addConstant` | WRITE | `API /api/catalogue` |  |
 | [ ] | `updateConstant` | WRITE | `API /api/catalogue` |  |
 | [ ] | `deleteConstant` | DELETE | `API /api/catalogue` |  |
-| [ ] | `getClients` | READ | `GET /api/clients` |  |
-| [ ] | `addClient` | WRITE | `POST/PATCH/DELETE /api/clients` |  |
-| [ ] | `updateClient` | WRITE | `POST/PATCH/DELETE /api/clients` |  |
-| [ ] | `deleteClient` | DELETE | `POST/PATCH/DELETE /api/clients` |  |
-| [ ] | `importClients` | WRITE | `POST/PATCH/DELETE /api/clients` |  |
 | [ ] | `uploadDocument` | WRITE | `API /api/misc` |  |
 | [ ] | `uploadThumbnail` | WRITE | `API /api/misc` |  |
 | [ ] | `uploadRawToCloudinary` | WRITE | `API /api/misc` |  |

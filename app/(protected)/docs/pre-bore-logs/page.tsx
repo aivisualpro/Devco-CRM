@@ -274,17 +274,7 @@ export default function PreBoreLogsPage() {
                         }
                     })
                 }),
-                fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'getClients',
-                        payload: {
-                            limit: 500,
-                            projection: { _id: 1, name: 1 }
-                        }
-                    })
-                })
+                fetch(`/api/clients?limit=500`)
             ]);
 
             const [logsData, estimatesData, employeesData, clientsData] = await Promise.all([logsRes.json(), estimatesRes.json(), employeesRes.json(), clientsRes.json()]);

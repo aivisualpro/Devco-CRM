@@ -165,11 +165,7 @@ export default function JobTicketPage() {
                     })
                 }).then(r => r.json()),
                 fetch(`/api/estimates`).then(r => r.json()),
-                fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getClients' })
-                }).then(r => r.json()),
+                fetch(`/api/clients`).then(r => r.json()),
                 fetch('/api/webhook/devcoBackend', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },

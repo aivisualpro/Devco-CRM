@@ -143,11 +143,11 @@ export default function ClientsTable({ initialData }: { initialData: any[] }) {
 
                 if (parsedClients.length === 0) throw new Error("No valid data found");
 
-                const res = await fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'importClients', payload: { clients: parsedClients } })
-                });
+                const res = await fetch(`/api/clients/import`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({parsedClients})
+});
 
                 const data = await res.json();
                 if (data.success) {
@@ -190,11 +190,7 @@ export default function ClientsTable({ initialData }: { initialData: any[] }) {
         }
 
         try {
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'deleteClient', payload: { id: clientToDelete._id } })
-            });
+            const res = await fetch(`/api/clients/${clientToDelete._id}`, { method: 'DELETE' });
 
             const data = await res.json();
             if (data.success) {

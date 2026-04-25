@@ -95,3 +95,92 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Failed to fetch clients' }, { status: 500 });
     }
 }
+
+export async function POST(req: NextRequest) {
+    try {
+        await connectToDatabase();
+        const item = await req.json();
+                if (!item) return NextResponse.json({ success: false, error: 'Missing client data' }, { status: 400 });
+
+                const contacts: any[] = [];
+                const inputContacts = Array.isArray(item.contacts) ? item.contacts : [];
+
+                inputContacts.forEach((con: any, idx: number) => {
+                    contacts.push({
+                        ...con,
+                        type: con.type || 'Main Contact',
+                        active: con.active !== undefined ? con.active : (idx === 0),
+                        primary: con.primary !== undefined ? con.primary : (idx === 0)
+                    });
+                });
+
+                // Migrate legacy main contact info
+                if (item.contactFullName || item.email || item.phone) {
+                    const exists = contacts.some(con => con.name === item.contactFullName);
+                    if (!exists) {
+                        contacts.push({
+                            name: item.contactFullName || 'Primary Contact',
+                            email: item.email || '',
+                            phone: item.phone || '',
+                            type: 'Main Contact',
+                            active: contacts.length === 0,
+                            primary: contacts.length === 0
+                        });
+                    }
+                }
+
+                // Migrate legacy accounting info
+                if (item.accountingContact || item.accountingEmail) {
+                    const exists = contacts.some(con => con.name === item.accountingContact && con.type === 'Accounting');
+                    if (!exists) {
+                        contacts.push({
+                            name: item.accountingContact || 'Accounting Contact',
+                            email: item.accountingEmail || '',
+                            type: 'Accounting',
+                            active: contacts.length === 0,
+                            primary: false
+                        });
+                    }
+                }
+
+                // Ensure exactly one is active AND one is primary
+                if (contacts.length > 0) {
+                    if (!contacts.some(con => con.active)) contacts[0].active = true;
+                    if (!contacts.some(con => con.primary)) contacts[0].primary = true;
+                }
+
+                // Handle addresses
+                let addresses = Array.isArray(item.addresses) ? item.addresses : [];
+                addresses = addresses.map((addr: any, idx: number) => {
+                    if (typeof addr === 'string') {
+                        return { address: addr, primary: idx === 0 };
+                    }
+                    return addr;
+                });
+
+                // Sync businessAddress with primary address
+                const primaryAddr = addresses.find((a: any) => a.primary) || addresses[0];
+                const businessAddress = primaryAddr ? (typeof primaryAddr === 'string' ? primaryAddr : primaryAddr.address) : item.businessAddress || '';
+
+                const clientData = {
+                    ...item,
+                    contacts,
+                    addresses,
+                    businessAddress,
+                    _id: item.recordId || item._id || `C-${Date.now()}`
+                };
+                delete (clientData as any).accountingContact;
+                delete (clientData as any).accountingEmail;
+                delete (clientData as any).contactFullName;
+                delete (clientData as any).email;
+                delete (clientData as any).phone;
+
+                const newClient = await Client.create(clientData);
+
+
+
+                return NextResponse.json({ success: true, result: newClient });
+    } catch (error: any) {
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+}

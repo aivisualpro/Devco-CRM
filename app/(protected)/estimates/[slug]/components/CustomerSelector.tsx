@@ -23,11 +23,7 @@ export function CustomerSelector({ value, onChange }: CustomerSelectorProps) {
     useEffect(() => {
         const fetchClients = async () => {
             try {
-                const res = await fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getClients' })
-                });
+                const res = await fetch(`/api/clients`);
                 const data = await res.json();
                 if (data.success) {
                     // Extract names and sort
@@ -61,14 +57,11 @@ export function CustomerSelector({ value, onChange }: CustomerSelectorProps) {
         } else {
             // Create new client
             try {
-                const res = await fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'addClient',
-                        payload: { item: { name: newVal, status: 'Active' } }
-                    })
-                });
+                const res = await fetch('/api/clients', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ item: { name: newVal, status: 'Active' } })
+});
                 const data = await res.json();
                 if (data.success) {
                     success('New client added');
