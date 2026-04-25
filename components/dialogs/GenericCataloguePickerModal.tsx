@@ -290,13 +290,10 @@ export function GenericCataloguePickerModal({
             const updatedData = { ...item, [field]: value };
             delete updatedData._id;
             
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
+            const res = await fetch('/api/catalogue', {
+                method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'updateCatalogueItem',
-                    payload: { type, id: item._id, item: updatedData }
-                })
+                body: JSON.stringify({ type, id: item._id, item: updatedData })
             });
             const result = await res.json();
 

@@ -41,11 +41,7 @@ export default function ConstantsPage() {
     const fetchConstants = async () => {
         setLoading(true);
         try {
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'getConstants' })
-            });
+            const res = await fetch(`/api/constants`);
             const data = await res.json();
             if (data.success) {
                 setConstants(data.result || []);
@@ -153,10 +149,10 @@ export default function ConstantsPage() {
     const handleDelete = async () => {
         if (!deleteId) return;
         try {
-            const res = await fetch('/api/webhook/devcoBackend', {
+            const res = await fetch('/api/constants', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'deleteConstant', payload: { id: deleteId } })
+                body: JSON.stringify({ action: 'delete', payload: { id: deleteId } })
             });
             const data = await res.json();
             if (data.success) {

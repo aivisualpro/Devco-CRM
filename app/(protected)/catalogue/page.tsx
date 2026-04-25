@@ -249,11 +249,7 @@ function CatalogueContent() {
     const fetchItems = async () => {
         setLoading(true);
         try {
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'getCatalogueItems', payload: { type: activeCategory } })
-            });
+            const res = await fetch(`/api/catalogue?type=${activeCategory}`);
             const data = await res.json();
             if (data.success) {
                 setItems(data.result || []);
@@ -266,11 +262,7 @@ function CatalogueContent() {
 
     const fetchAllCounts = async () => {
         try {
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'getCatalogueCounts' })
-            });
+            const res = await fetch(`/api/catalogue/counts`);
             const data = await res.json();
 
             if (data.success && data.result) {
@@ -382,10 +374,10 @@ function CatalogueContent() {
     const handleDelete = async () => {
         if (!deleteId) return;
         try {
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
+            const res = await fetch('/api/catalogue', {
+                method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'deleteCatalogueItem', payload: { type: activeCategory, id: deleteId } })
+                body: JSON.stringify({ type: activeCategory, id: deleteId })
             });
             const data = await res.json();
             if (data.success) {

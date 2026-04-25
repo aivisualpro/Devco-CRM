@@ -61,13 +61,10 @@ export function AddToolsEstimateDialogue({
 
     const handleCatalogueSave = async (data: any) => {
         try {
-            const res = await fetch('/api/webhook/devcoBackend', {
+            const res = await fetch('/api/catalogue', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'addCatalogueItem',
-                    payload: { type: 'tools', item: data }
-                })
+                body: JSON.stringify({ type: 'tools', item: data })
             });
             const result = await res.json();
 

@@ -18,25 +18,25 @@
 
 | [x] | `deleteEstimate` | DELETE | `POST/PATCH/DELETE /api/estimates` |  |
 | [x] | `importEstimates` | WRITE | `POST/PATCH/DELETE /api/estimates` |  |
-| [ ] | `getCatalogueItems` | READ | `API /api/catalogue` |  |
-| [ ] | `getAllCatalogueItems` | READ | `API /api/catalogue` |  |
-| [ ] | `getCatalogueCounts` | READ | `API /api/catalogue` |  |
-| [ ] | `addCatalogueItem` | WRITE | `API /api/catalogue` |  |
-| [ ] | `updateCatalogueItem` | WRITE | `API /api/catalogue` |  |
-| [ ] | `deleteCatalogueItem` | DELETE | `API /api/catalogue` |  |
-| [ ] | `addLineItem` | WRITE | `API /api/catalogue` |  |
-| [ ] | `updateLineItem` | WRITE | `API /api/catalogue` |  |
+| [x] | `getCatalogueItems` | READ | `API /api/catalogue` |  |
+| [x] | `getAllCatalogueItems` | READ | `API /api/catalogue` |  |
+| [x] | `getCatalogueCounts` | READ | `API /api/catalogue` |  |
+| [x] | `addCatalogueItem` | WRITE | `API /api/catalogue` |  |
+| [x] | `updateCatalogueItem` | WRITE | `API /api/catalogue` |  |
+| [x] | `deleteCatalogueItem` | DELETE | `API /api/catalogue` |  |
+| [x] | `addLineItem` | WRITE | `API /api/catalogue` |  |
+| [x] | `updateLineItem` | WRITE | `API /api/catalogue` |  |
 | [x] | `getClients` | READ | `GET /api/clients` |  |
 | [x] | `getClientById` | READ | `GET /api/clients/[id]` |  |
 | [x] | `addClient` | WRITE | `POST /api/clients` |  |
 | [x] | `updateClient` | WRITE | `PATCH /api/clients/[id]` |  |
 | [x] | `deleteClient` | DELETE | `DELETE /api/clients/[id]` |  |
 | [x] | `importClients` | WRITE | `POST /api/clients/import` |  |
-| [ ] | `deleteLineItem` | DELETE | `API /api/catalogue` |  |
-| [ ] | `getConstants` | READ | `API /api/catalogue` |  |
-| [ ] | `addConstant` | WRITE | `API /api/catalogue` |  |
-| [ ] | `updateConstant` | WRITE | `API /api/catalogue` |  |
-| [ ] | `deleteConstant` | DELETE | `API /api/catalogue` |  |
+| [x] | `deleteLineItem` | DELETE | `API /api/catalogue` |  |
+| [x] | `getConstants` | READ | `API /api/catalogue` |  |
+| [x] | `addConstant` | WRITE | `API /api/catalogue` |  |
+| [x] | `updateConstant` | WRITE | `API /api/catalogue` |  |
+| [x] | `deleteConstant` | DELETE | `API /api/catalogue` |  |
 | [ ] | `uploadDocument` | WRITE | `API /api/misc` |  |
 | [ ] | `uploadThumbnail` | WRITE | `API /api/misc` |  |
 | [ ] | `uploadRawToCloudinary` | WRITE | `API /api/misc` |  |

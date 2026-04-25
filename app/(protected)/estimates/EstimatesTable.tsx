@@ -318,11 +318,7 @@ export default function EstimatesTable({ initialData }: { initialData?: any[] })
 
         const fetchFresh = async () => {
             const [constRes, empRes, clientRes] = await Promise.all([
-                fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getConstants' })
-                }),
+                fetch(`/api/constants`),
                 fetch(`/api/employees`),
                 fetch(`/api/clients`)
             ]);

@@ -393,11 +393,7 @@ function WIPReportContent() {
 
     const fetchEquipment = async () => {
         try {
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'getCatalogueItems', payload: { type: 'equipment' } })
-            });
+            const res = await fetch(`/api/catalogue?type=${'equipment'}`);
             const data = await res.json();
             if (data.success) {
                 setEquipmentMachines(data.result || []);

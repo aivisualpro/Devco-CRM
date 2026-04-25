@@ -223,11 +223,7 @@ export default function WorkersCompPage() {
             const data = await res.json();
 
             // Fetch Constants for Workers Comp Rates
-            const resConst = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'getConstants' })
-            });
+            const resConst = await fetch(`/api/constants`);
             const dataConst = await resConst.json();
             if (dataConst.success) {
                 const wcRates: Record<string, number> = {};
