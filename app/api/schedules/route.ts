@@ -3,15 +3,57 @@ import mongoose from 'mongoose';
 import { connectToDatabase } from '@/lib/db';
 import { Schedule, Client, Employee, Constant, Estimate, JHA, EquipmentItem, OverheadItem, Customization } from '@/lib/models';
 import { calculateTimesheetData } from '@/lib/timeCardUtils';
-import { getLocalNowISO } from '@/lib/scheduleUtils';
+import { getLocalNowISO, getWeekIdFromDate } from '@/lib/scheduleUtils';
 import { getUserFromRequest } from '@/lib/permissions/middleware';
 import { getUserPermissions, getDataScope, isSuperAdmin } from '@/lib/permissions/service';
 import { MODULES } from '@/lib/permissions/types';
 import { sendSMS } from '@/lib/signalwire';
 import { createNotifications } from '@/lib/notifications';
 import { Resend } from 'resend';
+import { unstable_cache, revalidateTag } from 'next/cache';
+import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
 
-// Helper to fetch real driving distance from Google Maps Distance Matrix API
+export const revalidate = 60;
+
+const getCachedScheduleStats = unstable_cache(
+    async (timeCardsScope: string, currentUserEmail: string | undefined) => {
+        const pipeline: any[] = [];
+        const matchStage: any = { type: 'Timesheet' };
+
+        if (timeCardsScope !== 'all') {
+            if (timeCardsScope === 'me') {
+                matchStage['timesheet.email'] = currentUserEmail;
+            } else if (timeCardsScope === 'team' && currentUserEmail) {
+                const allUsers = await Employee.find({ email: currentUserEmail }).select('teamMember').lean();
+                let teamEmails = [currentUserEmail];
+                allUsers.forEach((u: any) => {
+                    if (u.teamMember && Array.isArray(u.teamMember)) {
+                        teamEmails.push(...u.teamMember);
+                    }
+                });
+                matchStage['timesheet.email'] = { $in: teamEmails };
+            }
+        }
+
+        pipeline.push({ $unwind: "$timesheet" });
+        pipeline.push({ $match: matchStage });
+
+        pipeline.push({
+            $group: {
+                _id: { $month: "$date" },
+                totalPayroll: { $sum: "$timesheet.payrollAmount" },
+                totalHours: { $sum: "$timesheet.totalHours" },
+                timesheetCount: { $sum: 1 }
+            }
+        });
+
+        pipeline.push({ $sort: { _id: 1 } });
+
+        return await Schedule.aggregate(pipeline);
+    },
+    ['schedule-stats'],
+    { tags: ['schedule-stats'], revalidate: 300 }
+);
 async function fetchGoogleDistance(locIn?: string, locOut?: string): Promise<number | null> {
     const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
     if (!GOOGLE_MAPS_API_KEY || !locIn || !locOut) return null;
@@ -42,183 +84,7 @@ async function fetchGoogleDistance(locIn?: string, locOut?: string): Promise<num
         return null;
     }
 }
-const getAppSheetConfig = () => ({
-    appId: process.env.APPSHEET_APP_ID || "3a1353f3-966e-467d-8947-a4a4d0c4c0c5",
-    accessKey: process.env.APPSHEET_ACCESS || "V2-lWtLA-VV7bn-bEktT-S5xM7-2WUIf-UQmIA-GY6qH-A1S3E",
-    tableName: process.env.APSHEET_JOB_SCHEDULE_TABLE || "Job Schedule"
-});
 
-async function updateAppSheetSchedule(data: any | any[], action: "Add" | "Edit" | "Delete" = "Edit") {
-    // Only sync to AppSheet on production (Vercel)
-    if (process.env.NODE_ENV !== 'production') return;
-
-    const { appId, accessKey, tableName } = getAppSheetConfig();
-    if (!appId || !accessKey) return;
-
-    const items = Array.isArray(data) ? data : [data];
-    if (items.length === 0) return;
-
-    // Helper to format dates for AppSheet - preserves local time without timezone conversion
-    // Input is expected to be a local ISO string like "2026-01-22T07:00:00"
-    const fmtDate = (d: any) => {
-        if (!d) return "";
-        try {
-            const str = String(d);
-            // If it's already in ISO-like format (YYYY-MM-DDTHH:mm), extract and reformat
-            const match = str.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-            if (match) {
-                const [, year, month, day, hour, minute] = match;
-                // Format: MM/DD/YYYY HH:mm:ss (AppSheet expects this format)
-                return `${month}/${day}/${year} ${hour}:${minute}:00`;
-            }
-            // Fallback: try parsing as Date (may still cause timezone issues for old data)
-            const date = new Date(d);
-            if (isNaN(date.getTime())) return "";
-            // Use local time components to avoid UTC conversion
-            const pad = (n: number) => n < 10 ? '0' + n : n;
-            return `${pad(date.getMonth() + 1)}/${pad(date.getDate())}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:00`;
-        } catch { return ""; }
-    };
-
-    const rows = items.map((item: any) => {
-        // Fetch employee emails for assignees (AppSheet expects "email , email" format)
-        let assigneesList = "";
-        if (item.assignees && Array.isArray(item.assignees) && item.assignees.length > 0) {
-            assigneesList = item.assignees.join(' , ');
-        } else if (typeof item.assignees === 'string') {
-            assigneesList = item.assignees;
-        }
-
-        return {
-            "Record_ID": String(item._id || ""),
-            "Title": String(item.title || ""),
-            "From": fmtDate(item.fromDate),
-            "To": fmtDate(item.toDate),
-            "Customer": String(item.customerId || ""),
-            "Proposal Number": String(item.estimate || ""),
-            "Project Manager Name": String(item.projectManager || ""),
-            "Foreman Name": String(item.foremanName || ""),
-            "Assignees": assigneesList,
-            "Description": String(item.description || ""),
-            "Service Item": String(item.service || ""),
-            "Color": String(item.item || ""), // Mapped 'item' to 'Color'
-            "Labor Agreement": String(item.fringe || ""),
-            "Certified Payroll": String(item.certifiedPayroll || ""),
-            "Notify Assignees": String(item.notifyAssignees || ""),
-            "Per Diem": String(item.perDiem || ""),
-            "Aerial Image": String(item.aerialImage || ""),
-            "Site Layout": String(item.siteLayout || ""),
-            "Job Location": String(item.jobLocation || ""),
-            "todayObjectives": Array.isArray(item.todayObjectives)
-                ? item.todayObjectives.map((obj: any) => typeof obj === 'string' ? obj : obj.text).join(' , ')
-                : String(item.todayObjectives || "")
-        };
-    });
-
-    const APPSHEET_URL = `https://api.appsheet.com/api/v2/apps/${encodeURIComponent(appId)}/tables/${encodeURIComponent(tableName)}/Action`;
-
-    try {
-        await fetch(APPSHEET_URL, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "ApplicationAccessKey": accessKey
-            },
-            body: JSON.stringify({
-                Action: action,
-                Properties: { Locale: "en-US", Timezone: "Pacific Standard Time" },
-                Rows: rows
-            })
-        });
-    } catch (error) {
-        console.error("[AppSheet Schedule Doc] Error:", error);
-    }
-}
-
-async function updateAppSheetTimesheet(data: any | any[], action: "Add" | "Edit" | "Delete" = "Edit") {
-    // Only sync to AppSheet on production (Vercel)
-    if (process.env.NODE_ENV !== 'production') return;
-
-    const { appId, accessKey } = getAppSheetConfig();
-    const tableName = "TimeSheet"; // Explicitly set as requested
-    if (!appId || !accessKey) return;
-
-    const items = Array.isArray(data) ? data : [data];
-    if (items.length === 0) return;
-
-    // Helper to format timestamps for AppSheet
-    const fmtDateTime = (d: any) => {
-        if (!d) return "";
-        try {
-            // If d is a string like "9/8/2024 5:06:07 PM", Date constructor might struggle in some envs
-            // but usually works. However, AppSheet needs "YYYY-MM-DD HH:MM:SS"
-            const date = new Date(d);
-            if (isNaN(date.getTime())) return String(d); // Fallback to original string if invalid
-
-            // Format to YYYY-MM-DD HH:MM:SS
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            const hours = String(date.getHours()).padStart(2, '0');
-            const mins = String(date.getMinutes()).padStart(2, '0');
-            const secs = String(date.getSeconds()).padStart(2, '0');
-
-            return `${year}-${month}-${day} ${hours}:${mins}:${secs}`;
-        } catch { return String(d || ""); }
-    };
-
-    const parseNum = (val: any) => {
-        if (!val) return 0;
-        if (typeof val === 'number') return val;
-        // Remove $ and commas, then parse
-        const clean = String(val).replace(/[$,]/g, '');
-        const n = parseFloat(clean);
-        return isNaN(n) ? 0 : n;
-    };
-
-    const rows = items.map((item: any) => {
-        return {
-            "Record_ID": String(item._id || item.recordId || ""),
-            "Employee_ID": String(item.employee || ""),
-            "Schedule_ID": String(item.scheduleId || item.schedule_id || ""),
-            "Type": String(item.type || ""),
-            "ClockIn": fmtDateTime(item.clockIn),
-            "Lunch Start": fmtDateTime(item.lunchStart),
-            "Lunch End": fmtDateTime(item.lunchEnd),
-            "LocationIn": String(item.locationIn || ""),
-            "ClockOut": fmtDateTime(item.clockOut),
-            "LocationOut": String(item.locationOut || ""),
-            "Duration in Decimal": Number(item.hours || item.hoursVal || 0),
-            "Distance": Number(item.distance || item.distanceVal || 0),
-            "Hourly Rate (SITE)": parseNum(item.hourlyRateSITE),
-            "Hourly Rate (Drive)": parseNum(item.hourlyRateDrive),
-            "Create By": String(item.createdBy || ""),
-            "TimeStamp": fmtDateTime(item.createdAt || new Date()),
-            "Comments": String(item.comments || ""),
-            "dumpWashout": String(item.dumpWashout || ""),
-            "shopTime": String(item.shopTime || "")
-        };
-    });
-
-    const APPSHEET_URL = `https://api.appsheet.com/api/v2/apps/${encodeURIComponent(appId)}/tables/${encodeURIComponent(tableName)}/Action`;
-
-    try {
-        await fetch(APPSHEET_URL, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "ApplicationAccessKey": accessKey
-            },
-            body: JSON.stringify({
-                Action: action,
-                Properties: { Locale: "en-US", Timezone: "Pacific Standard Time" },
-                Rows: rows
-            })
-        });
-    } catch (error) {
-        console.error("[AppSheet Timesheet Sync] Error:", error);
-    }
-}
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
@@ -249,7 +115,7 @@ export async function POST(request: NextRequest) {
 
         switch (action) {
             case 'getSchedules': {
-                const results = await Schedule.find().sort({ fromDate: -1, _id: 1 }).lean();
+                const results = await Schedule.find().sort({ fromDate: 1, createdAt: 1 }).lean();
                 return NextResponse.json({ success: true, result: results });
             }
 
@@ -257,7 +123,7 @@ export async function POST(request: NextRequest) {
                 const { estimateNumber } = payload || {};
                 if (!estimateNumber) return NextResponse.json({ success: true, result: [] });
                 const results = await Schedule.find({ estimate: estimateNumber })
-                    .sort({ fromDate: -1 })
+                    .sort({ fromDate: 1, createdAt: 1 })
                     .select('_id title estimate fromDate toDate customerName jobLocation')
                     .lean();
                 return NextResponse.json({ success: true, result: results });
@@ -277,7 +143,7 @@ export async function POST(request: NextRequest) {
                 const doc = await Schedule.create({
                     ...createData,
                     _id: scheduleId,
-                    syncedToAppSheet: true,
+
                     createdAt: new Date(),
                     updatedAt: new Date()
                 });
@@ -287,6 +153,13 @@ export async function POST(request: NextRequest) {
                 const docAny = doc as any;
                 const shouldNotify = docAny.notifyAssignees === true || docAny.notifyAssignees === 'Yes' || docAny.notifyAssignees === 'true';
                 console.log(`[SMS] notifyAssignees=${docAny.notifyAssignees}, shouldNotify=${shouldNotify}, assignees=${JSON.stringify(docAny.assignees)}`);
+
+                let empMap = new Map<string, any>();
+                if (shouldNotify && Array.isArray(docAny.assignees) && docAny.assignees.length > 0) {
+                    const allAssigneeEmails = [...new Set(docAny.assignees || [])] as string[];
+                    const employees = await Employee.find({ email: { $in: allAssigneeEmails } }).select('firstName lastName email phone mobile').lean();
+                    empMap = new Map(employees.map((e: any) => [String(e.email).toLowerCase(), e]));
+                }
 
                 if (shouldNotify && Array.isArray(docAny.assignees) && docAny.assignees.length > 0) {
                     try {
@@ -300,7 +173,7 @@ export async function POST(request: NextRequest) {
                             console.log('[SMS] Template disabled – skipping.');
                         } else {
                             // 2. Build variable map (everything except per-employee fields)
-                            const fmtDate = (d: any) => d ? new Date(d).toLocaleDateString() : 'N/A';
+                            const fmtDate = (d: any) => d ? formatWallDate(d) : 'N/A';
                             const baseVars: Record<string, string> = {
                                 title: docAny.title || '',
                                 fromDate: fmtDate(docAny.fromDate),
@@ -317,11 +190,11 @@ export async function POST(request: NextRequest) {
                             };
 
                             // 3. Fetch assignee employees
-                            const assigneesDocs = await Employee.find({ email: { $in: docAny.assignees } }).lean();
+                            const assigneesDocs = (docAny.assignees || []).map((a: string) => empMap.get(a.toLowerCase())).filter(Boolean);
                             console.log(`[SMS] Found ${assigneesDocs.length} employee(s) for ${docAny.assignees.length} assignee(s)`);
 
                             const smsPromises = assigneesDocs
-                                .map(emp => {
+                                .map((emp: any) => {
                                     const phone = emp.phone || emp.mobile;
                                     if (!phone) {
                                         console.warn(`[SMS] Employee ${emp.email} has no phone number – skipped.`);
@@ -358,7 +231,7 @@ export async function POST(request: NextRequest) {
                             const fromName = alertConfig?.fromName || 'DEVCO Notifications';
 
                             // Fetch assignee emails
-                            const assigneeDocs = await Employee.find({ email: { $in: docAny.assignees } }).select('email firstName lastName').lean();
+                            const assigneeDocs = (docAny.assignees || []).map((a: string) => empMap.get(a.toLowerCase())).filter(Boolean);
                             const assigneeEmails = assigneeDocs.map((e: any) => e.email).filter(Boolean);
                             
                             // Include additional recipients from config
@@ -369,9 +242,9 @@ export async function POST(request: NextRequest) {
                             console.log(`[ScheduleAlert] Resolved ${assigneeDocs.length} assignee(s), ${extraRecipients.length} additional, total emails: ${JSON.stringify(recipientEmails)}`);
 
                             if (recipientEmails.length > 0) {
-                                const fmtDate = (d: any) => d ? new Date(d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : 'N/A';
-                                const fmtDateShort = (d: any) => d ? new Date(d).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : 'N/A';
-                                const fmtTime = (d: any) => d ? new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : '';
+                                const fmtDate = (d: any) => d ? formatWallDate(d) : 'N/A';
+                                const fmtDateShort = (d: any) => d ? formatWallDate(d) : 'N/A';
+                                const fmtTime = (d: any) => d ? formatWallTime(d) : '';
                                 const title = docAny.title || docAny.customerName || 'New Schedule';
 
                                 const scheduleFields = [
@@ -477,7 +350,7 @@ export async function POST(request: NextRequest) {
                             const recipientEmails = alertConfig?.recipients || [];
 
                             if (recipientEmails.length > 0) {
-                                const fmtDateShort = (d: any) => d ? new Date(d).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : 'N/A';
+                                const fmtDateShort = (d: any) => d ? formatWallDate(d) : 'N/A';
                                 const scheduleTitle = docAny.title || docAny.customerName || 'Day Off Scheduled';
                                 
                                 const dayOffFields = [
@@ -520,8 +393,7 @@ export async function POST(request: NextRequest) {
                     }
                 }
 
-                // Sync to AppSheet
-                await updateAppSheetSchedule(doc, "Add");
+
 
                 // ── In-App Notifications ──
                 // Notify assignees, foreman, and project manager
@@ -548,7 +420,7 @@ export async function POST(request: NextRequest) {
                     }));
 
                     if (recipientEmails.length > 0) {
-                        const fmtDateShort = (d: any) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+                        const fmtDateShort = (d: any) => d ? formatWallDate(d) : '';
                         const dateRange = `${fmtDateShort(docAny.fromDate)}${docAny.toDate ? ' – ' + fmtDateShort(docAny.toDate) : ''}`;
 
                         
@@ -598,6 +470,10 @@ export async function POST(request: NextRequest) {
                 }
                 }); // End background tasks
 
+                revalidateTag('schedule-stats', undefined as any);
+                if ((doc as any).fromDate) {
+                    revalidateTag(`dashboard-${getWeekIdFromDate((doc as any).fromDate)}`, undefined as any);
+                }
                 return NextResponse.json({ success: true, result: doc });
             }
 
@@ -615,7 +491,7 @@ export async function POST(request: NextRequest) {
                             (typeof data[key] === 'object' && data[key] !== null) || 
                             key === 'updatedAt' || 
                             key === 'historyLog' ||
-                            key === 'syncedToAppSheet' ||
+
                             key === '$push' ||
                             key === '$set'
                         ) continue;
@@ -663,29 +539,10 @@ export async function POST(request: NextRequest) {
                         }
                     }
                 }
-                // Sync to AppSheet (Background)
-                if (result) {
-                    updateAppSheetSchedule(result, "Edit");
-                    // Also sync individual timesheets if modified
-                    if (data.timesheet && Array.isArray(data.timesheet)) {
-                        const oldTs = oldDoc?.timesheet || [];
-                        const newTs = result.timesheet || [];
 
-                        const oldIds = oldTs.map((t: any) => String(t._id || t.recordId));
-                        const newIds = newTs.map((t: any) => String(t._id || t.recordId));
-
-                        // Deletions: In old but not in new
-                        const deleted = oldTs.filter((t: any) => !newIds.includes(String(t._id || t.recordId)));
-                        if (deleted.length > 0) updateAppSheetTimesheet(deleted, "Delete");
-
-                        // Additions: In new but not in old
-                        const added = newTs.filter((t: any) => !oldIds.includes(String(t._id || t.recordId)));
-                        if (added.length > 0) updateAppSheetTimesheet(added, "Add");
-
-                        // Updates: In both (we'll just send all as Edit for simplicity, or we could diff)
-                        const updated = newTs.filter((t: any) => oldIds.includes(String(t._id || t.recordId)));
-                        if (updated.length > 0) updateAppSheetTimesheet(updated, "Edit");
-                    }
+                revalidateTag('schedule-stats', undefined as any);
+                if (result?.fromDate) {
+                    revalidateTag(`dashboard-${getWeekIdFromDate(result.fromDate)}`, undefined as any);
                 }
                 return NextResponse.json({ success: true, result });
             }
@@ -704,15 +561,18 @@ export async function POST(request: NextRequest) {
                         const resendClient = new Resend(process.env.RESEND_API_KEY);
                         const fromName = alertConfig?.fromName || 'DEVCO Notifications';
 
-                        const assigneeDocs = await Employee.find({ email: { $in: docAny.assignees || [] } }).select('email firstName lastName').lean();
+                        const allAssigneeEmails = [...new Set(docAny.assignees || [])] as string[];
+                        const employees = await Employee.find({ email: { $in: allAssigneeEmails } }).select('firstName lastName email phone mobile').lean();
+                        const empMap = new Map(employees.map((e: any) => [String(e.email).toLowerCase(), e]));
+                        const assigneeDocs = (docAny.assignees || []).map((a: string) => empMap.get(a.toLowerCase())).filter(Boolean);
                         const assigneeEmails = assigneeDocs.map((e: any) => e.email).filter(Boolean);
                         const extraRecipients = Array.isArray(alertConfig?.recipients) ? alertConfig.recipients : [];
                         const recipientEmails = Array.from(new Set([...assigneeEmails, ...extraRecipients])).filter(Boolean);
 
                         if (recipientEmails.length > 0) {
-                            const fmtDate = (d: any) => d ? new Date(d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : 'N/A';
-                            const fmtDateShort = (d: any) => d ? new Date(d).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : 'N/A';
-                            const fmtTime = (d: any) => d ? new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : '';
+                            const fmtDate = (d: any) => d ? formatWallDate(d) : 'N/A';
+                            const fmtDateShort = (d: any) => d ? formatWallDate(d) : 'N/A';
+                            const fmtTime = (d: any) => d ? formatWallTime(d) : '';
                             const title = docAny.title || docAny.customerName || 'New Schedule';
 
                             const scheduleFields = [
@@ -801,8 +661,8 @@ export async function POST(request: NextRequest) {
             case 'deleteSchedule': {
                 const { id } = payload || {};
                 await Schedule.findByIdAndDelete(id);
-                // Sync to AppSheet
-                await updateAppSheetSchedule({ _id: id }, "Delete");
+
+                revalidateTag('schedule-stats', undefined as any);
                 return NextResponse.json({ success: true });
             }
 
@@ -819,7 +679,7 @@ export async function POST(request: NextRequest) {
                         updateOne: {
                             filter: { _id: idToUse },
                             update: {
-                                $set: { ...rest, _id: idToUse, syncedToAppSheet: true },
+                                $set: { ...rest, _id: idToUse },
                                 $setOnInsert: { createdAt: new Date() }
                             },
                             upsert: true
@@ -829,15 +689,13 @@ export async function POST(request: NextRequest) {
 
                 const result = await Schedule.bulkWrite(ops);
 
-                // Sync imported schedules to AppSheet asynchronously
+
                 const syncItems = schedules.map((item: any) => ({
                     ...item,
                     _id: item.recordId || item._id
                 }));
-                // Background operations: AppSheet sync, image propagation, and notifications
+                // Background operations: image propagation, and notifications
                 Promise.resolve().then(async () => {
-                // Batch sync to AppSheet
-                await updateAppSheetSchedule(syncItems, "Add");
 
                 // Propagate images to associated estimates (all versions)
                 // Propagate images to associated estimates (all versions)
@@ -880,6 +738,11 @@ export async function POST(request: NextRequest) {
                         }
                     }
 
+                    const allGroupDocs = Array.from(notificationGroups.values());
+                    const allAssigneeEmails = [...new Set(allGroupDocs.flatMap((s: any) => s.assignees || []))] as string[];
+                    const allEmployees = await Employee.find({ email: { $in: allAssigneeEmails } }).select('firstName lastName email phone mobile').lean();
+                    const empMap = new Map(allEmployees.map((e: any) => [String(e.email).toLowerCase(), e]));
+
                     for (const docAny of notificationGroups.values()) {
                         const scheduleId = docAny._id;
                         
@@ -890,7 +753,7 @@ export async function POST(request: NextRequest) {
                             const tplString = tplDoc?.template || 'DEVCOERP: You have been assigned to "{{title}}" at {{jobLocation}}. Date: {{fromDate}} – {{toDate}}.';
 
                             if (tplEnabled) {
-                                const fmtDate = (d: any) => d ? new Date(d).toLocaleDateString() : 'N/A';
+                                const fmtDate = (d: any) => d ? formatWallDate(d) : 'N/A';
                                 const baseVars: Record<string, string> = {
                                     title: docAny.title || '',
                                     fromDate: fmtDate(docAny.fromDate),
@@ -902,8 +765,8 @@ export async function POST(request: NextRequest) {
                                     service: docAny.service || '',
                                 };
 
-                                const assigneesDocs = await Employee.find({ email: { $in: docAny.assignees } }).lean();
-                                const smsPromises = assigneesDocs.map(emp => {
+                                const assigneesDocs = (docAny.assignees || []).map((a: string) => empMap.get(a.toLowerCase())).filter(Boolean);
+                                const smsPromises = assigneesDocs.map((emp: any) => {
                                     const phone = emp.phone || emp.mobile;
                                     if (!phone) return null;
                                     const vars: Record<string, string> = { ...baseVars, employeeName: `${emp.firstName || ''} ${emp.lastName || ''}`.trim() };
@@ -925,7 +788,7 @@ export async function POST(request: NextRequest) {
                             if (alertEnabled && process.env.RESEND_API_KEY) {
                                 const resendClient = new Resend(process.env.RESEND_API_KEY);
                                 const fromName = alertConfig?.fromName || 'DEVCO Notifications';
-                                const assigneeDocs = await Employee.find({ email: { $in: docAny.assignees } }).select('email firstName lastName').lean();
+                                const assigneeDocs = (docAny.assignees || []).map((a: string) => empMap.get(a.toLowerCase())).filter(Boolean);
                                 const assigneeEmails = assigneeDocs.map((e: any) => e.email).filter(Boolean);
 
                                 // Include additional recipients from config
@@ -934,8 +797,8 @@ export async function POST(request: NextRequest) {
                                 const recipientEmails = Array.from(new Set(rawRecipients)).filter(Boolean);
 
                                 if (recipientEmails.length > 0) {
-                                    const fmtDateShort = (d: any) => d ? new Date(d).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : 'N/A';
-                                    const fmtTime = (d: any) => d ? new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : '';
+                                    const fmtDateShort = (d: any) => d ? formatWallDate(d) : 'N/A';
+                                    const fmtTime = (d: any) => d ? formatWallTime(d) : '';
                                     const title = docAny.title || docAny.customerName || 'New Schedule';
                                     const scheduleFields = [
                                         { label: 'Customer', value: docAny.customerName || '--', icon: '🏢' },
@@ -974,7 +837,7 @@ export async function POST(request: NextRequest) {
                                     const recipientEmails = alertConfig?.recipients || [];
 
                                     if (recipientEmails.length > 0) {
-                                        const fmtDateShort = (d: any) => d ? new Date(d).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : 'N/A';
+                                        const fmtDateShort = (d: any) => d ? formatWallDate(d) : 'N/A';
                                         const scheduleTitle = docAny.title || docAny.customerName || 'Day Off Scheduled';
                                         
                                         const dayOffFields = [
@@ -1012,7 +875,7 @@ export async function POST(request: NextRequest) {
                             if (creatorEmail) recipientEmails.push(creatorEmail);
 
                             if (recipientEmails.length > 0) {
-                                const fmtDateShort = (d: any) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+                                const fmtDateShort = (d: any) => d ? formatWallDate(d) : '';
                                 await createNotifications({
                                     recipientEmails,
                                     type: 'schedule_assigned',
@@ -1101,8 +964,8 @@ export async function POST(request: NextRequest) {
                     // Then push all the imported timesheets
                     const result = await Schedule.bulkWrite(pushOps);
 
-                    // Sync imported timesheets to AppSheet
-                    await updateAppSheetTimesheet(timesheets, "Add");
+
+
 
                     return NextResponse.json({
                         success: true,
@@ -1124,7 +987,7 @@ export async function POST(request: NextRequest) {
                 }
 
                 // Look up employee's hourly rates and embed them for payroll integrity
-                const empDoc = await Employee.findOne({ email: timesheet.employee }).lean();
+                const empDoc = await Employee.findOne({ email: timesheet.employee }).select('-password -refreshToken -__v').lean();
                 if (empDoc) {
                     const tsType = String(timesheet.type || '').toLowerCase();
                     if (tsType.includes('site') && empDoc.hourlyRateSITE && !timesheet.hourlyRateSITE) {
@@ -1210,9 +1073,10 @@ export async function POST(request: NextRequest) {
 
                 const updatedSchedule = await Schedule.findById(timesheet.scheduleId).lean();
 
-                // Sync the specific timesheet to AppSheet (Background)
-                updateAppSheetTimesheet(timesheet, existingIndex > -1 ? "Edit" : "Add");
 
+
+
+                revalidateTag('schedule-stats', undefined as any);
                 return NextResponse.json({ success: true, result: updatedSchedule });
             }
 
@@ -1224,7 +1088,7 @@ export async function POST(request: NextRequest) {
                 const empEmailQt = String(employee).toLowerCase();
 
                 // Look up employee's hourly rate for drive time (dump/shop are Drive Time entries)
-                const empDocQt = await Employee.findOne({ email: employee }).lean();
+                const empDocQt = await Employee.findOne({ email: employee }).select('-password -refreshToken -__v').lean();
                 const driveRate = empDocQt?.hourlyRateDrive || null;
 
                 // Find existing record for this employee acting as Dump/Shop container
@@ -1283,7 +1147,8 @@ export async function POST(request: NextRequest) {
                         shopTime: newShopQty > 0 ? 'true' : undefined,
                         hourlyRateDrive: driveRate || ts.hourlyRateDrive
                     };
-                    updateAppSheetTimesheet(updatedTs, "Edit");
+
+                    revalidateTag('schedule-stats', undefined as any);
                     return NextResponse.json({ success: true, result: updatedTs });
                 } else {
                     const newDumpQty = (dumpQty !== undefined) ? dumpQty : (type === 'Dump Washout' ? 1 : 0);
@@ -1312,7 +1177,8 @@ export async function POST(request: NextRequest) {
                     if (driveRate) newTs.hourlyRateDrive = driveRate;
 
                     await Schedule.updateOne({ _id: scheduleId }, { $push: { timesheet: newTs } });
-                    updateAppSheetTimesheet(newTs, "Add");
+
+                    revalidateTag('schedule-stats', undefined as any);
                     return NextResponse.json({ success: true, result: newTs });
                 }
             }
@@ -1346,7 +1212,8 @@ export async function POST(request: NextRequest) {
 
                         const updated = await Schedule.findById(scheduleId).lean();
                         const ts = updated?.timesheet?.[tsIndex];
-                        if (ts) updateAppSheetTimesheet(ts, "Edit");
+
+                        revalidateTag('schedule-stats', undefined as any);
                         return NextResponse.json({ success: true, result: ts });
                     } else {
                         return NextResponse.json({ success: false, error: 'Timesheet not found' });
@@ -1364,7 +1231,8 @@ export async function POST(request: NextRequest) {
                         createdAt: getLocalNowISO()
                     };
                     await Schedule.updateOne({ _id: scheduleId }, { $push: { timesheet: newTs } });
-                    updateAppSheetTimesheet(newTs, "Add");
+
+                    revalidateTag('schedule-stats', undefined as any);
                     return NextResponse.json({ success: true, result: newTs });
                 }
                 return NextResponse.json({ success: false, error: 'Unknown state' });
@@ -1378,8 +1246,8 @@ export async function POST(request: NextRequest) {
                 for (const doc of (schedules as any[])) {
                     let modified = false;
                     const newTimesheets = (doc.timesheet || []).map((ts: any) => {
-                        // Pass doc.fromDate as string/date for calculation context
-                        const stats = calculateTimesheetData(ts, doc.fromDate);
+                        // Pass (doc as any).fromDate as string/date for calculation context
+                        const stats = calculateTimesheetData(ts, (doc as any).fromDate);
 
                         // Overwrite with fresh calculation
                         // We use inequality check to avoid writing if nothing changed
@@ -1405,6 +1273,7 @@ export async function POST(request: NextRequest) {
                     await Schedule.bulkWrite(bulkOps);
                 }
 
+                revalidateTag('schedule-stats', undefined as any);
                 return NextResponse.json({ success: true, message: `Updated ${count} schedules` });
             }
 
@@ -1670,7 +1539,7 @@ export async function POST(request: NextRequest) {
                         $facet: {
                             metadata: [{ $count: "total" }],
                             data: [
-                                { $sort: { fromDate: -1, _id: 1 } },
+                                { $sort: { fromDate: 1, createdAt: 1 } },
                                 { $skip: skip },
                                 { $limit: limit },
                                 // Project fields needed for UI to reduce payload
@@ -1711,7 +1580,7 @@ export async function POST(request: NextRequest) {
                                         // Exclude top-level signature arrays
                                         // JHASignatures: 0, 
                                         // DJTSignatures: 0,
-                                        todayObjectives: 1, syncedToAppSheet: 1, isDayOffApproved: 1,
+                                        todayObjectives: 1, isDayOffApproved: 1,
                                         createdAt: 1, updatedAt: 1,
                                         hasTimesheet: { $gt: [{ $size: { $ifNull: ['$timesheet', []] } }, 0] },
                                         hasJHA: { $and: [{ $ifNull: ['$jha', false] }, { $ne: ['$jha', {}] }] },
@@ -1989,150 +1858,7 @@ export async function POST(request: NextRequest) {
                 });
             }
 
-            case 'syncToAppSheet': {
-                // Only sync to AppSheet on production (Vercel)
-                if (process.env.NODE_ENV !== 'production') {
-                    return NextResponse.json({ success: false, error: 'AppSheet sync only works on production' });
-                }
 
-                const { id } = payload || {};
-                if (!id) return NextResponse.json({ success: false, error: 'Schedule ID is required' });
-
-                const schedule = await Schedule.findById(id).lean();
-                if (!schedule) return NextResponse.json({ success: false, error: 'Schedule not found' });
-
-                // Sync to AppSheet
-                const { appId, accessKey, tableName } = getAppSheetConfig();
-                if (!appId || !accessKey) {
-                    return NextResponse.json({ success: false, error: 'AppSheet configuration missing' });
-                }
-
-                const fmtDate = (d: any) => {
-                    if (!d) return "";
-                    try {
-                        const date = new Date(d);
-                        if (isNaN(date.getTime())) return "";
-                        return date.toISOString().split('T')[0];
-                    } catch { return ""; }
-                };
-
-                let assigneesList = "";
-                if (schedule.assignees && Array.isArray(schedule.assignees) && schedule.assignees.length > 0) {
-                    assigneesList = schedule.assignees.join(' , ');
-                } else if (typeof schedule.assignees === 'string') {
-                    assigneesList = schedule.assignees;
-                }
-
-                const row = {
-                    "Record_ID": String(schedule._id || ""),
-                    "Title": String(schedule.title || ""),
-                    "From": fmtDate(schedule.fromDate),
-                    "To": fmtDate(schedule.toDate),
-                    "Customer": String(schedule.customerId || ""),
-                    "Proposal Number": String(schedule.estimate || ""),
-                    "Project Manager Name": String(schedule.projectManager || ""),
-                    "Foreman Name": String(schedule.foremanName || ""),
-                    "Assignees": assigneesList,
-                    "Description": String(schedule.description || ""),
-                    "Service Item": String(schedule.service || ""),
-                    "Color": String(schedule.item || ""),
-                    "Labor Agreement": String(schedule.fringe || ""),
-                    "Certified Payroll": String(schedule.certifiedPayroll || ""),
-                    "Notify Assignees": String(schedule.notifyAssignees || ""),
-                    "Per Diem": String(schedule.perDiem || ""),
-                    "Aerial Image": String(schedule.aerialImage || ""),
-                    "Site Layout": String(schedule.siteLayout || ""),
-                    "todayObjectives": Array.isArray(schedule.todayObjectives)
-                        ? schedule.todayObjectives.map((obj: any) => typeof obj === 'string' ? obj : obj.text).join(' , ')
-                        : String(schedule.todayObjectives || "")
-                };
-
-                const APPSHEET_URL = `https://api.appsheet.com/api/v2/apps/${encodeURIComponent(appId)}/tables/${encodeURIComponent(tableName)}/Action`;
-
-                try {
-                    console.log("[AppSheet Sync] Attempting to Add record:", id);
-
-                    // First try to Add the record (for new records)
-                    let response = await fetch(APPSHEET_URL, {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "ApplicationAccessKey": accessKey
-                        },
-                        body: JSON.stringify({
-                            Action: "Add",
-                            Properties: { Locale: "en-US", Timezone: "Pacific Standard Time" },
-                            Rows: [row]
-                        })
-                    });
-
-                    let responseText = await response.text();
-                    console.log("[AppSheet Sync] Add response:", response.status, responseText);
-
-                    // Check if Add was successful
-                    let success = response.ok;
-
-                    // Parse response to check for errors in body
-                    try {
-                        const jsonResponse = JSON.parse(responseText);
-                        // AppSheet returns Rows array on success, or Errors on failure
-                        if (jsonResponse.Errors) {
-                            success = false;
-                        }
-                    } catch (e) {
-                        // Not JSON, check if response is OK
-                    }
-
-
-                    // If Add failed, try Edit (record might already exist in AppSheet)
-                    if (!success) {
-                        const addErrorText = responseText; // Save the Add error
-                        console.log("[AppSheet Sync] Add failed, trying Edit...", addErrorText);
-
-                        response = await fetch(APPSHEET_URL, {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/json",
-                                "ApplicationAccessKey": accessKey
-                            },
-                            body: JSON.stringify({
-                                Action: "Edit",
-                                Properties: { Locale: "en-US", Timezone: "Pacific Standard Time" },
-                                Rows: [row]
-                            })
-                        });
-
-                        responseText = await response.text();
-                        console.log("[AppSheet Sync] Edit response:", response.status, responseText);
-
-                        // Check Edit result
-                        let editSuccess = response.ok;
-                        try {
-                            const jsonResponse = JSON.parse(responseText);
-                            if (jsonResponse.Errors) {
-                                editSuccess = false;
-                            }
-                        } catch (e) { }
-
-                        if (!editSuccess) {
-                            console.error("[AppSheet Sync] Both Add and Edit failed.");
-                            // Return BOTH errors to help debug
-                            return NextResponse.json({
-                                success: false,
-                                error: `Sync Failed. ADD Error: ${addErrorText}. EDIT Error: ${responseText}`
-                            });
-                        }
-                    }
-
-                    // Mark the schedule as synced to AppSheet
-                    await Schedule.findByIdAndUpdate(id, { syncedToAppSheet: true });
-
-                    return NextResponse.json({ success: true, message: 'Schedule synced to AppSheet successfully' });
-                } catch (error: any) {
-                    console.error("[AppSheet Sync] Error:", error);
-                    return NextResponse.json({ success: false, error: error.message });
-                }
-            }
 
             case 'getScheduleStats': {
                 await connectToDatabase();
@@ -2498,45 +2224,6 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ success: true, result: results });
             }
 
-            case 'syncAllTimesheets': {
-                // Only sync to AppSheet on production (Vercel)
-                if (process.env.NODE_ENV !== 'production') {
-                    return NextResponse.json({ success: false, error: 'AppSheet sync only works on production' });
-                }
-
-                const schedules = await Schedule.find({ 'timesheet.0': { $exists: true } }).lean();
-                let allTimesheets: any[] = [];
-                schedules.forEach(s => {
-                    if (s.timesheet && Array.isArray(s.timesheet)) {
-                        allTimesheets = allTimesheets.concat(s.timesheet.map(ts => ({
-                            ...ts,
-                            scheduleId: String(s._id)
-                        })));
-                    }
-                });
-
-                if (allTimesheets.length === 0) {
-                    return NextResponse.json({ success: true, message: 'No timesheets found to sync' });
-                }
-
-                console.log(`[SyncAllTimesheets] Attempting to sync ${allTimesheets.length} records...`);
-
-                // Batch sync in chunks
-                const CHUNK_SIZE = 100;
-                let processedCount = 0;
-
-                for (let i = 0; i < allTimesheets.length; i += CHUNK_SIZE) {
-                    const chunk = allTimesheets.slice(i, i + CHUNK_SIZE);
-                    // Try "Add" first
-                    await updateAppSheetTimesheet(chunk, "Add");
-                    processedCount += chunk.length;
-                }
-
-                return NextResponse.json({
-                    success: true,
-                    message: `Sync initiated for ${processedCount} records. Check AppSheet for results.`
-                });
-            }
 
             default:
                 return NextResponse.json({ success: false, error: 'Unknown action' }, { status: 400 });
@@ -2557,10 +2244,14 @@ export async function DELETE(request: NextRequest) {
         }
 
         await connectToDatabase();
-        await Schedule.findByIdAndDelete(id);
+        const doc = await Schedule.findByIdAndDelete(id);
 
-        // Sync to AppSheet
-        await updateAppSheetSchedule({ _id: id }, "Delete");
+
+
+
+        if (doc?.fromDate) {
+            revalidateTag(`dashboard-${getWeekIdFromDate((doc as any).fromDate)}`, undefined as any);
+        }
 
         return NextResponse.json({ success: true });
     } catch (error: any) {

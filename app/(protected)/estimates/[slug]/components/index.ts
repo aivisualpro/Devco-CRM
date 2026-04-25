@@ -1,5 +1,4 @@
 // Estimate view components barrel export
-export { EstimateHeaderCard } from './EstimateHeaderCard';
 export { CostBreakdownChart } from './CostBreakdownChart';
 export { VersionTimeline } from './VersionTimeline';
 export { AccordionSection } from './AccordionSection';

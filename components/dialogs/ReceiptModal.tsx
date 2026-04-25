@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import React, { useState, useEffect, useRef } from 'react';
 import {
     FileText, Loader2, Paperclip, X, Image as ImageIcon, Check, User, Plus

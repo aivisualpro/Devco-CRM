@@ -1,5 +1,7 @@
 'use client';
 
+import { cld } from '@/lib/cld';
+import Image from 'next/image';
 import React, { useState, useMemo } from 'react';
 import { Receipt, Plus, Trash2, Download, Paperclip, X, Loader2, Pencil, Image as ImageIcon, FileText, DollarSign, Check, User, ChevronDown } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -470,7 +472,7 @@ export const ReceiptsCard: React.FC<ReceiptsCardProps> = ({
                                                                 <Tooltip key={i}>
                                                                     <TooltipTrigger asChild>
                                                                         <div className="w-8 h-8 rounded-full border-2 border-white bg-[#0F4C75] flex items-center justify-center text-xs font-bold text-white shadow-sm overflow-hidden z-10 hover:z-20 relative transition-transform hover:scale-110">
-                                                                            {tagEmp?.image ? <img src={tagEmp.image} className="w-full h-full object-cover" /> : (tagMail?.[0]?.toUpperCase() || 'T')}
+                                                                            {tagEmp?.image ? <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" alt="" src={cld(tagEmp.image, { w: 128, q: 'auto' })} className="object-cover w-full h-full" /></div> : (tagMail?.[0]?.toUpperCase() || 'T')}
                                                                         </div>
                                                                     </TooltipTrigger>
                                                                     <TooltipContent><p>Tagged: {tagEmp?.label || tagMail}</p></TooltipContent>
@@ -513,7 +515,7 @@ export const ReceiptsCard: React.FC<ReceiptsCardProps> = ({
                                                                 className="w-full flex items-center justify-between p-2 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white hover:border-slate-300 transition-all group shadow-sm focus:outline-none"
                                                             >
                                                                 <div className="flex items-center gap-3 overflow-hidden">
-                                                                    <div className="shrink-0 w-8 h-8 rounded-lg bg-pink-100/50 flex items-center justify-center">
+                                                                    <div className="relative shrink-0 w-8 h-8 rounded-lg bg-pink-100/50 flex items-center justify-center">
                                                                         {isImg ? (
                                                                             <ImageIcon className="w-4 h-4 text-pink-600" />
                                                                         ) : (
@@ -545,8 +547,8 @@ export const ReceiptsCard: React.FC<ReceiptsCardProps> = ({
                                                         return (
                                                             <Tooltip>
                                                                 <TooltipTrigger asChild>
-                                                                    <div className="w-6 h-6 rounded-full border border-slate-200 bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600 shadow-sm overflow-hidden">
-                                                                        {creator?.image ? <img src={creator.image} className="w-full h-full object-cover" /> : (item.createdBy?.[0]?.toUpperCase() || 'U')}
+                                                                    <div className="relative w-6 h-6 rounded-full border border-slate-200 bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600 shadow-sm overflow-hidden">
+                                                                        {creator?.image ? <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" alt="" src={cld(creator.image, { w: 128, q: 'auto' })} className="object-cover w-full h-full" /></div> : (item.createdBy?.[0]?.toUpperCase() || 'U')}
                                                                     </div>
                                                                 </TooltipTrigger>
                                                                 <TooltipContent><p>Created By: {creator?.label || item.createdBy}</p></TooltipContent>
@@ -704,8 +706,8 @@ export const ReceiptsCard: React.FC<ReceiptsCardProps> = ({
                                         const emp = getEmployeeData(t);
                                         return (
                                             <span key={t} className="text-[10px] font-black bg-white text-[#0F4C75] pl-1 pr-2.5 py-1 rounded-full flex items-center gap-2 border border-slate-200 shadow-sm animate-in fade-in zoom-in duration-200">
-                                                <div className="w-5 h-5 rounded-full overflow-hidden border border-slate-100 flex items-center justify-center bg-slate-50">
-                                                    {emp?.image ? <img src={emp.image} className="w-full h-full object-cover" /> : <User className="w-3 h-3 text-slate-400" />}
+                                                <div className="relative w-5 h-5 rounded-full overflow-hidden border border-slate-100 flex items-center justify-center bg-slate-50">
+                                                    {emp?.image ? <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" alt="" src={cld(emp.image, { w: 128, q: 'auto' })} className="object-cover w-full h-full" /></div> : <User className="w-3 h-3 text-slate-400" />}
                                                 </div>
                                                 {emp?.label || t}
                                                 <X
@@ -745,7 +747,7 @@ export const ReceiptsCard: React.FC<ReceiptsCardProps> = ({
                                 <div className="grid grid-cols-1 gap-2 mt-2">
                                     {newReceipt.upload.map((file, idx) => (
                                         <div key={idx} className="flex items-center justify-between p-2 bg-white rounded-xl border border-slate-100 shadow-sm">
-                                            <div className="flex items-center gap-2 overflow-hidden">
+                                            <div className="relative flex items-center gap-2 overflow-hidden">
                                                 {file.type?.startsWith('image/') ? <ImageIcon className="w-3.5 h-3.5 text-blue-500" /> : <FileText className="w-3.5 h-3.5 text-blue-500" />}
                                                 <span className="text-[10px] font-bold text-slate-600 truncate">{file.name}</span>
                                             </div>
@@ -805,8 +807,8 @@ export const ReceiptsCard: React.FC<ReceiptsCardProps> = ({
                                     const creator = getEmployeeData(newReceipt.createdBy);
                                     return (
                                         <div className="flex items-center gap-1.5">
-                                            <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200">
-                                                {creator?.image ? <img src={creator.image} className="w-full h-full object-cover" /> : <User className="w-3 h-3 text-slate-400" />}
+                                            <div className="relative w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200">
+                                                {creator?.image ? <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" alt="" src={cld(creator.image, { w: 128, q: 'auto' })} className="object-cover w-full h-full" /></div> : <User className="w-3 h-3 text-slate-400" />}
                                             </div>
                                             <span className="text-[10px] font-bold text-slate-600">{creator?.label || newReceipt.createdBy}</span>
                                         </div>
@@ -892,8 +894,8 @@ export const ReceiptsCard: React.FC<ReceiptsCardProps> = ({
                                             return (
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-[10px] font-black text-slate-900">{creator?.label || selectedReceipt.createdBy}</span>
-                                                    <div className="w-6 h-6 rounded-full border border-white bg-slate-100 flex items-center justify-center overflow-hidden shadow-sm">
-                                                        {creator?.image ? <img src={creator.image} className="w-full h-full object-cover" /> : <User className="w-3.5 h-3.5 text-slate-400" />}
+                                                    <div className="relative w-6 h-6 rounded-full border border-white bg-slate-100 flex items-center justify-center overflow-hidden shadow-sm">
+                                                        {creator?.image ? <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" alt="" src={cld(creator.image, { w: 128, q: 'auto' })} className="object-cover w-full h-full" /></div> : <User className="w-3.5 h-3.5 text-slate-400" />}
                                                     </div>
                                                 </div>
                                             );
@@ -906,8 +908,8 @@ export const ReceiptsCard: React.FC<ReceiptsCardProps> = ({
                                                 const tagEmp = getEmployeeData(tagMail);
                                                 return (
                                                     <div key={i} className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-full border border-slate-100 shadow-sm">
-                                                        <div className="w-4 h-4 rounded-full border border-blue-50 bg-[#0F4C75] flex items-center justify-center overflow-hidden">
-                                                            {tagEmp?.image ? <img src={tagEmp.image} className="w-full h-full object-cover" /> : <User className="w-2.5 h-2.5 text-white/70" />}
+                                                        <div className="relative w-4 h-4 rounded-full border border-blue-50 bg-[#0F4C75] flex items-center justify-center overflow-hidden">
+                                                            {tagEmp?.image ? <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" alt="" src={cld(tagEmp.image, { w: 128, q: 'auto' })} className="object-cover w-full h-full" /></div> : <User className="w-2.5 h-2.5 text-white/70" />}
                                                         </div>
                                                         <span className="text-[9px] font-black text-slate-700">{tagEmp?.label || tagMail}</span>
                                                     </div>
@@ -929,8 +931,8 @@ export const ReceiptsCard: React.FC<ReceiptsCardProps> = ({
                                                 return (
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-[10px] font-black text-slate-900">{payee?.label || selectedReceipt.paidBy}</span>
-                                                        <div className="w-6 h-6 rounded-full border border-white bg-emerald-100 flex items-center justify-center overflow-hidden shadow-sm">
-                                                            {payee?.image ? <img src={payee.image} className="w-full h-full object-cover" /> : <User className="w-3.5 h-3.5 text-emerald-600" />}
+                                                        <div className="relative w-6 h-6 rounded-full border border-white bg-emerald-100 flex items-center justify-center overflow-hidden shadow-sm">
+                                                            {payee?.image ? <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" alt="" src={cld(payee.image, { w: 128, q: 'auto' })} className="object-cover w-full h-full" /></div> : <User className="w-3.5 h-3.5 text-emerald-600" />}
                                                         </div>
                                                     </div>
                                                 );
@@ -963,11 +965,11 @@ export const ReceiptsCard: React.FC<ReceiptsCardProps> = ({
                                     >
                                         <div className="w-full aspect-square rounded-2xl bg-slate-50 flex items-center justify-center overflow-hidden border border-slate-50 relative">
                                             {file.thumbnailUrl ? (
-                                                <img
+                                                <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw"
                                                     src={file.thumbnailUrl}
                                                     alt={file.name}
-                                                    className="w-full h-full object-contain transition-all duration-500 group-hover:scale-105"
-                                                />
+                                                    className="object-contain transition-all duration-500 group-hover:scale-105 w-full h-full"
+                                                /></div>
                                             ) : (
                                                 <div className="flex flex-col items-center gap-2">
                                                     <div className="w-12 h-12 rounded-xl bg-pink-50 flex items-center justify-center mb-1">

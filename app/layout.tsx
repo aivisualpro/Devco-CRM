@@ -4,6 +4,8 @@ import "./globals.css";
 import { ToasterProvider } from "@/components/ui/ToasterProvider";
 import OrientationLock from "@/components/OrientationLock";
 import DbMigrator from "@/components/DbMigrator";
+import { WebVitals } from "@/components/WebVitals";
+
 
 export const metadata: Metadata = {
   title: "DEVCO | ERP",
@@ -47,6 +49,22 @@ export default function RootLayout({
       </head>
       <body className="antialiased" suppressHydrationWarning>
         <DbMigrator />
+        <WebVitals />
+        {process.env.NODE_ENV === 'development' && (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+                if ('serviceWorker' in navigator) {
+                  navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                    for(let registration of registrations) {
+                      registration.unregister();
+                    }
+                  });
+                }
+              `,
+            }}
+          />
+        )}
         {children}
         <ToasterProvider />
         <OrientationLock />

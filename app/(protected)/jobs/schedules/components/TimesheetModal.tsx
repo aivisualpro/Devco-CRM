@@ -2,6 +2,7 @@ import { Modal, EmptyState } from '@/components/ui';
 import { CheckCircle2, MapPin } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { DriveMapModal } from './DriveMapModal';
+import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
 
 interface TimesheetModalProps {
     isOpen: boolean;
@@ -159,9 +160,9 @@ export const TimesheetModal = ({
                             <div className="space-y-1">
                                 <label className="block text-xs font-bold text-slate-500 uppercase">Lunch Break</label>
                                 <p className="text-sm font-bold text-slate-900">
-                                    {selectedTimesheet.lunchStart ? new Date(selectedTimesheet.lunchStart).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', timeZone: 'UTC'}) : '--'} 
+                                    {selectedTimesheet.lunchStart ? formatWallTime(selectedTimesheet.lunchStart) : '--'} 
                                     {' - '} 
-                                    {selectedTimesheet.lunchEnd ? new Date(selectedTimesheet.lunchEnd).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', timeZone: 'UTC'}) : '--'}
+                                    {selectedTimesheet.lunchEnd ? formatWallTime(selectedTimesheet.lunchEnd) : '--'}
                                 </p>
                             </div>
                             <div className="space-y-1">

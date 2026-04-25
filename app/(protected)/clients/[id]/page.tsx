@@ -1,11 +1,13 @@
 'use client';
 
+import Image from 'next/image';
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { Save, Trash2, ArrowLeft, Building, User, FileText, Briefcase, FileSpreadsheet, Plus, Pencil, Mail, Phone, MapPin, Upload, RefreshCw, Eye } from 'lucide-react';
 
 import { Header, ConfirmModal, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Badge, Modal, Input, Button, SearchableSelect } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
+import { useCurrentUser } from '@/lib/context/AppContext';
 import { ClientHeaderCard, AccordionCard, DetailRow, DocumentGallery, DocumentPreviewModal } from './components';
 
 // Types (Mirrors Client Interface)
@@ -61,6 +63,7 @@ const formatPhoneNumber = (value: string) => {
 };
 
 function ClientViewPageContent() {
+    const globalCurrentUser = useCurrentUser();
     const router = useRouter();
     const params = useParams();
     const searchParams = useSearchParams();
@@ -747,15 +750,13 @@ function ClientViewPageContent() {
                                     </div>
                                     <button
                                         onClick={async () => {
-                                            const currentUser = typeof window !== 'undefined'
-                                                ? JSON.parse(localStorage.getItem('devco_user') || '{}')?.email
-                                                : null;
+                                            const currentUserEmail = globalCurrentUser?.email || null;
 
                                             const res = await apiCall('createEstimate', {
                                                 customerId: id,
                                                 customerName: client.name,
-                                                proposalWriter: currentUser,
-                                                createdBy: currentUser
+                                                proposalWriter: currentUserEmail,
+                                                createdBy: currentUserEmail
                                             });
                                             if (res.success && res.result?._id) {
                                                 const slug = res.result.estimate ? `${res.result.estimate}-V${res.result.versionNumber || 1}` : res.result._id;
@@ -847,16 +848,16 @@ function ClientViewPageContent() {
                                                                     <div className="flex">
                                                                         {(() => {
                                                                             const writers = Array.isArray(est.proposalWriter) ? est.proposalWriter : (est.proposalWriter ? [est.proposalWriter] : []);
-                                                                            if (writers.length === 0) return <div className="w-8 h-8 rounded-full bg-gray-50 border border-gray-100 border-dashed" />;
+                                                                            if (writers.length === 0) return <div className="relative w-8 h-8 rounded-full bg-gray-50 border border-gray-100 border-dashed" />;
                                                                             const firstWriter = writers[0];
                                                                             const emp = getEmployee(firstWriter);
                                                                             return emp?.profilePicture ? (
-                                                                                <img
+                                                                                <div className="relative w-8 h-8 rounded-full overflow-hidden"><Image fill sizes="(max-width: 768px) 100vw, 33vw"
                                                                                     src={emp.profilePicture}
                                                                                     alt={firstWriter}
-                                                                                    className="w-8 h-8 rounded-full border border-gray-200 object-cover"
+                                                                                    className="rounded-full border border-gray-200 object-cover w-full h-full"
                                                                                     title={firstWriter}
-                                                                                />
+                                                                                /></div>
                                                                             ) : (
                                                                                 <div
                                                                                     className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-[10px] text-gray-500 border border-gray-200"

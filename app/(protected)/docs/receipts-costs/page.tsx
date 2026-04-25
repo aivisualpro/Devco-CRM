@@ -1,5 +1,7 @@
 'use client';
 
+import { cld } from '@/lib/cld';
+import Image from 'next/image';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -13,7 +15,7 @@ import { toast } from 'sonner';
 
 import {
     Header, Button, Table, TableHeader, TableRow, TableHead,
-    TableBody, TableCell, Badge, Input, Modal,
+    TableBody, TableCell, StatusBadge, Badge, Input, Modal,
     MyDropDown, Tooltip, TooltipTrigger, TooltipContent
 } from '@/components/ui';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -27,6 +29,7 @@ import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS, DATA_SCOPE } from '@/lib/permissions/types';
+import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
 
 interface Estimate {
     _id: string;
@@ -132,14 +135,7 @@ export default function ReceiptsCostsPage() {
     const fetchEstimates = async () => {
         setLoading(true);
         try {
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'getEstimates',
-                    payload: { limit: 1000, includeReceipts: true }
-                })
-            });
+            const res = await fetch(`/api/estimates?limit=1000&includeReceipts=true`);
             const data = await res.json();
             if (data.success) {
                 setEstimates(data.result || []);
@@ -324,13 +320,10 @@ export default function ReceiptsCostsPage() {
                             JSON.stringify(r) !== JSON.stringify(editingReceipt) // This is weak, but receipts don't always have IDs
                         );
                         // Save old estimate
-                        await fetch('/api/webhook/devcoBackend', {
-                            method: 'POST',
+                        await fetch(`/api/estimates/${oldEst._id}`, {
+                            method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                action: 'updateEstimate',
-                                payload: { id: oldEst._id, receiptsAndCosts: oldReceipts }
-                            })
+                            body: JSON.stringify({ receiptsAndCosts: oldReceipts })
                         });
                     }
                     // Add to new (bottom)
@@ -349,18 +342,14 @@ export default function ReceiptsCostsPage() {
             }
 
             // Save to Backend
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'updateEstimate',
-                    payload: {
-                        id: selectedEstimateId,
+            const res = await fetch(`/api/estimates/${selectedEstimateId}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
                         receiptsAndCosts: updatedReceipts,
                         updatedBy: user?.email
-                    }
-                })
-            });
+                    })
+                        });
 
             const result = await res.json();
             if (result.success) {
@@ -392,18 +381,14 @@ export default function ReceiptsCostsPage() {
                 updatedReceipts.splice(index, 1);
             }
 
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'updateEstimate',
-                    payload: {
-                        id: receiptToDelete.estimateId,
+            const res = await fetch(`/api/estimates/${receiptToDelete.estimateId}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
                         receiptsAndCosts: updatedReceipts,
                         updatedBy: user?.email
-                    }
-                })
-            });
+                    })
+                        });
 
             if (res.ok) {
                 toast.success('Receipt deleted');
@@ -436,18 +421,14 @@ export default function ReceiptsCostsPage() {
                 updatedReceipts[index] = { ...updatedReceipts[index], approvalStatus: newStatus };
             }
 
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'updateEstimate',
-                    payload: {
-                        id: receipt.estimateId,
+            const res = await fetch(`/api/estimates/${receipt.estimateId}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
                         receiptsAndCosts: updatedReceipts,
                         updatedBy: user?.email
-                    }
-                })
-            });
+                    })
+                        });
 
             const result = await res.json();
             if (result.success) {
@@ -642,14 +623,14 @@ export default function ReceiptsCostsPage() {
                                             </div>
                                             <div className="flex items-center justify-between mt-3">
                                                 <div className="text-xs text-slate-500">
-                                                    {receipt.date && !isNaN(new Date(String(receipt.date).includes('T') ? receipt.date : `${receipt.date}T00:00:00`).getTime()) ? format(new Date(String(receipt.date).includes('T') ? receipt.date : `${receipt.date}T00:00:00`), 'MMM dd, yyyy') : '-'}
+                                                    {receipt.date && !isNaN(new Date(String(receipt.date).includes('T') ? receipt.date : `${receipt.date}T00:00:00`).getTime()) ? formatWallDate(new Date(String(receipt.date).includes('T') ? receipt.date : `${receipt.date}T00:00:00`)) : '-'}
                                                 </div>
                                                 <span className="font-mono text-sm font-bold text-slate-800">{amtFormatted}</span>
                                             </div>
                                             <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-50">
-                                                <div className="flex items-center gap-2">
+                                                <div className="relative flex items-center gap-2">
                                                     {creator?.image || creator?.profilePicture ? (
-                                                        <img src={creator.image || creator.profilePicture} className="w-5 h-5 rounded-full object-cover border border-slate-200" />
+                                                        <div className="relative w-5 h-5 rounded-full overflow-hidden"><Image fill sizes="(max-width: 768px) 100vw, 33vw" alt="" src={cld(creator.image || creator.profilePicture, { w: 128, q: 'auto' })} className="rounded-full object-cover border border-slate-200 w-full h-full" /></div>
                                                     ) : (
                                                         <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
                                                             <User className="w-2.5 h-2.5 text-slate-400" />
@@ -659,7 +640,7 @@ export default function ReceiptsCostsPage() {
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     {receipt.approvalStatus === 'Approved' && (
-                                                        <Badge variant="success" className="text-[9px] px-1.5 py-0">Approved</Badge>
+                                                        <StatusBadge status="Approved" className="!px-1.5 !py-0 !text-[9px]" />
                                                     )}
                                                     {receipt.status && (
                                                         <span className="text-[9px] text-green-600 flex items-center gap-0.5">
@@ -724,7 +705,7 @@ export default function ReceiptsCostsPage() {
                                             return (
                                                 <TableRow key={receipt.uniqueId} className="group hover:bg-slate-50 transition-colors">
                                                     <TableCell className="font-medium text-slate-700 text-xs whitespace-nowrap">
-                                                        {receipt.date && !isNaN(new Date(String(receipt.date).includes('T') ? receipt.date : `${receipt.date}T00:00:00`).getTime()) ? format(new Date(String(receipt.date).includes('T') ? receipt.date : `${receipt.date}T00:00:00`), 'MMM dd, yyyy') : '-'}
+                                                        {receipt.date && !isNaN(new Date(String(receipt.date).includes('T') ? receipt.date : `${receipt.date}T00:00:00`).getTime()) ? formatWallDate(new Date(String(receipt.date).includes('T') ? receipt.date : `${receipt.date}T00:00:00`)) : '-'}
                                                     </TableCell>
                                                     <TableCell>
                                                         <span
@@ -749,7 +730,7 @@ export default function ReceiptsCostsPage() {
                                                             <Tooltip>
                                                                 <TooltipTrigger>
                                                                     {creator?.image || creator?.profilePicture ? (
-                                                                        <img src={creator.image || creator.profilePicture} className="w-6 h-6 rounded-full object-cover border border-slate-200" />
+                                                                        <div className="relative w-6 h-6 rounded-full overflow-hidden"><Image fill sizes="(max-width: 768px) 100vw, 33vw" alt="" src={cld(creator.image || creator.profilePicture, { w: 128, q: 'auto' })} className="rounded-full object-cover border border-slate-200 w-full h-full" /></div>
                                                                     ) : (
                                                                         <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
                                                                             <User className="w-3 h-3 text-slate-400" />
@@ -773,7 +754,7 @@ export default function ReceiptsCostsPage() {
                                                                         <TooltipTrigger>
                                                                             <div className="relative inline-block w-6 h-6 rounded-full border border-white bg-slate-100 flex items-center justify-center overflow-hidden cursor-help">
                                                                                 {emp?.image || emp?.profilePicture ? (
-                                                                                    <img src={emp.image || emp.profilePicture} className="w-full h-full object-cover" />
+                                                                                    <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" alt="" src={cld(emp.image || emp.profilePicture, { w: 1200 })} className="object-cover w-full h-full" /></div>
                                                                                 ) : (
                                                                                     <span className="text-[9px] font-bold text-slate-500">{(emp?.firstName?.[0] || tagId?.[0] || '?').toUpperCase()}</span>
                                                                                 )}

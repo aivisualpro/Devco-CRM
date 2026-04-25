@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { cn } from "@/lib/utils";

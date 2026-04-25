@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import Link from 'next/link';
+import PrefetchLink from '@/components/PrefetchLink';
 import { usePathname, useRouter } from 'next/navigation';
 import { ChevronDown, FileText, Package, Calculator, Sliders, Users, Contact, Briefcase, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, AlertTriangle, Truck, Wrench, Settings, BarChart, FileCheck, Search, Bell, BookOpen, Command, LogOut, User as UserIcon, Clock, Import, X, Menu, MessageSquare, GraduationCap, Activity, Receipt, MapPin, Download, RefreshCw } from 'lucide-react';
 import { MyDropDown } from './MyDropDown';
 import NotificationBell from './NotificationBell';
 
 import { usePermissions } from '@/hooks/usePermissions';
+import { useCurrentUser } from '@/lib/context/AppContext';
 
 interface SubItem {
     label: string;
@@ -119,7 +120,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
     const { canAccessRoute } = usePermissions();
     const [searchOpen, setSearchOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const [user, setUser] = useState<User | null>(null);
+    const user = useCurrentUser();
     const [userDropdownOpen, setUserDropdownOpen] = useState(false);
     const [openMenu, setOpenMenu] = useState<string | null>(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -130,23 +131,6 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
     const navRef = useRef<HTMLElement>(null);
 
     useEffect(() => {
-        const storedUser = localStorage.getItem('devco_user');
-        if (storedUser) {
-            try {
-                const parsed = JSON.parse(storedUser);
-                // Ensure it's an object and has at least an email or id
-                if (parsed && typeof parsed === 'object') {
-                    setUser(parsed);
-                } else {
-                    console.warn('Invalid user data found, clearing...');
-                    localStorage.removeItem('devco_user');
-                }
-            } catch (e) {
-                console.error('Failed to parse user data, clearing...', e);
-                localStorage.removeItem('devco_user');
-            }
-        }
-
         // Click outside listener for dropdowns
         const handleClickOutside = (event: MouseEvent) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -227,9 +211,9 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                             </button>
                             {!hideLogo && (
                                 <div className="hidden lg:flex items-center">
-                                    <Link href="/dashboard" className="text-xl tracking-tight hover:opacity-80 transition-opacity mr-2" style={{ color: '#0F4C75', fontFamily: "'BBH Hegarty', sans-serif" }}>
+                                    <PrefetchLink href="/dashboard" className="text-xl tracking-tight hover:opacity-80 transition-opacity mr-2" style={{ color: '#0F4C75', fontFamily: "'BBH Hegarty', sans-serif" }}>
                                         DEVCO
-                                    </Link>
+                                    </PrefetchLink>
                                 </div>
                             )}
                             {leftContent}
@@ -253,13 +237,13 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                     if (group.href) {
                                         const isLinkActive = pathname.startsWith(group.href);
                                         return (
-                                            <Link
+                                            <PrefetchLink
                                                 key={group.label}
                                                 href={group.href}
                                                 className={`px-3 py-3 rounded-lg text-sm font-bold leading-4 transition-all flex items-center gap-1 focus:outline-none ${isLinkActive ? 'text-gray-900 bg-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'}`}
                                             >
                                                 {group.label}
-                                            </Link>
+                                            </PrefetchLink>
                                         );
                                     }
 
@@ -424,14 +408,14 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
 
                                     {/* Version Badge - Only on Homepage/Dashboard */}
                                     {(pathname === '/' || pathname === '/dashboard') && (
-                                        <Link
+                                        <PrefetchLink
                                             href="/settings/knowledgebase"
                                             className="flex items-center gap-2 px-3 py-2 text-white rounded-full text-xs font-bold transition-all shadow-lg group hover:-translate-y-0.5 whitespace-nowrap"
                                             style={{ background: 'linear-gradient(to right, #0F4C75, #3282B8)', boxShadow: '0 10px 15px -3px rgba(15, 76, 117, 0.2)' }}
                                         >
                                             <BookOpen size={18} className="shrink-0 group-hover:rotate-12 transition-transform" />
                                             <span className="hidden xs:inline">{CURRENT_VERSION}</span>
-                                        </Link>
+                                        </PrefetchLink>
                                     )}
                                 </>
                             )}
@@ -473,7 +457,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                         </div>
                                         <div className="p-1.5 space-y-0.5">
                                             {user && (
-                                                <Link
+                                                <PrefetchLink
                                                     href={`/employees/${user._id}`}
                                                     onClick={() => setUserDropdownOpen(false)}
                                                     className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-[#0F4C75] rounded-xl transition-colors font-medium group"
@@ -482,12 +466,12 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                                         <UserIcon size={16} />
                                                     </div>
                                                     Profile
-                                                </Link>
+                                                </PrefetchLink>
                                             )}
 
                                             {/* Sign In option if no user */}
                                             {!user && (
-                                                <Link
+                                                <PrefetchLink
                                                     href="/login"
                                                     onClick={() => setUserDropdownOpen(false)}
                                                     className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-[#0F4C75] rounded-xl transition-colors font-medium group"
@@ -496,7 +480,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                                         <UserIcon size={16} />
                                                     </div>
                                                     Sign In
-                                                </Link>
+                                                </PrefetchLink>
                                             )}
 
                                             <button
@@ -523,9 +507,9 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                 <div className="fixed inset-0 z-[150] bg-white/95 backdrop-blur-xl animate-in slide-in-from-right duration-300 lg:hidden mt-10 shadow-2xl rounded-t-[32px] border-t border-slate-200">
                     <div className="flex flex-col h-full">
                         <div className="flex items-center justify-between p-4 border-b border-slate-100/50 bg-gradient-to-r from-[#0F4C75]/5 to-transparent">
-                            <Link href="/dashboard" onClick={() => setIsMobileMenuOpen(false)} className="text-xl tracking-tight hover:opacity-80 transition-opacity" style={{ color: '#0F4C75', fontFamily: "'BBH Hegarty', sans-serif" }}>
+                            <PrefetchLink href="/dashboard" onClick={() => setIsMobileMenuOpen(false)} className="text-xl tracking-tight hover:opacity-80 transition-opacity" style={{ color: '#0F4C75', fontFamily: "'BBH Hegarty', sans-serif" }}>
                                 DEVCO
-                            </Link>
+                            </PrefetchLink>
                             <button
                                 onClick={() => setIsMobileMenuOpen(false)}
                                 className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition-colors"
@@ -545,14 +529,14 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                 if (group.href) {
                                     const isLinkActive = pathname.startsWith(group.href);
                                     return (
-                                        <Link
+                                        <PrefetchLink
                                             key={group.label}
                                             href={group.href}
                                             onClick={() => setIsMobileMenuOpen(false)}
                                             className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all ${isLinkActive ? 'bg-[#0F4C75]/10 text-[#0F4C75]' : 'text-slate-700 hover:bg-slate-100'}`}
                                         >
                                             {group.label}
-                                        </Link>
+                                        </PrefetchLink>
                                     );
                                 }
 
@@ -694,14 +678,14 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                 }
 
                                 return (
-                                    <Link
+                                    <PrefetchLink
                                         key={item.href}
                                         href={item.href}
                                         onClick={() => { setSearchOpen(false); setSearchQuery(''); }}
                                         className="hover:bg-slate-50 block"
                                     >
                                         {Content}
-                                    </Link>
+                                    </PrefetchLink>
                                 );
                             })}
                             {!searchQuery && (

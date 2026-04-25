@@ -4,6 +4,7 @@ import * as React from "react"
 import * as AvatarPrimitive from "@radix-ui/react-avatar"
 
 import { cn } from "@/lib/utils"
+import { cld } from "@/lib/cld"
 
 function Avatar({
   className,
@@ -23,11 +24,13 @@ function Avatar({
 
 function AvatarImage({
   className,
+  src,
   ...props
 }: React.ComponentProps<typeof AvatarPrimitive.Image>) {
   return (
     <AvatarPrimitive.Image
       data-slot="avatar-image"
+      src={typeof src === 'string' ? cld(src, { w: 128, q: 'auto' }) : (src as any)}
       className={cn("aspect-square size-full", className)}
       {...props}
     />

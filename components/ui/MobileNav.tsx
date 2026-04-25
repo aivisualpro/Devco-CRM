@@ -3,12 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Calendar, Clock, Menu, X, BookOpen, Settings, MessageSquare, ClipboardList, GraduationCap } from 'lucide-react';
+import PrefetchLink from '@/components/PrefetchLink';
 
 const MobileNav = () => {
     const pathname = usePathname();
     const router = useRouter();
     const searchParams = useSearchParams();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
 
     const tabs = [
         { label: 'SCHEDULES', href: '/dashboard', icon: Calendar },
@@ -36,6 +38,19 @@ const MobileNav = () => {
 
     useEffect(() => {
         setIsMounted(true);
+        
+        if (typeof window !== 'undefined' && window.visualViewport) {
+            const initialHeight = window.visualViewport.height;
+            const handleResize = () => {
+                if (window.visualViewport && window.visualViewport.height < initialHeight - 100) {
+                    setIsKeyboardOpen(true);
+                } else {
+                    setIsKeyboardOpen(false);
+                }
+            };
+            window.visualViewport.addEventListener('resize', handleResize);
+            return () => window.visualViewport?.removeEventListener('resize', handleResize);
+        }
     }, []);
 
     // Close modal on escape key
@@ -53,7 +68,7 @@ const MobileNav = () => {
         };
     }, [isMenuOpen]);
 
-    if (!isMounted) return null;
+    if (!isMounted || isKeyboardOpen) return null;
 
     const menuItems = [
         {
@@ -78,20 +93,28 @@ const MobileNav = () => {
                         const Icon = tab.icon;
 
                         return (
-                            <button
+                            <PrefetchLink
                                 key={tab.label}
-                                onClick={() => {
+                                href={(() => {
                                     const weekParam = searchParams.get('week');
                                     let url = tab.href;
                                     if (weekParam) {
                                         url += (url.includes('?') ? '&' : '?') + `week=${weekParam}`;
                                     }
-                                    router.push(url);
+                                    return url;
+                                })()}
+                                onClick={() => {
+                                    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+                                        navigator.vibrate(10);
+                                    }
                                 }}
                                 onContextMenu={(e) => e.preventDefault()}
-                                className={`flex flex-col items-center justify-center flex-1 transition-all duration-300 relative select-none ${Active ? 'text-[#0F4C75]' : 'text-slate-500'}`}
+                                className={`flex flex-col items-center justify-center flex-1 h-full transition-all duration-300 relative select-none ${Active ? 'text-[#0F4C75]' : 'text-slate-500'}`}
                                 style={{ WebkitTouchCallout: 'none' }}
                             >
+                                {Active && (
+                                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[3px] bg-[#0F4C75] rounded-b-full shadow-sm" />
+                                )}
                                 <div className={`relative p-2 rounded-xl transition-all duration-500 ${Active ? 'scale-110' : 'hover:bg-slate-100'}`}>
                                     <Icon size={20} strokeWidth={Active ? 2.5 : 2} />
                                 </div>
@@ -101,7 +124,7 @@ const MobileNav = () => {
                                 >
                                     {tab.label}
                                 </span>
-                            </button>
+                            </PrefetchLink>
                         );
                     })}
 

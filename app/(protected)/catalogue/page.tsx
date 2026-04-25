@@ -473,15 +473,15 @@ function CatalogueContent() {
                                                     onTouchMove={handleTouchMove}
                                                 >
                                                     <div className="flex-1 flex flex-col gap-1">
-                                                        <h3 className="font-extrabold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-1 leading-tight">
+                                                        <h3 className="font-normal text-slate-600 text-[11px] uppercase tracking-tight line-clamp-1 leading-tight">
                                                             {String(item.classification || '-')}
                                                         </h3>
-                                                        <p className="text-[10px] text-slate-500 font-semibold line-clamp-1">
+                                                        <p className="text-[10px] text-slate-400 font-normal line-clamp-1">
                                                             {String(item.subClassification || '-')}
                                                         </p>
                                                     </div>
                                                     <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
-                                                        <span className="text-[11px] font-extrabold text-[#0F4C75] shrink-0">
+                                                        <span className="text-[11px] font-semibold text-[#0F4C75] shrink-0">
                                                             {formatValue(item.basePay, 'cost')}
                                                         </span>
                                                     </div>
@@ -503,7 +503,7 @@ function CatalogueContent() {
                                                 onTouchMove={handleTouchMove}
                                             >
                                                 <div className="mb-1.5 flex-1">
-                                                    <h3 className="font-extrabold text-slate-800 text-[11px] line-clamp-2 leading-tight uppercase tracking-tight">
+                                                    <h3 className="font-normal text-slate-600 text-[11px] line-clamp-2 leading-tight uppercase tracking-tight">
                                                         {mainTitle || 'Untitled'}
                                                     </h3>
                                                     {subTitle && (
@@ -513,8 +513,8 @@ function CatalogueContent() {
 
                                                 <div className="mt-2 pt-2 border-t border-slate-50 flex items-center justify-between">
                                                     <div className="flex flex-col">
-                                                        <span className="text-[11px] font-extrabold text-[#0F4C75]">{cost}</span>
-                                                        <span className="text-[9px] text-slate-400 font-bold uppercase">
+                                                        <span className="text-[11px] font-semibold text-[#0F4C75]">{cost}</span>
+                                                        <span className="text-[9px] text-slate-400 font-medium uppercase">
                                                             {String(item.uom || 'Unit')}
                                                         </span>
                                                     </div>
@@ -555,7 +555,7 @@ function CatalogueContent() {
                                                             {isSortable && (
                                                                 <span className="text-gray-400">
                                                                     {isSorted ? (
-                                                                        sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-indigo-600" /> : <ArrowDown className="w-3 h-3 text-indigo-600" />
+                                                                        sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-slate-600" /> : <ArrowDown className="w-3 h-3 text-slate-600" />
                                                                     ) : (
                                                                         <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-50" />
                                                                     )}

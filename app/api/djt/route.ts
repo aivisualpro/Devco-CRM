@@ -4,6 +4,8 @@ import { connectToDatabase } from '@/lib/db';
 import { DailyJobTicket, Schedule, Activity, DJTSignature, Constant, OverheadItem, EquipmentItem } from '@/lib/models';
 import mongoose from 'mongoose';
 import { robustNormalizeISO } from '@/lib/timeCardUtils';
+import { getWeekIdFromDate } from '@/lib/scheduleUtils';
+import { revalidateTag } from 'next/cache';
 
 export async function POST(request: NextRequest) {
     try {
@@ -101,6 +103,10 @@ export async function POST(request: NextRequest) {
                     });
                 }
 
+                if ((updatedDJT as any)?.date || updatedDJT?.createdAt) {
+                    revalidateTag(`dashboard-${getWeekIdFromDate((updatedDJT as any)?.date || updatedDJT.createdAt)}`, undefined as any);
+                }
+
                 return NextResponse.json({ success: true, result: updatedDJT });
             }
 
@@ -163,7 +169,9 @@ export async function POST(request: NextRequest) {
                     }
 
                     const scheduleIds = djts.map((d: any) => d.schedule_id).filter(Boolean);
-                    const schedules = await Schedule.find({ _id: { $in: scheduleIds } }).lean();
+                    const schedules = await Schedule.find({ _id: { $in: scheduleIds } })
+                        .select('_id title estimate customerId customerName fromDate toDate foremanName projectManager assignees jobLocation DJTSignatures')
+                        .lean();
 
                     const djtsWithSchedule = djts.map((d: any) => {
                         const schedule = schedules.find((s: any) => String(s._id) === String(d.schedule_id));
@@ -173,25 +181,32 @@ export async function POST(request: NextRequest) {
                     return NextResponse.json({ success: true, result: { djts: djtsWithSchedule, total } });
                 } else {
                     // SEARCH PATH: Aggregation with $lookup to search across joined fields
+                    const searchRegex = { $regex: search, $options: 'i' };
                     const pipeline: any[] = [
+                        // Schedule lookup — direct string match, no $toString needed
                         {
                             $lookup: {
                                 from: 'devcoschedules',
-                                let: { schedId: "$schedule_id" },
+                                localField: 'schedule_id',
+                                foreignField: '_id',
                                 pipeline: [
-                                    { $match: { $expr: { $eq: [{ $toString: "$_id" }, { $toString: { $ifNull: ["$$schedId", "000000000000000000000000"] } }] } } }
+                                    { $project: {
+                                        _id: 1, title: 1, estimate: 1, customerId: 1, customerName: 1,
+                                        fromDate: 1, toDate: 1, foremanName: 1, projectManager: 1,
+                                        assignees: 1, jobLocation: 1, DJTSignatures: 1
+                                    }}
                                 ],
                                 as: 'scheduleDocs'
                             }
                         },
                         { $unwind: { path: '$scheduleDocs', preserveNullAndEmptyArrays: true } },
+                        // Client lookup — direct string match
                         {
                             $lookup: {
                                 from: 'clients',
-                                let: { cid: "$scheduleDocs.customerId" },
-                                pipeline: [
-                                    { $match: { $expr: { $eq: [{ $toString: "$_id" }, { $toString: { $ifNull: ["$$cid", "000000000000000000000000"] } }] } } }
-                                ],
+                                localField: 'scheduleDocs.customerId',
+                                foreignField: '_id',
+                                pipeline: [{ $project: { name: 1 } }],
                                 as: 'clientDocs'
                             }
                         },
@@ -208,11 +223,11 @@ export async function POST(request: NextRequest) {
                         {
                             $match: {
                                 $or: [
-                                    { dailyJobDescription: { $regex: search, $options: 'i' } },
-                                    { createdBy: { $regex: search, $options: 'i' } },
-                                    { computedCustomerName: { $regex: search, $options: 'i' } },
-                                    { computedEstimate: { $regex: search, $options: 'i' } },
-                                    { dateStr: { $regex: search, $options: 'i' } }
+                                    { dailyJobDescription: searchRegex },
+                                    { createdBy: searchRegex },
+                                    { computedCustomerName: searchRegex },
+                                    { computedEstimate: searchRegex },
+                                    { dateStr: searchRegex }
                                 ]
                             }
                         },
@@ -279,6 +294,10 @@ export async function POST(request: NextRequest) {
                     date: new Date(),
                     createdAt: new Date()
                 });
+
+                if ((djtToDelete as any)?.date || djtToDelete?.createdAt) {
+                    revalidateTag(`dashboard-${getWeekIdFromDate((djtToDelete as any)?.date || djtToDelete.createdAt)}`, undefined as any);
+                }
 
                 return NextResponse.json({ success: true });
             }
@@ -437,6 +456,12 @@ export async function POST(request: NextRequest) {
                 // Return the updated DJT with signatures
                 const resultDJT = djt.toObject ? djt.toObject() : djt;
                 resultDJT.signatures = updatedSignatures;
+
+                if (schedule?.fromDate) {
+                    revalidateTag(`dashboard-${getWeekIdFromDate(schedule.fromDate)}`, undefined as any);
+                } else if ((djt as any)?.date || djt?.createdAt) {
+                    revalidateTag(`dashboard-${getWeekIdFromDate((djt as any)?.date || djt.createdAt)}`, undefined as any);
+                }
 
                 return NextResponse.json({ success: true, result: resultDJT });
             }

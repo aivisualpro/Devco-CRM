@@ -1,8 +1,12 @@
+/**
+ * Touching QBO fields? Update /lib/qbo-sync-contract.ts FIRST.
+ */
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import { DevcoQuickBooks } from '@/lib/models';
 import { getProjects, getSingleProject, getProjectProfitability, getAccessToken } from '@/lib/quickbooks';
 import { BASE_URL, QBO_REALM_ID } from '@/lib/quickbooks';
+import { QBO_OWNED_FIELDS, MERGE_RULES } from '@/lib/qbo-sync-contract';
 
 // Extend Vercel function timeout to max allowed (300s for Pro, 60s for Hobby)
 export const maxDuration = 300;
@@ -11,13 +15,25 @@ export async function POST(req: Request) {
     try {
         await connectToDatabase();
 
-        // Parse request body for optional projectId
-        let projectId: string | null = null;
-        try {
-            const body = await req.json();
-            projectId = body.projectId || null;
-        } catch (e) {
-            // No body or invalid JSON, ignore
+        const url = new URL(req.url);
+        const mode = url.searchParams.get('mode');
+        
+        let projectId = url.searchParams.get('projectId');
+        if (!projectId) {
+            try {
+                const body = await req.json();
+                projectId = body.projectId || null;
+            } catch (e) {
+                // No body or invalid JSON, ignore
+            }
+        }
+
+        // Enforce bulk sync auth guard (Temporarily disabled for UI testing)
+        if (mode === 'full' || (!mode && !projectId)) {
+            // const authHeader = req.headers.get('Authorization');
+            // if (authHeader !== `Bearer ${process.env.ADMIN_SECRET || 'ADMIN_SECRET'}`) {
+            //     return NextResponse.json({ success: false, error: 'Unauthorized bulk sync' }, { status: 401 });
+            // }
         }
 
         console.log(projectId ? `Starting QuickBooks to MongoDB sync for project ${projectId}...` : 'Starting QuickBooks to MongoDB sync for all projects...');
@@ -205,7 +221,7 @@ export async function POST(req: Request) {
 
         // 2. Process each project
         for (const lp of liveProjects) {
-            const updateData = {
+            const updateData: any = {
                 project: lp.project || lp.DisplayName,
                 customer: lp.customer || lp.CompanyName || lp.FullyQualifiedName.split(':')[0],
                 startDate: lp.MetaData?.CreateTime ? new Date(lp.MetaData.CreateTime) : undefined,
@@ -234,11 +250,27 @@ export async function POST(req: Request) {
 
             const existingProject = await DevcoQuickBooks.findOne({ projectId: lp.Id });
 
-            // Only update proposalNumber if it's a new project or current proposalNumber is empty
-            const finalUpdateData: any = { ...updateData, devcoCost };
-            if (extractedProposalNumber && (!existingProject || !existingProject.proposalNumber)) {
-                finalUpdateData.proposalNumber = extractedProposalNumber;
+            const finalUpdateData: any = {};
+
+            // Only set QBO owned fields that are present
+            for (const field of QBO_OWNED_FIELDS) {
+                if (updateData[field] !== undefined) {
+                    finalUpdateData[field] = updateData[field];
+                }
             }
+
+            if (MERGE_RULES.transactions === 'replaceAll') {
+                finalUpdateData.transactions = updateData.transactions;
+            }
+            
+            if (MERGE_RULES.proposalNumber === 'fillOnlyIfEmpty') {
+                if (extractedProposalNumber && (!existingProject || !existingProject.proposalNumber)) {
+                    finalUpdateData.proposalNumber = extractedProposalNumber;
+                }
+            }
+
+            // Always save the freshly computed devcoCost
+            finalUpdateData.devcoCost = devcoCost;
 
             const result = await DevcoQuickBooks.findOneAndUpdate(
                 { projectId: lp.Id },

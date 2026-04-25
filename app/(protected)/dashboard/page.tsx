@@ -1,6 +1,9 @@
 'use client';
 
+import { cld } from '@/lib/cld';
+import Image from 'next/image';
 import { useEffect, useState, useMemo, useCallback, useRef, Suspense } from 'react';
+import useSWR from 'swr';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { 
     Calendar, Clock, ChevronLeft, ChevronRight, Users, 
@@ -19,18 +22,27 @@ import { UploadButton } from '@/components/ui/UploadButton';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/useToast';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useCurrentUser } from '@/lib/context/AppContext';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
-import { ScheduleDetailsPopup } from '@/components/ui/ScheduleDetailsPopup';
+import dynamic from 'next/dynamic';
+const ScheduleDetailsPopup = dynamic(() => import('@/components/ui/ScheduleDetailsPopup').then(mod => mod.ScheduleDetailsPopup), { ssr: false });
 import { ScheduleCard, ScheduleItem } from '../jobs/schedules/components/ScheduleCard';
-import { ScheduleFormModal } from '../jobs/schedules/components/ScheduleFormModal';
-import { JHAModal } from '../jobs/schedules/components/JHAModal';
+
+const ScheduleFormModal = dynamic(() => import('../jobs/schedules/components/ScheduleFormModal').then(mod => mod.ScheduleFormModal), { ssr: false });
+const JHAModal = dynamic(() => import('../jobs/schedules/components/JHAModal').then(mod => mod.JHAModal), { ssr: false });
 import ClientOnly from '@/components/ClientOnly';
-import { DJTModal } from '../jobs/schedules/components/DJTModal';
-import { ChangeOfScopeModal } from '../jobs/schedules/components/ChangeOfScopeModal';
-import { TimesheetModal } from '../jobs/schedules/components/TimesheetModal';
+const DJTModal = dynamic(() => import('../jobs/schedules/components/DJTModal').then(mod => mod.DJTModal), { ssr: false });
+const ChangeOfScopeModal = dynamic(() => import('../jobs/schedules/components/ChangeOfScopeModal').then(mod => mod.ChangeOfScopeModal), { ssr: false });
+const TimesheetModal = dynamic(() => import('../jobs/schedules/components/TimesheetModal').then(mod => mod.TimesheetModal), { ssr: false });
+
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
-import { calculateTimesheetData, formatDateOnly, formatTimeOnly } from '@/lib/timeCardUtils';
+import { calculateTimesheetData, formatDateOnly, formatTimeOnly, robustNormalizeISO } from '@/lib/timeCardUtils';
 import { getLocalNowISO } from '@/lib/scheduleUtils';
+
+import { EstimateStatsWidget } from './widgets/EstimateStatsWidget';
+import { TaskList } from './_components/TaskList';
+import { StatsCards } from './_components/StatsCards';
+import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
 
 // Week utilities
 // Returns { start, end, label, startISO, endISO } where startISO/endISO are date-only strings
@@ -301,11 +313,11 @@ const TodoColumn = ({
                                     <p className="text-slate-400">
                                         {item.createdAt && <span>Created: {new Date(item.createdAt).toLocaleDateString()}</span>}
                                         {item.createdAt && item.dueDate && <span className="mx-1">|</span>}
-                                        {item.dueDate && <span>Due: {new Date(item.dueDate).toLocaleDateString()}</span>}
+                                        {item.dueDate && <span>Due: {formatWallDate(item.dueDate)}</span>}
                                     </p>
                                     {item.status === 'done' && item.lastUpdatedAt && (
                                         <div className="flex items-center gap-1.5 text-emerald-500 font-medium whitespace-nowrap ml-auto">
-                                            <span>Completed: {new Date(item.lastUpdatedAt).toLocaleDateString()}</span>
+                                            <span>Completed: {formatWallDate(item.lastUpdatedAt)}</span>
                                             {item.lastUpdatedBy && (() => {
                                                 const emp = employees?.find((e: any) => e.value === item.lastUpdatedBy);
                                                 const name = emp?.label || item.lastUpdatedBy.split('@')[0] || 'System';
@@ -451,47 +463,7 @@ const TodoColumn = ({
     </div>
 );
 
-// Pie Chart Component
-const PieChart = ({ data }: { data: EstimateStats[] }) => {
-    const total = data.reduce((sum, d) => sum + d.total, 0);
-    const colors = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
-    
-    let startAngle = 0;
-    const paths = data.map((d, i) => {
-        const angle = (d.total / total) * 360;
-        const endAngle = startAngle + angle;
-        
-        const x1 = 50 + 40 * Math.cos((startAngle * Math.PI) / 180);
-        const y1 = 50 + 40 * Math.sin((startAngle * Math.PI) / 180);
-        const x2 = 50 + 40 * Math.cos((endAngle * Math.PI) / 180);
-        const y2 = 50 + 40 * Math.sin((endAngle * Math.PI) / 180);
-        
-        const largeArc = angle > 180 ? 1 : 0;
-        
-        const pathD = `M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArc} 1 ${x2} ${y2} Z`;
-        startAngle = endAngle;
-        
-        return <path key={i} d={pathD} fill={colors[i % colors.length]} className="hover:opacity-80 transition-opacity" />;
-    });
 
-    return (
-        <div className="flex items-center gap-4">
-            <svg viewBox="0 0 100 100" className="w-32 h-32">
-                {paths}
-                <circle cx="50" cy="50" r="20" fill="white" />
-            </svg>
-            <div className="space-y-1">
-                {data.map((d, i) => (
-                    <div key={i} className="flex items-center gap-2 text-sm">
-                        <div className="w-3 h-3 rounded" style={{ backgroundColor: colors[i % colors.length] }} />
-                        <span className="text-slate-600 capitalize">{d.status}</span>
-                        <span className="font-semibold text-slate-900 ml-auto">${Math.round(d.total).toLocaleString()}</span>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-};
 
 // Task Form Modal
 const TaskFormModal = ({ 
@@ -642,7 +614,7 @@ const TaskFormModal = ({
                 </div>
 
                 {/* Customer & Estimate - side by side */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {/* Customer Dropdown */}
                     <div className="relative">
                         <label className="block text-sm font-bold text-slate-700 mb-1">Customer</label>
@@ -780,7 +752,7 @@ const TaskFormModal = ({
                 </div>
 
                 {/* Due Date & Status - side by side */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-bold text-slate-700 mb-1">Due Date</label>
                         <input 
@@ -825,7 +797,7 @@ const TaskFormModal = ({
                                             title={emp?.label || email}
                                         >
                                             {emp?.image ? (
-                                                <img src={emp.image} className="w-full h-full object-cover" alt="" />
+                                                <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(emp.image, { w: 1200 })} className="object-cover w-full h-full" alt="" /></div>
                                             ) : (
                                                 (emp?.label || email)?.[0].toUpperCase()
                                             )}
@@ -884,8 +856,8 @@ function DashboardContent() {
     const { success, error: showError } = useToast();
     const { user, isSuperAdmin, canField, permissions, can } = usePermissions();
     const canViewEstimates = can(MODULES.ESTIMATES, ACTIONS.VIEW);
-    const [currentUser, setCurrentUser] = useState<any>(null);
-    const userEmail = user?.email || currentUser?.email || '';
+    const currentUser = useCurrentUser();
+    const userEmail = currentUser?.email || '';
     
     const searchParams = useSearchParams();
     
@@ -959,7 +931,37 @@ function DashboardContent() {
     
     // Data States
     const [schedules, setSchedules] = useState<Schedule[]>([]);
-    const [initialData, setInitialData] = useState<any>({ employees: [], clients: [], constants: [], estimates: [] });
+    const [timecardSchedules, setTimecardSchedules] = useState<Schedule[]>([]);
+    const [initialData, setInitialData] = useState<any>(() => {
+        if (typeof window !== 'undefined') {
+            const cached = localStorage.getItem('devco_schedules_initial_data');
+            if (cached) {
+                try {
+                    const parsed = JSON.parse(cached);
+                    if (parsed && parsed.employees) return parsed;
+                } catch (e) {}
+            }
+        }
+        return { employees: [], clients: [], constants: [], estimates: [] };
+    });
+
+    useEffect(() => {
+        if (initialData.employees.length === 0) {
+            fetch('/api/schedules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'getSchedulesPage', payload: { limit: 1, skipInitialData: false } })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.result?.initialData) {
+                    setInitialData(data.result.initialData);
+                    localStorage.setItem('devco_schedules_initial_data', JSON.stringify(data.result.initialData));
+                }
+            })
+            .catch(err => console.error('Failed to fetch initial data for dashboard', err));
+        }
+    }, [initialData.employees.length]);
     const [timeCards, setTimeCards] = useState<TimeCard[]>([]);
     const [trainings, setTrainings] = useState<Training[]>([]);
     const [todos, setTodos] = useState<TodoItem[]>([]);
@@ -986,32 +988,45 @@ function DashboardContent() {
 
     // Computed Time Cards for Dashboard Table
     const dashboardTimeCards = useMemo(() => {
-        if (!currentUser || !schedules.length) return [];
+        if (!currentUser || !timecardSchedules.length) return [];
 
         const userLowerEmail = currentUser.email.toLowerCase();
         const allUserTimesheets: any[] = [];
 
-        schedules.forEach(schedule => {
+        // Build week range strings for filtering (same approach as /jobs/time-cards)
+        const pad2 = (n: number) => String(n).padStart(2, '0');
+        const toYMD = (d: Date) => `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+        const weekStartStr = toYMD(weekRange.start);
+        const weekEndStr = toYMD(weekRange.end);
+
+        timecardSchedules.forEach(schedule => {
             if (schedule.timesheet) {
                 schedule.timesheet.forEach(ts => {
-                    if (ts.employee?.toLowerCase() === userLowerEmail) {
-                        const { hours, distance, calculatedDistance } = calculateTimesheetData(ts as any, schedule.fromDate);
-                        allUserTimesheets.push({
-                            ...ts,
-                            estimate: schedule.estimate,
-                            scheduleId: schedule._id,
-                            hoursVal: hours,
-                            distanceVal: distance,
-                            rawDistanceVal: calculatedDistance
-                        });
+                    if (ts.employee?.toLowerCase() !== userLowerEmail) return;
+
+                    // Filter: Only include timesheets with clockIn within the selected week
+                    if (ts.clockIn) {
+                        const normalized = robustNormalizeISO(ts.clockIn);
+                        const clockInDateStr = normalized.split('T')[0];
+                        if (clockInDateStr < weekStartStr || clockInDateStr > weekEndStr) return;
                     }
+
+                    const { hours, distance, calculatedDistance } = calculateTimesheetData(ts as any, schedule.fromDate);
+                    allUserTimesheets.push({
+                        ...ts,
+                        estimate: schedule.estimate,
+                        scheduleId: schedule._id,
+                        hoursVal: hours,
+                        distanceVal: distance,
+                        rawDistanceVal: calculatedDistance
+                    });
                 });
             }
         });
 
         // Sort by clockIn date descending
         return allUserTimesheets.sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime());
-    }, [schedules, currentUser]);
+    }, [timecardSchedules, currentUser, weekRange]);
 
     // Computed Totals for Dashboard Widget
     const timeCardTotals = useMemo(() => {
@@ -1058,6 +1073,8 @@ function DashboardContent() {
     }, [permissionsReady, isSuperAdmin, upcomingSchedulesScope]);
 
     const [timeCardsView, setTimeCardsView] = useState<'all' | 'self'>('self');
+    const [isDriveTimeOpen, setIsDriveTimeOpen] = useState(false);
+    const [isSiteTimeOpen, setIsSiteTimeOpen] = useState(false);
 
     // Determine Time Cards Widget Scope
     const timeCardsWidgetScope = useMemo(() => {
@@ -1229,7 +1246,7 @@ function DashboardContent() {
     });
 
     // Chat States
-    const [messages, setMessages] = useState<any[]>([]);
+    // We now use SWR for messages
     const [isChatLoading, setIsChatLoading] = useState(false);
     const [mentionQuery, setMentionQuery] = useState('');
     const [referenceQuery, setReferenceQuery] = useState('');
@@ -1257,21 +1274,6 @@ function DashboardContent() {
     const [activeEmailType, setActiveEmailType] = useState<'jha' | 'djt'>('jha');
 
     // Load User
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const storedUser = localStorage.getItem('devco_user');
-            if (storedUser) {
-                try {
-                    setCurrentUser(JSON.parse(storedUser));
-                } catch (e) {
-                    console.error('Failed to parse user', e);
-                }
-            } else if (user) {
-                setCurrentUser(user);
-            }
-        }
-    }, [user]);
-
     // Helper functions for timesheet actions
     const handleDeleteSchedule = async () => {
         if (!deleteScheduleId) return;
@@ -1526,7 +1528,7 @@ function DashboardContent() {
                 jobLocation: schedule?.jobLocation || '',
                 foremanName: schedule?.foremanName || '',
                 projectName: estimate?.projectTitle || estimate?.projectName || '',
-                date: selectedJHA.date ? new Date(selectedJHA.date).toLocaleDateString() : '',
+                date: selectedJHA.date ? formatWallDate(selectedJHA.date) : '',
                 day: new Date(selectedJHA.date || schedule?.fromDate || new Date()).toLocaleDateString('en-US', { weekday: 'long' }),
             };
 
@@ -1608,7 +1610,7 @@ function DashboardContent() {
                 jobLocation: schedule?.jobLocation || '',
                 foremanName: schedule?.foremanName || '',
                 projectName: estimate?.projectTitle || estimate?.projectName || '',
-                date: selectedJHA.date ? new Date(selectedJHA.date).toLocaleDateString() : '',
+                date: selectedJHA.date ? formatWallDate(selectedJHA.date) : '',
                 day: new Date(selectedJHA.date || schedule?.fromDate || new Date()).toLocaleDateString('en-US', { weekday: 'long' }),
             };
 
@@ -2107,45 +2109,42 @@ function DashboardContent() {
         });
     };
 
-    // Chat Functions
-    const fetchChatMessages = useCallback(async () => {
-        try {
-            let url = '/api/chat?limit=50';
-            if (chatFilterValue) {
-                url += `&filter=${encodeURIComponent(chatFilterValue)}`;
-            }
-            if (tagFilters.length > 0) {
-                 const estTag = tagFilters.find(t => t.type === 'estimate');
-                 if (estTag) {
-                     url += `&estimate=${encodeURIComponent(estTag.value)}`;
-                 }
-            }
-            
-            const res = await fetch(url);
-            const data = await res.json();
-            if (data.success) {
-                setMessages(data.messages);
-                // Only auto-scroll on initial load or if user is already at the bottom
-                if (chatInitialLoad.current || !chatUserScrolledUp.current) {
-                    setTimeout(() => {
-                        if (chatScrollRef.current) {
-                            chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
-                        }
-                    }, 100);
-                }
-                chatInitialLoad.current = false;
-            }
-        } catch (error) {
-            console.error('Failed to fetch chat', error);
+    // Chat Functions via SWR
+    const chatUrl = useMemo(() => {
+        let url = '/api/chat?limit=50';
+        if (chatFilterValue) {
+            url += `&filter=${encodeURIComponent(chatFilterValue)}`;
         }
+        if (tagFilters.length > 0) {
+             const estTag = tagFilters.find(t => t.type === 'estimate');
+             if (estTag) {
+                 url += `&estimate=${encodeURIComponent(estTag.value)}`;
+             }
+        }
+        return url;
     }, [chatFilterValue, tagFilters]);
 
-    // Poll for messages
-    useEffect(() => {
-        fetchChatMessages();
-        const interval = setInterval(fetchChatMessages, 10000); // Poll every 10s
-        return () => clearInterval(interval);
-    }, [fetchChatMessages]);
+    const { data: chatData, mutate: mutateChatMessages } = useSWR(
+        chatUrl,
+        (url) => fetch(url).then(res => res.json()),
+        {
+            revalidateOnFocus: true,
+            onSuccess: (data) => {
+                if (data?.success) {
+                    // Only auto-scroll on initial load or if user is already at the bottom
+                    if (chatInitialLoad.current || !chatUserScrolledUp.current) {
+                        setTimeout(() => {
+                            if (chatScrollRef.current) {
+                                chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+                            }
+                        }, 100);
+                    }
+                    chatInitialLoad.current = false;
+                }
+            }
+        }
+    );
+    const messages: any[] = chatData?.messages || [];
 
     const handleChatInput = (e: React.ChangeEvent<any>) => {
         const val = e.target.value;
@@ -2221,7 +2220,13 @@ function DashboardContent() {
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
         };
-        setMessages(prev => [...prev, optimisticMsg]);
+        mutateChatMessages((currentData: any) => {
+            if (!currentData) return { success: true, messages: [optimisticMsg] };
+            return {
+                ...currentData,
+                messages: [...(currentData.messages || []), optimisticMsg]
+            };
+        }, false);
         if (chatInputRef.current) {
             chatInputRef.current.value = '';
             (chatInputRef.current as any).style.height = '42px';
@@ -2292,7 +2297,7 @@ function DashboardContent() {
                 }
             }
 
-            fetchChatMessages();
+            mutateChatMessages();
         } catch (error) {
             console.error('Failed to send', error);
             showError('Failed to send message');
@@ -2309,7 +2314,13 @@ function DashboardContent() {
             });
             const data = await res.json();
             if (data.success) {
-                setMessages(prev => prev.map(m => m._id === id ? { ...m, message: text } : m));
+                mutateChatMessages((currentData: any) => {
+                    if (!currentData) return currentData;
+                    return {
+                        ...currentData,
+                        messages: currentData.messages.map((m: any) => m._id === id ? { ...m, message: text } : m)
+                    };
+                }, false);
                 setEditingMsgId(null);
                 setEditingMsgText('');
             } else {
@@ -2327,7 +2338,13 @@ function DashboardContent() {
             const res = await fetch(`/api/chat/${id}`, { method: 'DELETE' });
             const data = await res.json();
             if (data.success) {
-                setMessages(prev => prev.filter(m => m._id !== id));
+                mutateChatMessages((currentData: any) => {
+                    if (!currentData) return currentData;
+                    return {
+                        ...currentData,
+                        messages: currentData.messages.filter((m: any) => m._id !== id)
+                    };
+                }, false);
             } else {
                 console.error('Delete failed:', data.error);
                 showError(data.error || 'Failed to delete');
@@ -2439,92 +2456,36 @@ function DashboardContent() {
                     break;
             }
 
-            // Execute ALL API calls in parallel for maximum speed
-            const [schedRes, estRes, tasksRes] = await Promise.all([
-                // Schedules API
-                fetch('/api/schedules', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        action: 'getSchedulesPage',
-                        payload: { 
-                            startDate: startStr,
-                            endDate: endStr,
-                            page: 1,
-                            limit: 100,
-                            skipInitialData: initialData.employees.length > 0,
-                            userEmail: scheduleView === 'self' ? userEmail : undefined
-                        }
-                    }),
-                    signal: abortController.signal
-                }),
-                // Estimate Stats API
-                fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        action: 'getEstimateStats',
-                        payload: { startDate: estStart, endDate: estEnd }
-                    }),
-                    signal: abortController.signal
-                }),
-                // Tasks API
-                fetch('/api/tasks', { signal: abortController.signal })
-            ]);
+            // We use /api/dashboard to fetch schedules, estimateStats, and tasks in one go
+            const [startMonth, startDay] = startStr.split('T')[0].substring(5).split('-');
+            const [endMonth, endDay] = endStr.split('T')[0].substring(5).split('-');
+            const weekParam = `${startMonth}/${startDay}-${endMonth}/${endDay}`;
+            
+            const dashboardRes = await fetch(`/api/dashboard?week=${encodeURIComponent(weekParam)}&scope=${scheduleView}`, {
+                signal: abortController.signal
+            });
 
             // Check if aborted before processing
             if (abortController.signal.aborted) return;
 
-            // Process schedules response
-            if (schedRes.headers.get('content-type')?.includes('application/json')) {
-                const schedData = await schedRes.json();
-                if (schedData.success) {
-                    const scheds = schedData.result?.schedules || [];
-                    setSchedules(scheds);
-                    if (schedData.result?.initialData) {
-                        setInitialData(schedData.result.initialData);
+            if (dashboardRes.ok) {
+                const dashboardData = await dashboardRes.json();
+                if (dashboardData.success) {
+                    setSchedules(dashboardData.schedules || []);
+                    setTimecardSchedules(dashboardData.timecardSchedules || dashboardData.schedules || []);
+                    
+                    if (dashboardData.estimateStats && dashboardData.estimateStats.length > 0) {
+                        setEstimateStats(dashboardData.estimateStats);
+                    } else {
+                        setEstimateStats([
+                            { status: 'Pending', count: 12, total: 87936000 },
+                            { status: 'Won', count: 8, total: 6056000 },
+                            { status: 'Completed', count: 15, total: 2274000 },
+                            { status: 'Lost', count: 3, total: 402000 },
+                        ]);
                     }
-                }
-            }
-
-            // Process estimate stats response
-            if (estRes.headers.get('content-type')?.includes('application/json')) {
-                const estData = await estRes.json();
-                if (estData.success && estData.result?.length > 0) {
-                    const merged = estData.result.reduce((acc: any[], curr: any) => {
-                        let status = curr.status;
-                        const lower = status.toLowerCase();
-                        if (lower === 'pending' || lower === 'in progress') {
-                            status = 'Pending';
-                        } else {
-                            status = status.charAt(0).toUpperCase() + status.slice(1);
-                        }
-                        
-                        const existing = acc.find((i: any) => i.status === status);
-                        if (existing) {
-                            existing.count += curr.count;
-                            existing.total += curr.total;
-                        } else {
-                            acc.push({ status, count: curr.count, total: curr.total });
-                        }
-                        return acc;
-                    }, []);
-                    setEstimateStats(merged);
-                } else {
-                    setEstimateStats([
-                        { status: 'Pending', count: 12, total: 87936000 },
-                        { status: 'Won', count: 8, total: 6056000 },
-                        { status: 'Completed', count: 15, total: 2274000 },
-                        { status: 'Lost', count: 3, total: 402000 },
-                    ]);
-                }
-            }
-            
-            // Process tasks response
-            if (tasksRes.headers.get('content-type')?.includes('application/json')) {
-                const tasksData = await tasksRes.json();
-                if (tasksData.success) {
-                    setTodos(tasksData.tasks);
+                    
+                    setTodos(dashboardData.tasks || []);
                 }
             }
             
@@ -2535,6 +2496,10 @@ function DashboardContent() {
             console.error('Dashboard fetch error:', err);
         } finally {
             setLoading(false);
+            if (typeof window !== 'undefined' && (window as any).dashboardMountStarted) {
+                console.timeEnd('dashboard-mount');
+                (window as any).dashboardMountStarted = false;
+            }
         }
     }, [weekRange, scheduleView, userEmail, estimateFilter, initialData.employees.length, permissionsReady]);
 
@@ -2626,13 +2591,13 @@ function DashboardContent() {
     const handleDeleteTask = async (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
         
-        console.log('DEBUG: Attempting to delete task:', id);
-        console.log('DEBUG: Current userEmail:', userEmail);
+        if (process.env.NODE_ENV !== 'production') console.log('DEBUG: Attempting to delete task:', id);
+        if (process.env.NODE_ENV !== 'production') console.log('DEBUG: Current userEmail:', userEmail);
 
         if (!window.confirm('Are you sure you want to delete this task?')) return;
         
         try {
-            console.log('DEBUG: Sending DELETE request for task:', id);
+            if (process.env.NODE_ENV !== 'production') console.log('DEBUG: Sending DELETE request for task:', id);
             const res = await fetch(`/api/tasks?id=${id}`, { method: 'DELETE' });
             const data = await res.json();
             
@@ -2778,12 +2743,23 @@ function DashboardContent() {
     }, [schedules, snapshotView, userEmail]);
 
     const snapshotTimeCardTotals = useMemo(() => {
+        const pad2 = (n: number) => String(n).padStart(2, '0');
+        const toYMD = (d: Date) => `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+        const weekStartStr = toYMD(weekRange.start);
+        const weekEndStr = toYMD(weekRange.end);
+
         if (snapshotView === 'all') {
-            // Sum ALL timesheets across all schedules
+            // Sum ALL timesheets across all timecard schedules, filtered by week
             let drive = 0;
             let site = 0;
-            schedules.forEach(schedule => {
+            timecardSchedules.forEach(schedule => {
                 schedule.timesheet?.forEach((ts: any) => {
+                    // Filter by clockIn within the selected week
+                    if (ts.clockIn) {
+                        const normalized = robustNormalizeISO(ts.clockIn);
+                        const clockInDateStr = normalized.split('T')[0];
+                        if (clockInDateStr < weekStartStr || clockInDateStr > weekEndStr) return;
+                    }
                     const { hours } = calculateTimesheetData(ts, schedule.fromDate);
                     if (ts.type?.toLowerCase().includes('drive')) {
                         drive += hours;
@@ -2796,7 +2772,7 @@ function DashboardContent() {
         }
         // 'self' - use existing dashboardTimeCards which are already filtered to current user
         return timeCardTotals;
-    }, [snapshotView, schedules, timeCardTotals]);
+    }, [snapshotView, timecardSchedules, timeCardTotals, weekRange]);
 
     const snapshotTodos = useMemo(() => {
         const lowerEmail = userEmail.toLowerCase().trim();
@@ -2821,11 +2797,24 @@ function DashboardContent() {
 
     // Time Cards widget: scoped data based on timeCardsView
     const tcWidgetTimeCards = useMemo(() => {
+        // Build week range strings for filtering
+        const pad2 = (n: number) => String(n).padStart(2, '0');
+        const toYMD = (d: Date) => `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+        const weekStartStr = toYMD(weekRange.start);
+        const weekEndStr = toYMD(weekRange.end);
+
         if (timeCardsView === 'self') return dashboardTimeCards;
-        // 'all' - gather ALL timesheets from all schedules
+        // 'all' - gather ALL timesheets from all timecard schedules, filtered by week
         const allTimesheets: any[] = [];
-        schedules.forEach(schedule => {
+        timecardSchedules.forEach(schedule => {
             schedule.timesheet?.forEach((ts: any) => {
+                // Filter by clockIn within the selected week
+                if (ts.clockIn) {
+                    const normalized = robustNormalizeISO(ts.clockIn);
+                    const clockInDateStr = normalized.split('T')[0];
+                    if (clockInDateStr < weekStartStr || clockInDateStr > weekEndStr) return;
+                }
+
                 const { hours, distance, calculatedDistance } = calculateTimesheetData(ts, schedule.fromDate);
                 allTimesheets.push({
                     ...ts,
@@ -2838,7 +2827,7 @@ function DashboardContent() {
             });
         });
         return allTimesheets.sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime());
-    }, [timeCardsView, dashboardTimeCards, schedules]);
+    }, [timeCardsView, dashboardTimeCards, timecardSchedules, weekRange]);
 
     const tcWidgetTotals = useMemo(() => {
         let drive = 0;
@@ -2961,306 +2950,13 @@ function DashboardContent() {
                         {/* Left Column - Main Content */}
                         <div className={`col-span-12 xl:col-span-9 space-y-4 ${searchParams.get('view') && !['tasks', 'training'].includes(searchParams.get('view')!) ? 'hidden lg:block' : ''}`}>
                             
-                            {/* Tasks Kanban */}
-                            <div className={`${searchParams.get('view') === 'tasks' ? 'block' : 'hidden xl:block'} bg-white rounded-2xl border border-slate-200 shadow-sm p-3`}>
-                                <div className="flex items-center justify-between mb-4">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-8 h-8 rounded-xl bg-rose-100 flex items-center justify-center">
-                                            <CheckCircle2 className="w-4 h-4 text-rose-600" />
-                                        </div>
-                                        <h2 className="text-sm font-bold text-slate-900">Tasks</h2>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        {tasksScope === 'all' && (
-                                            <div className="flex bg-slate-100 p-1 rounded-lg">
-                                                <button 
-                                                    onClick={() => setTaskView('self')}
-                                                    className={`px-3 py-1.5 text-[10px] md:text-md font-bold md:font-medium rounded-md transition-colors ${
-                                                        taskView === 'self' 
-                                                            ? 'bg-white text-blue-600 shadow-sm' 
-                                                            : 'text-slate-500 hover:text-slate-700'
-                                                    }`}
-                                                >
-                                                    Self
-                                                </button>
-                                                <button 
-                                                    onClick={() => setTaskView('all')}
-                                                    className={`px-3 py-1.5 text-[10px] md:text-md font-bold md:font-medium rounded-md transition-colors ${
-                                                        taskView === 'all' 
-                                                            ? 'bg-white text-blue-600 shadow-sm' 
-                                                            : 'text-slate-500 hover:text-slate-700'
-                                                    }`}
-                                                >
-                                                    All
-                                                </button>
-                                            </div>
-                                        )}
-                                        <button 
-                                            onClick={() => handleOpenTaskModal()}
-                                            className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center hover:bg-blue-700 transition-all shadow-sm hover:shadow-md active:scale-95"
-                                            title="New Task"
-                                        >
-                                            <Plus className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                </div>
-                                <div className="hidden lg:flex gap-4 overflow-x-auto">
-                                    <TodoColumn 
-                                        title="To Do" 
-                                        items={todosByStatus.todo} 
-                                        status="todo" 
-                                        color="bg-slate-400"
-                                        onDragOver={handleDragOver}
-                                        onDrop={handleDrop}
-                                        onEdit={handleOpenTaskModal}
-                                        onCopy={handleCopyTask}
-                                        onStatusChange={handleStatusChange}
-                                        onDelete={handleDeleteTask}
-                                        employees={initialData.employees}
-                                        currentUserEmail={userEmail}
-                                        isSuperAdmin={isSuperAdmin}
-                                        canViewEstimates={canViewEstimates}
-                                    />
-                                    <TodoColumn 
-                                        title="In Progress" 
-                                        items={todosByStatus['in progress']} 
-                                        status="in progress" 
-                                        color="bg-blue-500"
-                                        onDragOver={handleDragOver}
-                                        onDrop={handleDrop}
-                                        onEdit={handleOpenTaskModal}
-                                        onCopy={handleCopyTask}
-                                        onStatusChange={handleStatusChange}
-                                        onDelete={handleDeleteTask}
-                                        employees={initialData.employees}
-                                        currentUserEmail={userEmail}
-                                        isSuperAdmin={isSuperAdmin}
-                                        canViewEstimates={canViewEstimates}
-                                    />
-                                    <TodoColumn 
-                                        title="Done" 
-                                        items={todosByStatus.done} 
-                                        status="done" 
-                                        color="bg-emerald-500"
-                                        onDragOver={handleDragOver}
-                                        onDrop={handleDrop}
-                                        onEdit={handleOpenTaskModal}
-                                        onCopy={handleCopyTask}
-                                        onStatusChange={handleStatusChange}
-                                        onDelete={handleDeleteTask}
-                                        employees={initialData.employees}
-                                        currentUserEmail={userEmail}
-                                        isSuperAdmin={isSuperAdmin}
-                                        canViewEstimates={canViewEstimates}
-                                    />
-                                </div>
-                                
-                                {/* Mobile Accordion View */}
-                                <div className="lg:hidden mt-2">
-                                    <ClientOnly>
-                                        <Accordion type="multiple" className="space-y-4">
-                                        <AccordionItem value="todo" className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm">
-                                            <AccordionTrigger className="hover:no-underline py-4 px-4 bg-slate-50/50">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-2.5 h-2.5 rounded-full bg-slate-400 shadow-sm" />
-                                                    <span className="font-bold text-slate-800">To Do</span>
-                                                    <Badge variant="default" className="ml-2 text-[11px] font-black">{todosByStatus.todo.length}</Badge>
-                                                </div>
-                                            </AccordionTrigger>
-                                            <AccordionContent className="pt-2 px-2 pb-3 bg-white">
-                                                <div className="space-y-2">
-                                                    {todosByStatus.todo.length > 0 ? (
-                                                        todosByStatus.todo.map(item => (
-                                                            <div key={item._id} onClick={() => handleOpenTaskModal(item)} className="bg-slate-50/50 p-4 rounded-xl border border-slate-100 hover:border-blue-200 transition-colors">
-                                                                <div className="flex justify-between items-start gap-3">
-                                                                    <div className="flex-1">
-                                                                        <p className="text-sm font-bold text-slate-800 leading-tight">{item.task}</p>
-                                                                            {(item.createdAt || item.dueDate) && (
-                                                                                <div className="flex items-center gap-1.5 mt-2">
-                                                                                    <Clock size={10} className="text-slate-400" />
-                                                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
-                                                                                        {item.createdAt && `Created ${new Date(item.createdAt).toLocaleDateString()}`}
-                                                                                        {item.createdAt && item.dueDate && ' • '}
-                                                                                        {item.dueDate && `Due ${new Date(item.dueDate).toLocaleDateString()}`}
-                                                                                    </p>
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                        <div className="flex items-center gap-3 shrink-0">
-                                                                            <div className="flex -space-x-1.5">
-                                                                                {item.assignees?.map((email, idx) => {
-                                                                                    const emp = initialData.employees.find((e: any) => e.value === email);
-                                                                                    const name = emp?.label || email;
-                                                                                    const initials = name.split(' ').map((n: string) => n[0]).join('').toUpperCase();
-                                                                                    return (
-                                                                                        <Avatar key={idx} className="w-6 h-6 border-2 border-white ring-1 ring-slate-100">
-                                                                                            <AvatarImage src={emp?.image} />
-                                                                                            <AvatarFallback className="text-[8px] bg-slate-50 font-bold">{initials}</AvatarFallback>
-                                                                                        </Avatar>
-                                                                                    );
-                                                                                })}
-                                                                            </div>
-                                                                            <button 
-                                                                                onClick={(e) => { e.stopPropagation(); handleStatusChange(item, 'in progress'); }}
-                                                                                className="p-2 bg-white border border-slate-200 rounded-xl text-blue-500 shadow-sm active:scale-90 transition-transform"
-                                                                            >
-                                                                                <ActivityIcon size={14} />
-                                                                            </button>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                        ))
-                                                    ) : (
-                                                        <p className="text-center py-6 text-xs text-slate-400 font-medium italic">No pending tasks</p>
-                                                    )}
-                                                </div>
-                                            </AccordionContent>
-                                        </AccordionItem>
-
-                                        <AccordionItem value="in-progress" className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm">
-                                            <AccordionTrigger className="hover:no-underline py-4 px-4 bg-blue-50/30">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm" />
-                                                    <span className="font-bold text-slate-800">In Progress</span>
-                                                    <Badge variant="default" className="ml-2 text-[11px] font-black">{todosByStatus['in progress'].length}</Badge>
-                                                </div>
-                                            </AccordionTrigger>
-                                            <AccordionContent className="pt-2 px-2 pb-3 bg-white">
-                                                <div className="space-y-2">
-                                                    {todosByStatus['in progress'].length > 0 ? (
-                                                        todosByStatus['in progress'].map(item => (
-                                                            <div key={item._id} onClick={() => handleOpenTaskModal(item)} className="bg-slate-50/50 p-4 rounded-xl border border-slate-100 hover:border-blue-200 transition-colors">
-                                                                <div className="flex justify-between items-start gap-3">
-                                                                    <div className="flex-1">
-                                                                        <p className="text-sm font-bold text-slate-800 leading-tight">{item.task}</p>
-                                                                            {(item.createdAt || item.dueDate) && (
-                                                                                <div className="flex items-center gap-1.5 mt-2">
-                                                                                    <Clock size={10} className="text-slate-400" />
-                                                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
-                                                                                        {item.createdAt && `Created ${new Date(item.createdAt).toLocaleDateString()}`}
-                                                                                        {item.createdAt && item.dueDate && ' • '}
-                                                                                        {item.dueDate && `Due ${new Date(item.dueDate).toLocaleDateString()}`}
-                                                                                    </p>
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                        <div className="flex items-center gap-3 shrink-0">
-                                                                            <div className="flex -space-x-1.5">
-                                                                                {item.assignees?.map((email, idx) => {
-                                                                                    const emp = initialData.employees.find((e: any) => e.value === email);
-                                                                                    const name = emp?.label || email;
-                                                                                    const initials = name.split(' ').map((n: string) => n[0]).join('').toUpperCase();
-                                                                                    return (
-                                                                                        <Avatar key={idx} className="w-6 h-6 border-2 border-white ring-1 ring-slate-100">
-                                                                                            <AvatarImage src={emp?.image} />
-                                                                                            <AvatarFallback className="text-[8px] bg-slate-50 font-bold">{initials}</AvatarFallback>
-                                                                                        </Avatar>
-                                                                                    );
-                                                                                })}
-                                                                            </div>
-                                                                            <button 
-                                                                                onClick={(e) => { e.stopPropagation(); handleStatusChange(item, 'done'); }}
-                                                                                className="p-2 bg-white border border-slate-200 rounded-xl text-emerald-500 shadow-sm active:scale-90 transition-transform"
-                                                                            >
-                                                                                <ActivityIcon size={14} />
-                                                                            </button>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                        ))
-                                                    ) : (
-                                                        <p className="text-center py-6 text-xs text-slate-400 font-medium italic">Nothing in progress</p>
-                                                    )}
-                                                </div>
-                                            </AccordionContent>
-                                        </AccordionItem>
-
-                                        <AccordionItem value="done" className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm">
-                                            <AccordionTrigger className="hover:no-underline py-4 px-4 bg-emerald-50/30">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm" />
-                                                    <span className="font-bold text-slate-800">Done</span>
-                                                    <Badge variant="default" className="ml-2 text-[11px] font-black">{todosByStatus.done.length}</Badge>
-                                                </div>
-                                            </AccordionTrigger>
-                                            <AccordionContent className="pt-2 px-2 pb-3 bg-white">
-                                                <div className="space-y-2">
-                                                    {todosByStatus.done.length > 0 ? (
-                                                        todosByStatus.done.map(item => (
-                                                            <div key={item._id} onClick={() => handleOpenTaskModal(item)} className="bg-slate-50/50 p-4 rounded-xl border border-slate-100 hover:border-emerald-200 transition-colors">
-                                                                <div className="flex justify-between items-start gap-3">
-                                                                    <div className="flex-1">
-                                                                        <p className="text-sm font-bold text-slate-800 leading-tight line-through decoration-slate-300 decoration-2">{item.task}</p>
-                                                                            {(item.createdAt || item.dueDate || item.lastUpdatedAt) && (
-                                                                                <div className="flex items-center justify-between mt-2 flex-wrap gap-1">
-                                                                                    <div className="flex items-center gap-1.5">
-                                                                                        <Clock size={10} className="text-slate-400" />
-                                                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
-                                                                                            {item.createdAt && `Created ${new Date(item.createdAt).toLocaleDateString()}`}
-                                                                                            {item.createdAt && item.dueDate && ' • '}
-                                                                                            {item.dueDate && `Due ${new Date(item.dueDate).toLocaleDateString()}`}
-                                                                                        </p>
-                                                                                    </div>
-                                                                                    {item.lastUpdatedAt && (
-                                                                                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-500 uppercase tracking-tighter ml-auto">
-                                                                                            <span>Completed {new Date(item.lastUpdatedAt).toLocaleDateString()}</span>
-                                                                                            {item.lastUpdatedBy && (() => {
-                                                                                                const emp = initialData.employees?.find((e: any) => e.value === item.lastUpdatedBy);
-                                                                                                const name = emp?.label || item.lastUpdatedBy.split('@')[0] || 'System';
-                                                                                                const initials = name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
-                                                                                                return (
-                                                                                                    <TooltipProvider>
-                                                                                                        <Tooltip>
-                                                                                                            <TooltipTrigger asChild>
-                                                                                                                <Avatar className="w-5 h-5 border border-emerald-200 cursor-default">
-                                                                                                                    <AvatarImage src={emp?.image} />
-                                                                                                                    <AvatarFallback className="text-[8px] bg-emerald-50 font-bold text-emerald-600">{initials}</AvatarFallback>
-                                                                                                                </Avatar>
-                                                                                                            </TooltipTrigger>
-                                                                                                            <TooltipContent><p className="text-[10px] capitalize">Completed by {name}</p></TooltipContent>
-                                                                                                        </Tooltip>
-                                                                                                    </TooltipProvider>
-                                                                                                );
-                                                                                            })()}
-                                                                                        </div>
-                                                                                    )}
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                        <div className="flex items-center gap-3 shrink-0">
-                                                                            <div className="flex -space-x-1.5">
-                                                                                {item.assignees?.map((email, idx) => {
-                                                                                    const emp = initialData.employees.find((e: any) => e.value === email);
-                                                                                    const name = emp?.label || email;
-                                                                                    const initials = name.split(' ').map((n: string) => n[0]).join('').toUpperCase();
-                                                                                    return (
-                                                                                        <Avatar key={idx} className="w-6 h-6 border-2 border-white ring-1 ring-slate-100">
-                                                                                            <AvatarImage src={emp?.image} alt={name} />
-                                                                                            <AvatarFallback className="text-[8px] bg-slate-50 font-bold">{initials}</AvatarFallback>
-                                                                                        </Avatar>
-                                                                                    );
-                                                                                })}
-                                                                            </div>
-                                                                            <button 
-                                                                                onClick={(e) => { e.stopPropagation(); handleStatusChange(item, 'todo'); }}
-                                                                                className="p-2 bg-white border border-slate-200 rounded-xl text-slate-400 shadow-sm active:scale-90 transition-transform"
-                                                                            >
-                                                                                <ActivityIcon size={14} />
-                                                                            </button>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                        ))
-                                                    ) : (
-                                                        <p className="text-center py-6 text-xs text-slate-400 font-medium italic">No items completed this week</p>
-                                                    )}
-                                                </div>
-                                            </AccordionContent>
-                                        </AccordionItem>
-                                    </Accordion>
-                                    </ClientOnly>
-                                </div>
-                            </div>
+                            {/* Tasks Kanban — extracted component with own SWR */}
+                            <TaskList
+                                week={weekRange.label}
+                                scope={tasksScope as 'all' | 'self'}
+                                initialData={initialData}
+                                className={searchParams.get('view') === 'tasks' ? 'block' : 'hidden xl:block'}
+                            />
 
                             {/* Upcoming Schedules */}
                             <div className={`${searchParams.get('view') ? 'hidden lg:block' : 'block'} bg-transparent lg:bg-white lg:rounded-2xl lg:border lg:border-slate-200 lg:shadow-sm overflow-hidden`}>
@@ -3318,6 +3014,30 @@ function DashboardContent() {
                                             <span className="hidden sm:inline">Request Time Off</span>
                                             <span className="sm:hidden">Time Off</span>
                                         </button>
+                                        <button
+                                            onClick={() => {
+                                                const today = new Date();
+                                                const year = today.getFullYear();
+                                                const month = String(today.getMonth() + 1).padStart(2, '0');
+                                                const day = String(today.getDate()).padStart(2, '0');
+                                                const fromDate = `${year}-${month}-${day}T07:00`;
+                                                const toDate = `${year}-${month}-${day}T15:30`;
+                                                setEditingSchedule({
+                                                    fromDate: fromDate,
+                                                    toDate: toDate,
+                                                    assignees: [],
+                                                    notifyAssignees: 'No',
+                                                    perDiem: 'No',
+                                                    title: '',
+                                                } as any);
+                                                setIsDayOffMode(false);
+                                                setEditScheduleOpen(true);
+                                            }}
+                                            className="flex items-center justify-center w-7 h-7 lg:w-auto lg:px-3 lg:h-auto py-1.5 text-[10px] lg:text-xs font-bold rounded-lg bg-[#0F4C75] text-white hover:bg-[#0b3d61] shadow-sm hover:shadow-md transition-all duration-200 active:scale-95"
+                                        >
+                                            <Plus size={16} className="lg:w-3.5 lg:h-3.5" />
+                                            <span className="hidden lg:inline ml-1.5">New</span>
+                                        </button>
                                         {upcomingSchedulesScope === 'all' && (
                                             <div className="flex bg-slate-200/50 lg:bg-slate-100 rounded-lg p-0.5">
                                                 <button 
@@ -3347,7 +3067,7 @@ function DashboardContent() {
                                     {/* Scrollable Card Area - max 2 rows visible before scroll */}
                                     <div className="overflow-y-auto p-2 lg:p-3 bg-slate-50 lg:bg-white max-h-none lg:max-h-[400px]">
                                         {loading ? (
-                                            <div className="grid grid-cols-1 lg:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                                 {[1,2,3].map(i => (
                                                     <div key={i} className="h-40 bg-slate-100 rounded-xl animate-pulse" />
                                                 ))}
@@ -3359,7 +3079,7 @@ function DashboardContent() {
                                                 <p className="text-sm text-slate-400 mt-1">Check back later or adjust the week filter</p>
                                             </div>
                                         ) : (
-                                            <div className="grid grid-cols-1 lg:grid-cols-2 lg:grid-cols-3 gap-4 pb-20 lg:pb-0">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-20 lg:pb-0">
                                                 {schedules.map(schedule => (
                                                     <ScheduleCard
                                                         key={schedule._id}
@@ -3406,7 +3126,7 @@ function DashboardContent() {
                                                         cloned.hasDJT = false;
                                                         (cloned as any).djt = undefined;
                                                         (cloned as any).DJTSignatures = [];
-                                                        cloned.syncedToAppSheet = false;
+
 
                                                         setEditingSchedule(cloned);
                                                         setEditScheduleOpen(true);
@@ -3527,172 +3247,27 @@ function DashboardContent() {
                             <div className={`${searchParams.get('view') === 'training' ? 'grid' : 'hidden md:grid'} grid-cols-1 lg:grid-cols-2 gap-4`}>
                                 
                                 {/* Estimate Stats Pie Chart */}
-                                {canField(MODULES.DASHBOARD, 'widget_estimates_overview', 'view') && (
-                                <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm p-4 ${searchParams.get('view') === 'training' ? 'hidden lg:block' : ''}`}>
-                                    <div className="flex items-center gap-3 mb-4 justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
-                                                <TrendingUp className="w-5 h-5 text-purple-600" />
-                                            </div>
-                                            <div>
-                                                <h2 className="font-bold text-slate-900">Estimates Overview</h2>
+                                <EstimateStatsWidget 
+                                    week={weekRange.label} 
+                                    scope={scheduleView as 'all' | 'self'} 
+                                    initialData={null} 
+                                    isHidden={!canField(MODULES.DASHBOARD, 'widget_estimates_overview', 'view') || searchParams.get('view') === 'training'} 
+                                />
 
-                                            </div>
-                                        </div>
-                                        
-                                        {/* Filter Dropdown */}
-                                        <div className="relative">
-                                            <select 
-                                                value={estimateFilter}
-                                                onChange={(e) => setEstimateFilter(e.target.value)}
-                                                className="appearance-none bg-slate-50 border border-slate-200 rounded-lg pl-3 pr-8 py-1.5 text-xs font-bold text-slate-600 outline-none focus:ring-2 focus:ring-purple-100 cursor-pointer"
-                                            >
-                                                <option value="all">All Time</option>
-                                                <option value="this_month">This Month</option>
-                                                <option value="last_month">Last Month</option>
-                                                <option value="ytd">Year to Date</option>
-                                                <option value="last_year">Last Year</option>
-                                            </select>
-                                            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
-                                        </div>
-                                    </div>
-                                    {estimateStats.length > 0 ? (
-                                        <PieChart data={estimateStats} />
-                                    ) : (
-                                        <div className="h-32 flex items-center justify-center">
-                                            <p className="text-slate-400">No data available</p>
-                                        </div>
-                                    )}
-                                </div>
-                                )}
-
-                                {/* Weekly Snapshot KPIs */}
-                                {canField(MODULES.DASHBOARD, 'widget_weekly_snapshot', 'view') && (
-                                <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm p-4 ${searchParams.get('view') === 'training' ? 'hidden lg:block' : ''}`}>
-                                    <div className="flex items-center justify-between mb-5">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-sm">
-                                                <ActivityIcon className="w-5 h-5 text-white" />
-                                            </div>
-                                            <div>
-                                                <h2 className="font-bold text-slate-900">Weekly Snapshot</h2>
-                                            </div>
-                                        </div>
-                                        {weeklySnapshotScope === 'all' && (
-                                            <div className="flex bg-slate-200/50 md:bg-slate-100 rounded-lg p-0.5">
-                                                <button 
-                                                    onClick={() => setSnapshotView('self')}
-                                                    className={`px-3 py-1.5 text-[10px] md:text-xs font-bold md:font-medium rounded-md transition-colors ${
-                                                        snapshotView === 'self' 
-                                                            ? 'bg-white text-blue-600 shadow-sm' 
-                                                            : 'text-slate-500 hover:text-slate-700'
-                                                    }`}
-                                                >
-                                                    Self
-                                                </button>
-                                                <button 
-                                                    onClick={() => setSnapshotView('all')}
-                                                    className={`px-3 py-1.5 text-[10px] md:text-xs font-bold md:font-medium rounded-md transition-colors ${
-                                                        snapshotView === 'all' 
-                                                            ? 'bg-white text-blue-600 shadow-sm' 
-                                                            : 'text-slate-500 hover:text-slate-700'
-                                                    }`}
-                                                >
-                                                    All
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        {/* Total Jobs */}
-                                        <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-xl p-3.5 border border-blue-100/80">
-                                            <div className="flex items-center gap-2 mb-1.5">
-                                                <Calendar className="w-3.5 h-3.5 text-blue-500" />
-                                                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-500/80">Jobs</span>
-                                            </div>
-                                            <p className="text-2xl font-black text-slate-800 leading-none">{snapshotSchedules.length}</p>
-                                            <p className="text-[10px] text-slate-400 mt-1">Scheduled this week</p>
-                                            <div className="absolute -right-2 -bottom-2 w-12 h-12 rounded-full bg-blue-200/30" />
-                                        </div>
-
-                                        {/* Active Crew */}
-                                        <div className="relative overflow-hidden bg-gradient-to-br from-violet-50 to-violet-100/50 rounded-xl p-3.5 border border-violet-100/80">
-                                            <div className="flex items-center gap-2 mb-1.5">
-                                                <Users className="w-3.5 h-3.5 text-violet-500" />
-                                                <span className="text-[10px] font-bold uppercase tracking-wider text-violet-500/80">Crew</span>
-                                            </div>
-                                            <p className="text-2xl font-black text-slate-800 leading-none">
-                                                {(() => {
-                                                    const uniqueCrew = new Set<string>();
-                                                    snapshotSchedules.forEach(s => {
-                                                        s.assignees?.forEach((a: string) => uniqueCrew.add(a.toLowerCase()));
-                                                    });
-                                                    return uniqueCrew.size;
-                                                })()}
-                                            </p>
-                                            <p className="text-[10px] text-slate-400 mt-1">Active personnel</p>
-                                            <div className="absolute -right-2 -bottom-2 w-12 h-12 rounded-full bg-violet-200/30" />
-                                        </div>
-
-                                        {/* Total Hours */}
-                                        <div className="relative overflow-hidden bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-xl p-3.5 border border-emerald-100/80">
-                                            <div className="flex items-center gap-2 mb-1.5">
-                                                <Clock className="w-3.5 h-3.5 text-emerald-500" />
-                                                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500/80">Hours</span>
-                                            </div>
-                                            <p className="text-2xl font-black text-slate-800 leading-none">{(snapshotTimeCardTotals.drive + snapshotTimeCardTotals.site).toFixed(1)}</p>
-                                            <div className="flex items-center gap-2 mt-1">
-                                                <span className="text-[9px] font-bold text-blue-500">{snapshotTimeCardTotals.drive.toFixed(1)}h drive</span>
-                                                <span className="text-[9px] text-slate-300">•</span>
-                                                <span className="text-[9px] font-bold text-emerald-500">{snapshotTimeCardTotals.site.toFixed(1)}h site</span>
-                                            </div>
-                                            <div className="absolute -right-2 -bottom-2 w-12 h-12 rounded-full bg-emerald-200/30" />
-                                        </div>
-
-                                        {/* Task Completion */}
-                                        <div className="relative overflow-hidden bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-xl p-3.5 border border-amber-100/80">
-                                            <div className="flex items-center gap-2 mb-1.5">
-                                                <CheckCircle2 className="w-3.5 h-3.5 text-amber-500" />
-                                                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-500/80">Tasks</span>
-                                            </div>
-                                            <p className="text-2xl font-black text-slate-800 leading-none">
-                                                {snapshotTodos.done}
-                                                <span className="text-sm font-bold text-slate-400 ml-0.5">/{snapshotTodos.total}</span>
-                                            </p>
-                                            <div className="w-full bg-amber-200/40 rounded-full h-1.5 mt-2">
-                                                <div 
-                                                    className="bg-gradient-to-r from-amber-400 to-amber-500 h-1.5 rounded-full transition-all duration-700"
-                                                    style={{ 
-                                                        width: `${Math.round((snapshotTodos.done / Math.max(snapshotTodos.total, 1)) * 100)}%` 
-                                                    }}
-                                                />
-                                            </div>
-                                            <p className="text-[10px] text-slate-400 mt-1">Completed this week</p>
-                                            <div className="absolute -right-2 -bottom-2 w-12 h-12 rounded-full bg-amber-200/30" />
-                                        </div>
-                                    </div>
-                                </div>
-                                )}
+                                {/* Weekly Snapshot KPIs — extracted component with own SWR */}
+                                <StatsCards
+                                    week={weekRange.label}
+                                    scope={scheduleView as 'all' | 'self'}
+                                    weekRange={weekRange}
+                                />
 
 
                             </div>
 
 
-                            <TaskFormModal 
-                                isOpen={isTaskModalOpen}
-                                onClose={() => setIsTaskModalOpen(false)}
-                                onSave={handleSaveTask}
-                                editingTask={editingTask}
-                                employees={initialData.employees}
-                                clients={initialData.clients || []}
-                                estimates={initialData.estimates || []}
-                                currentUserEmail={userEmail}
-                                isSuperAdmin={isSuperAdmin}
-                            />
-
                             {/* Time Cards - Weekly (Renamed & Table View) */}
                             {canField(MODULES.DASHBOARD, 'widget_time_cards', 'view') && (
-                            <div className={`${searchParams.get('view') === 'time-cards' ? 'block' : 'hidden lg:block'} bg-white rounded-2xl border border-slate-200 shadow-sm p-3 lg:p-4 overflow-hidden`}>
+                            <div className={`${searchParams.get('view') === 'time-cards' ? 'block' : 'hidden lg:block'} bg-white rounded-2xl border border-slate-200 shadow-sm p-3 lg:p-4`}>
                                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center">
@@ -3743,11 +3318,20 @@ function DashboardContent() {
                                 <div className="space-y-4">
                                     {/* Drive Time Section */}
                                     <div>
-                                        <div className="flex items-center gap-2 mb-2 px-1">
-                                            <Truck size={14} className="text-blue-500" />
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Drive Time</span>
+                                        <div 
+                                            className={`flex items-center justify-between mb-2 px-1 ${timeCardsView === 'all' ? 'cursor-pointer hover:bg-slate-50 p-2 rounded-lg transition-colors' : ''}`}
+                                            onClick={() => timeCardsView === 'all' && setIsDriveTimeOpen(!isDriveTimeOpen)}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <Truck size={14} className="text-blue-500" />
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Drive Time</span>
+                                            </div>
+                                            {timeCardsView === 'all' && (
+                                                <ChevronDown size={14} className={`text-slate-400 transition-transform ${isDriveTimeOpen ? 'rotate-180' : ''}`} />
+                                            )}
                                         </div>
-                                        <div className="overflow-x-auto">
+                                        {(timeCardsView === 'self' || isDriveTimeOpen) && (
+                                            <div className="overflow-x-auto">
                                             <Table containerClassName="h-auto min-h-0 !border-none !shadow-none !bg-transparent" className="table-fixed w-full">
                                                 <TableHead>
                                                     <TableRow className="hover:bg-transparent border-slate-100">
@@ -3762,7 +3346,7 @@ function DashboardContent() {
                                                 </TableHead>
                                                 <TableBody>
                                                     {tcWidgetTimeCards.filter(ts => ts.type?.toLowerCase().includes('drive')).length > 0 ? 
-                                                        tcWidgetTimeCards.filter(ts => ts.type?.toLowerCase().includes('drive')).slice(0, 10).map((ts, idx) => (
+                                                        tcWidgetTimeCards.filter(ts => ts.type?.toLowerCase().includes('drive')).map((ts, idx) => (
                                                         <TableRow key={idx} className="hover:bg-slate-50">
                                                             {timeCardsView === 'all' && (
                                                                 <TableCell className="text-left align-middle text-[11px] font-semibold text-slate-700 truncate max-w-[100px]">
@@ -3806,15 +3390,25 @@ function DashboardContent() {
                                                 </TableBody>
                                             </Table>
                                         </div>
+                                        )}
                                     </div>
 
                                     {/* Site Time Section */}
                                     <div>
-                                        <div className="flex items-center gap-2 mb-2 px-1">
-                                            <MapPin size={14} className="text-emerald-500" />
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Site Time</span>
+                                        <div 
+                                            className={`flex items-center justify-between mb-2 px-1 ${timeCardsView === 'all' ? 'cursor-pointer hover:bg-slate-50 p-2 rounded-lg transition-colors' : ''}`}
+                                            onClick={() => timeCardsView === 'all' && setIsSiteTimeOpen(!isSiteTimeOpen)}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <MapPin size={14} className="text-emerald-500" />
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Site Time</span>
+                                            </div>
+                                            {timeCardsView === 'all' && (
+                                                <ChevronDown size={14} className={`text-slate-400 transition-transform ${isSiteTimeOpen ? 'rotate-180' : ''}`} />
+                                            )}
                                         </div>
-                                        <div className="overflow-x-auto">
+                                        {(timeCardsView === 'self' || isSiteTimeOpen) && (
+                                            <div className="overflow-x-auto">
                                             <Table containerClassName="h-auto min-h-0 !border-none !shadow-none !bg-transparent" className="table-fixed w-full">
                                                 <TableHead>
                                                     <TableRow className="hover:bg-transparent border-slate-100">
@@ -3828,7 +3422,7 @@ function DashboardContent() {
                                                 </TableHead>
                                                 <TableBody>
                                                     {tcWidgetTimeCards.filter(ts => !ts.type?.toLowerCase().includes('drive')).length > 0 ? 
-                                                        tcWidgetTimeCards.filter(ts => !ts.type?.toLowerCase().includes('drive')).slice(0, 10).map((ts, idx) => (
+                                                        tcWidgetTimeCards.filter(ts => !ts.type?.toLowerCase().includes('drive')).map((ts, idx) => (
                                                         <TableRow key={idx} className="hover:bg-slate-50">
                                                             {timeCardsView === 'all' && (
                                                                 <TableCell className="text-left align-middle text-[11px] font-semibold text-slate-700 truncate max-w-[100px]">
@@ -3861,6 +3455,7 @@ function DashboardContent() {
                                                 </TableBody>
                                             </Table>
                                         </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -3873,7 +3468,7 @@ function DashboardContent() {
 
 
                             {/* Chat */}
-                            <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col sticky top-0 z-10 ${searchParams.get('view') === 'chat' ? 'h-full lg:h-[650px]' : 'h-[650px]'}`}>
+                            <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col sticky top-0 z-10 ${searchParams.get('view') === 'chat' ? 'h-full lg:h-[calc(100vh-100px)]' : 'h-[calc(100vh-100px)]'}`}>
                                 <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-white/95 backdrop-blur-sm z-20">
                                     <div className="hidden lg:flex items-center gap-2">
                                         <MessageSquare className="w-4 h-4 text-[#0F4C75]" />
@@ -4627,11 +4222,11 @@ function DashboardContent() {
             >
                 <div className="flex flex-col items-center justify-center p-4">
                     {mediaModalContent.type === 'image' ? (
-                        <img 
+                        <div className="relative max-w-full max-h-[80vh] rounded-2xl overflow-hidden"><Image fill sizes="(max-width: 768px) 100vw, 33vw" 
                             src={mediaModalContent.url} 
                             alt={mediaModalContent.title}
-                            className="max-w-full max-h-[80vh] rounded-2xl shadow-2xl"
-                        />
+                            className="rounded-2xl shadow-2xl w-full h-full"
+                        /></div>
                     ) : (
                         <div className="w-full h-[70vh] rounded-2xl overflow-hidden shadow-2xl">
                              {mediaModalContent.url.includes('google.com/maps') ? (
@@ -4929,6 +4524,11 @@ function DashboardContent() {
 }
 
 
+
+if (typeof window !== 'undefined' && !(window as any).dashboardMountStarted) {
+    console.time('dashboard-mount');
+    (window as any).dashboardMountStarted = true;
+}
 
 export default function DashboardPage() {
     return (

@@ -3,22 +3,12 @@
 import React, { useRef, MutableRefObject } from 'react';
 import dynamic from 'next/dynamic';
 import { Plus, X } from 'lucide-react';
-import 'react-quill-new/dist/quill.snow.css';
+import { Skeleton } from '@/components/ui';
 
-// Dynamically import ReactQuill with custom size registration
-const ReactQuill = dynamic(
-    async () => {
-        const mod = await import('react-quill-new');
-        const Quill = (mod.default as any).Quill || (mod as any).Quill;
-        if (Quill) {
-            const Size = Quill.import('attributors/style/size') as any;
-            Size.whitelist = ['8pt', '9pt', '10pt', '11pt', '12pt', '14pt'];
-            Quill.register(Size, true);
-        }
-        return mod.default;
-    },
-    { ssr: false, loading: () => <div className="h-64 rounded-[20px] animate-pulse" style={{ background: '#e0e5ec', boxShadow: 'inset 6px 6px 12px #b8b9be, inset -6px -6px 12px #ffffff' }} /> }
-) as any;
+const RichTextEditor = dynamic(() => import('@/components/editor/RichTextEditor').then(mod => mod.RichTextEditor), { 
+    ssr: false, 
+    loading: () => <Skeleton className="h-40 w-full" /> 
+});
 
 interface Page {
     content: string;
@@ -35,18 +25,6 @@ interface MyTemplateProps {
     className?: string;
 }
 
-const modules = {
-    toolbar: [
-        [{ 'header': [1, 2, 3, false] }],
-        [{ 'size': ['8pt', '9pt', '10pt', '11pt', '12pt', '14pt'] }],
-        ['bold', 'italic', 'underline', 'strike'],
-        [{ 'color': [] }, { 'background': [] }],
-        [{ 'align': [] }],
-        [{ 'list': 'ordered' }, { 'list': 'bullet' }, { 'indent': '-1' }, { 'indent': '+1' }],
-        ['link', 'image'],
-        ['clean']
-    ],
-};
 
 export function MyTemplate({
     pages,
@@ -235,14 +213,10 @@ export function MyTemplate({
                                 overflow: 'hidden'
                             }}
                         >
-                            <ReactQuill
+                            <RichTextEditor
                                 ref={(el: any) => { refs.current[index] = el; }}
-                                theme="snow"
                                 value={page.content}
                                 onChange={(val: string) => handlePageContentChange(index, val)}
-                                modules={modules}
-                                className="h-full flex flex-col [&_.ql-container]:flex-1 [&_.ql-container]:border-none [&_.ql-container]:overflow-hidden [&_.ql-toolbar]:flex-shrink-0 [&_.ql-toolbar]:border-none [&_.ql-toolbar]:border-b [&_.ql-toolbar]:border-slate-100"
-                                style={{ height: '100%' }}
                             />
                         </div>
                     </div>

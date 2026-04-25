@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import React from 'react';
 import { Card, UploadButton } from '@/components/ui';
 import { Upload, Image as ImageIcon, Map, Download, ExternalLink, Trash2, FileText } from 'lucide-react';
@@ -29,7 +30,7 @@ export function EstimateAerialLayoutCard({ formData, onUpdate, schedules }: Esti
             {/* Aerial Image Column */}
             <div className="space-y-4">
                 <div className="flex items-center gap-3 mb-2">
-                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center shadow-md">
+                    <div className="relative w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center shadow-md">
                         <ImageIcon className="w-4 h-4" />
                     </div>
                     <h4 className="text-sm font-bold text-blue-700">Aerial Image</h4>
@@ -53,7 +54,7 @@ export function EstimateAerialLayoutCard({ formData, onUpdate, schedules }: Esti
                                                 >
                                                     {/* Show Cloudinary thumbnail if available */}
                                                     {thumbnail ? (
-                                                        <img 
+                                                        <Image fill sizes="(max-width: 768px) 100vw, 33vw" 
                                                             src={thumbnail} 
                                                             alt="Aerial PDF" 
                                                             className="w-full h-full object-contain"
@@ -84,11 +85,11 @@ export function EstimateAerialLayoutCard({ formData, onUpdate, schedules }: Esti
                                             );
                                         }
                                         return (
-                                            <img 
+                                            <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" 
                                                 src={url} 
                                                 alt="Aerial" 
-                                                className="w-full h-full object-contain"
-                                            />
+                                                className="object-contain w-full h-full"
+                                            /></div>
                                         );
                                     })()}
                                 </div>
@@ -245,7 +246,7 @@ export function EstimateAerialLayoutCard({ formData, onUpdate, schedules }: Esti
 
                                     // Default image render
                                     return (
-                                        <img 
+                                        <Image fill sizes="(max-width: 768px) 100vw, 33vw" 
                                             src={url} 
                                             alt="Site Layout" 
                                             className="w-full h-full object-contain"

@@ -21,6 +21,7 @@ import { Label } from '@/components/ui/label';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useAddShortcut } from '@/hooks/useAddShortcut';
+import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
 
 interface Ticket {
     _id: string;
@@ -241,7 +242,7 @@ export default function Usa811TicketsPage() {
     const formatDate = (d?: string) => {
         if (!d) return '-';
         const dt = new Date(d);
-        return isNaN(dt.getTime()) ? '-' : format(dt, 'MMM dd, yyyy');
+        return isNaN(dt.getTime()) ? '-' : formatWallDate(dt);
     };
 
     const addUtility = () => {

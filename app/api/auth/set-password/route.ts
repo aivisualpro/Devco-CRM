@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import { Employee } from '@/lib/models';
 
+export const dynamic = 'force-dynamic';
+
 // This endpoint sets a password for an employee
 // Protected by a secret key that must be passed in the request
 export async function POST(request: NextRequest) {

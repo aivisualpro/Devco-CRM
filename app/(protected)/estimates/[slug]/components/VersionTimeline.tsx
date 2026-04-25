@@ -2,6 +2,7 @@
 
 import { Copy, Trash2, FilePlus, Zap } from 'lucide-react';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
+import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
 
 interface VersionEntry {
     _id: string;
@@ -39,7 +40,7 @@ export function VersionTimeline({
     const formatDate = (dateStr?: string) => {
         if (!dateStr) return '-';
         try {
-            return new Date(dateStr).toLocaleDateString();
+            return formatWallDate(dateStr);
         } catch {
             return dateStr;
         }

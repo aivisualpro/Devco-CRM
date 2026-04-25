@@ -5,6 +5,7 @@ import { Send, Trash2, Pencil, Reply, X, MessageSquare, Forward } from 'lucide-r
 import toast from 'react-hot-toast';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, MyDropDown } from '@/components/ui';
+import useSWR from 'swr';
 
 interface EstimateChatProps {
     estimateId: string;
@@ -21,7 +22,6 @@ export const EstimateChat: React.FC<EstimateChatProps> = ({
     className = '',
     height = '500px'
 }) => {
-    const [chatMessages, setChatMessages] = useState<any[]>([]);
     const [newChatMessage, setNewChatMessage] = useState('');
     const [mentionQuery, setMentionQuery] = useState('');
     const [showMentions, setShowMentions] = useState(false);
@@ -34,33 +34,24 @@ export const EstimateChat: React.FC<EstimateChatProps> = ({
     const [editingMsgText, setEditingMsgText] = useState('');
     const [replyingTo, setReplyingTo] = useState<any>(null);
 
-    // Fetch Chat Messages
-    useEffect(() => {
-        if (!estimateId) return;
-
-        const fetchChat = async () => {
-            try {
-                const res = await fetch(`/api/chat?limit=50&estimate=${encodeURIComponent(estimateId)}`);
-                if (!res.ok) return;
-                const data = await res.json();
-                if (data.success) {
-                    setChatMessages(data.messages);
-                    // Scroll to bottom on initial load
-                    setTimeout(() => {
-                        if (chatScrollRef.current) {
-                            chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
-                        }
-                    }, 100);
-                }
-            } catch (error) {
-                console.error('Failed to fetch estimate chat', error);
+    // Use SWR for Chat Messages
+    const { data: chatData, mutate: mutateChat } = useSWR(
+        estimateId ? `/api/chat?limit=50&estimate=${encodeURIComponent(estimateId)}` : null,
+        (url) => fetch(url).then(res => res.json()),
+        {
+            refreshInterval: 10000,
+            onSuccess: (data) => {
+                // Scroll to bottom when new messages arrive
+                setTimeout(() => {
+                    if (chatScrollRef.current) {
+                        chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+                    }
+                }, 100);
             }
-        };
-
-        fetchChat();
-        const interval = setInterval(fetchChat, 10000); // Poll every 10s
-        return () => clearInterval(interval);
-    }, [estimateId]);
+        }
+    );
+    
+    const chatMessages: any[] = chatData?.messages || [];
 
     const handleChatInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const val = e.target.value;
@@ -100,7 +91,13 @@ export const EstimateChat: React.FC<EstimateChatProps> = ({
             } : undefined
         };
 
-        setChatMessages(prev => [...prev, optimisticMsg]);
+        mutateChat((currentData: any) => {
+            if (!currentData) return { success: true, messages: [optimisticMsg] };
+            return {
+                ...currentData,
+                messages: [...(currentData.messages || []), optimisticMsg]
+            };
+        }, false);
         setNewChatMessage('');
         setChatAssignees([]);
         
@@ -132,7 +129,7 @@ export const EstimateChat: React.FC<EstimateChatProps> = ({
                 })
             });
             setReplyingTo(null);
-            // fetchChat will sync eventual ID
+            mutateChat(); // Revalidate
         } catch (error) {
             console.error('Failed to send', error);
             toast.error('Failed to send message');
@@ -149,9 +146,16 @@ export const EstimateChat: React.FC<EstimateChatProps> = ({
             });
             const data = await res.json();
             if (data.success) {
-                setChatMessages(prev => prev.map(m => m._id === id ? { ...m, message: text } : m));
+                mutateChat((currentData: any) => {
+                    if (!currentData) return currentData;
+                    return {
+                        ...currentData,
+                        messages: currentData.messages.map((m: any) => m._id === id ? { ...m, message: text } : m)
+                    };
+                }, false);
                 setEditingMsgId(null);
                 setEditingMsgText('');
+                mutateChat(); // Revalidate
                 toast.success('Message updated');
             } else {
                 toast.error(data.error || 'Failed to update');
@@ -172,7 +176,14 @@ export const EstimateChat: React.FC<EstimateChatProps> = ({
             const res = await fetch(`/api/chat/${id}`, { method: 'DELETE' });
             const data = await res.json();
             if (data.success) {
-                setChatMessages(prev => prev.filter(m => m._id !== id));
+                mutateChat((currentData: any) => {
+                    if (!currentData) return currentData;
+                    return {
+                        ...currentData,
+                        messages: currentData.messages.filter((m: any) => m._id !== id)
+                    };
+                }, false);
+                mutateChat(); // Revalidate
                 toast.success('Message deleted');
             } else {
                 toast.error(data.error || 'Failed to delete');
@@ -195,7 +206,7 @@ export const EstimateChat: React.FC<EstimateChatProps> = ({
 
     // Filter chat options for mentions - formatted for MyDropDown (matches original EstimateDocsCard)
     const filteredChatOptions = React.useMemo(() => {
-        console.log('[EstimateChat] employeeOptions:', employeeOptions?.length, 'mentionQuery:', mentionQuery, 'showMentions:', showMentions);
+        if (process.env.NODE_ENV !== 'production') console.log('[EstimateChat] employeeOptions:', employeeOptions?.length, 'mentionQuery:', mentionQuery, 'showMentions:', showMentions);
         
         const source = employeeOptions;
         if (!mentionQuery) {

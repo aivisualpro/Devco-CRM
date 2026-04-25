@@ -7,6 +7,7 @@ import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { UploadButton } from '@/components/ui/UploadButton';
 import { useToast } from '@/hooks/useToast';
 import { ScheduleItem } from './ScheduleCard';
+import { normalizeWallClock } from '@/lib/format/date';
 
 interface Objective {
     text: string;
@@ -70,6 +71,11 @@ export function ScheduleFormModal({ isOpen, onClose, schedule, initialData, onSa
             // Create payload excluding non-editable heavy fields to prevent overwriting with partial data
             const { djt, jha, timesheet, JHASignatures, DJTSignatures, _id, ...cleanPayload } = editingItem;
             
+            // Fix wall-clock dates before saving
+            if (cleanPayload.fromDate) cleanPayload.fromDate = normalizeWallClock(cleanPayload.fromDate);
+            if (cleanPayload.toDate) cleanPayload.toDate = normalizeWallClock(cleanPayload.toDate);
+            if (cleanPayload.scheduledDate) cleanPayload.scheduledDate = normalizeWallClock(cleanPayload.scheduledDate);
+
             const payload = isNew ? cleanPayload : { ...cleanPayload, id: _id };
             
             const res = await fetch('/api/schedules', {
@@ -180,32 +186,12 @@ export function ScheduleFormModal({ isOpen, onClose, schedule, initialData, onSa
                         </div>
                     </div>
 
-                    {/* Assignees */}
-                    <div className="space-y-2">
-                        <SearchableSelect
-                            id="schedTeam"
-                            label="Assignees"
-                            placeholder="Select Team"
-                            multiple
-                            disableBlank={true}
-                            options={initialData.employees
-                                .filter((emp: any) => emp.isScheduleActive)
-                                .sort((a: any, b: any) => (a.label || '').localeCompare(b.label || ''))
-                                .map((emp: any) => ({
-                                    label: emp.label,
-                                    value: emp.value,
-                                    image: emp.image
-                                }))}
-                            value={editingItem?.assignees || []}
-                            onChange={(val) => setEditingItem((prev: any) => ({ ...prev, assignees: val }))}
-                        />
-                    </div>
-
-                    {/* Row 2: Client, Proposal, Title/Reason */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+                    {/* Row 2: Client/Proposal (Left) & Title/Location (Right) */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                        {/* Left Column (Client, Proposal) */}
                         {editingItem?.item !== 'Day Off' && (
-                            <>
-                                <div>
+                            <div className="flex flex-col gap-4">
+                                <div className="space-y-2">
                                     <SearchableSelect
                                         id="schedClient"
                                         label="Client"
@@ -225,7 +211,7 @@ export function ScheduleFormModal({ isOpen, onClose, schedule, initialData, onSa
                                         onNext={() => {}}
                                     />
                                 </div>
-                                <div>
+                                <div className="space-y-2">
                                     <SearchableSelect
                                         id="schedProposal"
                                         label="Proposal #"
@@ -256,47 +242,133 @@ export function ScheduleFormModal({ isOpen, onClose, schedule, initialData, onSa
                                         onNext={() => {}}
                                     />
                                 </div>
-                            </>
+                            </div>
                         )}
-                        
-                        <div className={`space-y-2 ${editingItem?.item === 'Day Off' ? 'md:col-span-2' : ''}`}>
-                            <label className="block text-sm font-bold text-slate-900">
-                                {editingItem?.item === 'Day Off' ? 'Reason' : 'Title'}
-                            </label>
-                            <input
-                                id="schedTitle"
-                                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all h-[42px]"
-                                placeholder={editingItem?.item === 'Day Off' ? "Enter reason..." : "Project Main Phase"}
-                                value={editingItem?.title || ''}
-                                onChange={(e) => setEditingItem({ ...editingItem, title: e.target.value })}
-                                onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+
+                        {/* Right Column (Title/Reason, Job Location, Approved Checkbox) */}
+                        <div className={`flex flex-col gap-4 ${editingItem?.item === 'Day Off' ? 'md:col-span-2' : ''}`}>
+                            <div className="space-y-2">
+                                <label className="block text-sm font-bold text-slate-900">
+                                    {editingItem?.item === 'Day Off' ? 'Reason' : 'Title'}
+                                </label>
+                                <input
+                                    id="schedTitle"
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all h-[42px]"
+                                    placeholder={editingItem?.item === 'Day Off' ? "Enter reason..." : "Project Main Phase"}
+                                    value={editingItem?.title || ''}
+                                    onChange={(e) => setEditingItem({ ...editingItem, title: e.target.value })}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+                                />
+                            </div>
+
+                            {/* Job Location (read-only from estimate) */}
+                            {editingItem?.item !== 'Day Off' && editingItem?.estimate && (() => {
+                                const est = initialData.estimates.find((e: any) => e.value === editingItem.estimate);
+                                const jobAddr = est?.jobAddress || editingItem?.jobLocation;
+                                if (!jobAddr) return null;
+                                return (
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-bold text-slate-900">Job Location</label>
+                                        <div className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-700 h-[42px] overflow-hidden text-ellipsis whitespace-nowrap">
+                                            {jobAddr}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {editingItem?.item === 'Day Off' && (
+                                <div className="flex items-center h-[42px]">
+                                    <label className={`flex items-center gap-2 select-none ${canApprove ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
+                                        <div className="relative flex items-center">
+                                            <input 
+                                                type="checkbox" 
+                                                className={`peer h-5 w-5 appearance-none rounded border border-slate-300 shadow-sm transition-all checked:border-slate-800 checked:bg-slate-800 focus:ring-1 focus:ring-slate-800 focus:ring-offset-1 ${canApprove ? 'cursor-pointer hover:border-slate-400' : 'cursor-not-allowed'}`}
+                                                checked={editingItem?.isDayOffApproved === true}
+                                                onChange={(e) => {
+                                                    if (canApprove) {
+                                                        setEditingItem({...editingItem, isDayOffApproved: e.target.checked});
+                                                    }
+                                                }}
+                                                disabled={!canApprove}
+                                            />
+                                            <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" stroke="currentColor" strokeWidth="1">
+                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"></path>
+                                                </svg>
+                                            </div>
+                                        </div>
+                                        <span className="text-sm font-bold text-slate-700">Approved</span>
+                                        {!canApprove && <span className="text-[10px] text-slate-400 italic">(Admin only)</span>}
+                                    </label>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Assignees & Staffing */}
+                    <div className={`grid grid-cols-1 ${editingItem?.item !== 'Day Off' ? 'md:grid-cols-2' : ''} gap-6 items-start`}>
+                        {/* Left Column */}
+                        <div className="space-y-2 h-full">
+                            <SearchableSelect
+                                id="schedTeam"
+                                label="Assignees"
+                                placeholder="Select Team"
+                                multiple
+                                chipLayout="col"
+                                className="h-full"
+                                disableBlank={true}
+                                options={initialData.employees
+                                    .filter((emp: any) => emp.isScheduleActive)
+                                    .sort((a: any, b: any) => (a.label || '').localeCompare(b.label || ''))
+                                    .map((emp: any) => ({
+                                        label: emp.label,
+                                        value: emp.value,
+                                        image: emp.image
+                                    }))}
+                                value={editingItem?.assignees || []}
+                                onChange={(val) => setEditingItem((prev: any) => ({ ...prev, assignees: val }))}
                             />
                         </div>
 
-                        {editingItem?.item === 'Day Off' && (
-                            <div className="flex items-center h-[42px] mt-7">
-                                <label className={`flex items-center gap-2 select-none ${canApprove ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
-                                    <div className="relative flex items-center">
-                                        <input 
-                                            type="checkbox" 
-                                            className={`peer h-5 w-5 appearance-none rounded border border-slate-300 shadow-sm transition-all checked:border-slate-800 checked:bg-slate-800 focus:ring-1 focus:ring-slate-800 focus:ring-offset-1 ${canApprove ? 'cursor-pointer hover:border-slate-400' : 'cursor-not-allowed'}`}
-                                            checked={editingItem?.isDayOffApproved === true}
-                                            onChange={(e) => {
-                                                if (canApprove) {
-                                                    setEditingItem({...editingItem, isDayOffApproved: e.target.checked});
-                                                }
-                                            }}
-                                            disabled={!canApprove}
-                                        />
-                                        <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" stroke="currentColor" strokeWidth="1">
-                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"></path>
-                                            </svg>
-                                        </div>
-                                    </div>
-                                    <span className="text-sm font-bold text-slate-700">Approved</span>
-                                    {!canApprove && <span className="text-[10px] text-slate-400 italic">(Admin only)</span>}
-                                </label>
+                        {/* Right Column (PM, Foreman) */}
+                        {editingItem?.item !== 'Day Off' && (
+                            <div className="flex flex-col gap-4">
+                                <div className="space-y-2">
+                                    <SearchableSelect
+                                        id="schedPM"
+                                        label="Project Manager"
+                                        placeholder="Select PM"
+                                        disableBlank={true}
+                                        options={initialData.employees
+                                            .filter((emp: any) => emp.designation?.toLowerCase().includes('project manager'))
+                                            .map((emp: any) => ({
+                                                label: emp.label,
+                                                value: emp.value,
+                                                image: emp.image
+                                            }))}
+                                        value={editingItem?.projectManager || ''}
+                                        onChange={(val) => setEditingItem({ ...editingItem, projectManager: val })}
+                                        onNext={() => {}}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <SearchableSelect
+                                        id="schedForeman"
+                                        label="Foreman"
+                                        placeholder="Select Foreman"
+                                        disableBlank={true}
+                                        options={initialData.employees
+                                            .filter((emp: any) => emp.designation?.toLowerCase().includes('foreman'))
+                                            .map((emp: any) => ({
+                                                label: emp.label,
+                                                value: emp.value,
+                                                image: emp.image
+                                            }))}
+                                        value={editingItem?.foremanName || ''}
+                                        onChange={(val) => setEditingItem({ ...editingItem, foremanName: val })}
+                                        onNext={() => {}}
+                                    />
+                                </div>
                             </div>
                         )}
                     </div>
@@ -304,68 +376,19 @@ export function ScheduleFormModal({ isOpen, onClose, schedule, initialData, onSa
                     {editingItem?.item !== 'Day Off' && (
                         <>
 
-                        {/* Job Location (read-only from estimate) */}
-                        {editingItem?.estimate && (() => {
-                            const est = initialData.estimates.find((e: any) => e.value === editingItem.estimate);
-                            const jobAddr = est?.jobAddress || editingItem?.jobLocation;
-                            if (!jobAddr) return null;
-                            return (
-                                <div className="space-y-2">
-                                    <label className="block text-sm font-bold text-slate-500">Job Location</label>
-                                    <div className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-700">
-                                        {jobAddr}
-                                    </div>
-                                </div>
-                            );
-                        })()}
 
-                        {/* Row 3: Staffing (PM, Foreman) */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50/50 p-4 rounded-xl border border-slate-100">
-                            <div className="space-y-2">
-                                <SearchableSelect
-                                    id="schedPM"
-                                    label="Project Manager"
-                                    placeholder="Select PM"
-                                    disableBlank={true}
-                                    options={initialData.employees
-                                        .filter((emp: any) => emp.designation?.toLowerCase().includes('project manager'))
-                                        .map((emp: any) => ({
-                                            label: emp.label,
-                                            value: emp.value,
-                                            image: emp.image
-                                        }))}
-                                    value={editingItem?.projectManager || ''}
-                                    onChange={(val) => setEditingItem({ ...editingItem, projectManager: val })}
-                                    onNext={() => {}}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <SearchableSelect
-                                    id="schedForeman"
-                                    label="Foreman"
-                                    placeholder="Select Foreman"
-                                    disableBlank={true}
-                                    options={initialData.employees
-                                        .filter((emp: any) => emp.designation?.toLowerCase().includes('foreman'))
-                                        .map((emp: any) => ({
-                                            label: emp.label,
-                                            value: emp.value,
-                                            image: emp.image
-                                        }))}
-                                    value={editingItem?.foremanName || ''}
-                                    onChange={(val) => setEditingItem({ ...editingItem, foremanName: val })}
-                                    onNext={() => {}}
-                                />
-                            </div>
-                        </div>
+
 
                         {/* Service, Notify, Per Diem, Fringe, CP */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-2">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                            {/* Left Column */}
+                            <div className="space-y-2 h-full">
                                 <SearchableSelect
                                     id="schedService"
+                                    className="h-full"
                                     label="Service"
                                     placeholder="Select Service"
+                                    chipLayout="col"
                                     multiple={true}
                                     disableBlank={true}
                                     options={initialData.constants.filter((c: any) => c.type?.toLowerCase() === 'services').map((c: any) => ({
@@ -374,7 +397,7 @@ export function ScheduleFormModal({ isOpen, onClose, schedule, initialData, onSa
                                         image: c.image,
                                         color: c.color
                                     }))}
-                                    value={editingItem?.service ? editingItem.service.split(',').map((s: string) => s.trim()).filter(Boolean) : []}
+                                    value={editingItem?.service ? Array.from(new Set(editingItem.service.split(',').map((s: string) => s.trim()).filter(Boolean))) : []}
                                     onChange={(val) => {
                                         const strVal = Array.isArray(val) ? val.join(', ') : val;
                                         setEditingItem({ ...editingItem, service: strVal });
@@ -382,69 +405,73 @@ export function ScheduleFormModal({ isOpen, onClose, schedule, initialData, onSa
                                     onNext={() => {}}
                                 />
                             </div>
-                            <div className="space-y-2">
-                                <SearchableSelect
-                                    id="schedNotify"
-                                    label="Notify Assignees"
-                                    placeholder="Select"
-                                    disableBlank={true}
-                                    options={[
-                                        { label: 'No', value: 'No', color: '#ef4444' },
-                                        { label: 'Yes', value: 'Yes', color: '#22c55e' }
-                                    ]}
-                                    value={editingItem?.notifyAssignees === true ? 'Yes' : (editingItem?.notifyAssignees === false ? 'No' : (editingItem?.notifyAssignees || 'No'))}
-                                    onChange={(val) => setEditingItem({ ...editingItem, notifyAssignees: val })}
-                                    onNext={() => {}}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <SearchableSelect
-                                    id="schedPerDiem"
-                                    label="Per Diem Eligible"
-                                    placeholder="Select"
-                                    disableBlank={true}
-                                    options={[
-                                        { label: 'No', value: 'No', color: '#ef4444' },
-                                        { label: 'Yes', value: 'Yes', color: '#22c55e' }
-                                    ]}
-                                    value={editingItem?.perDiem === true ? 'Yes' : (editingItem?.perDiem === false ? 'No' : (editingItem?.perDiem || 'No'))}
-                                    onChange={(val) => setEditingItem({ ...editingItem, perDiem: val })}
-                                    onNext={() => {}}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <SearchableSelect
-                                    id="schedFringe"
-                                    label="Fringe"
-                                    placeholder="Select Fringe"
-                                    disableBlank={true}
-                                    options={initialData.constants.filter((c: any) => c.type === 'Fringe').map((c: any) => ({
-                                        label: c.description,
-                                        value: c.description,
-                                        image: c.image,
-                                        color: c.color
-                                    }))}
-                                    value={editingItem?.fringe || ''}
-                                    onChange={(val) => setEditingItem({ ...editingItem, fringe: val })}
-                                    onNext={() => {}}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <SearchableSelect
-                                    id="schedCP"
-                                    label="Certified Payroll"
-                                    placeholder="Select CP"
-                                    disableBlank={true}
-                                    options={initialData.constants.filter((c: any) => c.type === 'Certified Payroll').map((c: any) => ({
-                                        label: c.description,
-                                        value: c.description,
-                                        image: c.image,
-                                        color: c.color
-                                    }))}
-                                    value={editingItem?.certifiedPayroll === true ? 'Yes' : (editingItem?.certifiedPayroll === false ? 'No' : (editingItem?.certifiedPayroll || ''))}
-                                    onChange={(val) => setEditingItem({ ...editingItem, certifiedPayroll: val })}
-                                    onNext={() => {}}
-                                />
+
+                            {/* Right Column */}
+                            <div className="flex flex-col gap-4">
+                                <div className="space-y-2">
+                                    <SearchableSelect
+                                        id="schedNotify"
+                                        label="Notify Assignees"
+                                        placeholder="Select"
+                                        disableBlank={true}
+                                        options={[
+                                            { label: 'No', value: 'No', color: '#ef4444' },
+                                            { label: 'Yes', value: 'Yes', color: '#22c55e' }
+                                        ]}
+                                        value={editingItem?.notifyAssignees === true ? 'Yes' : (editingItem?.notifyAssignees === false ? 'No' : (editingItem?.notifyAssignees || 'No'))}
+                                        onChange={(val) => setEditingItem({ ...editingItem, notifyAssignees: val })}
+                                        onNext={() => {}}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <SearchableSelect
+                                        id="schedPerDiem"
+                                        label="Per Diem Eligible"
+                                        placeholder="Select"
+                                        disableBlank={true}
+                                        options={[
+                                            { label: 'No', value: 'No', color: '#ef4444' },
+                                            { label: 'Yes', value: 'Yes', color: '#22c55e' }
+                                        ]}
+                                        value={editingItem?.perDiem === true ? 'Yes' : (editingItem?.perDiem === false ? 'No' : (editingItem?.perDiem || 'No'))}
+                                        onChange={(val) => setEditingItem({ ...editingItem, perDiem: val })}
+                                        onNext={() => {}}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <SearchableSelect
+                                        id="schedFringe"
+                                        label="Fringe"
+                                        placeholder="Select Fringe"
+                                        disableBlank={true}
+                                        options={initialData.constants.filter((c: any) => c.type === 'Fringe').map((c: any) => ({
+                                            label: c.description,
+                                            value: c.description,
+                                            image: c.image,
+                                            color: c.color
+                                        }))}
+                                        value={editingItem?.fringe || ''}
+                                        onChange={(val) => setEditingItem({ ...editingItem, fringe: val })}
+                                        onNext={() => {}}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <SearchableSelect
+                                        id="schedCP"
+                                        label="Certified Payroll"
+                                        placeholder="Select CP"
+                                        disableBlank={true}
+                                        options={initialData.constants.filter((c: any) => c.type === 'Certified Payroll').map((c: any) => ({
+                                            label: c.description,
+                                            value: c.description,
+                                            image: c.image,
+                                            color: c.color
+                                        }))}
+                                        value={editingItem?.certifiedPayroll === true ? 'Yes' : (editingItem?.certifiedPayroll === false ? 'No' : (editingItem?.certifiedPayroll || ''))}
+                                        onChange={(val) => setEditingItem({ ...editingItem, certifiedPayroll: val })}
+                                        onNext={() => {}}
+                                    />
+                                </div>
                             </div>
                         </div>
 

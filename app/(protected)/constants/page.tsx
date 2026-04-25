@@ -1,5 +1,7 @@
 'use client';
 
+import { cld } from '@/lib/cld';
+import Image from 'next/image';
 import { useEffect, useState, useMemo } from 'react';
 import { Plus, Pencil, Trash2, Upload, X, Filter } from 'lucide-react';
 import { Header, Button, Card, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Pagination, EmptyState, Loading, Modal, ConfirmModal, ToastContainer, Badge, SearchableSelect, SkeletonTable, MyDropDown } from '@/components/ui';
@@ -261,9 +263,9 @@ export default function ConstantsPage() {
                                 ) : (
                                     paginatedConstants.map((item) => (
                                         <TableRow key={item._id}>
-                                            <TableCell className="py-3 px-6">
+                                            <TableCell className="relative py-3 px-6">
                                                 {item.image ? (
-                                                    <img src={item.image} alt="" className="w-10 h-10 rounded-full object-cover border border-slate-200" />
+                                                    <div className="relative w-10 h-10 rounded-full overflow-hidden"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(item.image, { w: 128, q: 'auto' })} alt="" className="rounded-full object-cover border border-slate-200 w-full h-full" /></div>
                                                 ) : (
                                                     <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-400">
                                                         {item.description?.slice(0, 2).toUpperCase() || '??'}
@@ -384,7 +386,7 @@ export default function ConstantsPage() {
                         <div className="flex items-center gap-4">
                             {formData.image ? (
                                 <div className="relative w-16 h-16 group">
-                                    <img src={formData.image as string} alt="Preview" className="w-full h-full object-cover rounded-lg border border-gray-200" />
+                                    <div className="relative rounded-lg w-full h-full overflow-hidden"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(formData.image as string, { w: 128, q: 'auto' })} alt="Preview" className="object-cover rounded-lg border border-gray-200 w-full h-full" /></div>
                                     <button
                                         onClick={() => setFormData({ ...formData, image: '' })}
                                         className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center shadow-sm hover:bg-red-600 transition-colors"

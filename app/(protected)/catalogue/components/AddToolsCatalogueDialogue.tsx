@@ -1,15 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { X, ChevronDown } from 'lucide-react';
-import { Input } from '@/components/ui/Input';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
+import React from 'react';
+import { EntityFormModal, FieldConfig } from '@/components/forms/EntityFormModal';
 
 interface AddToolsCatalogueDialogueProps {
     isOpen: boolean;
@@ -20,6 +12,24 @@ interface AddToolsCatalogueDialogueProps {
     existingItems?: any[];
 }
 
+export const getToolsFields = (existingItems: any[] = []): FieldConfig[] => {
+    const getOptions = (field: string) => {
+        const values = existingItems.map(item => item[field]).filter(Boolean);
+        const uniqueValues = Array.from(new Set(values)).filter(v => v !== '-').sort();
+        return uniqueValues.map(v => ({ value: v, label: v }));
+    };
+
+    return [
+        { name: 'tool', label: 'Tool Name', type: 'text', width: 'full', required: true, placeholder: 'Enter tool name' },
+        { name: 'classification', label: 'Classification', type: 'select', width: 'half', options: getOptions('classification') },
+        { name: 'subClassification', label: 'Sub Classification', type: 'select', width: 'half', options: getOptions('subClassification') },
+        { name: 'supplier', label: 'Supplier', type: 'select', width: 'half', options: getOptions('supplier') },
+        { name: 'uom', label: 'UOM', type: 'select', width: 'half', options: getOptions('uom') },
+        { name: 'cost', label: 'Cost ($)', type: 'currency', width: 'half', required: true, placeholder: '0.00' },
+        { name: 'taxes', label: 'Taxes (%)', type: 'number', width: 'half', defaultValue: 0 },
+    ];
+};
+
 export function AddToolsCatalogueDialogue({
     isOpen,
     onClose,
@@ -28,274 +38,17 @@ export function AddToolsCatalogueDialogue({
     isEditing,
     existingItems = []
 }: AddToolsCatalogueDialogueProps) {
-    const [formData, setFormData] = useState<any>({});
-    const [isSaving, setIsSaving] = useState(false);
-    const [activeField, setActiveField] = useState<string | null>(null);
-    const containerRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        if (isOpen) {
-            if (initialData) {
-                setFormData({ ...initialData });
-            } else {
-                setFormData({
-                    classification: '-',
-                    subClassification: '-',
-                    supplier: '-',
-                    uom: '-'
-                });
-            }
-        }
-    }, [isOpen, initialData]);
-
-    // Handle Escape key
-    useEffect(() => {
-        const handleEsc = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && isOpen) {
-                // 1. Check if there's anything with a higher z-index (e.g. nested Selects or ConfirmModals)
-                const allFixed = Array.from(document.querySelectorAll('.fixed'));
-                const hasHigherZ = allFixed.some(el => {
-                    if (el === containerRef.current) return false;
-                    const style = window.getComputedStyle(el);
-                    const z = parseInt(style.zIndex) || 0;
-                    return z > 10000 && style.display !== 'none' && style.visibility !== 'hidden';
-                });
-                if (hasHigherZ) return;
-
-                // 2. Check if this is the topmost among same-level modals
-                const modals = Array.from(document.querySelectorAll('.z-\\[10000\\]'));
-                if (modals.length > 0 && modals[modals.length - 1] === containerRef.current) {
-                    onClose();
-                }
-            }
-        };
-        window.addEventListener('keydown', handleEsc);
-        return () => window.removeEventListener('keydown', handleEsc);
-    }, [isOpen, onClose]);
-
-    if (!isOpen) return null;
-
-    const getOptions = (field: string) => {
-        const values = existingItems
-            .map(item => item[field])
-            .filter(val => val !== undefined && val !== null && val !== '');
-        const uniqueValues = Array.from(new Set(values)).filter(v => v !== '-') as string[];
-        uniqueValues.sort();
-        return ['-', ...uniqueValues];
-    };
-
-    const handleSave = async () => {
-        setIsSaving(true);
-        const processedData = { ...formData };
-        if (processedData.cost) processedData.cost = parseFloat(processedData.cost) || 0;
-        if (processedData.taxes) processedData.taxes = parseFloat(processedData.taxes) || 0;
-
-        await onSave(processedData);
-        setIsSaving(false);
-    };
-
-    const focusNextField = (currentIndex: number) => {
-        const fieldIds = [
-            'field-tool',
-            'field-classification',
-            'field-subClassification',
-            'field-supplier',
-            'field-uom',
-            'field-cost',
-            'field-taxes'
-        ];
-
-        if (currentIndex === fieldIds.length - 1) {
-            handleSave();
-        } else {
-            const nextId = fieldIds[currentIndex + 1];
-            const nextEl = document.getElementById(nextId);
-            if (nextEl) {
-                nextEl.focus();
-            }
-        }
-    };
+    const fields = React.useMemo(() => getToolsFields(existingItems), [existingItems]);
 
     return (
-        <div ref={containerRef} className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={onClose} />
-            <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-200">
-                
-                {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-white sticky top-0 z-10">
-                    <div>
-                        <h2 className="text-xl font-bold text-gray-900 tracking-tight">
-                            {isEditing ? 'Edit Tool' : 'Add New Tool'}
-                        </h2>
-                        <p className="text-sm text-gray-500 mt-0.5">Manage tool inventory and rates.</p>
-                    </div>
-                    <button onClick={onClose} className="p-2 -mr-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
-                        <X className="w-5 h-5" />
-                    </button>
-                </div>
-
-                {/* Body */}
-                <div className="p-6 overflow-y-auto custom-scrollbar">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="col-span-1 md:col-span-2">
-                            <Input
-                                label="Tool Name"
-                                value={formData.tool || ''}
-                                onChange={(e) => setFormData({ ...formData, tool: e.target.value })}
-                                placeholder="Enter tool name"
-                                autoFocus={!isEditing}
-                                id="field-tool"
-                                className="w-full"
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        e.preventDefault();
-                                        focusNextField(0);
-                                    }
-                                }}
-                            />
-                        </div>
-
-                        <div className="col-span-1">
-                            <label className="block text-sm font-medium text-gray-700 mb-1.5">Classification</label>
-                            <Select
-                                value={formData.classification || '-'}
-                                onValueChange={(val) => {
-                                    setFormData({ ...formData, classification: val });
-                                    focusNextField(1);
-                                }}
-                            >
-                                <SelectTrigger id="field-classification" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 hover:bg-white transition-colors focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 h-auto">
-                                    <SelectValue placeholder="Select classification..." />
-                                </SelectTrigger>
-                                <SelectContent className="z-[10001]">
-                                    {getOptions('classification').map(opt => (
-                                        <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="col-span-1">
-                            <label className="block text-sm font-medium text-gray-700 mb-1.5">Sub Classification</label>
-                            <Select
-                                value={formData.subClassification || '-'}
-                                onValueChange={(val) => {
-                                    setFormData({ ...formData, subClassification: val });
-                                    focusNextField(2);
-                                }}
-                            >
-                                <SelectTrigger id="field-subClassification" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 hover:bg-white transition-colors focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 h-auto">
-                                    <SelectValue placeholder="Select sub-class..." />
-                                </SelectTrigger>
-                                <SelectContent className="z-[10001]">
-                                    {getOptions('subClassification').map(opt => (
-                                        <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="col-span-1">
-                            <label className="block text-sm font-medium text-gray-700 mb-1.5">Supplier</label>
-                            <Select
-                                value={formData.supplier || '-'}
-                                onValueChange={(val) => {
-                                    setFormData({ ...formData, supplier: val });
-                                    focusNextField(3);
-                                }}
-                            >
-                                <SelectTrigger id="field-supplier" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 hover:bg-white transition-colors focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 h-auto">
-                                    <SelectValue placeholder="Select supplier..." />
-                                </SelectTrigger>
-                                <SelectContent className="z-[10001]">
-                                    {getOptions('supplier').map(opt => (
-                                        <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="col-span-1">
-                            <label className="block text-sm font-medium text-gray-700 mb-1.5">UOM</label>
-                            <Select
-                                value={formData.uom || '-'}
-                                onValueChange={(val) => {
-                                    setFormData({ ...formData, uom: val });
-                                    focusNextField(4);
-                                }}
-                            >
-                                <SelectTrigger id="field-uom" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 hover:bg-white transition-colors focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 h-auto">
-                                    <SelectValue placeholder="Select UOM..." />
-                                </SelectTrigger>
-                                <SelectContent className="z-[10001]">
-                                    {getOptions('uom').map(opt => (
-                                        <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="col-span-1">
-                            <Input
-                                label="Cost"
-                                type="number"
-                                value={formData.cost || ''}
-                                onChange={(e) => setFormData({ ...formData, cost: e.target.value })}
-                                id="field-cost"
-                                placeholder="0.00"
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        e.preventDefault();
-                                        focusNextField(5);
-                                    }
-                                }}
-                            />
-                        </div>
-
-                        <div className="col-span-1">
-                            <Input
-                                label="Taxes (%)"
-                                type="number"
-                                value={formData.taxes || ''}
-                                onChange={(e) => setFormData({ ...formData, taxes: e.target.value })}
-                                id="field-taxes"
-                                placeholder="0"
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') handleSave();
-                                }}
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Footer */}
-                <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50">
-                    <button
-                        onClick={onClose}
-                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all font-sans"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={handleSave}
-                        disabled={isSaving}
-                        className={`px-6 py-2 text-sm font-medium text-white rounded-lg transition-all shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 font-sans ${
-                            isSaving 
-                            ? 'bg-gray-300 cursor-not-allowed' 
-                            : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700'
-                        }`}
-                    >
-                        {isSaving ? (
-                            <span className="flex items-center gap-2">
-                                <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"/>
-                                Saving...
-                            </span>
-                        ) : (
-                            isEditing ? 'Update Item' : 'Save Item'
-                        )}
-                    </button>
-                </div>
-            </div>
-        </div>
+        <EntityFormModal
+            open={isOpen}
+            onClose={onClose}
+            title={isEditing ? 'Edit Tool' : 'Add New Tool'}
+            fields={fields}
+            initialData={initialData}
+            onSubmit={onSave}
+            submitLabel={isEditing ? 'Update Item' : 'Save Item'}
+        />
     );
 }

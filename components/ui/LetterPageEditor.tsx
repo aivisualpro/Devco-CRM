@@ -3,22 +3,12 @@
 import React, { forwardRef } from 'react';
 import dynamic from 'next/dynamic';
 import { Trash2, Plus } from 'lucide-react';
-import 'react-quill-new/dist/quill.snow.css';
+import { Skeleton } from '@/components/ui';
 
-// Dynamically import ReactQuill with custom size registration
-const ReactQuill = dynamic(
-    async () => {
-        const mod = await import('react-quill-new');
-        const Quill = (mod.default as any).Quill || (mod as any).Quill;
-        if (Quill) {
-            const Size = Quill.import('attributors/style/size') as any;
-            Size.whitelist = ['8pt', '9pt', '10pt', '11pt', '12pt', '14pt'];
-            Quill.register(Size, true);
-        }
-        return mod.default;
-    },
-    { ssr: false, loading: () => <div className="h-64 bg-gray-100 animate-pulse rounded-lg" /> }
-) as any;
+const RichTextEditor = dynamic(() => import('@/components/editor/RichTextEditor').then(mod => mod.RichTextEditor), { 
+    ssr: false, 
+    loading: () => <Skeleton className="h-40 w-full" /> 
+});
 
 interface LetterPageEditorProps {
     pages: { content: string }[];
@@ -30,27 +20,6 @@ interface LetterPageEditorProps {
     hideToolbar?: boolean;
 }
 
-// Quill toolbar modules with length restriction
-const quillModules = (maxLength: number = 3000) => ({
-    toolbar: [
-        [{ 'header': [1, 2, 3, false] }],
-        [{ 'size': ['8pt', '9pt', '10pt', '11pt', '12pt', '14pt'] }],
-        ['bold', 'italic', 'underline', 'strike'],
-        [{ 'color': [] }, { 'background': [] }],
-        [{ 'align': [] }],
-        [{ 'list': 'ordered' }, { 'list': 'bullet' }, { 'indent': '-1' }, { 'indent': '+1' }],
-        ['link', 'image'],
-        ['clean']
-    ],
-    history: {
-        delay: 1000,
-        maxStack: 50,
-        userOnly: true
-    },
-    clipboard: {
-        matchVisual: false
-    }
-});
 
 // Single Letter Page Component
 interface LetterPageProps {
@@ -98,9 +67,8 @@ function LetterPage({ index, content, onChange, onDelete, showDelete, quillRef, 
                     overflow: 'hidden' // Changed from 'visible' to 'hidden' to clip content
                 }}
             >
-                <ReactQuill
+                <RichTextEditor
                     ref={quillRef}
-                    theme="snow"
                     value={content}
                     onChange={(value: string) => {
                         // Create a temporary element to measure content height
@@ -141,10 +109,7 @@ function LetterPage({ index, content, onChange, onDelete, showDelete, quillRef, 
                         onChange(value);
                     }}
                     readOnly={readOnly}
-                    modules={readOnly || hideToolbar ? { toolbar: false } : quillModules()}
-                    className="h-full flex flex-col [&_.ql-container]:flex-1 [&_.ql-container]:border-none [&_.ql-container]:overflow-hidden [&_.ql-toolbar]:flex-shrink-0"
-                    style={{ height: '100%' }}
-                    preserveWhitespace={true}
+                    hideToolbar={hideToolbar}
                 />
             </div>
         </div>

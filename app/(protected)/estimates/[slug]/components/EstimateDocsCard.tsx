@@ -1,5 +1,7 @@
 'use client';
 
+import { cld } from '@/lib/cld';
+import Image from 'next/image';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { FileText, Shield, ChevronRight, Loader2, Download, Upload, Layout, FileCheck, Receipt, Plus, Trash2, Calendar, DollarSign, Paperclip, X, Image as ImageIcon, Check, Pencil, User, ChevronDown, MessageSquare, Send, Reply, Forward, AlertTriangle, Clipboard, MapPin, HardHat, Eye, ExternalLink } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -20,6 +22,8 @@ import { DJTCard } from '@/app/(protected)/docs/job-tickets/components/DJTCard';
 import { SignedContractsCard } from './SignedContractsCard';
 import { PlanningCard } from './PlanningCard';
 import { ReceiptsCard } from './ReceiptsCard';
+import useSWR from 'swr';
+import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
 
 // Google Doc Template IDs
 const DOC_TEMPLATES: Record<string, string> = {
@@ -229,253 +233,171 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             .catch(console.error);
     }, []);
 
+    const { data: aggregatedData, isLoading: aggregatedLoading } = useSWR(
+        formData?.estimate ? ['/api/estimates/aggregated', formData.estimate] : null,
+        async ([_, estimateNumber]) => {
+            const res = await fetch(`/api/estimates?limit=1000&includeReceipts=true&includeBilling=true`);
+            const data = await res.json();
+            if (data.success && Array.isArray(data.result)) {
+                return data.result.filter((e: any) => String(e.estimate || '').trim() === String(estimateNumber || '').trim());
+            }
+            return [];
+        },
+        { revalidateOnFocus: false, dedupingInterval: 60000 }
+    );
+
     useEffect(() => {
-        const fetchAllVersions = async () => {
-            if (!formData?.estimate) return;
-            setLoadingReceipts(true);
-            try {
-                // Fetch all estimates to aggregate receipts and billing tickets across versions
-                const res = await fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'getEstimates',
-                        payload: { limit: 1000, includeBilling: true, includeReceipts: true }
-                    })
+        setLoadingReceipts(aggregatedLoading);
+        if (!aggregatedData) return;
+        const relevantEstimates = aggregatedData;
+
+        // --- Aggregating Receipts ---
+        let allR: any[] = [];
+        const addedIds = new Set<string>();
+        const addedKeys = new Set<string>();
+
+        const addUnique = (list: any[]) => {
+            list.forEach(r => {
+                if (!r) return;
+                if (r._id) {
+                    if (!addedIds.has(r._id)) {
+                        addedIds.add(r._id);
+                        allR.push(r);
+                    }
+                } else {
+                    const key = `${r.vendor}|${r.amount}|${r.date}|${r.remarks}`;
+                    if (!addedKeys.has(key)) {
+                        addedKeys.add(key);
+                        allR.push(r);
+                    }
+                }
+            });
+        };
+
+        if (formData?.receiptsAndCosts) addUnique(formData.receiptsAndCosts);
+        relevantEstimates.forEach((est: any) => {
+            if (est.receiptsAndCosts && Array.isArray(est.receiptsAndCosts)) addUnique(est.receiptsAndCosts);
+        });
+
+        const rScope = getDataScope(MODULES.RECEIPTS_COSTS);
+        if (rScope === DATA_SCOPE.SELF && !currentUser?.role?.includes('Admin')) {
+            const userEmail = currentUser?.email?.toLowerCase();
+            const userId = currentUser?.userId;
+            allR = allR.filter(r => {
+                const isCreator = String(r.createdBy || '').toLowerCase() === userEmail;
+                const isTagged = (r.tag || []).some((t: string) => {
+                    const tl = String(t || '').toLowerCase();
+                    return tl === userEmail || t === userId;
                 });
-                const data = await res.json();
+                return isCreator || isTagged;
+            });
+        }
+        allR.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+        setAggregatedReceipts(allR);
 
-                if (data.success && Array.isArray(data.result)) {
-                    // Filter for all versions of this estimate number
-                    const relevantEstimates = data.result.filter((e: any) => String(e.estimate || '').trim() === String(formData.estimate || '').trim());
-                    console.log('[EstimateDocsCard] Aggregating from estimates:', relevantEstimates.length, 'for', formData.estimate);
+        // --- Aggregating Billing Tickets ---
+        let allB: any[] = [];
+        const addedBillingIds = new Set<string>();
+        const addedBillingKeys = new Set<string>();
 
-                    // --- Aggregating Receipts ---
-                    let allR: any[] = [];
-                    const addedIds = new Set<string>();
-                    const addedKeys = new Set<string>();
-
-                    // Helper to add receipts uniquely
-                    const addUnique = (list: any[]) => {
-                        list.forEach(r => {
-                            if (!r) return;
-                            // Prefer _id for uniqueness
-                            if (r._id) {
-                                if (!addedIds.has(r._id)) {
-                                    addedIds.add(r._id);
-                                    allR.push(r);
-                                }
-                            } else {
-                                // Fallback to content hash for legacy/new items without ID
-                                const key = `${r.vendor}|${r.amount}|${r.date}|${r.remarks}`;
-                                if (!addedKeys.has(key)) {
-                                    addedKeys.add(key);
-                                    allR.push(r);
-                                }
-                            }
-                        });
-                    };
-
-                    // 1. Add from current formData first (most recent/draft)
-                    if (formData.receiptsAndCosts) {
-                        addUnique(formData.receiptsAndCosts);
+        const addUniqueBilling = (list: any[]) => {
+            list.forEach(item => {
+                if (!item) return;
+                if (item._id) {
+                    if (!addedBillingIds.has(item._id)) {
+                        addedBillingIds.add(item._id);
+                        allB.push(item);
                     }
-
-                    // 2. Add from fetched versions
-                    relevantEstimates.forEach((est: any) => {
-                        if (est.receiptsAndCosts && Array.isArray(est.receiptsAndCosts)) {
-                            addUnique(est.receiptsAndCosts);
-                        }
-                    });
-
-                    // Filter by data scope
-                    const rScope = getDataScope(MODULES.RECEIPTS_COSTS);
-                    if (rScope === DATA_SCOPE.SELF && !currentUser?.role?.includes('Admin')) {
-                        const userEmail = currentUser?.email?.toLowerCase();
-                        const userId = currentUser?.userId;
-                        allR = allR.filter(r => {
-                            const isCreator = String(r.createdBy || '').toLowerCase() === userEmail;
-                            const isTagged = (r.tag || []).some((t: string) => {
-                                const tl = String(t || '').toLowerCase();
-                                return tl === userEmail || t === userId;
-                            });
-                            return isCreator || isTagged;
-                        });
+                } else {
+                    const key = `${item.date}|${item.lumpSum}|${item.billingTerms}`;
+                    if (!addedBillingKeys.has(key)) {
+                        addedBillingKeys.add(key);
+                        allB.push(item);
                     }
-
-                    // Sort by Date Descending
-                    allR.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
-                    setAggregatedReceipts(allR);
-
-                    // --- Aggregating Billing Tickets ---
-                    let allB: any[] = [];
-                    const addedBillingIds = new Set<string>();
-                    const addedBillingKeys = new Set<string>();
-
-                    const addUniqueBilling = (list: any[]) => {
-                        list.forEach(item => {
-                            if (!item) return;
-                            if (item._id) {
-                                if (!addedBillingIds.has(item._id)) {
-                                    addedBillingIds.add(item._id);
-                                    allB.push(item);
-                                }
-                            } else {
-                                const key = `${item.date}|${item.lumpSum}|${item.billingTerms}`;
-                                if (!addedBillingKeys.has(key)) {
-                                    addedBillingKeys.add(key);
-                                    allB.push(item);
-                                }
-                            }
-                        });
-                    };
-
-                    if (formData.billingTickets) {
-                        addUniqueBilling(formData.billingTickets);
-                    }
-
-                    relevantEstimates.forEach((est: any) => {
-                        if (est.billingTickets && Array.isArray(est.billingTickets)) {
-                            addUniqueBilling(est.billingTickets);
-                        }
-                    });
-
-                    // Filter by data scope
-                    const bScope = getDataScope(MODULES.BILLING_TICKETS);
-                    if (bScope === DATA_SCOPE.SELF && !currentUser?.role?.includes('Admin')) {
-                        const userEmail = currentUser?.email?.toLowerCase();
-                        const userId = currentUser?.userId;
-                        allB = allB.filter(b => {
-                            // Billing tickets usually use createdBy
-                            const isCreator = String(b.createdBy || '').toLowerCase() === userEmail;
-                            // Check if user is in any tags if billing tickets support tagging (similar to receipts)
-                            const isTagged = (b.tag || []).some((t: string) => {
-                                const tl = String(t || '').toLowerCase();
-                                return tl === userEmail || t === userId;
-                            });
-                            return isCreator || isTagged;
-                        });
-                    }
-
-                    allB.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
-                    console.log('[EstimateDocsCard] Aggregated Billing Tickets:', allB);
-                    setAggregatedBillingTickets(allB);
                 }
-            } catch (err) {
-                console.error("Failed to fetch aggregated data", err);
-            } finally {
-                setLoadingReceipts(false);
-            }
+            });
         };
 
-        fetchAllVersions();
-    }, [formData?.estimate, formData?.receiptsAndCosts, formData?.billingTickets]); // Re-run if main formData changes
+        if (formData?.billingTickets) addUniqueBilling(formData.billingTickets);
+        relevantEstimates.forEach((est: any) => {
+            if (est.billingTickets && Array.isArray(est.billingTickets)) addUniqueBilling(est.billingTickets);
+        });
 
-    // Fetch Job Docs: JHA, DJT, Pothole Logs, Pre-Bore Logs
+        const bScope = getDataScope(MODULES.BILLING_TICKETS);
+        if (bScope === DATA_SCOPE.SELF && !currentUser?.role?.includes('Admin')) {
+            const userEmail = currentUser?.email?.toLowerCase();
+            const userId = currentUser?.userId;
+            allB = allB.filter(b => {
+                const isCreator = String(b.createdBy || '').toLowerCase() === userEmail;
+                const isTagged = (b.tag || []).some((t: string) => {
+                    const tl = String(t || '').toLowerCase();
+                    return tl === userEmail || t === userId;
+                });
+                return isCreator || isTagged;
+            });
+        }
+        allB.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+        setAggregatedBillingTickets(allB);
+    }, [aggregatedData, formData?.receiptsAndCosts, formData?.billingTickets, currentUser, getDataScope]);
+
+    const { data: jobDocsData, isLoading: jobDocsIsLoading, mutate: refetchJobDocs } = useSWR(
+        formData?.estimate ? ['/api/job-docs', formData.estimate] : null,
+        async ([_, estimate]) => {
+            const [schedRes, initRes, jhaRes, djtRes, phRes, vsRes] = await Promise.all([
+                fetch('/api/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getSchedulesByEstimate', payload: { estimateNumber: estimate } }) }),
+                fetch('/api/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getInitialData', payload: {} }) }),
+                fetch('/api/jha', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getJHAs', payload: { page: 1, limit: 500, estimate: estimate } }) }),
+                fetch('/api/djt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getDJTs', payload: { page: 1, limit: 500, estimate: estimate } }) }),
+                fetch('/api/pothole-logs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getPotholeLogs', payload: { estimate: estimate } }) }),
+                fetch('/api/vendor-subs-docs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getVendorSubsDocs', payload: { estimate: estimate } }) })
+            ]);
+
+            const [schedData, initData, jhaData, djtData, phData, vsData] = await Promise.all([
+                schedRes.json(), initRes.json(), jhaRes.json(), djtRes.json(), phRes.json(), vsRes.json()
+            ]);
+
+            return { schedData, initData, jhaData, djtData, phData, vsData };
+        },
+        { revalidateOnFocus: false, dedupingInterval: 60000 }
+    );
+
     useEffect(() => {
-        const fetchJobDocs = async () => {
-            if (!formData?.estimate) return;
-            setLoadingJobDocs(true);
-            try {
-                // Run Independent API calls in parallel for optimal performance
-                const [schedRes, initRes, jhaRes, djtRes, phRes, vsRes] = await Promise.all([
-                    fetch('/api/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getSchedulesByEstimate', payload: { estimateNumber: formData.estimate } }) }),
-                    fetch('/api/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getInitialData', payload: {} }) }),
-                    fetch('/api/jha', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getJHAs', payload: { page: 1, limit: 500, estimate: formData.estimate } }) }),
-                    fetch('/api/djt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getDJTs', payload: { page: 1, limit: 500, estimate: formData.estimate } }) }),
-                    fetch('/api/pothole-logs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getPotholeLogs', payload: { estimate: formData.estimate } }) }),
-                    fetch('/api/vendor-subs-docs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getVendorSubsDocs', payload: { estimate: formData.estimate } }) })
-                ]);
+        setLoadingJobDocs(jobDocsIsLoading);
+        if (!jobDocsData) return;
 
-                const [schedData, initData, jhaData, djtData, phData, vsData] = await Promise.all([
-                    schedRes.json(), initRes.json(), jhaRes.json(), djtRes.json(), phRes.json(), vsRes.json()
-                ]);
+        const { schedData, initData, jhaData, djtData, phData, vsData } = jobDocsData;
+        const filteredSchedules = schedData.success ? (schedData.result || []) : [];
+        setEstimateSchedules(filteredSchedules);
+        const scheduleIds = filteredSchedules.map((s: any) => String(s._id));
 
-                const filteredSchedules = schedData.success ? (schedData.result || []) : [];
-                setEstimateSchedules(filteredSchedules);
-                const scheduleIds = filteredSchedules.map((s: any) => String(s._id));
+        if (initData.success && initData.result?.equipmentItems) {
+            setEquipmentItems(initData.result.equipmentItems);
+        }
 
-                if (initData.success && initData.result?.equipmentItems) {
-                    setEquipmentItems(initData.result.equipmentItems);
-                }
+        if (jhaData.success && jhaData.result?.jhas) {
+            const filtered = jhaData.result.jhas.filter((j: any) => scheduleIds.includes(String(j.schedule_id || '')));
+            setJhaRecords(filtered.length > 0 ? filtered : jhaData.result.jhas);
+        }
 
-                if (jhaData.success && jhaData.result?.jhas) {
-                    const filtered = jhaData.result.jhas.filter((j: any) => scheduleIds.includes(String(j.schedule_id || '')));
-                    setJhaRecords(filtered.length > 0 ? filtered : jhaData.result.jhas);
-                }
+        if (djtData.success && djtData.result?.djts) {
+            const uniqueDjts = Array.from(new Map(djtData.result.djts.map((d: any) => [String(d.schedule_id), d])).values());
+            setJobTicketRecords(uniqueDjts);
+        }
 
-                if (djtData.success && djtData.result?.djts) {
-                    const uniqueDjts = Array.from(new Map(djtData.result.djts.map((d: any) => [String(d.schedule_id), d])).values());
-                    setJobTicketRecords(uniqueDjts);
-                }
+        if (phData.success) {
+            setPotholeLogRecords(phData.result || []);
+        }
 
-                if (phData.success) {
-                    setPotholeLogRecords(phData.result || []);
-                }
-
-                const pbLogs: any[] = [];
-                for (const sched of filteredSchedules) {
-                    if (sched.preBore && Array.isArray(sched.preBore) && sched.preBore.length > 0) {
-                        sched.preBore.forEach((pb: any) => pbLogs.push({ ...pb, scheduleId: sched._id, scheduleTitle: sched.title }));
-                    }
-                }
-                setPreBoreLogRecords(pbLogs);
-
-                if (vsData.success) setVendorSubsDocs(vsData.result || []);
-
-            } catch (err) {
-                console.error('Failed to fetch job docs', err);
-            } finally {
-                setLoadingJobDocs(false);
+        const pbLogs: any[] = [];
+        for (const sched of filteredSchedules) {
+            if (sched.preBore && Array.isArray(sched.preBore) && sched.preBore.length > 0) {
+                sched.preBore.forEach((pb: any) => pbLogs.push({ ...pb, scheduleId: sched._id, scheduleTitle: sched.title }));
             }
-        };
+        }
+        setPreBoreLogRecords(pbLogs);
 
-        fetchJobDocs();
-    }, [formData?.estimate]);
-
-    // Refetch helper
-    const refetchJobDocs = useCallback(async () => {
-        if (!formData?.estimate) return;
-        setLoadingJobDocs(true);
-        try {
-            const [schedRes, jhaRes, djtRes, phRes, vsRes] = await Promise.all([
-                fetch('/api/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getSchedulesByEstimate', payload: { estimateNumber: formData.estimate } }) }),
-                fetch('/api/jha', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getJHAs', payload: { page: 1, limit: 500, estimate: formData.estimate } }) }),
-                fetch('/api/djt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getDJTs', payload: { page: 1, limit: 500, estimate: formData.estimate } }) }),
-                fetch('/api/pothole-logs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getPotholeLogs', payload: { estimate: formData.estimate } }) }),
-                fetch('/api/vendor-subs-docs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getVendorSubsDocs', payload: { estimate: formData.estimate } }) })
-            ]);
-
-            const [schedData, jhaData, djtData, phData, vsData] = await Promise.all([
-                schedRes.json(), jhaRes.json(), djtRes.json(), phRes.json(), vsRes.json()
-            ]);
-
-            const filteredSchedules = schedData.success ? (schedData.result || []) : [];
-            setEstimateSchedules(filteredSchedules);
-            const scheduleIds = filteredSchedules.map((s: any) => String(s._id));
-
-            if (jhaData.success && jhaData.result?.jhas) {
-                const filtered = jhaData.result.jhas.filter((j: any) => scheduleIds.includes(String(j.schedule_id || '')));
-                setJhaRecords(filtered.length > 0 ? filtered : jhaData.result.jhas);
-            }
-
-            if (djtData.success && djtData.result?.djts) {
-                setJobTicketRecords(Array.from(new Map(djtData.result.djts.map((d: any) => [String(d.schedule_id), d])).values()));
-            }
-
-            if (phData.success) setPotholeLogRecords(phData.result || []);
-
-            const pbLogs: any[] = [];
-            for (const sched of filteredSchedules) {
-                if (sched.preBore && Array.isArray(sched.preBore) && sched.preBore.length > 0) {
-                    sched.preBore.forEach((pb: any) => pbLogs.push({ ...pb, scheduleId: sched._id, scheduleTitle: sched.title }));
-                }
-            }
-            setPreBoreLogRecords(pbLogs);
-
-            if (vsData.success) setVendorSubsDocs(vsData.result || []);
-        } catch (err) { console.error(err); } finally { setLoadingJobDocs(false); }
-    }, [formData?.estimate]);
+        if (vsData.success) setVendorSubsDocs(vsData.result || []);
+    }, [jobDocsData, jobDocsIsLoading]);
 
     // Normalized employees for modals
     const normalizedEmployees = useMemo(() => {
@@ -488,22 +410,26 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     }, [employees]);
 
     // --- 20 Day Prelim: Fetch Records ---
-    const fetchPrelimDocs = useCallback(async () => {
-        if (!formData?.estimate) return;
-        setLoadingPrelimDocs(true);
-        try {
+    const { data: prelimData, isLoading: prelimIsLoading, mutate: fetchPrelimDocs } = useSWR(
+        formData?.estimate ? ['/api/prelim-docs', formData.estimate] : null,
+        async ([_, estimate]) => {
             const res = await fetch('/api/prelim-docs', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'getPrelimDocs', payload: { estimate: formData.estimate } })
+                body: JSON.stringify({ action: 'getPrelimDocs', payload: { estimate: estimate } })
             });
             const data = await res.json();
-            if (data.success) setPrelimDocRecords(data.result || []);
-        } catch (err) { console.error('Failed to fetch prelim docs', err); }
-        finally { setLoadingPrelimDocs(false); }
-    }, [formData?.estimate]);
+            return data.success ? (data.result || []) : [];
+        },
+        { revalidateOnFocus: false, dedupingInterval: 60000 }
+    );
 
-    useEffect(() => { fetchPrelimDocs(); }, [fetchPrelimDocs]);
+    useEffect(() => {
+        setLoadingPrelimDocs(prelimIsLoading);
+        if (prelimData) {
+            setPrelimDocRecords(prelimData);
+        }
+    }, [prelimData, prelimIsLoading]);
 
     // --- 20 Day Prelim: Direct Generate (no modal) ---
     const handleDirectGeneratePrelim = async () => {
@@ -1781,7 +1707,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         if (item.date) {
             const parsed = new Date(item.date);
             if (!isNaN(parsed.getTime())) {
-                safeDate = format(parsed, 'yyyy-MM-dd');
+                safeDate = formatWallDate(parsed);
             }
         }
 
@@ -1865,7 +1791,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             task: taskDescription,
                             assignees: billingTicketAssignees,
                             status: 'todo',
-                            dueDate: new Date(new Date().toLocaleDateString('en-US')),
+                            dueDate: formatWallDate(new Date()),
                             estimate: formData?.estimate || '',
                             customerName: formData?.customerName || '',
                             jobAddress: formData?.jobAddress || '',
@@ -1901,14 +1827,11 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             // Get the _id for this estimate version
             const estId = (formData as any)?._id;
             if (estId) {
-                fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'updateEstimate',
-                        payload: { id: estId, billingTickets: sanitized }
-                    })
-                }).catch(err => console.error('Background billing ticket save failed:', err));
+                fetch(`/api/estimates/${estId}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ billingTickets: sanitized })
+                        }).catch(err => console.error('Background billing ticket save failed:', err));
             }
         }
     };
@@ -2101,9 +2024,9 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             setReplyingTo(null);
 
             // Auto-create a To Do task if employees were tagged (same as Dashboard)
-            console.log('[EstimateChat] safeAssignees:', safeAssignees, 'chatAssignees raw:', chatAssignees);
+            if (process.env.NODE_ENV !== 'production') console.log('[EstimateChat] safeAssignees:', safeAssignees, 'chatAssignees raw:', chatAssignees);
             if (safeAssignees.length > 0) {
-                console.log('[EstimateChat] Creating task for assignees:', safeAssignees);
+                if (process.env.NODE_ENV !== 'production') console.log('[EstimateChat] Creating task for assignees:', safeAssignees);
                 try {
                     const taskRes = await fetch('/api/tasks', {
                         method: 'POST',
@@ -2396,13 +2319,13 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     // 1. Try proposalWriter's signature
                     const emp = findEmployeeByIdOrEmail(formData.proposalWriter);
                     if (emp?.signature) {
-                        console.log('[DocGen] Using proposalWriter signature from:', emp._id);
+                        if (process.env.NODE_ENV !== 'production') console.log('[DocGen] Using proposalWriter signature from:', emp._id);
                         return emp.signature;
                     }
                     // 2. Fallback to CFO signature
                     const cfo = findEmployeeByIdOrEmail('dt@devco-inc.com');
                     if (cfo?.signature) {
-                        console.log('[DocGen] Using CFO signature as fallback');
+                        if (process.env.NODE_ENV !== 'production') console.log('[DocGen] Using CFO signature as fallback');
                         return cfo.signature;
                     }
                     console.warn('[DocGen] No signature found for proposalWriter or CFO');
@@ -2478,13 +2401,13 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     variables.companyPosition = creatorEmployee.companyPosition || '';
                     // Only override signature if the creator actually has one
                     if (creatorEmployee.signature) {
-                        console.log('[DocGen] Release: Using creator signature from:', creatorEmployee._id);
+                        if (process.env.NODE_ENV !== 'production') console.log('[DocGen] Release: Using creator signature from:', creatorEmployee._id);
                         variables.signature = creatorEmployee.signature;
                     } else {
                         // Fallback to CFO signature if creator has no signature
                         const cfo = findEmployeeByIdOrEmail('dt@devco-inc.com');
                         if (cfo?.signature) {
-                            console.log('[DocGen] Release: Creator has no signature, falling back to CFO');
+                            if (process.env.NODE_ENV !== 'production') console.log('[DocGen] Release: Creator has no signature, falling back to CFO');
                             variables.signature = cfo.signature;
                         } else {
                             console.warn('[DocGen] Release: No signature found for creator or CFO');
@@ -3635,7 +3558,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                     <Paperclip className="w-2.5 h-2.5 flex-shrink-0" />
                                                     <span className="truncate max-w-[180px] group-hover/link:underline">{upload.name || `File ${uIdx + 1}`}</span>
                                                     {upload.thumbnailUrl && (
-                                                        <img src={upload.thumbnailUrl} alt="" className="w-5 h-5 rounded object-cover ml-auto flex-shrink-0" />
+                                                        <div className="relative w-5 h-5 rounded flex-shrink-0 overflow-hidden"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(upload.thumbnailUrl, { w: 128, q: 'auto' })} alt="" className="rounded object-cover ml-auto flex-shrink-0 w-full h-full" /></div>
                                                     )}
                                                 </a>
                                             ))}
@@ -3853,13 +3776,13 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                         {docName}
                                                     </span>
                                                     {hasUploads && (
-                                                        <div className="flex items-center gap-1.5">
+                                                        <div className="relative flex items-center gap-1.5">
                                                             {uploads[uploads.length - 1].uploaderImage ? (
-                                                                <img
+                                                                <div className="relative w-4 h-4 rounded-full flex-shrink-0 overflow-hidden"><Image fill sizes="(max-width: 768px) 100vw, 33vw"
                                                                     src={uploads[uploads.length - 1].uploaderImage}
                                                                     alt=""
-                                                                    className="w-4 h-4 rounded-full object-cover flex-shrink-0"
-                                                                />
+                                                                    className="rounded-full object-cover flex-shrink-0 w-full h-full"
+                                                                /></div>
                                                             ) : (
                                                                 <div className="w-4 h-4 rounded-full bg-emerald-400 flex items-center justify-center flex-shrink-0">
                                                                     <User className="w-2.5 h-2.5 text-white" />
@@ -3961,13 +3884,13 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                         key={uIdx}
                                                         className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/80 border border-emerald-100 shadow-sm transition-all duration-200 hover:shadow-md group/file"
                                                     >
-                                                        <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                                                        <div className="relative flex items-center gap-2.5 flex-1 min-w-0">
                                                             {upload.uploaderImage ? (
-                                                                <img
+                                                                <div className="relative w-5 h-5 rounded-full flex-shrink-0 overflow-hidden"><Image fill sizes="(max-width: 768px) 100vw, 33vw"
                                                                     src={upload.uploaderImage}
                                                                     alt=""
-                                                                    className="w-5 h-5 rounded-full object-cover flex-shrink-0"
-                                                                />
+                                                                    className="rounded-full object-cover flex-shrink-0 w-full h-full"
+                                                                /></div>
                                                             ) : (
                                                                 <Paperclip className="w-3 h-3 text-emerald-500 flex-shrink-0" />
                                                             )}
@@ -4595,12 +4518,12 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                     <td className="p-2">
                                                         <div className="flex gap-1">
                                                             {item.photo1 && (
-                                                                <a href={item.photo1} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700">
+                                                                <a href={item.photo1} target="_blank" rel="noopener noreferrer" className="relative text-blue-500 hover:text-blue-700">
                                                                     <ImageIcon className="w-3.5 h-3.5" />
                                                                 </a>
                                                             )}
                                                             {item.photo2 && (
-                                                                <a href={item.photo2} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700">
+                                                                <a href={item.photo2} target="_blank" rel="noopener noreferrer" className="relative text-blue-500 hover:text-blue-700">
                                                                     <ImageIcon className="w-3.5 h-3.5" />
                                                                 </a>
                                                             )}
@@ -4769,13 +4692,13 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             {selectedPreBoreLog.foremanSignature && (
                                 <div>
                                     <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Foreman Signature</p>
-                                    <img src={selectedPreBoreLog.foremanSignature} alt="Foreman Signature" className="max-h-16 rounded border border-slate-200" />
+                                    <div className="relative max-h-16 rounded overflow-hidden"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(selectedPreBoreLog.foremanSignature, { w: 128, q: 'auto' })} alt="Foreman Signature" className="rounded border border-slate-200 w-full h-full" /></div>
                                 </div>
                             )}
                             {selectedPreBoreLog.customerSignature && (
                                 <div>
                                     <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Customer Signature</p>
-                                    <img src={selectedPreBoreLog.customerSignature} alt="Customer Signature" className="max-h-16 rounded border border-slate-200" />
+                                    <div className="relative max-h-16 rounded overflow-hidden"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(selectedPreBoreLog.customerSignature, { w: 128, q: 'auto' })} alt="Customer Signature" className="rounded border border-slate-200 w-full h-full" /></div>
                                 </div>
                             )}
                         </div>
@@ -5106,9 +5029,9 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Attachments ({selectedVendorSubsDoc.files.length})</p>
                                 <div className="space-y-2">
                                     {selectedVendorSubsDoc.files.map((f: any, i: number) => (
-                                        <div key={i} className="flex items-center gap-2 p-3 bg-amber-50 rounded-xl border border-amber-100">
+                                        <div key={i} className="relative flex items-center gap-2 p-3 bg-amber-50 rounded-xl border border-amber-100">
                                             {f.fileType?.startsWith('image/') ? (
-                                                <img src={f.url} alt={f.fileName} className="w-10 h-10 rounded-lg object-cover border border-amber-200" />
+                                                <div className="relative w-10 h-10 rounded-lg overflow-hidden"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(f.url, { w: 128, q: 'auto' })} alt={f.fileName} className="rounded-lg object-cover border border-amber-200 w-full h-full" /></div>
                                             ) : (
                                                 <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
                                                     <FileText className="w-5 h-5 text-amber-600" />
@@ -5749,11 +5672,11 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 {newBillingTicket.uploads.map((file, i) => (
                                     <div key={i} className="relative group">
                                         {file.type?.startsWith('image') ? (
-                                            <img
+                                            <div className="relative w-16 h-16 rounded-lg overflow-hidden"><Image fill sizes="(max-width: 768px) 100vw, 33vw"
                                                 src={file.thumbnailUrl || file.url}
                                                 alt={file.name}
-                                                className="w-16 h-16 object-cover rounded-lg border border-slate-200"
-                                            />
+                                                className="object-cover rounded-lg border border-slate-200 w-full h-full"
+                                            /></div>
                                         ) : (
                                             <div className="w-16 h-16 bg-slate-100 rounded-lg border border-slate-200 flex items-center justify-center">
                                                 <FileText className="w-6 h-6 text-slate-400" />

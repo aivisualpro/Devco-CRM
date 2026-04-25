@@ -1,5 +1,7 @@
 'use client';
 
+import { cld } from '@/lib/cld';
+import Image from 'next/image';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -24,6 +26,7 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
+import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
 
 interface BillingTicketItem {
     _id?: string;
@@ -108,14 +111,7 @@ export default function BillingTicketsPage() {
     const fetchEstimates = async () => {
         setLoading(true);
         try {
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'getEstimates',
-                    payload: { limit: 1000, includeBilling: true }
-                })
-            });
+            const res = await fetch(`/api/estimates?limit=1000&includeBilling=true`);
             const data = await res.json();
             if (data.success) {
                 setEstimates(data.result || []);
@@ -261,18 +257,14 @@ export default function BillingTicketsPage() {
                 return t;
             });
 
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'updateEstimate',
-                    payload: {
-                        id: sentDateTicket.estimateId,
+            const res = await fetch(`/api/estimates/${sentDateTicket.estimateId}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
                         billingTickets: updatedTickets,
                         updatedBy: user?.email
-                    }
-                })
-            });
+                    })
+                        });
 
             const result = await res.json();
             if (!result.success) {
@@ -315,18 +307,14 @@ export default function BillingTicketsPage() {
                 return t;
             });
 
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'updateEstimate',
-                    payload: {
-                        id: ticket.estimateId,
+            const res = await fetch(`/api/estimates/${ticket.estimateId}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
                         billingTickets: updatedTickets,
                         updatedBy: user?.email
-                    }
-                })
-            });
+                    })
+                        });
 
             const result = await res.json();
             if (!result.success) {
@@ -358,8 +346,8 @@ export default function BillingTicketsPage() {
                 jobAddress: est.jobAddress || '',
                 projectDescription: est.projectDescription || '',
                 prelimAmount: est.prelimAmount || '',
-                date: ticket.date ? new Date(ticket.date).toLocaleDateString() : '',
-                day: ticket.date ? format(new Date(ticket.date), 'EEEE') : '',
+                date: ticket.date ? formatWallDate(ticket.date) : '',
+                day: ticket.date ? formatWallDate(ticket.date) : '',
                 today: new Date().toLocaleDateString(),
 
                 // Addresses/Names
@@ -484,13 +472,10 @@ export default function BillingTicketsPage() {
                             (!r._id && JSON.stringify(r) !== JSON.stringify(editingTicket)) // fallback
                         );
                         // Save old estimate
-                        await fetch('/api/webhook/devcoBackend', {
-                            method: 'POST',
+                        await fetch(`/api/estimates/${oldEst._id}`, {
+                            method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                action: 'updateEstimate',
-                                payload: { id: oldEst._id, billingTickets: oldTickets }
-                            })
+                            body: JSON.stringify({ billingTickets: oldTickets })
                         });
                     }
                     // Add to new (bottom)
@@ -519,18 +504,14 @@ export default function BillingTicketsPage() {
             }
 
             // Save to Backend
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'updateEstimate',
-                    payload: {
-                        id: selectedEstimateId,
+            const res = await fetch(`/api/estimates/${selectedEstimateId}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
                         billingTickets: updatedTickets,
                         updatedBy: user?.email
-                    }
-                })
-            });
+                    })
+                        });
 
             const result = await res.json();
             if (result.success) {
@@ -568,7 +549,7 @@ export default function BillingTicketsPage() {
                                 task: taskDescription,
                                 assignees: billingTicketAssignees,
                                 status: 'todo',
-                                dueDate: new Date(new Date().toLocaleDateString('en-US')),
+                                dueDate: formatWallDate(new Date()),
                                 estimate: targetEstimate.estimate || '',
                                 customerName: targetEstimate.customerName || '',
                                 jobAddress: targetEstimate.jobAddress || '',
@@ -614,18 +595,14 @@ export default function BillingTicketsPage() {
                 updatedTickets.splice(index, 1);
             }
 
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'updateEstimate',
-                    payload: {
-                        id: ticketToDelete.estimateId,
+            const res = await fetch(`/api/estimates/${ticketToDelete.estimateId}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
                         billingTickets: updatedTickets,
                         updatedBy: user?.email
-                    }
-                })
-            });
+                    })
+                        });
 
             if (res.ok) {
                 toast.success('Ticket deleted');
@@ -732,7 +709,7 @@ export default function BillingTicketsPage() {
                                             <div className="flex items-start justify-between mb-2">
                                                 <div>
                                                     <div className="text-sm font-bold text-slate-800">
-                                                        {ticket.date && !isNaN(new Date(ticket.date).getTime()) ? format(new Date(ticket.date), 'MMM dd, yyyy') : '-'}
+                                                        {ticket.date && !isNaN(new Date(ticket.date).getTime()) ? formatWallDate(ticket.date) : '-'}
                                                     </div>
                                                     <span className="text-xs text-slate-500 truncate block max-w-[180px]">{ticket.projectName || '-'}</span>
                                                 </div>
@@ -757,15 +734,15 @@ export default function BillingTicketsPage() {
                                                 <div className="mt-2">
                                                     <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
                                                         <Check size={10} />
-                                                        Sent {format(new Date(ticket.sentDate), 'MMM dd, yyyy')}
+                                                        Sent {formatWallDate(ticket.sentDate)}
                                                     </span>
                                                 </div>
                                             )}
 
                                             <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-50">
-                                                <div className="flex items-center gap-2">
+                                                <div className="relative flex items-center gap-2">
                                                     {creator?.image || creator?.profilePicture ? (
-                                                        <img src={creator.image || creator.profilePicture} className="w-5 h-5 rounded-full object-cover border border-slate-200" />
+                                                        <div className="relative w-5 h-5 rounded-full overflow-hidden"><Image fill sizes="(max-width: 768px) 100vw, 33vw" alt="" src={cld(creator.image || creator.profilePicture, { w: 128, q: 'auto' })} className="rounded-full object-cover border border-slate-200 w-full h-full" /></div>
                                                     ) : (
                                                         <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
                                                             <User className="w-2.5 h-2.5 text-slate-400" />
@@ -825,7 +802,7 @@ export default function BillingTicketsPage() {
                                             return (
                                                 <TableRow key={ticket.uniqueId} className="group hover:bg-slate-50 transition-colors">
                                                     <TableCell className="font-medium text-slate-700 text-xs whitespace-nowrap">
-                                                        {ticket.date && !isNaN(new Date(ticket.date).getTime()) ? format(new Date(ticket.date), 'MMM dd, yyyy') : '-'}
+                                                        {ticket.date && !isNaN(new Date(ticket.date).getTime()) ? formatWallDate(ticket.date) : '-'}
                                                     </TableCell>
                                                     <TableCell>
                                                         {can(MODULES.ESTIMATES, ACTIONS.VIEW) ? (
@@ -857,7 +834,7 @@ export default function BillingTicketsPage() {
                                                             <Tooltip>
                                                                 <TooltipTrigger>
                                                                     {creator?.image || creator?.profilePicture ? (
-                                                                        <img src={creator.image || creator.profilePicture} className="w-6 h-6 rounded-full object-cover border border-slate-200" />
+                                                                        <div className="relative w-6 h-6 rounded-full overflow-hidden"><Image fill sizes="(max-width: 768px) 100vw, 33vw" alt="" src={cld(creator.image || creator.profilePicture, { w: 128, q: 'auto' })} className="rounded-full object-cover border border-slate-200 w-full h-full" /></div>
                                                                     ) : (
                                                                         <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
                                                                             <User className="w-3 h-3 text-slate-400" />
@@ -876,7 +853,7 @@ export default function BillingTicketsPage() {
                                                             <div className="flex items-center gap-1.5">
                                                                 <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100">
                                                                     <Check size={10} className="text-emerald-500" />
-                                                                    {format(new Date(ticket.sentDate), 'MMM dd, yyyy')}
+                                                                    {formatWallDate(ticket.sentDate)}
                                                                 </span>
                                                                 <button
                                                                     onClick={(e) => { e.stopPropagation(); handleClearSentDate(ticket); }}

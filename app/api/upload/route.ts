@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { v2 as cloudinary } from 'cloudinary';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 
+export const dynamic = 'force-dynamic';
+
 // Configure Cloudinary
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,

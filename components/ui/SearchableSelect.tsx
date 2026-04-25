@@ -21,6 +21,7 @@ interface SearchableSelectProps {
     placeholder?: string;
     autoFocus?: boolean;
     id?: string;
+    chipLayout?: 'row' | 'col';
     onKeyDown?: (e: React.KeyboardEvent) => void;
     onNext?: () => void;
     onAddNew?: (value: string) => void;
@@ -46,6 +47,7 @@ export function SearchableSelect({
     onNext,
     onAddNew,
     className = '',
+    chipLayout = 'row',
     multiple = false,
     disableBlank = false,
     disabled = false,
@@ -148,15 +150,23 @@ export function SearchableSelect({
         const vals = Array.isArray(value) ? value : [];
         if (vals.length > 0) {
             displayLabel = (
-                <div className="flex flex-wrap gap-1.5 py-1">
-                    {vals.map(v => {
+                <div 
+                    className={`py-1 gap-2 ${chipLayout === 'col' ? 'grid grid-flow-col auto-cols-fr' : 'flex flex-wrap'}`}
+                    style={chipLayout === 'col' ? { gridTemplateRows: `repeat(${Math.min(4, Math.max(1, vals.length))}, minmax(0, 1fr))` } : undefined}
+                >
+                    {vals.map((v, idx) => {
                         const opt = normalizedOptions.find(o => o.value === v);
                         const label = opt?.label || v;
                         return (
-                            <span key={v} className="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold bg-[#0F4C75]/10 text-[#0F4C75] border border-[#0F4C75]/20 animate-in zoom-in-95 duration-200 max-w-full">
-                                <span className="truncate max-w-[120px]">{label}</span>
+                            <span key={`${v}-${idx}`} className={`inline-flex items-center justify-between px-3 py-2 rounded-xl text-[13px] font-bold border animate-in zoom-in-95 duration-200 shadow-sm ${chipLayout === 'col' ? 'w-full' : 'max-w-full'}`}
+                                style={{
+                                    backgroundColor: opt?.color || 'rgba(15, 76, 117, 0.1)',
+                                    color: opt?.color ? '#FFFFFF' : '#0F4C75',
+                                    borderColor: opt?.color || 'rgba(15, 76, 117, 0.2)'
+                                }}>
+                                <span className="truncate">{label}</span>
                                 <span
-                                    className="ml-1.5 cursor-pointer hover:text-red-500 transition-colors shrink-0"
+                                    className={`ml-1.5 cursor-pointer transition-colors shrink-0 ${opt?.color ? 'hover:text-white/70 text-white' : 'hover:text-red-500 text-[#0F4C75]'}`}
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         handleSelect(opt || { label: v, value: v });
@@ -312,10 +322,10 @@ export function SearchableSelect({
     };
 
     return (
-        <div className={`${className} ${isOpen ? 'relative z-[100]' : ''}`} ref={containerRef}>
-            {label && <label className="block text-[10px] font-medium text-slate-500 uppercase tracking-wider mb-1.5">{label}</label>}
+        <div className={`${className} ${isOpen ? 'relative z-[100]' : ''} flex flex-col`} ref={containerRef}>
+            {label && <label className="block text-sm font-bold text-slate-900 mb-2 shrink-0">{label}</label>}
 
-            <div className="relative">
+            <div className="relative flex-1 flex flex-col">
                 {/* Trigger */}
                 <div
                     id={id}
@@ -345,7 +355,7 @@ export function SearchableSelect({
                             onKeyDown(e);
                         }
                     }}
-                    className={`w-full ${size === 'sm' ? 'min-h-[30px] py-1 px-2.5 rounded-lg text-[10px]' : 'min-h-[42px] py-2 px-3 rounded-xl text-sm'} bg-white border border-slate-200 font-medium text-slate-600 ${disabled ? 'opacity-60 cursor-not-allowed bg-slate-50' : 'cursor-pointer hover:bg-slate-50 hover:border-slate-300'} flex items-center justify-between transition-all focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black shadow-sm`}
+                    className={`w-full h-full ${size === 'sm' ? 'min-h-[30px] py-1 px-2.5 rounded-lg text-[10px]' : 'min-h-[42px] py-2 px-3 rounded-xl text-sm'} bg-white border border-slate-200 font-medium text-slate-600 ${disabled ? 'opacity-60 cursor-not-allowed bg-slate-50' : 'cursor-pointer hover:bg-slate-50 hover:border-slate-300'} flex items-start justify-between transition-all focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black shadow-sm`}
                 >
                     <div className={`flex ${multiple ? 'items-start pt-0.5' : 'items-center'} gap-3 flex-1 min-w-0`}>
                         {(!multiple && (selectedOption?.image || selectedOption?.color || selectedOption?.initials || (displayLabel && displayLabel !== placeholder))) ? (

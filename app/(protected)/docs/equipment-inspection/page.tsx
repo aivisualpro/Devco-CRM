@@ -1,5 +1,7 @@
 'use client';
 
+import { cld } from '@/lib/cld';
+import Image from 'next/image';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -9,6 +11,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { useCurrentUser } from '@/lib/context/AppContext';
 
 import {
     Header, Button, Badge, Input,
@@ -23,6 +26,7 @@ import { MyDropDown } from '@/components/ui/MyDropDown';
 import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
 import { cn } from '@/lib/utils';
+import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
 
 const INSPECTION_TYPES = ['General Maintenance', 'Project Specific'];
 const INSPECTION_FREQUENCIES = ['Daily', 'Weekly', 'Monthly', 'Quarterly', 'Bi-Annually', 'Annually'];
@@ -89,6 +93,7 @@ interface Employee {
 }
 
 export default function EquipmentInspectionPage() {
+    const currentUser = useCurrentUser();
     const router = useRouter();
     const searchParams = useSearchParams();
     const returnTo = searchParams.get('returnTo');
@@ -176,11 +181,7 @@ export default function EquipmentInspectionPage() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'getAll', payload: {} })
                 }),
-                fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getEstimates', payload: { limit: 1000 } })
-                }),
+                fetch(`/api/estimates?limit=1000`),
                 fetch('/api/vehicle-docs'),
                 fetch('/api/webhook/devcoBackend', {
                     method: 'POST',
@@ -374,7 +375,7 @@ export default function EquipmentInspectionPage() {
     const handleEdit = (record: EquipmentInspection) => {
         setEditingRecord(record);
         setFormData({
-            date: record.date ? format(new Date(record.date), 'yyyy-MM-dd') : '',
+            date: record.date ? formatWallDate(record.date) : '',
             type: record.type || '',
             inspectionFrequency: record.inspectionFrequency || '',
             estimate: record.estimate || '',
@@ -396,11 +397,10 @@ export default function EquipmentInspectionPage() {
 
         setSaving(true);
         try {
-            const user = JSON.parse(localStorage.getItem('devco_user') || '{}');
             const item = {
                 ...formData,
                 date: formData.date ? new Date(formData.date) : new Date(),
-                createdBy: editingRecord?.createdBy || user?.email || ''
+                createdBy: editingRecord?.createdBy || currentUser?.email || ''
             };
 
             const action = editingRecord ? 'update' : 'create';
@@ -462,7 +462,7 @@ export default function EquipmentInspectionPage() {
     // Build PDF payload
     const buildPdfPayload = (record: EquipmentInspection) => {
         const dateStr = record.date && !isNaN(new Date(record.date).getTime())
-            ? format(new Date(record.date), 'MM/dd/yyyy')
+            ? formatWallDate(record.date)
             : '';
 
         const emp = getEmployeeByEmail(record.createdBy);
@@ -679,7 +679,7 @@ export default function EquipmentInspectionPage() {
                                         <div className="flex items-start justify-between mb-2">
                                             <div className="flex-1 min-w-0">
                                                 <div className="text-sm font-bold text-slate-800">
-                                                    {record.date && !isNaN(new Date(record.date).getTime()) ? format(new Date(record.date), 'MMM dd, yyyy') : '-'}
+                                                    {record.date && !isNaN(new Date(record.date).getTime()) ? formatWallDate(record.date) : '-'}
                                                 </div>
                                                 <p className="text-xs text-slate-500 truncate mt-0.5">{record.equipment || '-'}</p>
                                             </div>
@@ -724,9 +724,9 @@ export default function EquipmentInspectionPage() {
 
                                         {/* Footer: Creator + Actions */}
                                         <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-50">
-                                            <div className="flex items-center gap-2">
+                                            <div className="relative flex items-center gap-2">
                                                 {creator?.profilePicture ? (
-                                                    <img src={creator.profilePicture} className="w-5 h-5 rounded-full object-cover border border-slate-200" />
+                                                    <div className="relative w-5 h-5 rounded-full overflow-hidden"><Image fill sizes="(max-width: 768px) 100vw, 33vw" alt="" src={cld(creator.profilePicture, { w: 128, q: 'auto' })} className="rounded-full object-cover border border-slate-200 w-full h-full" /></div>
                                                 ) : (
                                                     <div className="w-5 h-5 rounded-full bg-[#0F4C75] text-white flex items-center justify-center text-[8px] font-bold shrink-0">
                                                         {creator ? `${creator.firstName?.[0] || ''}${creator.lastName?.[0] || ''}` : (record.createdBy?.[0]?.toUpperCase() || '?')}
@@ -842,7 +842,7 @@ export default function EquipmentInspectionPage() {
                                                     onClick={() => router.push(`/docs/equipment-inspection/${record._id}`)}
                                                 >
                                                     <TableCell className="font-medium text-slate-700 text-xs whitespace-nowrap">
-                                                        {record.date && !isNaN(new Date(record.date).getTime()) ? format(new Date(record.date), 'MMM dd, yyyy') : '-'}
+                                                        {record.date && !isNaN(new Date(record.date).getTime()) ? formatWallDate(record.date) : '-'}
                                                     </TableCell>
                                                     <TableCell>
                                                         <Badge className={cn(
@@ -874,9 +874,9 @@ export default function EquipmentInspectionPage() {
                                                             if (emp) {
                                                                 return (
                                                                     <div className="flex items-center gap-2">
-                                                                        <div className="w-6 h-6 rounded-full bg-[#0F4C75] text-white flex items-center justify-center text-[10px] font-bold overflow-hidden shrink-0">
+                                                                        <div className="relative w-6 h-6 rounded-full bg-[#0F4C75] text-white flex items-center justify-center text-[10px] font-bold overflow-hidden shrink-0">
                                                                             {emp.profilePicture ? (
-                                                                                <img src={emp.profilePicture} alt="" className="w-full h-full object-cover" />
+                                                                                <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(emp.profilePicture, { w: 1200 })} alt="" className="object-cover w-full h-full" /></div>
                                                                             ) : (
                                                                                 `${emp.firstName?.[0] || ''}${emp.lastName?.[0] || ''}`
                                                                             )}

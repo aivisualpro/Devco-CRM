@@ -17,12 +17,9 @@ import { calculateTimesheetData, robustNormalizeISO } from '@/lib/timeCardUtils'
 const SETTINGS_TYPE = 'AppSettings';
 const BOT_KEY = 'emailBot_dailySummary';
 
-/* ─── Helper: Get today's date string in PST (YYYY-MM-DD) ─── */
-function getTodayPST(): string {
-    const now = new Date();
-    // PST is UTC-7 (fixed offset for Pacific Standard Time)
-    const pst = new Date(now.getTime() - 7 * 60 * 60 * 1000);
-    return pst.toISOString().split('T')[0];
+/* ─── Helper: Get today's date string in PT (YYYY-MM-DD) ─── */
+function getTodayPT(): string {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 }
 
 /* ─── Helper: Format date for display ─── */
@@ -267,9 +264,13 @@ async function generateDailySummaryHTML(dateStr: string): Promise<{ html: string
 
 export async function GET(req: NextRequest) {
     try {
+        console.log('[Cron] daily-summary invoked', { ts: new Date().toISOString(), ua: req.headers.get('user-agent') });
+
         // Verify cron secret to prevent unauthorized triggers
         const authHeader = req.headers.get('authorization');
         const cronSecret = process.env.CRON_SECRET;
+
+        console.log('[Cron] auth check', { hasSecret: !!cronSecret, headerPresent: !!authHeader, match: authHeader === `Bearer ${cronSecret}` });
 
         // Vercel cron sends: Authorization: Bearer <CRON_SECRET>
         // Only enforce in production, and only if CRON_SECRET is actually set
@@ -293,10 +294,19 @@ export async function GET(req: NextRequest) {
 
         const config = setting.data;
 
-        // Check if the bot is active
-        if (config.active === false) {
+        // Check if the bot is active (support legacy 'active' flag if 'enabled' is undefined)
+        const isEnabled = config.enabled ?? config.active ?? true;
+        if (isEnabled === false) {
             console.log('[Cron] Email bot is inactive, skipping');
             return NextResponse.json({ success: true, message: 'Bot is inactive, skipped' });
+        }
+
+        // Idempotency: don't send twice the same PT day
+        const todayPT = getTodayPT();
+        const lastSentDayPT = config.lastSent ? new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date(config.lastSent)) : null;
+        if (lastSentDayPT === todayPT) {
+            console.log('[Cron] Already sent today, skipping');
+            return NextResponse.json({ success: true, skipped: true, reason: 'Already sent today' });
         }
 
         if (!config.recipients || config.recipients.length === 0) {
@@ -310,7 +320,7 @@ export async function GET(req: NextRequest) {
         }
 
         const resend = new Resend(process.env.RESEND_API_KEY);
-        const dateStr = getTodayPST();
+        const dateStr = getTodayPT();
         const { html, stats } = await generateDailySummaryHTML(dateStr);
 
         const fromName = config.fromName || 'DEVCO Notifications';

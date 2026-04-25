@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
     X, Calendar, Clock, MapPin, User, Users, FileText, 
@@ -13,6 +14,7 @@ import { EstimateChat } from '@/components/ui/EstimateChat';
 import { calculateTimesheetData, formatDateOnly, formatTimeOnly } from '@/lib/timeCardUtils';
 import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
+import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
 
 export interface ConstantData {
     _id?: string;
@@ -797,7 +799,7 @@ export const ScheduleDetailsPopup: React.FC<ScheduleDetailsPopupProps> = ({
                                         {potholeLogs.map((log: any, li: number) => (
                                             <div key={log._id || li} className="p-4">
                                                 <div className="flex items-center justify-between mb-2">
-                                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Log #{li + 1} — {log.date ? new Date(log.date).toLocaleDateString() : '-'}</p>
+                                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Log #{li + 1} — {log.date ? formatWallDate(log.date) : '-'}</p>
                                                     {log.projectionLocation && <span className="text-[10px] text-slate-400">{log.projectionLocation}</span>}
                                                 </div>
                                                 {log.potholeItems?.length > 0 ? (
@@ -864,7 +866,7 @@ export const ScheduleDetailsPopup: React.FC<ScheduleDetailsPopupProps> = ({
                                         {preboreLogs.map((pb: any, pi: number) => (
                                             <div key={pb._id || pb.legacyId || pi} className="p-4">
                                                 <div className="flex items-center justify-between mb-3">
-                                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Bore #{pi + 1} — {pb.date ? new Date(pb.date).toLocaleDateString() : '-'}</p>
+                                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Bore #{pi + 1} — {pb.date ? formatWallDate(pb.date) : '-'}</p>
                                                     {pb.devcoOperator && <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold border border-blue-100">Operator: {pb.devcoOperator}</span>}
                                                 </div>
                                                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-3">

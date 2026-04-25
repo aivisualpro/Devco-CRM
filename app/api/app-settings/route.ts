@@ -19,13 +19,21 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({
                 success: true,
                 result: setting ? { key: setting.value, data: setting.data } : null
+            }, {
+                headers: {
+                    'Cache-Control': 's-maxage=300, stale-while-revalidate=600'
+                }
             });
         }
 
         // Return all app settings
         const settings = await Constant.find({ type: SETTINGS_TYPE });
         const mapped = settings.map(s => ({ key: s.value, data: s.data, description: s.description }));
-        return NextResponse.json({ success: true, result: mapped });
+        return NextResponse.json({ success: true, result: mapped }, {
+            headers: {
+                'Cache-Control': 's-maxage=300, stale-while-revalidate=600'
+            }
+        });
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }

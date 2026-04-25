@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { QBO_CLIENT_ID, QBO_CLIENT_SECRET } from '@/lib/quickbooks';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: Request) {
     if (!QBO_CLIENT_ID) {
         return NextResponse.json({ error: 'QBO_CLIENT_ID is not configured' }, { status: 500 });

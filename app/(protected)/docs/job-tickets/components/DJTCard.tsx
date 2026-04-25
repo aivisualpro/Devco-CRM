@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Check, Edit, Trash2, User, Download, Mail, Loader2 } from 'lucide-react';
+import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
 
 interface DJTCardProps {
     djt: any;
@@ -37,7 +38,7 @@ export const DJTCard: React.FC<DJTCardProps> = ({
     const [isDownloading, setIsDownloading] = useState(false);
     
     // date
-    const dateStr = (djt.date || schedule?.fromDate) ? new Date(djt.date || schedule?.fromDate).toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A';
+    const dateStr = (djt.date || schedule?.fromDate) ? formatWallDate(djt.date || schedule?.fromDate) : 'N/A';
     const creator = employees.find(e => e.value === djt.createdBy);
     const hasCustSig = !!djt.customerSignature;
     const eqCount = (djt.equipmentUsed || []).length;

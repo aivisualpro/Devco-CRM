@@ -1,5 +1,7 @@
 'use client';
 
+import { cld } from '@/lib/cld';
+import Image from 'next/image';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -13,7 +15,7 @@ import { toast } from 'sonner';
 
 import {
     Header, Button, Table, TableHeader, TableRow, TableHead,
-    TableBody, TableCell, Badge, Input, MyDropDown
+    TableBody, TableCell, Badge, Input, MyDropDown, UserChip, EmptyState
 } from '@/components/ui';
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -23,6 +25,7 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
+import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
 
 // Dropdown options
 const UTILITY_TYPES = [
@@ -192,17 +195,7 @@ export default function PotholeLogsPage() {
                         }
                     })
                 }),
-                fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'getEstimates',
-                        payload: {
-                            limit: 500,
-                            projection: { _id: 1, estimate: 1, projectName: 1, jobAddress: 1 }
-                        }
-                    })
-                }),
+                fetch(`/api/estimates?limit=500`),
                 fetch('/api/webhook/devcoBackend', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -318,7 +311,7 @@ export default function PotholeLogsPage() {
             };
         });
         setFormData({
-            date: log.date ? format(new Date(log.date), 'yyyy-MM-dd') : '',
+            date: log.date ? formatWallDate(log.date) : '',
             estimate: log.estimate || '',
             jobAddress: log.jobAddress || log.projectionLocation || '',
             potholeItems: migratedPotholeItems
@@ -629,10 +622,11 @@ export default function PotholeLogsPage() {
                         {/* Mobile Card View */}
                         <div className="lg:hidden space-y-3">
                             {filteredLogs.length === 0 ? (
-                                <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200">
-                                    <MapPin className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                                    <p className="text-slate-500 font-medium text-sm">No pothole logs found.</p>
-                                </div>
+                                <EmptyState 
+                                    icon={<MapPin className="w-8 h-8 text-slate-400" />} 
+                                    title="No pothole logs found" 
+                                    className="py-12 bg-white rounded-2xl border border-dashed border-slate-200"
+                                />
                             ) : (
                                 filteredLogs.map((log) => {
                                     const estInfo = getEstimateInfo(log.estimate);
@@ -649,7 +643,7 @@ export default function PotholeLogsPage() {
                                             <div className="flex items-start justify-between mb-2">
                                                 <div>
                                                     <div className="text-sm font-bold text-slate-800">
-                                                        {log.date && !isNaN(new Date(log.date).getTime()) ? format(new Date(log.date), 'MMM dd, yyyy') : '-'}
+                                                        {log.date && !isNaN(new Date(log.date).getTime()) ? formatWallDate(log.date) : '-'}
                                                     </div>
                                                     <span className="text-xs text-slate-500 truncate block max-w-[180px]">{estInfo?.projectName || '-'}</span>
                                                 </div>
@@ -668,16 +662,7 @@ export default function PotholeLogsPage() {
                                             <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-50">
                                                 <div className="flex items-center gap-2">
                                                     {emp ? (
-                                                        <>
-                                                            <div className="w-5 h-5 rounded-full bg-[#0F4C75] text-white flex items-center justify-center text-[8px] font-bold overflow-hidden shrink-0">
-                                                                {emp.profilePicture ? (
-                                                                    <img src={emp.profilePicture} alt="" className="w-full h-full object-cover" />
-                                                                ) : (
-                                                                    `${emp.firstName?.[0] || ''}${emp.lastName?.[0] || ''}`
-                                                                )}
-                                                            </div>
-                                                            <span className="text-[10px] text-slate-500">{emp.firstName} {emp.lastName?.[0]}.</span>
-                                                        </>
+                                                        <UserChip user={emp} size="sm" />
                                                     ) : (
                                                         <span className="text-[10px] text-slate-500">{log.createdBy || '-'}</span>
                                                     )}
@@ -739,7 +724,7 @@ export default function PotholeLogsPage() {
                                                             )}
                                                         </TableCell>
                                                         <TableCell className="font-medium text-slate-700 text-xs whitespace-nowrap">
-                                                            {log.date && !isNaN(new Date(log.date).getTime()) ? format(new Date(log.date), 'MMM dd, yyyy') : '-'}
+                                                            {log.date && !isNaN(new Date(log.date).getTime()) ? formatWallDate(log.date) : '-'}
                                                         </TableCell>
                                                         <TableCell>
                                                             <span
@@ -764,20 +749,7 @@ export default function PotholeLogsPage() {
                                                             {(() => {
                                                                 const emp = getEmployeeByEmail(log.createdBy);
                                                                 if (emp) {
-                                                                    return (
-                                                                        <div className="flex items-center gap-2">
-                                                                            <div className="w-6 h-6 rounded-full bg-[#0F4C75] text-white flex items-center justify-center text-[10px] font-bold overflow-hidden shrink-0">
-                                                                                {emp.profilePicture ? (
-                                                                                    <img src={emp.profilePicture} alt="" className="w-full h-full object-cover" />
-                                                                                ) : (
-                                                                                    `${emp.firstName?.[0] || ''}${emp.lastName?.[0] || ''}`
-                                                                                )}
-                                                                            </div>
-                                                                            <span className="text-xs text-slate-700 truncate max-w-[80px]">
-                                                                                {emp.firstName} {emp.lastName?.[0]}.
-                                                                            </span>
-                                                                        </div>
-                                                                    );
+                                                                    return <UserChip user={emp} size="sm" />;
                                                                 }
                                                                 return <span className="text-xs text-slate-500 truncate">{log.createdBy || '-'}</span>;
                                                             })()}
@@ -828,8 +800,8 @@ export default function PotholeLogsPage() {
                                                                                         className="relative group cursor-pointer"
                                                                                         onClick={() => openGallery(allPhotos, pIdx)}
                                                                                     >
-                                                                                        <div className="w-8 h-8 rounded overflow-hidden border hover:border-[#0F4C75] transition-all">
-                                                                                            <img src={photo} alt={`Photo ${pIdx + 1}`} className="w-full h-full object-cover" />
+                                                                                        <div className="relative w-8 h-8 rounded overflow-hidden border hover:border-[#0F4C75] transition-all">
+                                                                                            <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(photo, { w: 128, q: 'auto' })} alt={`Photo ${pIdx + 1}`} className="object-cover w-full h-full" /></div>
                                                                                         </div>
                                                                                         {allPhotos.length > 1 && pIdx === 0 && (
                                                                                             <div className="absolute -top-1.5 -right-1.5 bg-[#0F4C75] text-white text-[8px] w-3.5 h-3.5 rounded-full flex items-center justify-center font-bold shadow-sm border border-white">
@@ -1183,8 +1155,8 @@ export default function PotholeLogsPage() {
                                                     <div className="mt-1 flex flex-wrap gap-2 items-center">
                                                         {item.photos?.map((photo, pIdx) => (
                                                             <div key={pIdx} className="relative group">
-                                                                <div className="w-16 h-16 rounded-lg overflow-hidden border-2 border-slate-200 hover:border-blue-400 transition-colors">
-                                                                    <img src={photo} alt={`Photo ${pIdx + 1}`} className="w-full h-full object-cover" />
+                                                                <div className="relative w-16 h-16 rounded-lg overflow-hidden border-2 border-slate-200 hover:border-blue-400 transition-colors">
+                                                                    <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(photo, { w: 128, q: 'auto' })} alt={`Photo ${pIdx + 1}`} className="object-cover w-full h-full" /></div>
                                                                 </div>
                                                                 <button
                                                                     onClick={() => handleRemovePhoto(idx, pIdx)}
@@ -1273,7 +1245,7 @@ export default function PotholeLogsPage() {
                     )}
 
                     <div className="relative w-full h-full flex items-center justify-center p-8">
-                        <img
+                        <Image fill sizes="(max-width: 768px) 100vw, 33vw"
                             src={galleryImages[currentImageIndex]}
                             alt={`Gallery image ${currentImageIndex + 1}`}
                             className="max-w-full max-h-full object-contain animate-in fade-in zoom-in duration-300"

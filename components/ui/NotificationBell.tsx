@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import useSWRInfinite from 'swr/infinite';
 import { useRouter } from 'next/navigation';
 import { Bell, Check, CheckCheck, Trash2, X, Calendar, Clock, FileText, AlertCircle, Sparkles, ChevronRight, Volume2, VolumeX } from 'lucide-react';
 
@@ -48,16 +49,29 @@ function timeAgo(dateStr: string): string {
 export default function NotificationBell() {
     const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
-    const [notifications, setNotifications] = useState<AppNotification[]>([]);
-    const [unreadCount, setUnreadCount] = useState(0);
-    const [isLoading, setIsLoading] = useState(false);
-    const [hasMore, setHasMore] = useState(false);
-    const [page, setPage] = useState(1);
     const [desktopNotificationsEnabled, setDesktopNotificationsEnabled] = useState(false);
     const [animateBell, setAnimateBell] = useState(false);
     const panelRef = useRef<HTMLDivElement>(null);
     const bellRef = useRef<HTMLButtonElement>(null);
     const prevUnreadRef = useRef(0);
+
+    // Use SWRInfinite for fetching notifications
+    const getKey = (pageIndex: number, previousPageData: any) => {
+        if (previousPageData && previousPageData.result?.length === 0) return null; 
+        return `/api/notifications?page=${pageIndex + 1}&limit=15`;
+    };
+
+    const fetcher = (url: string) => fetch(url).then(res => res.json());
+
+    const { data, size, setSize, mutate, isValidating } = useSWRInfinite(getKey, fetcher, {
+        refreshInterval: 15000,
+        revalidateOnFocus: true,
+    });
+
+    const notifications = data ? data.flatMap(page => page.result || []) : [];
+    const isLoading = isValidating;
+    const hasMore = data && data[data.length - 1]?.page < data[data.length - 1]?.totalPages;
+    const unreadCount = data ? (data[0]?.unreadCount || 0) : 0;
 
     // Request desktop notification permission
     const requestNotificationPermission = useCallback(async () => {
@@ -90,57 +104,21 @@ export default function NotificationBell() {
         setTimeout(() => notif.close(), 8000);
     }, [desktopNotificationsEnabled, router]);
 
-    // Fetch notifications
-    const fetchNotifications = useCallback(async (pageNum = 1, append = false) => {
-        try {
-            console.log(`[NotificationBell] Fetching page ${pageNum}...`);
-            setIsLoading(true);
-            const res = await fetch(`/api/notifications?page=${pageNum}&limit=15`);
-            const data = await res.json();
-            
-            console.log(`[NotificationBell] API Response:`, data);
-
-            if (data.success) {
-                if (append) {
-                    setNotifications(prev => [...prev, ...data.result]);
-                } else {
-                    setNotifications(data.result);
-                }
-
-                const newUnread = data.unreadCount;
-                console.log(`[NotificationBell] Unread count is now ${newUnread}`);
-
-                // Show desktop notification if new unread notifications appeared
-                if (newUnread > prevUnreadRef.current && prevUnreadRef.current >= 0 && pageNum === 1) {
-                    const latestUnread = data.result.find((n: AppNotification) => !n.read);
-                    if (latestUnread) {
-                        showDesktopNotification(latestUnread.title, latestUnread.message, latestUnread.link);
-                        // Animate bell
-                        setAnimateBell(true);
-                        setTimeout(() => setAnimateBell(false), 1000);
-                    }
-                }
-
-                prevUnreadRef.current = newUnread;
-                setUnreadCount(newUnread);
-                setHasMore(data.page < data.totalPages);
-                setPage(pageNum);
-            } else {
-                console.warn('[NotificationBell] API returned non-success:', data);
-            }
-        } catch (error) {
-            console.error('[NotificationBell] Fetch error:', error);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [showDesktopNotification]);
-
-    // Poll for new notifications every 15 seconds
+    // Show desktop notification if new unread notifications appeared
     useEffect(() => {
-        fetchNotifications();
-        const interval = setInterval(() => fetchNotifications(), 15000);
-        return () => clearInterval(interval);
-    }, [fetchNotifications]);
+        if (data && data[0]) {
+            const newUnread = data[0].unreadCount || 0;
+            if (newUnread > prevUnreadRef.current && prevUnreadRef.current >= 0) {
+                const latestUnread = data[0].result?.find((n: AppNotification) => !n.read);
+                if (latestUnread) {
+                    showDesktopNotification(latestUnread.title, latestUnread.message, latestUnread.link);
+                    setAnimateBell(true);
+                    setTimeout(() => setAnimateBell(false), 1000);
+                }
+            }
+            prevUnreadRef.current = newUnread;
+        }
+    }, [data, showDesktopNotification]);
 
     // Check notification permission on mount
     useEffect(() => {
@@ -173,40 +151,66 @@ export default function NotificationBell() {
     }, [isOpen]);
 
     const markAsRead = async (notificationId: string) => {
-        setNotifications(prev =>
-            prev.map(n => n._id === notificationId ? { ...n, read: true, readAt: new Date().toISOString() } : n)
-        );
-        setUnreadCount(prev => Math.max(0, prev - 1));
+        // Optimistic update
+        mutate((currentData: any) => {
+            if (!currentData) return currentData;
+            return currentData.map((pageData: any) => ({
+                ...pageData,
+                result: pageData.result.map((n: any) => 
+                    n._id === notificationId ? { ...n, read: true, readAt: new Date().toISOString() } : n
+                ),
+                unreadCount: Math.max(0, (pageData.unreadCount || 0) - 1)
+            }));
+        }, false);
 
         await fetch('/api/notifications', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'markRead', notificationId })
         });
+        mutate();
     };
 
     const markAllRead = async () => {
-        setNotifications(prev => prev.map(n => ({ ...n, read: true, readAt: new Date().toISOString() })));
-        setUnreadCount(0);
+        mutate((currentData: any) => {
+            if (!currentData) return currentData;
+            return currentData.map((pageData: any) => ({
+                ...pageData,
+                result: pageData.result.map((n: any) => ({ ...n, read: true, readAt: new Date().toISOString() })),
+                unreadCount: 0
+            }));
+        }, false);
 
         await fetch('/api/notifications', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'markAllRead' })
         });
+        mutate();
     };
 
     const deleteNotification = async (notificationId: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        const notif = notifications.find(n => n._id === notificationId);
-        setNotifications(prev => prev.filter(n => n._id !== notificationId));
-        if (notif && !notif.read) setUnreadCount(prev => Math.max(0, prev - 1));
+        
+        mutate((currentData: any) => {
+            if (!currentData) return currentData;
+            return currentData.map((pageData: any) => {
+                const notifExists = pageData.result.find((n: any) => n._id === notificationId);
+                const isUnread = notifExists && !notifExists.read;
+                return {
+                    ...pageData,
+                    result: pageData.result.filter((n: any) => n._id !== notificationId),
+                    unreadCount: isUnread ? Math.max(0, (pageData.unreadCount || 0) - 1) : pageData.unreadCount
+                };
+            });
+        }, false);
 
         await fetch('/api/notifications', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'delete', notificationId })
         });
+        mutate();
     };
 
     const handleNotificationClick = (notif: AppNotification) => {
@@ -219,7 +223,7 @@ export default function NotificationBell() {
 
     const loadMore = () => {
         if (hasMore && !isLoading) {
-            fetchNotifications(page + 1, true);
+            setSize(size + 1);
         }
     };
 
@@ -230,7 +234,7 @@ export default function NotificationBell() {
                 ref={bellRef}
                 onClick={() => {
                     setIsOpen(!isOpen);
-                    if (!isOpen) fetchNotifications();
+                    if (!isOpen) mutate();
                 }}
                 className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 hover:bg-slate-100 focus:outline-none group ${isOpen ? 'bg-slate-100' : ''}`}
                 title="Notifications"

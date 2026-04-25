@@ -20,7 +20,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTo
 import { DJTModal } from '../../jobs/schedules/components/DJTModal';
 import { formatDateOnly } from '@/lib/timeCardUtils';
 import { getLocalNowISO } from '@/lib/scheduleUtils';
-import * as XLSX from 'xlsx';
+// xlsx is imported dynamically in handleExportExcel to avoid loading the 272KB library in the initial bundle
 
 interface Project {
     Id: string;
@@ -605,9 +605,10 @@ function WIPReportContent() {
         setVisibleCount(ITEMS_PER_BATCH);
     };
 
-    const handleExportExcel = useCallback(() => {
+    const handleExportExcel = useCallback(async () => {
         setIsExporting(true);
         try {
+            const XLSX = await import('xlsx');
             const fmt = (val: number) => Math.round(val * 100) / 100;
 
             const rows = filteredProjects.map((project) => {
@@ -809,625 +810,159 @@ function WIPReportContent() {
                             <div className="flex-1 flex flex-col min-h-0 space-y-4 animate-fade-in">
                                 {selectedProject ? (
                                     /* Project Detail View */
-                                    <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
-                                        {/* Detail Tabs & Navigation */}
-                                        <div className="flex items-center px-4 border-b border-slate-100 overflow-x-auto shrink-0 bg-white sticky top-0 z-10">
-                                            <button 
-                                                onClick={() => setSelectedProject(null)}
-                                                className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-900 transition-all mr-2 group"
-                                                title="Back to Projects"
-                                            >
-                                                <X className="w-5 h-5 transition-transform group-hover:rotate-90" />
-                                            </button>
-                                            
-                                            <div className="flex items-center gap-2 mr-6 border-r border-slate-100 pr-6 py-4">
-                                                <DollarSign className="w-4 h-4 text-emerald-500" />
-                                                <span className="text-sm font-black text-slate-900 truncate max-w-[200px]">
-                                                    {selectedProject.DisplayName}
-                                                </span>
-                                            </div>
-
-                                            {detailTabs.map((tab) => (
-                                                <button
-                                                    key={tab}
-                                                    onClick={() => setActiveDetailTab(tab)}
-                                                    className={`px-4 py-4 text-sm font-semibold transition-all relative whitespace-nowrap ${
-                                                        activeDetailTab === tab 
-                                                        ? 'text-[#0F4C75]' 
-                                                        : 'text-slate-500 hover:text-slate-800'
-                                                    }`}
+                                    <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col h-[calc(100vh-140px)]">
+                                        {/* Header Navigation */}
+                                        <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-100 shrink-0">
+                                            <div className="flex items-center gap-6">
+                                                <button 
+                                                    onClick={() => setSelectedProject(null)}
+                                                    className="p-2 bg-slate-50 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-900 transition-all group"
                                                 >
-                                                    {tab}
-                                                    {activeDetailTab === tab && (
-                                                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-emerald-500 rounded-t-full"></div>
-                                                    )}
+                                                    <X className="w-5 h-5 transition-transform group-hover:rotate-90" />
                                                 </button>
-                                            ))}
-                                            <div className="flex-1"></div>
+                                                <div className="h-8 w-px bg-slate-200"></div>
+                                                <div className="flex items-center gap-8">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Client</span>
+                                                        <span className="text-sm font-black text-slate-800 flex items-center gap-2">
+                                                            <Briefcase size={14} className="text-[#0F4C75]" />
+                                                            {selectedProject.CompanyName || selectedProject.DisplayName.split(':')?.[0] || '---'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Proposal ID</span>
+                                                        <span className="text-sm font-black text-[#0F4C75] flex items-center gap-2">
+                                                            <FileText size={14} />
+                                                            {selectedProject.proposalNumber || '---'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Proposal Writer</span>
+                                                        <span className="text-sm font-black text-slate-700 flex items-center gap-2">
+                                                            <Users size={14} className="text-emerald-500" />
+                                                            {(selectedProject.proposalWriters || []).join(', ') || '---'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-4">
+                                                <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg border border-emerald-100">
+                                                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                                                    <span className="text-[10px] font-black uppercase tracking-wider">{selectedProject.status || 'Active'}</span>
+                                                </div>
+                                            </div>
                                         </div>
 
-                                        <div className="flex-1 overflow-y-auto min-h-0 bg-slate-50/30">
-
-                                            {activeDetailTab === 'Transactions' && (
-                                                <>
-                                                    {/* Detail View Sub-header */}
-                                                    <div className="p-6 border-b border-slate-50 space-y-4">
-                                                        <div className="flex flex-wrap items-center gap-4">
-                                                            <button className="flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50">
-                                                                Batch actions <ChevronDown size={14} />
-                                                            </button>
-                                                            <div className="flex flex-col">
-                                                                <span className="text-[10px] font-bold text-slate-400 uppercase mb-1">Type</span>
-                                                                <select className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-700 outline-none w-40">
-                                                                    <option>All transactions</option>
-                                                                    <option>Invoices</option>
-                                                                    <option>Payments</option>
-                                                                </select>
-                                                            </div>
-                                                            <div className="flex flex-col">
-                                                                <span className="text-[10px] font-bold text-slate-400 uppercase mb-1">Date</span>
-                                                                <select className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 outline-none w-48">
-                                                                    <option>All</option>
-                                                                    <option>Today</option>
-                                                                    <option>This Month</option>
-                                                                </select>
-                                                            </div>
-                                                            <div className="flex-1"></div>
-                                                            <button className="text-[#0F4C75] text-xs font-bold hover:underline">View Recurring Templates</button>
-                                                        </div>
+                                        <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50">
+                                            {/* KPI Row */}
+                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                                                {/* Income */}
+                                                <Card className="p-6 border-l-4 border-l-emerald-500 shadow-sm hover:shadow-md transition-shadow bg-white">
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Income</span>
+                                                    <div className="text-3xl font-black text-slate-800 mt-2 tracking-tight">
+                                                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(selectedProject.income || 0)}
                                                     </div>
+                                                </Card>
+                                                {/* Cost (QB Costs) */}
+                                                <Card className="p-6 border-l-4 border-l-teal-500 shadow-sm hover:shadow-md transition-shadow bg-white">
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cost</span>
+                                                    <div className="text-3xl font-black text-slate-800 mt-2 tracking-tight">
+                                                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(selectedProject.qbCost || 0)}
+                                                    </div>
+                                                </Card>
+                                                {/* Overhead (Devco Costs) */}
+                                                <Card className="p-6 border-l-4 border-l-amber-500 shadow-sm hover:shadow-md transition-shadow bg-white">
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Overhead</span>
+                                                    <div className="text-3xl font-black text-slate-800 mt-2 tracking-tight">
+                                                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(selectedProject.devcoCost || 0)}
+                                                    </div>
+                                                </Card>
+                                                {/* Profit */}
+                                                <Card className="p-6 border-l-4 border-l-[#0F4C75] shadow-sm hover:shadow-md transition-shadow bg-white relative">
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Profit</span>
+                                                    <div className="text-3xl font-black text-[#0F4C75] mt-2 tracking-tight">
+                                                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format((selectedProject.income || 0) - (selectedProject.cost || 0))}
+                                                    </div>
+                                                    <div className="absolute top-6 right-6 px-2 py-1 bg-blue-50 text-[#0F4C75] rounded text-xs font-black">
+                                                        {selectedProject.profitMargin}%
+                                                    </div>
+                                                </Card>
+                                            </div>
 
-                                                    {/* Transactions Table */}
-                                                    <div className="overflow-x-auto min-h-[400px]">
+                                            {/* 2 Boxes: Transactions & Daily Job Tickets */}
+                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[500px] min-h-[500px]">
+                                                {/* Transactions Box */}
+                                                <Card className="flex flex-col h-full border border-slate-200 shadow-sm overflow-hidden bg-white">
+                                                    <div className="px-5 py-4 border-b border-slate-100 bg-white flex justify-between items-center shrink-0">
+                                                        <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                                                            <Briefcase size={16} className="text-[#0F4C75]" /> Transactions
+                                                        </h3>
+                                                        <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md">{transactions.length} Records</span>
+                                                    </div>
+                                                    <div className="flex-1 overflow-auto bg-slate-50/30">
                                                         <table className="w-full text-left">
-                                                            <thead>
-                                                                <tr className="border-b border-slate-100 bg-slate-50/30">
-                                                                    <th className="p-4 w-10">
-                                                                        <input type="checkbox" className="rounded border-slate-300" />
-                                                                    </th>
+                                                            <thead className="sticky top-0 bg-white/90 backdrop-blur-sm z-10 shadow-sm border-b border-slate-100">
+                                                                <tr>
                                                                     <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Date</th>
                                                                     <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Type</th>
-                                                                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">No.</th>
-                                                                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">From / To</th>
-                                                                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Memo</th>
-                                                                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Amount</th>
-                                                                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Status</th>
-                                                                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-right">Action</th>
+                                                                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-right">Amount</th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody className="divide-y divide-slate-50">
                                                                 {loadingTransactions ? (
-                                                                    Array.from({ length: 5 }).map((_, i) => (
-                                                                        <SkeletonTableRow key={i} columns={9} />
-                                                                    ))
+                                                                    <tr><td colSpan={3} className="p-8 text-center text-slate-400 text-sm">Loading...</td></tr>
                                                                 ) : transactions.length > 0 ? (
                                                                     transactions.map((tx: any) => (
-                                                                        <tr key={tx.id} className="hover:bg-slate-50/50 transition-colors">
-                                                                            <td className="p-4">
-                                                                                <input type="checkbox" className="rounded border-slate-300" />
+                                                                        <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
+                                                                            <td className="p-4 text-xs font-medium text-slate-600">{formatDateOnly(tx.date)}</td>
+                                                                            <td className="p-4 text-xs font-bold text-slate-800 flex items-center gap-2">
+                                                                                <span className={`w-1.5 h-1.5 rounded-full ${tx.type === 'Payment' ? 'bg-emerald-500' : 'bg-blue-500'}`}></span>
+                                                                                {tx.type} <span className="text-slate-400 font-normal text-[10px]">#{tx.no}</span>
                                                                             </td>
-                                                                            <td className="p-4 text-[11px] font-medium text-slate-600">
-                                                                                {new Date(tx.date).toLocaleDateString()}
-                                                                            </td>
-                                                                            <td className="p-4 text-[11px] font-bold text-slate-800">{tx.type}</td>
-                                                                            <td className="p-4 text-[11px] font-medium text-slate-600">{tx.no}</td>
-                                                                            <td className="p-4 text-[11px] font-medium text-slate-500 max-w-xs truncate">{tx.from}</td>
-                                                                            <td className="p-4 text-[11px] font-medium text-slate-400 max-w-xs truncate">{tx.memo}</td>
-                                                                            <td className="p-4 text-[11px] font-black text-slate-900">
+                                                                            <td className="p-4 text-xs font-black text-slate-900 text-right">
                                                                                 {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(tx.amount)}
-                                                                            </td>
-                                                                            <td className="p-4">
-                                                                                {tx.status && (
-                                                                                    <div className={`flex items-center gap-2 text-[10px] font-medium ${
-                                                                                        tx.statusColor === 'emerald' ? 'text-emerald-600' : 'text-amber-600'
-                                                                                    }`}>
-                                                                                        <div className={`w-1.5 h-1.5 rounded-full ${
-                                                                                            tx.statusColor === 'emerald' ? 'bg-emerald-500' : 'bg-amber-500'
-                                                                                        }`}></div>
-                                                                                        {tx.status}
-                                                                                    </div>
-                                                                                )}
-                                                                            </td>
-                                                                            <td className="p-4">
-                                                                                <div className="flex items-center justify-end gap-2">
-                                                                                    <button className="text-[10px] font-bold text-[#0F4C75] hover:underline">View/Edit</button>
-                                                                                    <button className="p-1 text-slate-400"><ChevronDown size={12} /></button>
-                                                                                </div>
                                                                             </td>
                                                                         </tr>
                                                                     ))
                                                                 ) : (
-                                                                    <tr>
-                                                                        <td colSpan={9} className="p-20 text-center">
-                                                                            <div className="flex flex-col items-center gap-2">
-                                                                                <Search size={40} className="text-slate-200" />
-                                                                                <span className="text-slate-400 text-xs font-bold">No transactions found for this project.</span>
-                                                                            </div>
-                                                                        </td>
-                                                                    </tr>
+                                                                    <tr><td colSpan={3} className="p-12 text-center text-slate-400 text-sm font-medium">No transactions found.</td></tr>
                                                                 )}
                                                             </tbody>
                                                         </table>
                                                     </div>
+                                                </Card>
 
-                                                    {/* Pagination Footer */}
-                                                    <div className="p-4 border-t border-slate-50 flex items-center justify-between">
-                                                        <div className="flex items-center gap-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                                            <button disabled className="hover:text-slate-800">First</button>
-                                                            <button disabled className="hover:text-slate-800">Previous</button>
-                                                        </div>
-                                                        <div className="text-[11px] font-bold text-slate-600">{transactions.length > 0 ? `1-${transactions.length} of ${transactions.length}` : '0-0 of 0'}</div>
-                                                        <div className="flex items-center gap-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                                            <button disabled className="hover:text-slate-800">Next</button>
-                                                            <button disabled className="hover:text-slate-800">Last</button>
-                                                        </div>
+                                                {/* DJT Box */}
+                                                <Card className="flex flex-col h-full border border-slate-200 shadow-sm overflow-hidden bg-white">
+                                                    <div className="px-5 py-4 border-b border-slate-100 bg-white flex justify-between items-center shrink-0">
+                                                        <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                                                            <FileText size={16} className="text-amber-500" /> Daily Job Tickets
+                                                        </h3>
+                                                        <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md">{(selectedProject.jobTickets || []).length} Tickets</span>
                                                     </div>
-                                                </>
-                                            )}
-
-                                            {activeDetailTab === 'Summary' && (
-                                                <div className="p-4 space-y-12 animate-fade-in w-full">
-                                                    {(() => {
-                                                        const originalContractValue = selectedProject.originalContract || 0;
-                                                        const changeOrdersValue = selectedProject.changeOrders || 0;
-                                                        const updatedContractValue = originalContractValue + changeOrdersValue;
-                                                        const originalContractCostValue = (selectedProject as any).originalContractCost || 0;
-                                                        const changeOrderCostValue = 0;
-                                                        const totalEstimatedCostValue = originalContractCostValue + changeOrderCostValue;
-                                                        const estimatedGPValue = updatedContractValue - totalEstimatedCostValue;
-                                                        
-                                                        const revenueToDateValue = selectedProject.income || 0;
-                                                        const costOfRevenueValue = selectedProject.cost || 0;
-                                                        const grossProfitValue = revenueToDateValue - costOfRevenueValue;
-                                                        const grossProfitPctValue = revenueToDateValue > 0 ? (grossProfitValue / revenueToDateValue) * 100 : 0;
-                                                        const grossMarkupPctValue = costOfRevenueValue > 0 ? (grossProfitValue / costOfRevenueValue) * 100 : 0;
-                                                        const percentageCompleteValue = updatedContractValue > 0 ? (revenueToDateValue / updatedContractValue) * 100 : 0;
-
-                                                        const fmtDetail = (val: number) => new Intl.NumberFormat('en-US', { 
-                                                            style: 'currency', 
-                                                            currency: 'USD', 
-                                                            minimumFractionDigits: 0, 
-                                                            maximumFractionDigits: 0 
-                                                        }).format(val);
-
-                                                        return (
-                                                            <div className="space-y-8">
-                                                                {/* Interactive Project Identity Header */}
-                                                                <div className="relative group">
-                                                                    <div className="absolute -inset-1 bg-gradient-to-r from-[#0F4C75] via-[#3282B8] to-emerald-500 rounded-[2rem] blur opacity-25 group-hover:opacity-40 transition duration-1000 group-hover:duration-200"></div>
-                                                                    <div className="relative flex flex-wrap items-center gap-6 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-xl overflow-hidden">
-                                                                        <div className="flex items-center gap-4 bg-slate-50 px-5 py-3 rounded-2xl border border-slate-100 max-w-[200px]">
-                                                                            <div className="p-2 bg-blue-500 rounded-lg text-white">
-                                                                                <Briefcase size={18} />
-                                                                            </div>
-                                                                            <div className="flex flex-col truncate">
-                                                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Client</span>
-                                                                                <span className="text-sm font-black text-slate-700 truncate">{selectedProject.CompanyName || selectedProject.DisplayName.split(':')?.[0] || '---'}</span>
-                                                                            </div>
-                                                                        </div>
-
-                                                                        <div className="flex items-center gap-4 bg-slate-50 px-5 py-3 rounded-2xl border border-slate-100">
-                                                                            <div className="p-2 bg-[#0F4C75] rounded-lg text-white">
-                                                                                <FileText size={18} />
-                                                                            </div>
-                                                                            <div className="flex flex-col">
-                                                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Proposal ID</span>
-                                                                                <span className="text-sm font-black text-[#0F4C75]">{selectedProject.proposalNumber || '---'}</span>
-                                                                            </div>
-                                                                        </div>
-
-                                                                        <div className="flex items-center gap-4 bg-slate-50 px-5 py-3 rounded-2xl border border-slate-100">
-                                                                            <div className="p-2 bg-emerald-500 rounded-lg text-white">
-                                                                                <Users size={18} />
-                                                                            </div>
-                                                                            <div className="flex flex-col">
-                                                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Proposal Writers</span>
-                                                                                <div className="flex -space-x-1.5">
-                                                                                    {(selectedProject.proposalWriters || []).map((w, idx) => {
-                                                                                        const employee = employees.find(e => 
-                                                                                            `${e.firstName} ${e.lastName}`.toLowerCase() === w.toLowerCase() ||
-                                                                                            e.email?.toLowerCase() === w.toLowerCase() ||
-                                                                                            e._id?.toLowerCase() === w.toLowerCase()
-                                                                                        );
-                                                                                        const profilePic = employee?.profilePicture;
-                                                                                        const displayName = employee ? `${employee.firstName} ${employee.lastName}` : w;
-                                                                                        
-                                                                                        return (
-                                                                                            <Tooltip key={idx}>
-                                                                                                <TooltipTrigger asChild>
-                                                                                                    <div className="w-6 h-6 rounded-full bg-[#0F4C75] border-2 border-white flex items-center justify-center text-[8px] text-white font-black shadow-sm overflow-hidden cursor-help">
-                                                                                                        {profilePic ? (
-                                                                                                            <img src={profilePic} alt={displayName} className="w-full h-full object-cover" />
-                                                                                                        ) : (
-                                                                                                            displayName.substring(0, 1).toUpperCase()
-                                                                                                        )}
-                                                                                                    </div>
-                                                                                                </TooltipTrigger>
-                                                                                                <TooltipContent side="top">
-                                                                                                    <p>{displayName}</p>
-                                                                                                </TooltipContent>
-                                                                                            </Tooltip>
-                                                                                        );
-                                                                                    })}
-                                                                                    {(selectedProject.proposalWriters || []).length === 0 && (
-                                                                                        <span className="text-sm font-black text-slate-700">---</span>
-                                                                                    )}
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-
-                                                                        <div className="flex items-center gap-4 bg-slate-50 px-5 py-3 rounded-2xl border border-slate-100">
-                                                                            <div className="p-2 bg-amber-500 rounded-lg text-white">
-                                                                                <Calendar size={18} />
-                                                                            </div>
-                                                                            <div className="flex flex-col">
-                                                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Start Date</span>
-                                                                                <span className="text-sm font-black text-slate-700">{selectedProject.startDate || '---'}</span>
-                                                                            </div>
-                                                                        </div>
-
-                                                                        <div className="flex-1 flex justify-end items-center gap-6 min-w-[300px]">
-                                                                            <div className="text-right">
-                                                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Contract Status</span>
-                                                                                <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-100">
-                                                                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                                                                                    <span className="text-[10px] font-bold uppercase">{selectedProject.status || 'Active'}</span>
-                                                                                </div>
-                                                                            </div>
-                                                                            <div className="h-12 w-[2px] bg-slate-100 mx-2"></div>
-                                                                            <div className="flex flex-col items-center">
-                                                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">% COMPLETE</span>
-                                                                                <div className="relative w-16 h-16 flex items-center justify-center">
-                                                                                    <svg className="w-full h-full transform -rotate-90">
-                                                                                        <circle
-                                                                                            cx="32" cy="32" r="28"
-                                                                                            stroke="currentColor"
-                                                                                            strokeWidth="4"
-                                                                                            fill="transparent"
-                                                                                            className="text-slate-100"
-                                                                                        />
-                                                                                        <circle
-                                                                                            cx="32" cy="32" r="28"
-                                                                                            stroke="currentColor"
-                                                                                            strokeWidth="4"
-                                                                                            fill="transparent"
-                                                                                            strokeDasharray={2 * Math.PI * 28}
-                                                                                            strokeDashoffset={2 * Math.PI * 28 * (1 - percentageCompleteValue / 100)}
-                                                                                            strokeLinecap="round"
-                                                                                            className="text-emerald-500 transition-all duration-1000"
-                                                                                        />
-                                                                                    </svg>
-                                                                                    <span className="absolute text-[11px] font-black text-slate-700">{Math.round(percentageCompleteValue)}%</span>
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-
-                                                                {/* Financial Metrics Grid */}
-                                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                                                    {/* Column 1: Contract Analysis */}
-                                                                    <div className="space-y-4">
-                                                                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-2 flex items-center gap-2">
-                                                                            <Briefcase size={12} /> Contract Matrix
-                                                                        </h4>
-                                                                        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4 hover:shadow-md transition-all">
-                                                                            <div className="flex justify-between items-center group cursor-help">
-                                                                                <span className="text-[11px] font-bold text-slate-400 group-hover:text-slate-600 transition-colors">ORIGINAL</span>
-                                                                                <span className="text-sm font-black text-slate-900">{fmtDetail(originalContractValue)}</span>
-                                                                            </div>
-                                                                            <div className="flex justify-between items-center bg-amber-50/50 px-3 py-2 rounded-xl border border-amber-100/50 group cursor-help">
-                                                                                <span className="text-[11px] font-bold text-amber-700">CHANGE ORDERS</span>
-                                                                                <span className="text-sm font-black text-amber-600">+{fmtDetail(changeOrdersValue)}</span>
-                                                                            </div>
-                                                                            <div className="pt-2 border-t border-slate-50 flex justify-between items-center group cursor-help">
-                                                                                <span className="text-[11px] font-black text-[#0F4C75]">UPDATED TOTAL</span>
-                                                                                <span className="text-lg font-black text-[#0F4C75]">{fmtDetail(updatedContractValue)}</span>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-
-                                                                    {/* Column 2: Estimation & Costing */}
-                                                                    <div className="space-y-4">
-                                                                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-2 flex items-center gap-2">
-                                                                            <Target size={12} /> Projected Costs
-                                                                        </h4>
-                                                                        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4 hover:shadow-md transition-all">
-                                                                            <div className="flex justify-between items-center group cursor-help">
-                                                                                <span className="text-[11px] font-bold text-slate-400 group-hover:text-slate-600 transition-colors">ESTIMATED COST</span>
-                                                                                <span className="text-sm font-black text-slate-900">{fmtDetail(originalContractCostValue)}</span>
-                                                                            </div>
-                                                                            <div className="flex justify-between items-center group cursor-help">
-                                                                                <span className="text-[11px] font-bold text-slate-400 group-hover:text-slate-600 transition-colors">CO EST. COST</span>
-                                                                                <span className="text-sm font-black text-slate-900">{fmtDetail(changeOrderCostValue)}</span>
-                                                                            </div>
-                                                                            <div className="pt-2 border-t border-slate-50 flex justify-between items-center group cursor-help">
-                                                                                <span className="text-[11px] font-black text-[#0F4C75]">TOTAL ESTIMATED</span>
-                                                                                <span className="text-lg font-black text-[#0F4C75]">{fmtDetail(totalEstimatedCostValue)}</span>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-
-                                                                    {/* Column 3: Gross Profit DNA */}
-                                                                    <div className="space-y-4">
-                                                                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-2 flex items-center gap-2">
-                                                                            <TrendingUp size={12} /> Profit Analysis
-                                                                        </h4>
-                                                                        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4 hover:shadow-md transition-all">
-                                                                            <div className="flex justify-between items-center group cursor-help">
-                                                                                <span className="text-[11px] font-bold text-slate-400 group-hover:text-slate-600 transition-colors">CONTRACT GP</span>
-                                                                                <span className="text-sm font-black text-slate-900">{fmtDetail(originalContractValue - originalContractCostValue)}</span>
-                                                                            </div>
-                                                                            <div className="flex justify-between items-center group cursor-help">
-                                                                                <span className="text-[11px] font-bold text-slate-400 group-hover:text-slate-600 transition-colors">ESTIMATED CO GP</span>
-                                                                                <span className="text-sm font-black text-slate-900">{fmtDetail(0)}</span>
-                                                                            </div>
-                                                                            <div className="pt-2 border-t border-slate-50 flex justify-between items-center group cursor-help">
-                                                                                <span className="text-[11px] font-black text-emerald-600">TOTAL EST. GP</span>
-                                                                                <span className="text-lg font-black text-emerald-600">{fmtDetail(estimatedGPValue)}</span>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-
-                                                                    {/* Column 4: Efficiency Specs */}
-                                                                    <div className="space-y-4">
-                                                                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-2 flex items-center gap-2">
-                                                                            <Zap size={12} /> Efficiency Specs
-                                                                        </h4>
-                                                                        <div className="bg-[#D8E983] p-5 rounded-2xl border border-[#D8E983] shadow-sm space-y-3 relative overflow-hidden group hover:shadow-[#D8E983]/30 transition-all">
-                                                                            <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:scale-125 transition-transform">
-                                                                                <Zap size={60} className="fill-[#0F4C75]" />
-                                                                            </div>
-                                                                            <div className="flex justify-between items-center relative z-10">
-                                                                                <span className="text-[10px] font-black text-[#0F4C75] uppercase tracking-tighter">Gross Profit %</span>
-                                                                                <span className="text-xl font-black text-[#0F4C75]">{grossProfitPctValue.toFixed(1)}%</span>
-                                                                            </div>
-                                                                            <div className="flex justify-between items-center relative z-10">
-                                                                                <span className="text-[10px] font-black text-[#0F4C75] uppercase tracking-tighter">Markup on Cost</span>
-                                                                                <span className="text-xl font-black text-[#0F4C75]">{grossMarkupPctValue.toFixed(1)}%</span>
-                                                                            </div>
-                                                                            <div className="pt-2 border-t border-[#0F4C75]/10 flex justify-between items-center relative z-10">
-                                                                                <span className="text-[10px] font-black text-[#0F4C75] uppercase">Actual GP</span>
-                                                                                <span className="text-sm font-black text-[#0F4C75]">{fmtDetail(grossProfitValue)}</span>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })()}
-                                                    
-                                                    {/* Project Balance Summary Section */}
-                                                    <div className="space-y-6">
-                                                        <div className="flex flex-col lg:flex-row items-stretch gap-4">
-                                                            {/* Income Card */}
-                                                            <Card className="flex-1 w-full p-6 space-y-5 border-slate-100 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
-                                                                {loadingProfitability && (
-                                                                    <div className="absolute inset-0 bg-white/80 backdrop-blur-[2px] flex flex-col p-6 space-y-5 z-10 transition-all duration-300">
-                                                                        <Skeleton className="h-4 w-20 rounded-full" />
-                                                                        <Skeleton className="h-10 w-3/4 rounded-xl" />
-                                                                        <Skeleton className="h-2.5 w-full rounded-full" />
-                                                                    </div>
-                                                                )}
-                                                                <div className="space-y-1">
-                                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">INCOME</span>
-                                                                    <div className="text-3xl font-black text-slate-800 tracking-tighter">
-                                                                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(selectedProject.income || 0)}
-                                                                    </div>
-                                                                </div>
-                                                                <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                                                                    <div className="h-full bg-emerald-500 rounded-full w-full shadow-[0_0_10px_rgba(16,185,129,0.3)]"></div>
-                                                                </div>
-                                                            </Card>
-
-                                                            {/* Operator - */}
-                                                            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-400 font-bold shrink-0 shadow-inner self-center">
-                                                                <span className="text-xl">−</span>
-                                                            </div>
-
-                                                            {/* QB Costs Card */}
-                                                            <Card className="flex-1 w-full p-6 space-y-5 border-slate-100 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
-                                                                {loadingProfitability && (
-                                                                    <div className="absolute inset-0 bg-white/80 backdrop-blur-[2px] flex flex-col p-6 space-y-5 z-10 transition-all duration-300">
-                                                                        <Skeleton className="h-4 w-20 rounded-full" />
-                                                                        <Skeleton className="h-10 w-3/4 rounded-xl" />
-                                                                        <Skeleton className="h-2.5 w-full rounded-full" />
-                                                                    </div>
-                                                                )}
-                                                                <div className="space-y-1">
-                                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">QB COSTS</span>
-                                                                    <div className="text-3xl font-black text-slate-800 tracking-tighter">
-                                                                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(selectedProject.qbCost || 0)}
-                                                                    </div>
-                                                                </div>
-                                                                <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                                                                    <div 
-                                                                        className="h-full bg-teal-500 rounded-full shadow-[0_0_10px_rgba(20,184,166,0.3)]"
-                                                                        style={{ width: `${((selectedProject.qbCost || 0) / (selectedProject.income || 1)) * 100}%` }}
-                                                                    ></div>
-                                                                </div>
-                                                            </Card>
-
-                                                            {/* Operator - */}
-                                                            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-400 font-bold shrink-0 shadow-inner self-center">
-                                                                <span className="text-xl">−</span>
-                                                            </div>
-
-                                                            {/* Devco Costs Card */}
-                                                            <Card className="flex-1 w-full p-6 space-y-5 border-slate-100 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
-                                                                {loadingProfitability && (
-                                                                    <div className="absolute inset-0 bg-white/80 backdrop-blur-[2px] flex flex-col p-6 space-y-5 z-10 transition-all duration-300">
-                                                                        <Skeleton className="h-4 w-32 rounded-full" />
-                                                                        <Skeleton className="h-10 w-3/4 rounded-xl" />
-                                                                        <Skeleton className="h-2.5 w-full rounded-full" />
-                                                                    </div>
-                                                                )}
-                                                                <div className="space-y-1">
-                                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">(Overheads + Equipment cost)</span>
-                                                                    <div className="space-y-1">
-                                                                        <div className="text-3xl font-black text-slate-800 tracking-tighter">
-                                                                            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(selectedProject.devcoCost || 0)}
-                                                                        </div>
-                                                                        <div className="text-[10px] font-black text-blue-600 uppercase tracking-tighter">
-                                                                            {(selectedProject.jobTickets || []).length} Job Tickets
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                                                                    <div 
-                                                                        className="h-full bg-amber-500 rounded-full shadow-[0_0_10px_rgba(245,158,11,0.3)]"
-                                                                        style={{ width: `${((selectedProject.devcoCost || 0) / (selectedProject.income || 1)) * 100}%` }}
-                                                                    ></div>
-                                                                </div>
-                                                            </Card>
-
-                                                            {/* Operator = */}
-                                                            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-400 font-bold shrink-0 shadow-inner self-center">
-                                                                <span className="text-xl">=</span>
-                                                            </div>
-
-                                                            {/* Profit Card */}
-                                                            <Card className="flex-1 w-full p-6 space-y-5 border-slate-100 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
-                                                                {loadingProfitability && (
-                                                                    <div className="absolute inset-0 bg-white/80 backdrop-blur-[2px] flex flex-col p-6 space-y-5 z-10 transition-all duration-300">
-                                                                        <Skeleton className="h-4 w-20 rounded-full" />
-                                                                        <Skeleton className="h-10 w-3/4 rounded-xl" />
-                                                                        <div className="pt-4 space-y-4">
-                                                                            <Skeleton className="h-3 w-28 rounded-full" />
-                                                                            <Skeleton className="h-6 w-12 rounded-lg" />
-                                                                        </div>
-                                                                    </div>
-                                                                )}
-                                                                <div className="space-y-1">
-                                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">PROFIT</span>
-                                                                    <div className="text-3xl font-black text-[#0F4C75] tracking-tighter">
-                                                                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format((selectedProject.income || 0) - (selectedProject.cost || 0))}
-                                                                    </div>
-                                                                </div>
-                                                                <div className="space-y-1 text-[10px] font-black tracking-tighter">
-                                                                    <span className="text-slate-400 uppercase block">Actual profit margin</span>
-                                                                    <span className="text-slate-900 text-lg">{selectedProject.profitMargin}%</span>
-                                                                </div>
-                                                            </Card>
-                                                        </div>
-                                                    </div>
-                                                    
-                                                    {/* Charts & Health Section */}
-                                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                                        {/* Breakdowns Column */}
-                                                        <div className="space-y-6">
-                                                            <Card className="p-6 space-y-6">
-                                                                <div className="flex items-center gap-2">
-                                                                    <PieChartIcon className="w-5 h-5 text-[#0F4C75]" />
-                                                                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Profit Breakdown</h3>
-                                                                </div>
-                                                                
-                                                                <div className="h-[250px] w-full">
-                                                                    <ResponsiveContainer width="100%" height="100%">
-                                                                        <PieChart>
-                                                                            <Pie
-                                                                                data={[
-                                                                                    { name: 'QB Costs', value: selectedProject.qbCost || 0 },
-                                                                                    { name: 'Devco Costs', value: selectedProject.devcoCost || 0 },
-                                                                                    { name: 'Profit', value: Math.max(0, (selectedProject.income || 0) - (selectedProject.cost || 0)) }
-                                                                                ].filter(d => d.value > 0)}
-                                                                                cx="50%"
-                                                                                cy="50%"
-                                                                                innerRadius={60}
-                                                                                outerRadius={80}
-                                                                                paddingAngle={5}
-                                                                                dataKey="value"
-                                                                            >
-                                                                                <Cell fill="#14B8A6" /> {/* QB Costs - Teal */}
-                                                                                <Cell fill="#F59E0B" /> {/* Devco Costs - Amber */}
-                                                                                <Cell fill="#0F4C75" /> {/* Profit - Blue */}
-                                                                            </Pie>
-                                                                            <RechartsTooltip 
-                                                                                formatter={(value: any) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)}
-                                                                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                                                                            />
-                                                                            <Legend 
-                                                                                verticalAlign="bottom" 
-                                                                                height={36}
-                                                                                iconType="circle"
-                                                                                formatter={(value) => <span className="text-[10px] font-bold text-slate-600 uppercase tracking-tight">{value}</span>}
-                                                                            />
-                                                                        </PieChart>
-                                                                    </ResponsiveContainer>
-                                                                </div>
-                                                            </Card>
-                                                        </div>
-
-                                                        {/* Status & Info Column */}
-                                                        <Card className="p-6 space-y-6">
-                                                            <div className="flex items-center gap-2">
-                                                                <Settings className="w-5 h-5 text-slate-400" />
-                                                                <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Project Health</h3>
-                                                            </div>
-                                                            
-                                                            <div className="space-y-4">
-                                                                <div className="space-y-2">
-                                                                    <div className="flex justify-between text-[10px] font-bold">
-                                                                        <span className="text-slate-400 uppercase">Cost Burn</span>
-                                                                        <span className="text-slate-900">{( (selectedProject.cost || 0) / (selectedProject.income || 1) * 100).toFixed(1)}%</span>
-                                                                    </div>
-                                                                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                                                                        <div 
-                                                                            className="h-full bg-amber-500 rounded-full" 
-                                                                            style={{ width: `${Math.min(100, (selectedProject.cost || 0) / (selectedProject.income || 1) * 100)}%` }}
-                                                                        ></div>
-                                                                    </div>
-                                                                </div>
-
-                                                                <div className="pt-4 border-t border-slate-50 grid grid-cols-1 gap-4">
-                                                                    <div className="flex flex-col">
-                                                                        <span className="text-[10px] font-bold text-slate-400 uppercase">Proposal Status</span>
-                                                                        <span className="text-sm font-black text-slate-900">{selectedProject.status || 'Active'}</span>
-                                                                    </div>
-                                                                    <div className="flex flex-col">
-                                                                        <span className="text-[10px] font-bold text-slate-400 uppercase">Start Date</span>
-                                                                        <span className="text-sm font-black text-slate-900">{selectedProject.startDate || '---'}</span>
-                                                                    </div>
-                                                                    <div className="flex flex-col">
-                                                                        <span className="text-[10px] font-bold text-slate-400 uppercase">QuickBooks ID</span>
-                                                                        <span className="text-sm font-black text-slate-900">{selectedProject.Id}</span>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </Card>
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {activeDetailTab === 'Daily Job Tickets' && (
-                                                <div className="p-6 space-y-6 animate-fade-in">
-                                                    <div className="overflow-x-auto bg-white border border-slate-200 rounded-xl">
+                                                    <div className="flex-1 overflow-auto bg-slate-50/30">
                                                         <table className="w-full text-left">
-                                                            <thead>
-                                                                <tr className="border-b border-slate-100 bg-slate-50/50">
+                                                            <thead className="sticky top-0 bg-white/90 backdrop-blur-sm z-10 shadow-sm border-b border-slate-100">
+                                                                <tr>
                                                                     <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Date</th>
-                                                                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Equipment Cost</th>
-                                                                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Overhead Cost</th>
-                                                                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Cost</th>
+                                                                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Equipment</th>
+                                                                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Overhead</th>
+                                                                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-right">Total Cost</th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody className="divide-y divide-slate-50">
                                                                 {loadingProfitability ? (
-                                                                    Array.from({ length: 5 }).map((_, i) => (
-                                                                        <SkeletonTableRow key={i} columns={4} />
-                                                                    ))
+                                                                    <tr><td colSpan={4} className="p-8 text-center text-slate-400 text-sm">Loading...</td></tr>
                                                                 ) : selectedProject.jobTickets && selectedProject.jobTickets.length > 0 ? (
                                                                     selectedProject.jobTickets.map((ticket, idx) => (
                                                                         <tr 
                                                                             key={idx} 
-                                                                            className="hover:bg-slate-50/50 transition-colors cursor-pointer"
+                                                                            className="hover:bg-slate-50 transition-colors cursor-pointer group"
                                                                             onClick={() => {
                                                                                 if (ticket.djtData) {
-                                                                                    // Format for DJTModal exactly as expected by other components
                                                                                     const djtWithSigs = { 
                                                                                         ...ticket.djtData, 
                                                                                         signatures: ticket.djtData.signatures || [],
-                                                                                        // Ensure we have a reference to the schedule if needed
                                                                                         schedule_id: ticket.schedule_id
                                                                                     };
                                                                                     setSelectedDJT(djtWithSigs);
@@ -1436,106 +971,82 @@ function WIPReportContent() {
                                                                                 }
                                                                             }}
                                                                         >
-                                                                            <td className="p-4 text-[11px] font-medium text-slate-600">
-                                                                                {new Date(ticket.date).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })}
-                                                                            </td>
-                                                                            <td className="p-4 text-[11px] font-bold text-slate-800">
+                                                                            <td className="p-4 text-xs font-medium text-slate-600 group-hover:text-[#0F4C75]">{formatDateOnly(ticket.date)}</td>
+                                                                            <td className="p-4 text-xs font-bold text-slate-700">
                                                                                 {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(ticket.equipmentCost)}
                                                                             </td>
-                                                                            <td className="p-4 text-[11px] font-bold text-slate-800">
+                                                                            <td className="p-4 text-xs font-bold text-slate-700">
                                                                                 {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(ticket.overheadCost)}
                                                                             </td>
-                                                                            <td className="p-4 text-[11px] font-black text-slate-900">
+                                                                            <td className="p-4 text-xs font-black text-[#0F4C75] text-right">
                                                                                 {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(ticket.totalCost)}
                                                                             </td>
                                                                         </tr>
                                                                     ))
                                                                 ) : (
-                                                                    <tr>
-                                                                        <td colSpan={4} className="p-20 text-center">
-                                                                            <div className="flex flex-col items-center gap-2">
-                                                                                <Search size={40} className="text-slate-200" />
-                                                                                <span className="text-slate-400 text-xs font-bold">No daily job tickets found for this project.</span>
-                                                                            </div>
-                                                                        </td>
-                                                                    </tr>
+                                                                    <tr><td colSpan={4} className="p-12 text-center text-slate-400 text-sm font-medium">No job tickets found.</td></tr>
                                                                 )}
                                                             </tbody>
                                                         </table>
                                                     </div>
-                                                </div>
-                                            )}
-
-                                            {!['Transactions', 'Summary', 'Daily Job Tickets'].includes(activeDetailTab) && (
-                                                <div className="p-24 text-center space-y-6 animate-fade-in">
-                                                    <div className="p-6 bg-slate-50 inline-block rounded-full shadow-inner">
-                                                        <Clock className="w-16 h-16 text-slate-300" />
-                                                    </div>
-                                                    <div className="max-w-md mx-auto">
-                                                        <h3 className="text-xl font-black text-slate-900 tracking-tight mb-2">{activeDetailTab}</h3>
-                                                        <p className="text-slate-500 font-medium text-sm leading-relaxed">
-                                                            We're currently working on integrating the real-time data for this section from QuickBooks. 
-                                                            Check back soon for updates!
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            )}
+                                                </Card>
+                                            </div>
                                         </div>
-
                                     </div>
+
                                 ) : (
                                     <div className="flex-1 flex flex-col min-h-0">
 
                                         {/* Table Layout */}
                                         <div className="flex-1 min-h-0 mt-4 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
                                             <div className="flex-1 overflow-y-auto" ref={scrollContainerRef}>
-                                                <table className="w-full text-left border-collapse border border-slate-200">
+                                                <table className="w-full text-left border-collapse border border-slate-200 table-auto">
                                                     <thead className="sticky top-0 z-10 bg-white">
                                                         <tr className="bg-slate-50/50">
-                                                            <th className="p-1.5 w-6 border border-slate-200"></th>
-                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight border border-slate-200 transition-colors ${activeHighlight.includes('project') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
+                                                            <th className="px-2 py-1.5 w-8 border border-slate-200"></th>
+                                                            <th className={`px-2 py-1.5 text-[11px] font-black text-slate-500 uppercase tracking-tight border border-slate-200 transition-colors ${activeHighlight.includes('project') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger className="w-full text-left">Project</TooltipTrigger>
                                                                     <TooltipContent side="top">Reference by QuickBooks Record</TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight border border-slate-200 transition-colors ${activeHighlight.includes('proposal-num') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
+                                                            <th className={`px-2 py-1.5 text-[11px] font-black text-slate-500 uppercase tracking-tight border border-slate-200 transition-colors ${activeHighlight.includes('proposal-num') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger className="w-full text-left">Proposal #</TooltipTrigger>
                                                                     <TooltipContent side="top">Reference by our proposals estimate#</TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight border border-slate-200 transition-colors ${activeHighlight.includes('date') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
+                                                            <th className={`px-2 py-1.5 text-[11px] font-black text-slate-500 uppercase tracking-tight border border-slate-200 transition-colors ${activeHighlight.includes('date') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger className="w-full text-left">Date</TooltipTrigger>
                                                                     <TooltipContent side="top">Reference by QuickBooks Record</TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight border border-slate-200 transition-colors ${activeHighlight.includes('writers') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
+                                                            <th className={`px-2 py-1.5 text-[11px] font-black text-slate-500 uppercase tracking-tight border border-slate-200 transition-colors ${activeHighlight.includes('writers') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger className="w-full text-left">Proposal Writers</TooltipTrigger>
                                                                     <TooltipContent side="top">Reference by our proposals proposal writer</TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight border border-slate-200 transition-colors ${activeHighlight.includes('client') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
+                                                            <th className={`px-2 py-1.5 text-[11px] font-black text-slate-500 uppercase tracking-tight border border-slate-200 transition-colors ${activeHighlight.includes('client') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger className="w-full text-left">Client</TooltipTrigger>
                                                                     <TooltipContent side="top">Reference by QuickBooks Record</TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('orig-contract') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
+                                                            <th className={`px-2 py-1.5 text-[11px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('orig-contract') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger className="w-full text-right">Original Contract</TooltipTrigger>
                                                                     <TooltipContent side="top">Reference by our proposals amount (latest version)</TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('change-orders') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
+                                                            <th className={`px-2 py-1.5 text-[11px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('change-orders') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger className="w-full text-right">Change Orders</TooltipTrigger>
                                                                     <TooltipContent side="top">Reference by our proposals change orders (sum of all change orders if status is completed or won)</TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('updated-contract') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                            <th className={`px-2 py-1.5 text-[11px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('updated-contract') ? 'bg-blue-100 text-blue-800' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger 
                                                                         className="flex items-center gap-1 ml-auto"
@@ -1549,7 +1060,7 @@ function WIPReportContent() {
                                                                     </TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('orig-cost') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                            <th className={`px-2 py-1.5 text-[11px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('orig-cost') ? 'bg-blue-100 text-blue-800' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger 
                                                                         className="w-full text-right"
@@ -1559,13 +1070,13 @@ function WIPReportContent() {
                                                                     <TooltipContent side="top">Original Contract + Change Orders</TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('co-cost') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                            <th className={`px-2 py-1.5 text-[11px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('co-cost') ? 'bg-blue-100 text-blue-800' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger className="w-full text-right">Change Order Cost</TooltipTrigger>
                                                                     <TooltipContent side="top">(will update soon)</TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('total-cost') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                            <th className={`px-2 py-1.5 text-[11px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('total-cost') ? 'bg-blue-100 text-blue-800' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger 
                                                                         className="flex items-center gap-1 ml-auto"
@@ -1579,19 +1090,19 @@ function WIPReportContent() {
                                                                     </TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('orig-gp') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                            <th className={`px-2 py-1.5 text-[11px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('orig-gp') ? 'bg-blue-100 text-blue-800' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger className="w-full text-right">Original Contract GP</TooltipTrigger>
                                                                     <TooltipContent side="top">(will update soon)</TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('co-gp') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                            <th className={`px-2 py-1.5 text-[11px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('co-gp') ? 'bg-blue-100 text-blue-800' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger className="w-full text-right">Change Order GP</TooltipTrigger>
                                                                     <TooltipContent side="top">(will update soon)</TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('est-gp') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                            <th className={`px-2 py-1.5 text-[11px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('est-gp') ? 'bg-blue-100 text-blue-800' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger 
                                                                         className="flex items-center gap-1 ml-auto"
@@ -1605,13 +1116,13 @@ function WIPReportContent() {
                                                                     </TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[9px] font-black text-slate-800 uppercase tracking-tight text-right border border-slate-200 bg-[#D8E983] transition-colors ${activeHighlight.includes('revenue') ? 'bg-[#c1d35a]' : ''}`}>
+                                                            <th className={`px-2 py-1.5 text-[11px] font-black text-slate-800 uppercase tracking-tight text-right border border-slate-200 bg-[#D8E983] transition-colors ${activeHighlight.includes('revenue') ? 'bg-[#c1d35a]' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger className="w-full text-right">Revenue Earned to Date</TooltipTrigger>
                                                                     <TooltipContent side="top">Reference by QuickBooks Record</TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('cost-revenue') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
+                                                            <th className={`px-2 py-1.5 text-[11px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('cost-revenue') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger className="w-full text-right">Cost of Revenue Earned</TooltipTrigger>
                                                                     <TooltipContent side="top">
@@ -1622,7 +1133,7 @@ function WIPReportContent() {
                                                                     </TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('gp-loss') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                            <th className={`px-2 py-1.5 text-[11px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('gp-loss') ? 'bg-blue-100 text-blue-800' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger 
                                                                         className="flex items-center gap-1 ml-auto"
@@ -1638,7 +1149,7 @@ function WIPReportContent() {
                                                                     </TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-center border border-slate-200 transition-colors ${activeHighlight.includes('gp-pct') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                            <th className={`px-2 py-1.5 text-[11px] font-black text-slate-500 uppercase tracking-tight text-center border border-slate-200 transition-colors ${activeHighlight.includes('gp-pct') ? 'bg-blue-100 text-blue-800' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger 
                                                                         className="flex items-center gap-1 justify-center"
@@ -1652,7 +1163,7 @@ function WIPReportContent() {
                                                                     </TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-center border border-slate-200 transition-colors ${activeHighlight.includes('markup') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                            <th className={`px-2 py-1.5 text-[11px] font-black text-slate-500 uppercase tracking-tight text-center border border-slate-200 transition-colors ${activeHighlight.includes('markup') ? 'bg-blue-100 text-blue-800' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger 
                                                                         className="flex items-center gap-1 justify-center"
@@ -1666,7 +1177,7 @@ function WIPReportContent() {
                                                                     </TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-center border border-slate-200 transition-colors ${activeHighlight.includes('complete') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                            <th className={`px-2 py-1.5 text-[11px] font-black text-slate-500 uppercase tracking-tight text-center border border-slate-200 transition-colors ${activeHighlight.includes('complete') ? 'bg-blue-100 text-blue-800' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger 
                                                                         className="flex items-center gap-1 justify-center"
@@ -1680,7 +1191,7 @@ function WIPReportContent() {
                                                                     </TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-center border border-slate-200 transition-colors ${activeHighlight.includes('sync') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                            <th className={`px-2 py-1.5 text-[11px] font-black text-slate-500 uppercase tracking-tight text-center border border-slate-200 transition-colors ${activeHighlight.includes('sync') ? 'bg-blue-100 text-blue-800' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger className="w-full text-center">Sync</TooltipTrigger>
                                                                     <TooltipContent side="top">Press to live update the records with QuickBooks</TooltipContent>
@@ -1715,7 +1226,7 @@ function WIPReportContent() {
                                                                 const percentageComplete = updatedContract > 0 ? (revenueToDate / updatedContract) * 100 : 0;
 
                                                                 const fmt = (val: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(val);
-                                                                const cellBase = "p-1 text-[9px] whitespace-nowrap border border-slate-200 transition-colors";
+                                                                const cellBase = "px-2 py-1.5 text-[11px] whitespace-nowrap border border-slate-200 transition-colors";
                                                                 const cellCls = `${cellBase} text-slate-800`;
                                                                 const highlightCls = "bg-blue-100/30 font-bold text-blue-900";
 
@@ -1725,21 +1236,21 @@ function WIPReportContent() {
                                                                         className="hover:bg-slate-50/50 transition-colors group"
                                                                     >
                                                                         <td 
-                                                                            className="p-1.5 text-center text-[9px] border border-slate-200"
+                                                                            className="px-2 py-1.5 text-center text-[11px] border border-slate-200"
                                                                             onClick={(e) => e.stopPropagation()}
                                                                         >
                                                                             <button 
                                                                                 className={`${project.isFavorite ? 'text-amber-400' : 'text-slate-300'} hover:text-amber-400 transition-colors`}
                                                                                 onClick={(e) => { e.stopPropagation(); }}
                                                                             >
-                                                                                <Star size={10} fill={project.isFavorite ? 'currentColor' : 'none'} />
+                                                                                <Star size={12} fill={project.isFavorite ? 'currentColor' : 'none'} />
                                                                             </button>
                                                                         </td>
                                                                         <td 
                                                                             className={`${cellCls} min-w-[120px] max-w-[150px] ${activeHighlight.includes('project') ? highlightCls : ''} cursor-pointer hover:bg-slate-100 transition-colors`}
                                                                             onClick={() => setSelectedProject(project)}
                                                                         >
-                                                                            <div className="truncate text-[9px] font-semibold text-blue-800" title={project.DisplayName}>{project.DisplayName}</div>
+                                                                            <div className="truncate text-[11px] font-semibold text-blue-800" title={project.DisplayName}>{project.DisplayName}</div>
                                                                         </td>
                                                                         <td 
                                                                             className={`${cellCls} ${activeHighlight.includes('proposal-num') ? highlightCls : ''}`}
@@ -1751,7 +1262,7 @@ function WIPReportContent() {
                                                                                         type="text"
                                                                                         value={editingProposalValue}
                                                                                         onChange={(e) => setEditingProposalValue(e.target.value)}
-                                                                                        className="w-16 bg-slate-50 border border-slate-200 rounded px-1 py-0.5 text-[7px] outline-none shadow-sm"
+                                                                                        className="w-16 bg-slate-50 border border-slate-200 rounded px-1 py-0.5 text-[9px] outline-none shadow-sm"
                                                                                         autoFocus
                                                                                         onKeyDown={(e) => {
                                                                                             if (e.key === 'Enter') handleSaveProposal(project.Id);
@@ -1760,7 +1271,7 @@ function WIPReportContent() {
                                                                                     />
                                                                                 ) : (
                                                                                     <div 
-                                                                                        className="cursor-pointer hover:underline text-[9px]"
+                                                                                        className="cursor-pointer hover:underline text-[11px]"
                                                                                         onClick={(e) => {
                                                                                             e.stopPropagation();
                                                                                             setEditingProposalId(project.Id);
@@ -1779,7 +1290,7 @@ function WIPReportContent() {
                                                                                         className="p-0.5 hover:bg-slate-200 rounded transition-colors text-[#0F4C75]"
                                                                                         onClick={(e) => e.stopPropagation()}
                                                                                     >
-                                                                                        <ExternalLink size={8} />
+                                                                                        <ExternalLink size={10} />
                                                                                     </a>
                                                                                 )}
                                                                             </div>
@@ -1802,7 +1313,7 @@ function WIPReportContent() {
                                                                                     return (
                                                                                         <Tooltip key={idx}>
                                                                                             <TooltipTrigger asChild>
-                                                                                                <div className="w-5 h-5 rounded-full bg-[#0F4C75] border-2 border-white flex items-center justify-center text-[7px] text-white font-black shadow-sm overflow-hidden cursor-help">
+                                                                                                <div className="w-6 h-6 rounded-full bg-[#0F4C75] border-2 border-white flex items-center justify-center text-[9px] text-white font-black shadow-sm overflow-hidden cursor-help">
                                                                                                     {profilePic ? (
                                                                                                         <img src={profilePic} alt={displayName} className="w-full h-full object-cover" />
                                                                                                     ) : (
@@ -1819,7 +1330,7 @@ function WIPReportContent() {
                                                                                 {(project.proposalWriters || []).length > 3 && (
                                                                                     <Tooltip>
                                                                                         <TooltipTrigger asChild>
-                                                                                            <div className="w-5 h-5 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-[7px] text-slate-600 font-bold shadow-sm cursor-help">
+                                                                                            <div className="w-6 h-6 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-[9px] text-slate-600 font-bold shadow-sm cursor-help">
                                                                                                +{(project.proposalWriters || []).length - 3}
                                                                                             </div>
                                                                                         </TooltipTrigger>
@@ -1858,7 +1369,7 @@ function WIPReportContent() {
                                                                                         if(e.key === 'Escape') setEditingContractId(null);
                                                                                     }}
                                                                                     autoFocus
-                                                                                    className="w-full text-right bg-white border border-blue-400 rounded px-1 py-0 text-[9px] outline-none"
+                                                                                    className="w-full text-right bg-white border border-blue-400 rounded px-1 py-0 text-[11px] outline-none"
                                                                                     onClick={(e) => e.stopPropagation()}
                                                                                 />
                                                                             ) : (
@@ -1885,7 +1396,7 @@ function WIPReportContent() {
                                                                                         if(e.key === 'Escape') setEditingChangeOrderId(null);
                                                                                     }}
                                                                                     autoFocus
-                                                                                    className="w-full text-right bg-white border border-blue-400 rounded px-1 py-0 text-[9px] outline-none"
+                                                                                    className="w-full text-right bg-white border border-blue-400 rounded px-1 py-0 text-[11px] outline-none"
                                                                                     onClick={(e) => e.stopPropagation()}
                                                                                 />
                                                                             ) : (

@@ -1,28 +1,18 @@
 'use client';
 
+import { cld } from '@/lib/cld';
+import Image from 'next/image';
 import { useEffect, useState, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Plus, X, Save, ChevronDown, ChevronRight, ArrowLeft, FileText, Check, Loader2, Image as ImageIcon } from 'lucide-react';
-import { Header, ToastContainer, Badge, SearchInput } from '@/components/ui';
+import { Header, ToastContainer, Badge, SearchInput, Skeleton } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
-import 'react-quill-new/dist/quill.snow.css';
 
-// Dynamically import ReactQuill with custom size registration
-const ReactQuill = dynamic(
-    async () => {
-        const mod = await import('react-quill-new');
-        const Quill = (mod.default as any).Quill || (mod as any).Quill;
-        if (Quill) {
-            const Size = Quill.import('attributors/style/size') as any;
-            Size.whitelist = ['8pt', '9pt', '10pt', '11pt', '12pt', '14pt'];
-            Quill.register(Size, true);
-        }
-        return mod.default;
-    },
-    { ssr: false, loading: () => <div className="h-64 rounded-[20px] animate-pulse" style={{ background: '#e0e5ec', boxShadow: 'inset 6px 6px 12px #b8b9be, inset -6px -6px 12px #ffffff' }} /> }
-) as any;
-
+const RichTextEditor = dynamic(() => import('@/components/editor/RichTextEditor').then(mod => mod.RichTextEditor), { 
+    ssr: false, 
+    loading: () => <Skeleton className="h-40 w-full" /> 
+});
 interface CustomVariable {
     name: string;
     label: string;
@@ -302,10 +292,8 @@ export default function TemplateEditorPage() {
         for (const ref of quillRefs.current) {
             if (ref) {
                 const editor = ref.getEditor();
-                const range = editor.getSelection();
-                if (range) {
-                    editor.insertText(range.index, `{{${variableName}}} `);
-                    editor.setSelection(range.index + variableName.length + 5);
+                if (editor && editor.isFocused) {
+                    editor.chain().focus().insertContent(`{{${variableName}}} `).run();
                     return;
                 }
             }
@@ -313,23 +301,12 @@ export default function TemplateEditorPage() {
         // Fallback: insert into first page
         if (quillRefs.current[0]) {
             const editor = quillRefs.current[0].getEditor();
-            const length = editor.getLength();
-            editor.insertText(length - 1, `{{${variableName}}} `);
+            if (editor) {
+                editor.chain().insertContent(`{{${variableName}}} `).run();
+            }
         }
     };
 
-    const modules = {
-        toolbar: [
-            [{ 'header': [1, 2, 3, false] }],
-            [{ 'size': ['8pt', '9pt', '10pt', '11pt', '12pt', '14pt'] }],
-            ['bold', 'italic', 'underline', 'strike'],
-            [{ 'color': [] }, { 'background': [] }],
-            [{ 'align': [] }],
-            [{ 'list': 'ordered' }, { 'list': 'bullet' }, { 'indent': '-1' }, { 'indent': '+1' }],
-            ['link', 'image'],
-            ['clean']
-        ],
-    };
 
     if (loading) {
         return (
@@ -661,14 +638,10 @@ export default function TemplateEditorPage() {
                                             overflow: 'hidden'
                                         }}
                                     >
-                                        <ReactQuill
+                                        <RichTextEditor
                                             ref={(el: any) => { quillRefs.current[index] = el; }}
-                                            theme="snow"
                                             value={page.content}
                                             onChange={(val: string) => handlePageContentChange(index, val)}
-                                            modules={modules}
-                                            className="h-full flex flex-col [&_.ql-container]:flex-1 [&_.ql-container]:border-none [&_.ql-container]:overflow-hidden [&_.ql-toolbar]:flex-shrink-0 [&_.ql-toolbar]:border-none [&_.ql-toolbar]:border-b [&_.ql-toolbar]:border-slate-100"
-                                            style={{ height: '100%' }}
                                         />
                                     </div>
 
@@ -709,7 +682,7 @@ export default function TemplateEditorPage() {
                          <div className="flex flex-col gap-3">
                             {formData.coverImage ? (
                                 <div className="relative rounded-lg overflow-hidden group border border-gray-200" style={{ background: '#e0e5ec', boxShadow: 'inset 2px 2px 4px #b8b9be, inset -2px -2px 4px #ffffff' }}>
-                                    <img src={formData.coverImage} alt="Cover" className="w-full h-32 object-cover" />
+                                    <div className="relative h-32 w-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(formData.coverImage, { w: 1200 })} alt="Cover" className="object-cover w-full h-full" /></div>
                                     <button 
                                         onClick={() => setFormData({ ...formData, coverImage: undefined })}
                                         className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"

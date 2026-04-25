@@ -1,5 +1,7 @@
 'use client';
 
+import { cld } from '@/lib/cld';
+import Image from 'next/image';
 import React, { useState, useMemo } from 'react';
 import { FileCheck, Plus, Trash2, Download, Paperclip, X, Loader2, Pencil, Image as ImageIcon, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -310,7 +312,7 @@ export const SignedContractsCard: React.FC<SignedContractsCardProps> = ({
                                                 title={`Download ${file.name}`}
                                             >
                                                 <div className="flex items-center gap-3 overflow-hidden">
-                                                    <div className="shrink-0 w-8 h-8 rounded-lg bg-amber-100/50 flex items-center justify-center">
+                                                    <div className="relative shrink-0 w-8 h-8 rounded-lg bg-amber-100/50 flex items-center justify-center">
                                                         {file.type?.startsWith('image/') ? (
                                                             <ImageIcon className="w-4 h-4 text-amber-600" />
                                                         ) : (
@@ -340,8 +342,8 @@ export const SignedContractsCard: React.FC<SignedContractsCardProps> = ({
                                                         return (
                                                             <Tooltip>
                                                                 <TooltipTrigger asChild>
-                                                                    <div className="w-6 h-6 rounded-full border border-slate-200 bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600 shadow-sm overflow-hidden">
-                                                                        {creator?.image ? <img src={creator.image} className="w-full h-full object-cover" /> : (creator?.label?.[0]?.toUpperCase() || contract.createdBy?.[0]?.toUpperCase() || 'U')}
+                                                                    <div className="relative w-6 h-6 rounded-full border border-slate-200 bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600 shadow-sm overflow-hidden">
+                                                                        {creator?.image ? <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" alt="" src={cld(creator.image, { w: 128, q: 'auto' })} className="object-cover w-full h-full" /></div> : (creator?.label?.[0]?.toUpperCase() || contract.createdBy?.[0]?.toUpperCase() || 'U')}
                                                                     </div>
                                                                 </TooltipTrigger>
                                                                 <TooltipContent><p>Created By: {creator?.label || contract.createdBy}</p></TooltipContent>
@@ -442,7 +444,7 @@ export const SignedContractsCard: React.FC<SignedContractsCardProps> = ({
                             <div className="grid grid-cols-1 gap-2 mt-4">
                                 {newContract.attachments.map((file, idx) => (
                                     <div key={idx} className="flex items-center justify-between p-2 bg-white rounded-xl border border-slate-100 shadow-sm">
-                                        <div className="flex items-center gap-2">
+                                        <div className="relative flex items-center gap-2">
                                             {file.type.startsWith('image/') ? <ImageIcon className="w-4 h-4 text-blue-500" /> : <FileText className="w-4 h-4 text-blue-500" />}
                                             <span className="text-xs font-bold text-slate-600 truncate max-w-[200px]">{file.name}</span>
                                         </div>
@@ -495,7 +497,7 @@ export const SignedContractsCard: React.FC<SignedContractsCardProps> = ({
                                         <div className="w-full aspect-square rounded-2xl bg-slate-50 flex items-center justify-center overflow-hidden border border-slate-50 relative">
                                             {file.thumbnailUrl ? (
                                                 <div className="relative w-full h-full flex items-center justify-center p-2">
-                                                    <img
+                                                    <Image fill sizes="(max-width: 768px) 100vw, 33vw"
                                                         src={file.thumbnailUrl}
                                                         alt={file.name}
                                                         className="w-full h-full object-contain transition-all duration-500 group-hover:scale-105"

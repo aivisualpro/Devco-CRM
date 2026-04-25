@@ -194,7 +194,7 @@ export async function POST(request: NextRequest) {
             })
             .join('');
 
-        console.log(`[PDF] Generating PDF with Playwright - ${pageSections.length} page(s)`);
+        if (process.env.NODE_ENV !== 'production') console.log(`[PDF] Generating PDF with Playwright - ${pageSections.length} page(s)`);
 
         // Full HTML document with proper Letter page sizing
         const fullHtml = `
@@ -454,7 +454,7 @@ export async function POST(request: NextRequest) {
 
         await browser.close();
 
-        console.log(`[PDF] Generated PDF: ${pdfBuffer.length} bytes`);
+        if (process.env.NODE_ENV !== 'production') console.log(`[PDF] Generated PDF: ${pdfBuffer.length} bytes`);
 
         // Return PDF as downloadable file
         // Convert Buffer to Uint8Array for NextResponse compatibility

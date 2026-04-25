@@ -1,5 +1,7 @@
 'use client';
 
+import { cld } from '@/lib/cld';
+import Image from 'next/image';
 import { useEffect, useState, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import {
@@ -13,8 +15,8 @@ import {
     SearchableSelect
 } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
-import { pdf } from '@react-pdf/renderer';
-import { PayrollPDF } from './PayrollPDF';
+import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
+
 import {
     calculateTimesheetData,
     formatDateOnly,
@@ -301,16 +303,25 @@ function PayrollReportContent() {
         );
     }, [estimatesForThisWeek, estimateSearch]);
 
-    const fetchData = async (weekStart: Date) => {
-        setLoading(true);
-        const weekEnd = endOfWeek(weekStart);
+    const fetchData = async (weekStart: Date, opts?: { silent?: boolean }) => {
+        const PAYROLL_CACHE_KEY = `devco_payroll_${weekStart.toISOString().split('T')[0]}`;
+        const PAYROLL_CACHE_TTL = 3 * 60 * 1000; // 3 minutes
 
-        // Extend date range by 4 weeks in each direction to capture timesheets
-        // whose schedule fromDate might be far from the selected week but clockIn is in selected week
+        const applyData = (schedules: any[], emps: any[], estimates: any[]) => {
+            setRawSchedules(schedules);
+            const eMap: Record<string, any> = {};
+            emps.forEach((e: any) => eMap[e.value] = e);
+            setEmployeesMap(eMap);
+            const estMap: Record<string, any> = {};
+            estimates.forEach((e: any) => estMap[e.value] = e);
+            setEstimatesMap(estMap);
+        };
+
+        const weekEnd = endOfWeek(weekStart);
         const extendedStartDate = subWeeks(weekStart, 4);
         const extendedEndDate = addWeeks(weekEnd, 4);
 
-        try {
+        const doFetch = async () => {
             const res = await fetch('/api/schedules', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -319,24 +330,47 @@ function PayrollReportContent() {
                     payload: {
                         startDate: extendedStartDate.toISOString(),
                         endDate: extendedEndDate.toISOString(),
-                        limit: 10000, // Fetch all schedules for payroll report (no pagination)
-                        includeTimesheets: true // Required for payroll calculations
+                        limit: 10000,
+                        includeTimesheets: true
                     }
                 })
             });
             const data = await res.json();
             if (data.success) {
-                setRawSchedules(data.result.schedules || []);
+                const schedules = data.result.schedules || [];
                 const emps = data.result.initialData?.employees || [];
-                const eMap: Record<string, any> = {};
-                emps.forEach((e: any) => eMap[e.value] = e);
-                setEmployeesMap(eMap);
-
                 const estimates = data.result.initialData?.estimates || [];
-                const estMap: Record<string, any> = {};
-                estimates.forEach((e: any) => estMap[e.value] = e);
-                setEstimatesMap(estMap);
+                applyData(schedules, emps, estimates);
+                // Save to cache
+                try {
+                    sessionStorage.setItem(PAYROLL_CACHE_KEY, JSON.stringify({
+                        data: { schedules, emps, estimates },
+                        timestamp: Date.now()
+                    }));
+                } catch (e) {}
             }
+            return data;
+        };
+
+        // Try cache first
+        try {
+            const cached = sessionStorage.getItem(PAYROLL_CACHE_KEY);
+            if (cached) {
+                const { data, timestamp } = JSON.parse(cached);
+                if (Date.now() - timestamp < PAYROLL_CACHE_TTL) {
+                    applyData(data.schedules, data.emps, data.estimates);
+                    setLoading(false);
+                    // Stale-while-revalidate
+                    doFetch().catch(() => {});
+                    return;
+                }
+            }
+        } catch (e) {}
+
+        // No cache — show loading only if no data displayed
+        if (!opts?.silent && rawSchedules.length === 0) setLoading(true);
+        try {
+            await doFetch();
         } catch (err) {
             console.error(err);
             toastError("Failed to fetch data");
@@ -801,6 +835,9 @@ function PayrollReportContent() {
 
         try {
             setLoading(true);
+            const { pdf } = await import('@react-pdf/renderer');
+            const { PayrollPDF } = await import('./PayrollPDF');
+
             const totalAmount = reportData.reduce((acc, emp) => acc + emp.totalAmount, 0);
             const weekNum = getWeekNumber(currentWeekStart);
             const weekEnd = endOfWeek(currentWeekStart);
@@ -959,7 +996,7 @@ function PayrollReportContent() {
                                                             className={`w-full px-4 py-3 text-left text-sm font-bold transition-all rounded-2xl flex items-center gap-3 ${isActive ? 'text-[#00CC00] neu-pressed bg-white/50' : 'text-slate-800 hover:neu-pressed'}`}
                                                         >
                                                             {emp.image ? (
-                                                                <img src={emp.image} alt={emp.label} className="w-10 h-10 rounded-full border-2 border-white object-cover" />
+                                                                <div className="relative w-10 h-10 rounded-full overflow-hidden"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(emp.image, { w: 128, q: 'auto' })} alt={emp.label} className="rounded-full border-2 border-white object-cover w-full h-full" /></div>
                                                             ) : (
                                                                 <div className="w-10 h-10 rounded-full bg-white border-2 border-slate-200 flex items-center justify-center text-xs text-[#0F4C75] font-black">
                                                                     {emp.initials}
@@ -1383,10 +1420,10 @@ function PayrollReportContent() {
                                                         onClick={() => handleEditClick(ent)}
                                                         className="text-[11px] font-bold text-slate-700 hover:bg-white/50 cursor-pointer transition-colors"
                                                     >
-                                                        <td className="px-4 py-3">{new Date(ent.clockIn).toLocaleDateString('en-US', { timeZone: 'UTC' })}</td>
+                                                        <td className="px-4 py-3">{formatWallDate(ent.clockIn)}</td>
                                                         <td className="px-4 py-3 font-black text-[#0F4C75]">{ent.estimate}</td>
                                                         <td className="px-4 py-3 opacity-60">
-                                                            {new Date(ent.clockIn).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })} - {ent.clockOut ? new Date(ent.clockOut).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) : '--'}
+                                                            {formatWallTime(ent.clockIn)} - {ent.clockOut ? formatWallTime(ent.clockOut) : '--'}
                                                         </td>
                                                         <td className="px-4 py-3 text-center opacity-40">
                                                             {ent.lunchStart ? '30m' : '--'}
@@ -1442,7 +1479,7 @@ function PayrollReportContent() {
                                                         onClick={() => handleEditClick(ent)}
                                                         className="text-[11px] font-bold text-slate-700 hover:bg-white/50 cursor-pointer transition-colors"
                                                     >
-                                                        <td className="px-4 py-3">{new Date(ent.clockIn).toLocaleDateString('en-US', { timeZone: 'UTC' })}</td>
+                                                        <td className="px-4 py-3">{formatWallDate(ent.clockIn)}</td>
                                                         <td className="px-4 py-3 opacity-60">{ent.type}</td>
                                                         <td className="px-4 py-3 font-medium">
                                                             {ent.locationIn?.includes(',') ? 'GPS Haversine' : (ent.locationIn ? 'Odometer' : 'Manual/Time')}
@@ -1578,7 +1615,7 @@ function PayrollReportContent() {
                                         .sort((a, b) => new Date(b.fromDate).getTime() - new Date(a.fromDate).getTime())
                                         .map(s => ({
                                             value: s._id,
-                                            label: `${new Date(s.fromDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`,
+                                            label: `${formatWallDate(s.fromDate)}`,
                                             estimate: s.estimate
                                         }));
                                 })()}

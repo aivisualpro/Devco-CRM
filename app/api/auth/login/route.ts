@@ -3,6 +3,8 @@ import { connectToDatabase } from '@/lib/db';
 import { Employee } from '@/lib/models';
 import { SignJWT } from 'jose';
 
+export const dynamic = 'force-dynamic';
+
 // Secret key for JWT - should be in environment variables
 const JWT_SECRET = new TextEncoder().encode(
     process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET || 'devco-secure-secret-key-change-in-production'
@@ -28,6 +30,7 @@ export async function POST(request: NextRequest) {
         });
 
         if (!employee) {
+            console.log(`[LOGIN DEBUG] No employee found for email: ${email}`);
             return NextResponse.json(
                 { success: false, error: 'Invalid credentials' },
                 { status: 401 }
@@ -35,7 +38,9 @@ export async function POST(request: NextRequest) {
         }
 
         // Check if employee is active
+        console.log(`[LOGIN DEBUG] Found employee: ${employee.email}, status: ${employee.status}, hasPassword: ${!!employee.password}, storedPwLength: ${(employee.password || '').length}, inputPwLength: ${(password || '').length}`);
         if (employee.status !== 'Active') {
+            console.log(`[LOGIN DEBUG] Employee ${email} is not active (status: ${employee.status})`);
             return NextResponse.json(
                 { success: false, error: 'Account is not active' },
                 { status: 403 }
@@ -45,6 +50,7 @@ export async function POST(request: NextRequest) {
         // Check password
         // TODO: In production, use bcrypt to hash and compare passwords
         if (employee.password !== password) {
+            console.log(`[LOGIN DEBUG] Password mismatch for ${email}. Stored starts with: "${(employee.password || '').substring(0, 3)}...", Input starts with: "${(password || '').substring(0, 3)}..."`);
             return NextResponse.json(
                 { success: false, error: 'Invalid credentials' },
                 { status: 401 }

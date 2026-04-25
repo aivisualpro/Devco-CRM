@@ -1,5 +1,7 @@
 'use client';
 
+import { cld } from '@/lib/cld';
+import Image from 'next/image';
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import {
@@ -10,7 +12,7 @@ import {
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
-import { Header, Button, Badge, Input } from '@/components/ui';
+import { Header, Button, Badge, Input, PageHeader, UserChip, EmptyState } from '@/components/ui';
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
     DialogDescription
@@ -18,6 +20,7 @@ import {
 import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
 import { cn } from '@/lib/utils';
+import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
 
 interface PotholeItem {
     _id?: string;
@@ -119,21 +122,13 @@ export default function PotholeLogDetailsPage() {
                 // Fetch estimate info - pothole log stores estimate NUMBER (e.g. "25-0638"), not the _id (e.g. "25-0638-V1")
                 // Use getEstimatesByProposal to find all versions, then pick latest
                 if (logData.result.estimate) {
-                    const estRes = await fetch('/api/webhook/devcoBackend', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'getEstimatesByProposal', payload: { estimateNumber: logData.result.estimate } })
-                    });
+                    const estRes = await fetch(`/api/estimates/proposal/${logData.result.estimate}`);
                     const estData = await estRes.json();
                     if (estData.success && estData.result?.length > 0) {
                         // Pick the latest version (last item since sorted by createdAt asc)
                         const latestVersion = estData.result[estData.result.length - 1];
                         // Now fetch the FULL estimate document by its _id
-                        const fullEstRes = await fetch('/api/webhook/devcoBackend', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ action: 'getEstimateById', payload: { id: latestVersion._id } })
-                        });
+                        const fullEstRes = await fetch(`/api/estimates/${latestVersion._id}`);
                         const fullEstData = await fullEstRes.json();
                         if (fullEstData.success) setEstimate(fullEstData.result);
                     }
@@ -228,7 +223,7 @@ export default function PotholeLogDetailsPage() {
         if (!log) return null;
 
         const dateStr = log.date && !isNaN(new Date(log.date).getTime())
-            ? format(new Date(log.date), 'MM/dd/yyyy')
+            ? formatWallDate(log.date)
             : '';
 
         // Header variables (flat)
@@ -361,18 +356,7 @@ export default function PotholeLogDetailsPage() {
         const emp = getEmployeeByEmail(email);
         if (!emp) return <span className="text-slate-600">{email}</span>;
 
-        return (
-            <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-[#0F4C75] text-white flex items-center justify-center text-xs font-bold overflow-hidden shrink-0">
-                    {emp.profilePicture ? (
-                        <img src={emp.profilePicture} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                        `${emp.firstName?.[0] || ''}${emp.lastName?.[0] || ''}`
-                    )}
-                </div>
-                <span className="text-slate-700 font-medium">{emp.firstName} {emp.lastName}</span>
-            </div>
-        );
+        return <UserChip user={emp} size="md" />;
     };
 
     if (loading) {
@@ -409,64 +393,58 @@ export default function PotholeLogDetailsPage() {
             <div className="flex-1 overflow-auto p-6">
                 <div className="max-w-6xl mx-auto space-y-6 pb-10">
 
-                    {/* Back Button */}
-                    <button
-                        onClick={() => router.push('/docs/pothole-logs')}
-                        className="flex items-center gap-2 text-slate-600 hover:text-[#0F4C75] transition-colors font-medium text-sm mb-4 group"
-                    >
-                        <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
-                        Back to Pothole Logs
-                    </button>
-
-                    {/* Page Header: Title + Action Buttons inline */}
-                    <div className="flex items-center justify-between flex-wrap gap-4">
-                        <h1 className="text-2xl font-bold text-slate-800">
-                            Pothole Log Details
-                        </h1>
-                        <div className="flex items-center gap-2 flex-wrap">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className="border-slate-300 hover:bg-slate-50"
-                                onClick={handleDownloadPDF}
-                                disabled={isGeneratingPDF}
-                            >
-                                {isGeneratingPDF ? (
-                                    <Loader2 size={14} className="mr-1.5 animate-spin" />
-                                ) : (
-                                    <Download size={14} className="mr-1.5" />
-                                )}
-                                PDF
-                            </Button>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className="border-slate-300 hover:bg-slate-50"
-                                onClick={() => setIsEmailModalOpen(true)}
-                            >
-                                <Mail size={14} className="mr-1.5" /> Email
-                            </Button>
-                            {canEdit && (
+                    <PageHeader
+                        title="Pothole Log Details"
+                        breadcrumbs={[
+                            { label: 'Pothole Logs', href: '/docs/pothole-logs' },
+                            { label: 'Details' }
+                        ]}
+                        actions={
+                            <>
                                 <Button
                                     variant="outline"
                                     size="sm"
                                     className="border-slate-300 hover:bg-slate-50"
-                                    onClick={() => router.push(`/docs/pothole-logs?edit=${log._id}`)}
+                                    onClick={handleDownloadPDF}
+                                    disabled={isGeneratingPDF}
                                 >
-                                    <Pencil size={14} className="mr-1.5" /> Edit
+                                    {isGeneratingPDF ? (
+                                        <Loader2 size={14} className="mr-1.5 animate-spin" />
+                                    ) : (
+                                        <Download size={14} className="mr-1.5" />
+                                    )}
+                                    PDF
                                 </Button>
-                            )}
-                            {canDelete && (
                                 <Button
-                                    variant="destructive"
+                                    variant="outline"
                                     size="sm"
-                                    onClick={() => setIsDeleteOpen(true)}
+                                    className="border-slate-300 hover:bg-slate-50"
+                                    onClick={() => setIsEmailModalOpen(true)}
                                 >
-                                    <Trash2 size={14} className="mr-1.5" /> Delete
+                                    <Mail size={14} className="mr-1.5" /> Email
                                 </Button>
-                            )}
-                        </div>
-                    </div>
+                                {canEdit && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="border-slate-300 hover:bg-slate-50"
+                                        onClick={() => router.push(`/docs/pothole-logs?edit=${log._id}`)}
+                                    >
+                                        <Pencil size={14} className="mr-1.5" /> Edit
+                                    </Button>
+                                )}
+                                {canDelete && (
+                                    <Button
+                                        variant="destructive"
+                                        size="sm"
+                                        onClick={() => setIsDeleteOpen(true)}
+                                    >
+                                        <Trash2 size={14} className="mr-1.5" /> Delete
+                                    </Button>
+                                )}
+                            </>
+                        }
+                    />
 
                     {/* Info Card — 2 column grid matching PDF layout */}
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -515,7 +493,7 @@ export default function PotholeLogDetailsPage() {
                                     <p className="text-slate-800 font-semibold flex items-center gap-2 mt-1">
                                         <Calendar size={14} className="text-[#0F4C75]" />
                                         {log.date && !isNaN(new Date(log.date).getTime())
-                                            ? format(new Date(log.date), 'MMM dd, yyyy')
+                                            ? formatWallDate(log.date)
                                             : '-'}
                                     </p>
                                 </div>
@@ -592,10 +570,10 @@ export default function PotholeLogDetailsPage() {
                                                     <td className="px-4 py-3">
                                                         {allPhotos[0] ? (
                                                             <div
-                                                                className="w-20 h-16 rounded-lg overflow-hidden border-2 border-slate-200 hover:border-[#0F4C75] cursor-pointer transition-all shadow-sm hover:shadow-md"
+                                                                className="relative w-20 h-16 rounded-lg overflow-hidden border-2 border-slate-200 hover:border-[#0F4C75] cursor-pointer transition-all shadow-sm hover:shadow-md"
                                                                 onClick={() => openGallery(allPhotos, 0)}
                                                             >
-                                                                <img
+                                                                <Image fill sizes="(max-width: 768px) 100vw, 33vw"
                                                                     src={allPhotos[0]}
                                                                     alt="Photo 1"
                                                                     className="w-full h-full object-cover hover:scale-110 transition-transform"
@@ -609,10 +587,10 @@ export default function PotholeLogDetailsPage() {
                                                     <td className="px-4 py-3">
                                                         {allPhotos[1] ? (
                                                             <div
-                                                                className="w-20 h-16 rounded-lg overflow-hidden border-2 border-slate-200 hover:border-[#0F4C75] cursor-pointer transition-all shadow-sm hover:shadow-md"
+                                                                className="relative w-20 h-16 rounded-lg overflow-hidden border-2 border-slate-200 hover:border-[#0F4C75] cursor-pointer transition-all shadow-sm hover:shadow-md"
                                                                 onClick={() => openGallery(allPhotos, 1)}
                                                             >
-                                                                <img
+                                                                <Image fill sizes="(max-width: 768px) 100vw, 33vw"
                                                                     src={allPhotos[1]}
                                                                     alt="Photo 2"
                                                                     className="w-full h-full object-cover hover:scale-110 transition-transform"
@@ -630,9 +608,11 @@ export default function PotholeLogDetailsPage() {
                                 </table>
                             </div>
                         ) : (
-                            <div className="p-8 text-center text-slate-400">
-                                No pothole items recorded
-                            </div>
+                            <EmptyState 
+                                icon={<FileText className="w-8 h-8 text-slate-400" />} 
+                                title="No pothole items recorded" 
+                                className="p-8"
+                            />
                         )}
                     </div>
 
@@ -744,7 +724,7 @@ export default function PotholeLogDetailsPage() {
                     )}
 
                     <div className="relative w-full h-full flex items-center justify-center p-8">
-                        <img
+                        <Image fill sizes="(max-width: 768px) 100vw, 33vw"
                             src={galleryImages[currentImageIndex]}
                             alt={`Gallery image ${currentImageIndex + 1}`}
                             className="max-w-full max-h-full object-contain animate-in fade-in zoom-in duration-300"

@@ -43,8 +43,11 @@ export async function GET(request: NextRequest) {
             }
             return doc;
         }));
-        
-        return NextResponse.json({ success: true, docs: docsWithUrls });
+        return NextResponse.json({ success: true, docs: docsWithUrls }, {
+            headers: {
+                'Cache-Control': 's-maxage=300, stale-while-revalidate=600'
+            }
+        });
     } catch (error: any) {
         console.error('Error fetching docs:', error);
         return NextResponse.json({ success: false, error: 'Failed to fetch docs' }, { status: 500 });

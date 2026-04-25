@@ -17,7 +17,11 @@ export async function GET(request: NextRequest) {
         }
 
         const constants = await Constant.find(filter).sort({ value: 1 });
-        return NextResponse.json({ success: true, result: constants });
+        return NextResponse.json({ success: true, result: constants }, {
+            headers: {
+                'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600'
+            }
+        });
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }

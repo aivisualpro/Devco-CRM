@@ -13,9 +13,11 @@ import { useToast } from '@/hooks/useToast';
 import { DJTModal } from '../../jobs/schedules/components/DJTModal';
 import { EmailModal } from '../../jobs/schedules/components/EmailModal';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useCurrentUser } from '@/lib/context/AppContext';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
 import { useRouter } from 'next/navigation';
 import { DJTCard } from './components/DJTCard';
+import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
 
 interface Signature {
     employee: string;
@@ -62,6 +64,7 @@ interface Employee {
 export default function JobTicketPage() {
     const { success, error } = useToast();
     const { can } = usePermissions();
+    const currentUser = useCurrentUser();
 
     // Permissions
     const canCreate = can(MODULES.JOB_TICKETS, ACTIONS.CREATE);
@@ -114,74 +117,110 @@ export default function JobTicketPage() {
         if (longPressTimer.current) clearTimeout(longPressTimer.current);
     };
 
+    // ── Phase 1: DJT records (fast — renders cards immediately) ──
+    const fetchDJTs = async () => {
+        setLoading(true);
+        try {
+            const res = await fetch('/api/djt', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    action: 'getDJTs',
+                    payload: { page: currentPage, limit: itemsPerPage, search }
+                })
+            });
+            const data = await res.json();
+            if (data?.success) {
+                setDjts(data.result.djts);
+                setTotalDJTs(data.result.total);
+            }
+        } catch (err) {
+            console.error('Error fetching DJTs:', err);
+            error('Failed to load Job Tickets');
+        }
+        setLoading(false);
+    };
+
+    // ── Phase 2: Supporting data (lazy — loads in background, never blocks UI) ──
+    const [supportLoaded, setSupportLoaded] = useState(false);
+    const fetchSupportingData = async () => {
+        if (supportLoaded) return;
+        try {
+            const [empRes, schedRes, estRes, clientRes, eqRes] = await Promise.all([
+                fetch('/api/webhook/devcoBackend', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'getEmployees' })
+                }).then(r => r.json()),
+                fetch('/api/schedules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'getSchedulesPage',
+                        payload: {
+                            startDate: new Date(new Date().setMonth(new Date().getMonth() - 6)).toISOString(),
+                            skipInitialData: true,
+                            limit: 500,
+                        }
+                    })
+                }).then(r => r.json()),
+                fetch(`/api/estimates`).then(r => r.json()),
+                fetch('/api/webhook/devcoBackend', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'getClients' })
+                }).then(r => r.json()),
+                fetch('/api/webhook/devcoBackend', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'getEquipmentItems' })
+                }).then(r => r.json()).catch(() => ({ success: false })),
+            ]);
+
+            if (empRes?.success) {
+                const emps = (empRes.result || []).map((e: any) => ({
+                    value: e.email,
+                    label: `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.email,
+                    image: e.profilePicture || '',
+                    email: e.email,
+                    firstName: e.firstName,
+                    lastName: e.lastName,
+                }));
+                setEmployees(emps);
+            }
+            if (schedRes?.success) setSchedules(schedRes.result.schedules || []);
+            if (estRes?.success) setEstimates(estRes.result || []);
+            if (clientRes?.success) setClients(clientRes.result || []);
+            if (eqRes?.success) setEquipmentItems(eqRes.result || []);
+            setSupportLoaded(true);
+        } catch (err) {
+            console.error('Error fetching supporting data:', err);
+        }
+    };
+
     useEffect(() => {
-        fetchData();
+        fetchDJTs();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentPage]);
+
+    // Lazy-load supporting data once on mount (non-blocking)
+    useEffect(() => {
+        fetchSupportingData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Search Debounce
     useEffect(() => {
         const timer = setTimeout(() => {
             if (currentPage !== 1) {
-                setCurrentPage(1); // Reset to page 1 on search
+                setCurrentPage(1);
             } else {
-                fetchData();
+                fetchDJTs();
             }
         }, 500);
         return () => clearTimeout(timer);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [search]);
-
-    const fetchData = async () => {
-        setLoading(true);
-        try {
-            // Run independent requests concurrently
-            const djtPromise = fetch('/api/djt', {
-                method: 'POST',
-                body: JSON.stringify({ 
-                    action: 'getDJTs',
-                    payload: { page: currentPage, limit: itemsPerPage, search }
-                })
-            }).then(res => res.json());
-
-            let schedulePromise: Promise<any> | null = null;
-            if (schedules.length === 0) {
-                schedulePromise = fetch('/api/schedules', {
-                    method: 'POST',
-                    body: JSON.stringify({ 
-                        action: 'getSchedulesPage',
-                        payload: {
-                            startDate: new Date(new Date().setMonth(new Date().getMonth() - 6)).toISOString(),
-                            limit: 500 // Increased limit for better dropdown population
-                        }
-                    }) 
-                }).then(res => res.json());
-            }
-
-            // Wait for both to finish simultaneously
-            const [djtData, scheduleData] = await Promise.all([
-                djtPromise,
-                schedulePromise
-            ]);
-            
-            if (djtData?.success) {
-                 setDjts(djtData.result.djts);
-                 setTotalDJTs(djtData.result.total);
-            }
-
-            if (scheduleData?.success) {
-                setSchedules(scheduleData.result.schedules || []);
-                setEmployees(scheduleData.result.initialData?.employees || []);
-                setEstimates(scheduleData.result.initialData?.estimates || []);
-                setClients(scheduleData.result.initialData?.clients || []);
-                setEquipmentItems(scheduleData.result.initialData?.equipmentItems || []);
-            }
-        } catch (err) {
-            console.error('Error fetching data:', err);
-            error('Failed to load data');
-        }
-        setLoading(false);
-    };
 
     // Helper to get client name (Updated to use robust helper similar to JHA)
     const getClientName = (schedule: Schedule | undefined) => {
@@ -211,7 +250,7 @@ export default function JobTicketPage() {
             .filter(s => !s.djt || Object.keys(s.djt).length === 0)
             .map(s => ({
                 value: s._id,
-                label: `${s.estimate || 'No Est'} - ${s.fromDate ? new Date(s.fromDate).toLocaleDateString('en-US', { timeZone: 'UTC' }) : 'No Date'}`,
+                label: `${s.estimate || 'No Est'} - ${s.fromDate ? formatWallDate(s.fromDate) : 'No Date'}`,
                 ...s
             }));
     }, [schedules]);
@@ -234,7 +273,7 @@ export default function JobTicketPage() {
         if (!schedule) return;
 
         // Initialize new DJT
-        const userEmail = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('devco_user') || '{}')?.email : null;
+        const userEmail = currentUser?.email || null;
         const scheduleDate = schedule.fromDate ? new Date(schedule.fromDate) : new Date();
         const newDJT: DJT = {
             schedule_id: schedule._id,
@@ -280,7 +319,7 @@ export default function JobTicketPage() {
             const data = await res.json();
             if (data.success) {
                 success('Job Ticket deleted successfully');
-                fetchData();
+                fetchDJTs();
             } else {
                 error('Failed to delete Job Ticket');
             }
@@ -327,7 +366,7 @@ export default function JobTicketPage() {
                     payload: {
                         ...selectedDJT,
                         schedule_id: selectedDJT.schedule_id || selectedDJT._id,
-                        createdBy: selectedDJT.createdBy || (typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('devco_user') || '{}')?.email : null) || 'system',
+                        createdBy: selectedDJT.createdBy || currentUser?.email || 'system',
                         scheduleRef: undefined
                     }
                 })
@@ -336,11 +375,11 @@ export default function JobTicketPage() {
                 if (!data.success) {
                     error('Failed to save Job Ticket in background');
                     // Revert or refresh data if failed
-                    fetchData();
+                    fetchDJTs();
                 }
             }).catch(() => {
                 error('Network error saving Job Ticket');
-                fetchData();
+                fetchDJTs();
             });
 
         } catch (err) {
@@ -390,7 +429,7 @@ export default function JobTicketPage() {
                     payload: {
                         ...updatedDJT,
                         schedule_id: updatedDJT.schedule_id || updatedDJT._id,
-                        createdBy: updatedDJT.createdBy || (typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('devco_user') || '{}')?.email : null) || 'system',
+                        createdBy: updatedDJT.createdBy || currentUser?.email || 'system',
                         scheduleRef: undefined
                     }
                 })
@@ -399,7 +438,7 @@ export default function JobTicketPage() {
         } catch (err) {
             console.error(err);
             error('Failed to save signature');
-            fetchData(); // Refresh on error
+            fetchDJTs(); // Refresh on error
         } finally {
             setIsSavingSignature(false);
         }
@@ -426,7 +465,7 @@ export default function JobTicketPage() {
             estimateNum: schedule?.estimate || '',
             projectName: estimate?.projectTitle || estimate?.projectName || '',
             foremanName: schedule?.foremanName || '',
-            date: targetDJT.date ? new Date(targetDJT.date).toLocaleDateString() : '',
+            date: targetDJT.date ? formatWallDate(targetDJT.date) : '',
             day: new Date(targetDJT.date || schedule?.fromDate || new Date()).toLocaleDateString('en-US', { weekday: 'long' }),
         };
 
@@ -450,8 +489,8 @@ export default function JobTicketPage() {
                 
                 const timesheet = schedule?.timesheet?.find((t: any) => t.employee === sig.employee);
                 if (timesheet) {
-                    const inTime = new Date(timesheet.clockIn).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', timeZone: 'UTC'});
-                    const outTime = new Date(timesheet.clockOut).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', timeZone: 'UTC'});
+                    const inTime = formatWallTime(timesheet.clockIn);
+                    const outTime = formatWallTime(timesheet.clockOut);
                     variables[`Times_${idx}`] = `${inTime} - ${outTime}`;
                 }
             });

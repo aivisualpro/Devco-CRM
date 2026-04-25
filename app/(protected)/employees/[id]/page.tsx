@@ -1,5 +1,7 @@
 'use client';
 
+import { cld } from '@/lib/cld';
+import Image from 'next/image';
 import { useEffect, useState, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Save, Trash2, ArrowLeft, Briefcase, FileText, User, Pencil, FlaskConical, GraduationCap, X, Check, Plus, Upload, ChevronLeft, ChevronRight, Loader2, Search, Eye } from 'lucide-react';
@@ -844,7 +846,7 @@ export default function EmployeeViewPage() {
                                                             <div className="relative w-full h-[120px] bg-slate-50 flex items-center justify-center border-b border-slate-100 overflow-hidden group">
                                                                 {numFiles > 0 ? (
                                                                     isImage ? (
-                                                                        <img src={currentFile} alt="Preview" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                                                                        <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(currentFile, { w: 1200 })} alt="Preview" className="object-cover transition-transform duration-500 group-hover:scale-105 w-full h-full" /></div>
                                                                     ) : isPdf ? (
                                                                         <iframe src={`${currentFile}#toolbar=0&navpanes=0&scrollbar=0`} className="w-full h-full border-0 pointer-events-none object-cover transition-transform duration-500 group-hover:scale-105" title="PDF Preview" />
                                                                     ) : (
@@ -1012,7 +1014,7 @@ export default function EmployeeViewPage() {
                                                             <div className="relative w-full h-[120px] bg-slate-50 flex items-center justify-center border-b border-slate-100 overflow-hidden group">
                                                                 {numFiles > 0 ? (
                                                                     isImage ? (
-                                                                        <img src={currentFile} alt="Preview" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                                                                        <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(currentFile, { w: 1200 })} alt="Preview" className="object-cover transition-transform duration-500 group-hover:scale-105 w-full h-full" /></div>
                                                                     ) : isPdf ? (
                                                                         <iframe src={`${currentFile}#toolbar=0&navpanes=0&scrollbar=0`} className="w-full h-full border-0 pointer-events-none object-cover transition-transform duration-500 group-hover:scale-105" title="PDF Preview" />
                                                                     ) : (
@@ -1325,11 +1327,11 @@ export default function EmployeeViewPage() {
                                     <div className="relative group cursor-pointer">
                                         <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center shadow-lg border-2 border-white">
                                             {currentEmployee.profilePicture ? (
-                                                <img
+                                                <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw"
                                                     src={currentEmployee.profilePicture}
                                                     alt="Profile"
-                                                    className="w-full h-full object-cover"
-                                                />
+                                                    className="object-cover w-full h-full"
+                                                /></div>
                                             ) : (
                                                 <div className="text-2xl font-bold text-gray-400">
                                                     {currentEmployee.firstName?.[0]}{currentEmployee.lastName?.[0]}
@@ -1648,7 +1650,7 @@ export default function EmployeeViewPage() {
                                     return (
                                         <div key={idx} className="relative group border border-slate-200 rounded-xl overflow-hidden bg-slate-50 h-[100px] shadow-sm">
                                             {isImage ? (
-                                                <img src={fileUrl} alt="Preview" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                                                <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(fileUrl, { w: 1200 })} alt="Preview" className="object-cover transition-transform duration-500 group-hover:scale-105 w-full h-full" /></div>
                                             ) : isPdf ? (
                                                 <iframe src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=0`} className="w-full h-full border-0 pointer-events-none object-cover transition-transform duration-500 group-hover:scale-105" title="PDF Preview" />
                                             ) : (
@@ -1751,7 +1753,7 @@ export default function EmployeeViewPage() {
                                     return (
                                         <div key={idx} className="relative group border border-slate-200 rounded-xl overflow-hidden bg-slate-50 h-[100px] shadow-sm">
                                             {isImage ? (
-                                                <img src={fileUrl} alt="Preview" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                                                <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(fileUrl, { w: 1200 })} alt="Preview" className="object-cover transition-transform duration-500 group-hover:scale-105 w-full h-full" /></div>
                                             ) : isPdf ? (
                                                 <iframe src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=0`} className="w-full h-full border-0 pointer-events-none object-cover transition-transform duration-500 group-hover:scale-105" title="PDF Preview" />
                                             ) : (
@@ -1895,7 +1897,7 @@ export default function EmployeeViewPage() {
                                     return (
                                         <div key={idx} className="relative group border border-slate-200 rounded-xl overflow-hidden bg-slate-50 h-[100px] shadow-sm">
                                             {isImage ? (
-                                                <img src={fileUrl} alt="Preview" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                                                <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(fileUrl, { w: 1200 })} alt="Preview" className="object-cover transition-transform duration-500 group-hover:scale-105 w-full h-full" /></div>
                                             ) : isPdf ? (
                                                 <iframe src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=0`} className="w-full h-full border-0 pointer-events-none object-cover transition-transform duration-500 group-hover:scale-105" title="PDF Preview" />
                                             ) : (

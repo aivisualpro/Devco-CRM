@@ -3,6 +3,8 @@ import { connectToDatabase } from '@/lib/db';
 import Token from '@/lib/models/Token';
 import { QBO_CLIENT_ID, QBO_CLIENT_SECRET, QBO_REALM_ID } from '@/lib/quickbooks';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
     const { searchParams, origin } = new URL(req.url);
     // Force https and remove trailing slash for exact matching

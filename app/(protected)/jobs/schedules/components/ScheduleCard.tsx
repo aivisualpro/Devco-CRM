@@ -9,6 +9,7 @@ import {
     Tooltip, TooltipTrigger, TooltipContent, TooltipProvider 
 } from '@/components/ui';
 import { useRouter } from 'next/navigation';
+import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
 
 interface Objective {
     text: string;
@@ -49,7 +50,7 @@ export interface ScheduleItem {
     DJTSignatures?: any[];
     todayObjectives?: Objective[];
     changeOfScope?: any[];
-    syncedToAppSheet?: boolean;
+
     isDayOffApproved?: boolean;
 }
 
@@ -308,11 +309,11 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                                 </span>
                             )}
                             <div className="flex items-center gap-1 text-[11px] sm:text-xs font-bold text-slate-500">
-                                <span>{new Date(item.fromDate).toLocaleDateString('en-US', { timeZone: 'UTC' })}</span>
+                                <span>{formatWallDate(item.fromDate)}</span>
                                 <span className="text-slate-300">|</span>
-                                <span>{new Date(item.fromDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' })}</span>
+                                <span>{formatWallTime(item.fromDate)}</span>
                                 <span>-</span>
-                                <span>{new Date(item.toDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' })}</span>
+                                <span>{formatWallTime(item.toDate)}</span>
                             </div>
                         </div>
 
@@ -377,16 +378,16 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <div 
-                                        className={`relative z-10 flex items-center justify-center w-10 h-10 sm:w-7 sm:h-7 rounded-full transition-colors border-2 border-white shadow-sm cursor-pointer ${item.hasJHA ? 'bg-orange-100 text-orange-600 hover:bg-orange-200' : 'bg-slate-100 text-slate-400 hover:bg-orange-100 hover:text-orange-600'}`} 
+                                        className={`relative z-10 flex items-center justify-center w-10 h-10 sm:w-7 sm:h-7 rounded-full transition-colors border-2 border-white shadow-sm cursor-pointer ${(item.hasJHA || (item.jha && Object.keys(item.jha).length > 0)) ? 'bg-orange-100 text-orange-600 hover:bg-orange-200' : 'bg-slate-100 text-slate-400 hover:bg-orange-100 hover:text-orange-600'}`} 
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            item.hasJHA ? onViewJHA?.(item, e) : onCreateJHA?.(item, e);
+                                            (item.hasJHA || (item.jha && Object.keys(item.jha).length > 0)) ? onViewJHA?.(item, e) : onCreateJHA?.(item, e);
                                         }}
                                     >
-                                        {item.hasJHA ? <ShieldCheck className="w-5 h-5 sm:w-3 sm:h-3" strokeWidth={2.5} /> : <Shield className="w-5 h-5 sm:w-3 sm:h-3" strokeWidth={2.5} />}
+                                        {(item.hasJHA || (item.jha && Object.keys(item.jha).length > 0)) ? <ShieldCheck className="w-5 h-5 sm:w-3 sm:h-3" strokeWidth={2.5} /> : <Shield className="w-5 h-5 sm:w-3 sm:h-3" strokeWidth={2.5} />}
                                     </div>
                                 </TooltipTrigger>
-                                <TooltipContent><p>{item.hasJHA ? 'View JHA' : 'Create JHA'}</p></TooltipContent>
+                                <TooltipContent><p>{(item.hasJHA || (item.jha && Object.keys(item.jha).length > 0)) ? 'View JHA' : 'Create JHA'}</p></TooltipContent>
                             </Tooltip>
 
                             {/* DJT */}

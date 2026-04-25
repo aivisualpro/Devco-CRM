@@ -1,5 +1,7 @@
 'use client';
 
+import { cld } from '@/lib/cld';
+import Image from 'next/image';
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { ChevronDown, Layers, Activity, HardHat, Percent, Calculator, FileSpreadsheet, Plus, Check, ExternalLink, AlertTriangle, Users, Building2, Phone, Mail, MapPin, Trash2, X, ShieldCheck, Share2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -159,9 +161,9 @@ export function EstimateHeaderCard({
         if (!externalVendorsModalTrigger) return;
         setIsVendorsSubsModalOpen(true);
         setLoadingVS(true);
-        fetch('/api/vendors-sub-contractors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getAll' }) })
+        fetch('/api/vendors-sub-contractors?limit=1000')
             .then(r => r.json())
-            .then(d => { if (d.success) setAllVendorsSubs(d.result || []); })
+            .then(d => { if (d.success) setAllVendorsSubs(d.items || []); })
             .finally(() => setLoadingVS(false));
     }, [externalVendorsModalTrigger]);
 
@@ -796,9 +798,9 @@ export function EstimateHeaderCard({
                                                     setIsVendorsSubsModalOpen(true);
                                                     setLoadingVS(true);
                                                     try {
-                                                        const res = await fetch('/api/vendors-sub-contractors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getAll' }) });
+                                                        const res = await fetch('/api/vendors-sub-contractors?limit=1000');
                                                         const d = await res.json();
-                                                        if (d.success) setAllVendorsSubs(d.result || []);
+                                                        if (d.success) setAllVendorsSubs(d.items || []);
                                                     } finally { setLoadingVS(false); }
                                                 }}
                                                 className={`w-12 h-12 rounded-full flex items-center justify-center cursor-pointer transition-all duration-300 relative overflow-hidden ${hasValue
@@ -986,11 +988,11 @@ export function EstimateHeaderCard({
                                                     selectedEmps.length === 1 ? (
                                                         // Single Writer
                                                         selectedEmps[0].profilePicture ? (
-                                                            <img
+                                                            <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw"
                                                                 src={selectedEmps[0].profilePicture}
                                                                 alt={selectedEmps[0].label}
-                                                                className="w-full h-full object-cover"
-                                                            />
+                                                                className="object-cover w-full h-full"
+                                                            /></div>
                                                         ) : (
                                                             <div className="w-full h-full flex items-center justify-center bg-[#0F4C75] text-white text-xs font-bold">
                                                                 {selectedEmps[0].label.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
@@ -1001,9 +1003,9 @@ export function EstimateHeaderCard({
                                                         selectedEmps.length === 2 ? (
                                                             <div className="w-full h-full flex items-stretch">
                                                                 {selectedEmps.map((emp, i) => (
-                                                                    <div key={emp.value} className={`w-1/2 h-full overflow-hidden ${i === 0 ? 'border-r border-white/20' : ''}`}>
+                                                                    <div key={emp.value} className={`relative w-1/2 h-full overflow-hidden ${i === 0 ? 'border-r border-white/20' : ''}`}>
                                                                         {emp.profilePicture ? (
-                                                                            <img src={emp.profilePicture} alt={emp.label} className="w-full h-full object-cover" />
+                                                                            <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(emp.profilePicture, { w: 1200 })} alt={emp.label} className="object-cover w-full h-full" /></div>
                                                                         ) : (
                                                                             <div className="w-full h-full flex items-center justify-center bg-[#0F4C75] text-[10px] text-white font-bold">
                                                                                 {emp.label.charAt(0)}
@@ -1016,9 +1018,9 @@ export function EstimateHeaderCard({
                                                             // 3 or more (Grid)
                                                             <div className="w-full h-full grid grid-cols-2 grid-rows-2">
                                                                 {selectedEmps.slice(0, 4).map((emp) => (
-                                                                    <div key={emp.value} className="w-full h-full overflow-hidden border-white/20 border-r border-b [&:nth-child(2n)]:border-r-0 [&:nth-child(n+3)]:border-b-0">
+                                                                    <div key={emp.value} className="relative w-full h-full overflow-hidden border-white/20 border-r border-b [&:nth-child(2n)]:border-r-0 [&:nth-child(n+3)]:border-b-0">
                                                                         {emp.profilePicture ? (
-                                                                            <img src={emp.profilePicture} alt={emp.label} className="w-full h-full object-cover" />
+                                                                            <Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(emp.profilePicture, { w: 1200 })} alt={emp.label} className="w-full h-full object-cover" />
                                                                         ) : (
                                                                             <div className="w-full h-full flex items-center justify-center bg-[#0F4C75] text-[8px] text-white font-bold">
                                                                                 {emp.label.charAt(0)}

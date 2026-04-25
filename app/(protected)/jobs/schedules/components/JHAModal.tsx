@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { Modal, EmptyState, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
 import SignaturePad from '../SignaturePad';
+import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
 
 interface JHAModalProps {
     isOpen: boolean;
@@ -339,7 +340,7 @@ export const JHAModal = ({
                             </div>
                         </h4>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div><p className="text-[10px] font-bold text-slate-400 uppercase">Date</p><p className="text-sm font-bold text-slate-700">{new Date(selectedJHA.date).toLocaleDateString('en-US', { timeZone: 'UTC' })}</p></div>
+                            <div><p className="text-[10px] font-bold text-slate-400 uppercase">Date</p><p className="text-sm font-bold text-slate-700">{formatWallDate(selectedJHA.date)}</p></div>
                             <div><p className="text-[10px] font-bold text-slate-400 uppercase">Time</p><p className="text-sm font-bold text-slate-700">{selectedJHA.jhaTime}</p></div>
                             <div>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase">Created By</p>

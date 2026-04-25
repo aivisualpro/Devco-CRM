@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import useEmblaCarousel from 'embla-carousel-react';
 import { X, Building2, User, Briefcase, Users, Landmark, Shield, Heart, Settings, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { ContactSelector } from './ContactSelector';
@@ -87,6 +88,10 @@ const FIELDS_BY_TAB: Record<string, { key: string; label: string; type?: string;
 
 export function EstimateDetailsModal({ isOpen, onClose, formData, customerId, onUpdate }: EstimateDetailsModalProps) {
     const [activeTab, setActiveTab] = useState('accounting');
+    const [emblaRef] = useEmblaCarousel({
+        dragFree: true,
+        containScroll: 'trimSnaps'
+    });
 
 
 
@@ -98,57 +103,65 @@ export function EstimateDetailsModal({ isOpen, onClose, formData, customerId, on
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
-            <div className="bg-white w-full max-w-5xl h-[85vh] rounded-3xl shadow-2xl flex overflow-hidden animate-scale-in">
+            <div className="bg-white w-full max-w-5xl h-[95vh] md:h-[85vh] rounded-3xl shadow-2xl flex flex-col md:flex-row overflow-hidden animate-scale-in">
                 
-                {/* Sidebar Navigation */}
-                <div className="w-64 bg-gradient-to-b from-slate-50 to-slate-100 border-r border-slate-200 flex flex-col">
-                    {/* Sidebar Header */}
-                    <div className="p-6 border-b border-slate-200">
-                        <h2 className="text-xl font-bold text-slate-800">Estimate Details</h2>
-                        <p className="text-xs text-slate-500 mt-1">Project information</p>
+                {/* Navigation (Top on mobile, Sidebar on desktop) */}
+                <div className="md:w-64 w-full bg-gradient-to-b from-slate-50 to-slate-100 border-b md:border-b-0 md:border-r border-slate-200 flex flex-col flex-none">
+                    {/* Header */}
+                    <div className="p-4 md:p-6 border-b border-slate-200 flex items-center justify-between">
+                        <div>
+                            <h2 className="text-lg md:text-xl font-bold text-slate-800">Estimate Details</h2>
+                            <p className="text-[10px] md:text-xs text-slate-500 mt-1">Project information</p>
+                        </div>
+                        <button onClick={onClose} className="md:hidden p-2 bg-slate-100 rounded-full transition-colors active:bg-slate-200">
+                            <X className="w-5 h-5 text-slate-500" />
+                        </button>
                     </div>
 
                     {/* Tab List */}
-                    <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1 custom-scrollbar">
-                        {TABS.map((tab) => {
-                            const Icon = tab.icon;
-                            const isActive = activeTab === tab.id;
-                            return (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id)}
-                                    className={`
-                                        w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200
-                                        ${isActive 
-                                            ? 'bg-white shadow-lg shadow-slate-200/50 border border-slate-100' 
-                                            : 'hover:bg-white/60 border border-transparent'
-                                        }
-                                    `}
-                                >
-                                    <div className={`
-                                        w-9 h-9 rounded-xl flex items-center justify-center transition-all
-                                        ${isActive 
-                                            ? `bg-gradient-to-br ${tab.color} text-white shadow-lg` 
-                                            : 'bg-slate-100 text-slate-400'
-                                        }
-                                    `}>
-                                        <Icon className="w-4 h-4" />
+                    <div className="overflow-hidden md:flex-1 md:overflow-y-auto" ref={emblaRef}>
+                        <div className="flex md:flex-col gap-2 p-3 w-fit md:w-full md:space-y-1 custom-scrollbar">
+                            {TABS.map((tab) => {
+                                const Icon = tab.icon;
+                                const isActive = activeTab === tab.id;
+                                return (
+                                    <div key={tab.id} className="flex-[0_0_auto] md:flex-none">
+                                        <button
+                                            onClick={() => setActiveTab(tab.id)}
+                                            className={`
+                                                w-full flex items-center gap-2 md:gap-3 px-3 py-2 md:px-4 md:py-3 rounded-xl text-left transition-all duration-200
+                                                ${isActive 
+                                                    ? 'bg-white shadow-lg shadow-slate-200/50 border border-slate-100' 
+                                                    : 'hover:bg-white/60 border border-transparent'
+                                                }
+                                            `}
+                                        >
+                                            <div className={`
+                                                w-8 h-8 md:w-9 md:h-9 rounded-xl flex items-center justify-center transition-all flex-shrink-0
+                                                ${isActive 
+                                                    ? `bg-gradient-to-br ${tab.color} text-white shadow-lg` 
+                                                    : 'bg-slate-100 text-slate-400'
+                                                }
+                                            `}>
+                                                <Icon className="w-4 h-4" />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <span className={`text-xs md:text-sm font-semibold whitespace-nowrap block ${isActive ? 'text-slate-800' : 'text-slate-600'}`}>
+                                                    {tab.label}
+                                                </span>
+                                            </div>
+                                            {isActive && (
+                                                <ChevronRight className="hidden md:block w-4 h-4 text-slate-400 flex-shrink-0 ml-auto" />
+                                            )}
+                                        </button>
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <span className={`text-sm font-semibold truncate block ${isActive ? 'text-slate-800' : 'text-slate-600'}`}>
-                                            {tab.label}
-                                        </span>
-                                    </div>
-                                    {isActive && (
-                                        <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                                    )}
-                                </button>
-                            );
-                        })}
+                                );
+                            })}
+                        </div>
                     </div>
 
                     {/* Sidebar Footer */}
-                    <div className="p-4 border-t border-slate-200">
+                    <div className="hidden md:block p-4 border-t border-slate-200 mt-auto">
                         <div className="text-xs text-slate-400 text-center">
                             {TABS.length} sections available
                         </div>
@@ -156,9 +169,9 @@ export function EstimateDetailsModal({ isOpen, onClose, formData, customerId, on
                 </div>
 
                 {/* Main Content Area */}
-                <div className="flex-1 flex flex-col bg-white">
+                <div className="flex-1 flex flex-col bg-white min-h-0">
                     {/* Content Header */}
-                    <div className="flex items-center justify-between px-8 py-6 border-b border-slate-100">
+                    <div className="hidden md:flex items-center justify-between px-8 py-6 border-b border-slate-100">
                         <div className="flex items-center gap-4">
                             <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${currentTabData?.color} flex items-center justify-center shadow-lg`}>
                                 <TabIcon className="w-6 h-6 text-white" />
@@ -177,12 +190,12 @@ export function EstimateDetailsModal({ isOpen, onClose, formData, customerId, on
                     </div>
 
                     {/* Fields Grid */}
-                    <div className="flex-1 overflow-y-auto px-8 py-8 custom-scrollbar">
-                        <div className="grid grid-cols-3 gap-x-6 gap-y-5">
+                    <div className="flex-1 overflow-y-auto px-4 py-4 md:px-8 md:py-8 custom-scrollbar">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-5">
                             {currentFields.map((field, idx) => (
                                 <div 
                                     key={field.key} 
-                                    className={`space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-300 ${field.span === 2 ? 'col-span-2' : field.span === 3 ? 'col-span-3' : ''}`}
+                                    className={`space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-300 ${field.span === 2 ? 'sm:col-span-2' : field.span === 3 ? 'sm:col-span-2 md:col-span-3' : ''}`}
                                     style={{ animationDelay: `${idx * 50}ms` }}
                                 >
                                     <label className="flex items-center gap-2 text-[10px] font-bold text-slate-700 uppercase tracking-wider px-1">

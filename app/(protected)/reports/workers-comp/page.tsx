@@ -1,5 +1,7 @@
 'use client';
 
+import { cld } from '@/lib/cld';
+import Image from 'next/image';
 import { useEffect, useState, useMemo } from 'react';
 import {
     ChevronRight, ChevronLeft, ChevronDown, User, Calendar as CalendarIcon,
@@ -881,11 +883,11 @@ export default function WorkersCompPage() {
                                             <div className="flex items-center gap-2.5">
                                                 <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${selectedItem === group.id ? 'bg-white/20' : 'bg-slate-100'}`}>
                                                     {activityIcons[group.label.toLowerCase()] ? (
-                                                        <img
+                                                        <div className="relative w-4 h-4"><Image fill sizes="(max-width: 768px) 100vw, 33vw"
                                                             src={activityIcons[group.label.toLowerCase()]}
                                                             alt=""
-                                                            className="w-4 h-4 object-contain"
-                                                        />
+                                                            className="object-contain w-full h-full"
+                                                        /></div>
                                                     ) : (
                                                         <Briefcase size={14} />
                                                     )}
@@ -981,7 +983,7 @@ export default function WorkersCompPage() {
                                                         <div className="flex items-center gap-3">
                                                             <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-[9px] font-bold text-slate-500 border border-white shadow-sm overflow-hidden">
                                                                 {employeesMap[emp.employee]?.image ? (
-                                                                    <img src={employeesMap[emp.employee].image} alt="" className="w-full h-full object-cover" />
+                                                                    <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(employeesMap[emp.employee].image, { w: 1200 })} alt="" className="object-cover w-full h-full" /></div>
                                                                 ) : (
                                                                     (employeesMap[emp.employee]?.label || emp.employee).split(' ').map((n: any) => n[0]).join('').substring(0, 2).toUpperCase()
                                                                 )}
@@ -1031,11 +1033,11 @@ export default function WorkersCompPage() {
                                                             <TooltipTrigger asChild>
                                                                 <div className="w-6 h-6 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center p-0.5 mx-auto">
                                                                     {activityIcons[record.item.toLowerCase()] ? (
-                                                                        <img
+                                                                        <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw"
                                                                             src={activityIcons[record.item.toLowerCase()]}
                                                                             alt=""
-                                                                            className="w-full h-full object-contain"
-                                                                        />
+                                                                            className="object-contain w-full h-full"
+                                                                        /></div>
                                                                     ) : (
                                                                         <Briefcase size={10} className="text-slate-400" />
                                                                     )}
@@ -1050,7 +1052,7 @@ export default function WorkersCompPage() {
                                                         <div className="flex items-center gap-2">
                                                             <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[8px] font-bold text-slate-500 border border-white shadow-sm overflow-hidden">
                                                                 {employeesMap[record.employee]?.image ? (
-                                                                    <img src={employeesMap[record.employee].image} alt="" className="w-full h-full object-cover" />
+                                                                    <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(employeesMap[record.employee].image, { w: 1200 })} alt="" className="object-cover w-full h-full" /></div>
                                                                 ) : (
                                                                     (employeesMap[record.employee]?.label || record.employee).split(' ').map((n: any) => n[0]).join('').substring(0, 2).toUpperCase()
                                                                 )}

@@ -1,6 +1,9 @@
 'use client';
 
+import { cld } from '@/lib/cld';
+import Image from 'next/image';
 import { useState, useRef } from 'react';
+import useEmblaCarousel from 'embla-carousel-react';
 import { User, Mail, Phone, MapPin, Briefcase, Calendar, ChevronDown, CheckCircle, XCircle, Building, FileSpreadsheet, Eye, Download, X, FileText, Upload, RefreshCw, Plus, Pencil, Trash2 } from 'lucide-react';
 import { Button, Modal, Badge } from '@/components/ui';
 
@@ -285,6 +288,10 @@ export function DocumentGallery({
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [activeTab, setActiveTab] = useState('All');
+    const [emblaRef] = useEmblaCarousel({
+        dragFree: true,
+        containScroll: 'trimSnaps'
+    });
 
     const onDrop = (e: React.DragEvent) => {
         e.preventDefault();
@@ -351,21 +358,24 @@ export function DocumentGallery({
                 </div>
             )}
 
-            <div className="flex flex-col gap-6">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-1">
-                    <div className="flex items-center gap-1 bg-slate-100/50 p-1 rounded-xl border border-slate-200 w-fit">
-                        {availableTabs.map((tab) => (
-                            <button
-                                key={tab}
-                                onClick={() => setActiveTab(tab)}
-                                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === tab ? 'bg-[#0F4C75] text-white shadow-md' : 'text-slate-500 hover:bg-white hover:text-[#0F4C75]'}`}
-                            >
-                                {tab}
-                                <span className={`ml-2 px-1.5 py-0.5 rounded-md text-[10px] ${activeTab === tab ? 'bg-white/20' : 'bg-slate-200 text-slate-500'}`}>
-                                    {tab === 'All' ? documents.length : documents.filter(d => getCategory(d) === tab).length}
-                                </span>
-                            </button>
-                        ))}
+            <div className="flex flex-col gap-6 w-full overflow-hidden">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-1 w-full overflow-hidden">
+                    <div className="overflow-hidden md:overflow-visible w-full md:w-auto" ref={emblaRef}>
+                        <div className="flex items-center gap-1 bg-slate-100/50 p-1 rounded-xl border border-slate-200 w-fit">
+                            {availableTabs.map((tab) => (
+                                <div key={tab} className="flex-[0_0_auto]">
+                                    <button
+                                        onClick={() => setActiveTab(tab)}
+                                        className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === tab ? 'bg-[#0F4C75] text-white shadow-md' : 'text-slate-500 hover:bg-white hover:text-[#0F4C75]'}`}
+                                    >
+                                        {tab}
+                                        <span className={`ml-2 px-1.5 py-0.5 rounded-md text-[10px] ${activeTab === tab ? 'bg-white/20' : 'bg-slate-200 text-slate-500'}`}>
+                                            {tab === 'All' ? documents.length : documents.filter(d => getCategory(d) === tab).length}
+                                        </span>
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
                     </div>
 
                     <Button
@@ -408,9 +418,9 @@ export function DocumentGallery({
                                         className="aspect-[3/4] rounded-2xl bg-white border-2 border-slate-100 shadow-sm overflow-hidden group-hover:border-[#3282B8] group-hover:shadow-[#3282B8]/20 transition-all cursor-pointer relative"
                                     >
                                         {doc.thumbnailUrl ? (
-                                            <img src={doc.thumbnailUrl} alt={doc.name} className="w-full h-full object-cover" />
+                                            <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(doc.thumbnailUrl, { w: 1200 })} alt={doc.name} className="relative object-cover w-full h-full" /></div>
                                         ) : isImage ? (
-                                            <img src={getCleanUrl(doc.url)} alt={doc.name} className="w-full h-full object-cover" />
+                                            <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(getCleanUrl(doc.url), { w: 1200 })} alt={doc.name} className="object-cover w-full h-full" /></div>
                                         ) : (
                                             <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
                                                 <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
@@ -496,7 +506,7 @@ export function DocumentPreviewModal({ doc, isOpen, onClose }: { doc: ClientDocu
         >
             <div className="bg-slate-900 rounded-2xl overflow-hidden min-h-[500px] flex items-center justify-center relative group">
                 {isImage ? (
-                    <img src={getCleanUrl(doc.url)} alt={doc.name} className="max-w-full max-h-[70vh] object-contain shadow-2xl" />
+                    <div className="relative max-w-full max-h-[70vh]"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(getCleanUrl(doc.url), { w: 1200 })} alt={doc.name} className="object-contain shadow-2xl w-full h-full" /></div>
                 ) : isPDF ? (
                     <iframe
                         src={`${getCleanUrl(doc.url)}#toolbar=0`}

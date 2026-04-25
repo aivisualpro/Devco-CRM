@@ -1,9 +1,13 @@
 'use client';
 
+import { cld } from '@/lib/cld';
+import Image from 'next/image';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { Loader2, Plus, Save, MessageSquare, FileText, ToggleLeft, ToggleRight, Variable, Info, ChevronDown, Sparkles, Settings2, X, Search, Users, Check, Mail, Send, Clock, Bot, Zap, CheckCircle2, AlertCircle, CalendarPlus, Bell, CheckSquare } from 'lucide-react';
 import { Header } from '@/components/ui';
+import { AppContext, useAppSettings } from '@/lib/context/AppContext';
+import { useContext } from 'react';
 
 /* ─── Types ─── */
 interface ConstantItem {
@@ -223,6 +227,10 @@ export default function GeneralSettings() {
     const [assigneeSearch, setAssigneeSearch] = useState('');
     const [isAssigneeDropdownOpen, setIsAssigneeDropdownOpen] = useState(false);
 
+    const appContext = useContext(AppContext);
+    const settings: Record<string, any> = appContext?.settings || {};
+    const refreshSettings = appContext?.refreshSettings || (async () => {});
+
     // ─── Email Bot State ───
     const [emailBotLoading, setEmailBotLoading] = useState(false);
     const [emailBotSaving, setEmailBotSaving] = useState(false);
@@ -315,41 +323,33 @@ export default function GeneralSettings() {
         fetchConstants();
     }, []);
 
-    // ─── Workflow Settings: Fetch employees + setting ───
     const fetchWorkflowSettings = useCallback(async () => {
         setWorkflowLoading(true);
         try {
-            // Fetch employees
-            const empRes = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'getEmployees' })
-            });
-            const empData = await empRes.json();
-            if (empData.success) setEmployees(empData.result || []);
-
-            // Fetch saved setting
-            const settingRes = await fetch('/api/app-settings?key=billingTicketAssignees');
-            const settingData = await settingRes.json();
-            if (settingData.success && settingData.result?.data) {
-                setBillingTicketAssignees(settingData.result.data);
+            if (employees.length === 0) {
+                const empRes = await fetch('/api/webhook/devcoBackend', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'getEmployees' })
+                });
+                const empData = await empRes.json();
+                if (empData.success) setEmployees(empData.result || []);
+            }
+            if (settings['billingTicketAssignees']) {
+                setBillingTicketAssignees(settings['billingTicketAssignees']);
             } else {
-                // Default
                 setBillingTicketAssignees(['dt@devco-inc.com', 'rosa@devco-inc.com']);
             }
         } catch (err) {
-            console.error('Failed to load workflow settings', err);
-            toast.error('Failed to load workflow settings');
+            console.error(err);
         } finally {
             setWorkflowLoading(false);
         }
-    }, []);
+    }, [employees.length, settings]);
 
-    // ─── Email Bot: Fetch settings ───
     const fetchEmailBotSettings = useCallback(async () => {
         setEmailBotLoading(true);
         try {
-            // Fetch employees if not already loaded
             if (employees.length === 0) {
                 const empRes = await fetch('/api/webhook/devcoBackend', {
                     method: 'POST',
@@ -360,7 +360,6 @@ export default function GeneralSettings() {
                 if (empData.success) setEmployees(empData.result || []);
             }
 
-            // Fetch bot settings
             const res = await fetch('/api/email-bot');
             const data = await res.json();
             if (data.success && data.result) {
@@ -375,50 +374,34 @@ export default function GeneralSettings() {
                 if (cfg.lastStats) setEmailBotLastStats(cfg.lastStats);
             }
 
-            // Fetch schedule alert settings
-            const alertRes = await fetch('/api/app-settings?key=emailBot_scheduleAlert');
-            const alertData = await alertRes.json();
-            if (alertData.success && alertData.result?.data) {
-                const acfg = alertData.result.data;
+            if (settings['emailBot_scheduleAlert']) {
+                const acfg = settings['emailBot_scheduleAlert'];
                 if (acfg.enabled !== undefined) setSchedAlertEnabled(acfg.enabled);
                 if (acfg.fromName) setSchedAlertFromName(acfg.fromName);
                 if (acfg.recipients) setSchedAlertRecipients(acfg.recipients);
             }
-
-            // Fetch task alert settings
-            const taskAlertRes = await fetch('/api/app-settings?key=emailBot_taskAlert');
-            const taskAlertData = await taskAlertRes.json();
-            if (taskAlertData.success && taskAlertData.result?.data) {
-                const acfg = taskAlertData.result.data;
+            if (settings['emailBot_taskAlert']) {
+                const acfg = settings['emailBot_taskAlert'];
                 if (acfg.enabled !== undefined) setTaskAlertEnabled(acfg.enabled);
                 if (acfg.fromName) setTaskAlertFromName(acfg.fromName);
             }
-
-            // Fetch chat alert settings
-            const chatAlertRes = await fetch('/api/app-settings?key=emailBot_chatAlert');
-            const chatAlertData = await chatAlertRes.json();
-            if (chatAlertData.success && chatAlertData.result?.data) {
-                const acfg = chatAlertData.result.data;
+            if (settings['emailBot_chatAlert']) {
+                const acfg = settings['emailBot_chatAlert'];
                 if (acfg.enabled !== undefined) setChatAlertEnabled(acfg.enabled);
                 if (acfg.fromName) setChatAlertFromName(acfg.fromName);
             }
-
-            // Fetch day off alert settings
-            const dayOffAlertRes = await fetch('/api/app-settings?key=emailBot_dayOffAlert');
-            const dayOffAlertData = await dayOffAlertRes.json();
-            if (dayOffAlertData.success && dayOffAlertData.result?.data) {
-                const acfg = dayOffAlertData.result.data;
+            if (settings['emailBot_dayOffAlert']) {
+                const acfg = settings['emailBot_dayOffAlert'];
                 if (acfg.enabled !== undefined) setDayOffAlertEnabled(acfg.enabled);
                 if (acfg.fromName) setDayOffAlertFromName(acfg.fromName);
                 if (acfg.recipients) setDayOffAlertRecipients(acfg.recipients);
             }
         } catch (err) {
-            console.error('Failed to load email bot settings', err);
-            toast.error('Failed to load email bot settings');
+            console.error(err);
         } finally {
             setEmailBotLoading(false);
         }
-    }, [employees.length]);
+    }, [employees.length, settings]);
 
     const handleSaveEmailBot = async () => {
         setEmailBotSaving(true);
@@ -453,22 +436,24 @@ export default function GeneralSettings() {
     const handleSaveScheduleAlert = async () => {
         setSchedAlertSaving(true);
         try {
-            const res = await fetch('/api/app-settings', {
-                method: 'POST',
+            const res = await fetch('/api/app-settings/all', {
+                method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    key: 'emailBot_scheduleAlert',
-                    data: {
-                        enabled: schedAlertEnabled,
-                        fromName: schedAlertFromName,
-                        recipients: schedAlertRecipients
-                    },
-                    description: 'Email Bot - Schedule Alert Configuration'
+                    settings: {
+                        emailBot_scheduleAlert: {
+                            enabled: schedAlertEnabled,
+                            fromName: schedAlertFromName,
+                            recipients: schedAlertRecipients
+                        }
+                    }
                 })
             });
             const data = await res.json();
-            if (data.success) toast.success('Schedule alert settings saved!');
-            else toast.error('Failed to save settings');
+            if (data.success) {
+                toast.success('Schedule alert settings saved!');
+                await refreshSettings();
+            } else toast.error('Failed to save settings');
         } catch (err) {
             toast.error('Error saving schedule alert settings');
         } finally {
@@ -479,21 +464,23 @@ export default function GeneralSettings() {
     const handleSaveTaskAlert = async () => {
         setTaskAlertSaving(true);
         try {
-            const res = await fetch('/api/app-settings', {
-                method: 'POST',
+            const res = await fetch('/api/app-settings/all', {
+                method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    key: 'emailBot_taskAlert',
-                    data: {
-                        enabled: taskAlertEnabled,
-                        fromName: taskAlertFromName
-                    },
-                    description: 'Email Bot - Task Alert Configuration'
+                    settings: {
+                        emailBot_taskAlert: {
+                            enabled: taskAlertEnabled,
+                            fromName: taskAlertFromName
+                        }
+                    }
                 })
             });
             const data = await res.json();
-            if (data.success) toast.success('Task alert settings saved!');
-            else toast.error('Failed to save settings');
+            if (data.success) {
+                toast.success('Task alert settings saved!');
+                await refreshSettings();
+            } else toast.error('Failed to save settings');
         } catch (err) {
             toast.error('Error saving task alert settings');
         } finally {
@@ -504,21 +491,23 @@ export default function GeneralSettings() {
     const handleSaveChatAlert = async () => {
         setChatAlertSaving(true);
         try {
-            const res = await fetch('/api/app-settings', {
-                method: 'POST',
+            const res = await fetch('/api/app-settings/all', {
+                method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    key: 'emailBot_chatAlert',
-                    data: {
-                        enabled: chatAlertEnabled,
-                        fromName: chatAlertFromName
-                    },
-                    description: 'Email Bot - Chat Alert Configuration'
+                    settings: {
+                        emailBot_chatAlert: {
+                            enabled: chatAlertEnabled,
+                            fromName: chatAlertFromName
+                        }
+                    }
                 })
             });
             const data = await res.json();
-            if (data.success) toast.success('Chat alert settings saved!');
-            else toast.error('Failed to save settings');
+            if (data.success) {
+                toast.success('Chat alert settings saved!');
+                await refreshSettings();
+            } else toast.error('Failed to save settings');
         } catch (err) {
             toast.error('Error saving chat alert settings');
         } finally {
@@ -529,22 +518,24 @@ export default function GeneralSettings() {
     const handleSaveDayOffAlert = async () => {
         setDayOffAlertSaving(true);
         try {
-            const res = await fetch('/api/app-settings', {
-                method: 'POST',
+            const res = await fetch('/api/app-settings/all', {
+                method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    key: 'emailBot_dayOffAlert',
-                    data: {
-                        enabled: dayOffAlertEnabled,
-                        fromName: dayOffAlertFromName,
-                        recipients: dayOffAlertRecipients
-                    },
-                    description: 'Email Bot - Day Off Alert Configuration'
+                    settings: {
+                        emailBot_dayOffAlert: {
+                            enabled: dayOffAlertEnabled,
+                            fromName: dayOffAlertFromName,
+                            recipients: dayOffAlertRecipients
+                        }
+                    }
                 })
             });
             const data = await res.json();
-            if (data.success) toast.success('Day off alert settings saved!');
-            else toast.error('Failed to save settings');
+            if (data.success) {
+                toast.success('Day off alert settings saved!');
+                await refreshSettings();
+            } else toast.error('Failed to save settings');
         } catch (err) {
             toast.error('Error saving day off alert settings');
         } finally {
@@ -710,18 +701,19 @@ export default function GeneralSettings() {
     const handleSaveWorkflowSettings = async () => {
         setWorkflowSaving(true);
         try {
-            const res = await fetch('/api/app-settings', {
-                method: 'POST',
+            const res = await fetch('/api/app-settings/all', {
+                method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    key: 'billingTicketAssignees',
-                    data: billingTicketAssignees,
-                    description: 'Default assignees for billing ticket todo tasks'
+                    settings: {
+                        billingTicketAssignees: billingTicketAssignees
+                    }
                 })
             });
             const data = await res.json();
             if (data.success) {
                 toast.success('Workflow settings saved');
+                await refreshSettings();
             } else {
                 toast.error('Failed to save settings');
             }
@@ -1004,10 +996,10 @@ export default function GeneralSettings() {
                                                     return (
                                                         <span
                                                             key={email}
-                                                            className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-full text-xs font-bold group hover:bg-blue-100 transition-colors"
+                                                            className="relative inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-full text-xs font-bold group hover:bg-blue-100 transition-colors"
                                                         >
                                                             {emp?.image || emp?.profilePicture ? (
-                                                                <img src={emp.image || emp.profilePicture} className="w-5 h-5 rounded-full object-cover border border-blue-200" />
+                                                                <div className="relative w-5 h-5 rounded-full overflow-hidden"><Image fill sizes="(max-width: 768px) 100vw, 33vw" alt="" src={cld(emp.image || emp.profilePicture, { w: 128, q: 'auto' })} className="rounded-full object-cover border border-blue-200 w-full h-full" /></div>
                                                             ) : (
                                                                 <div className="w-5 h-5 rounded-full bg-blue-200 text-blue-700 flex items-center justify-center text-[9px] font-black">
                                                                     {name[0]?.toUpperCase()}
@@ -1064,13 +1056,13 @@ export default function GeneralSettings() {
                                                                 return (
                                                                     <button
                                                                         key={email}
-                                                                        className={`w-full text-left px-4 py-2.5 text-sm flex items-center gap-3 transition-colors ${
+                                                                        className={`relative w-full text-left px-4 py-2.5 text-sm flex items-center gap-3 transition-colors ${
                                                                             isSelected ? 'bg-blue-50 text-blue-700' : 'hover:bg-slate-50 text-slate-700'
                                                                         }`}
                                                                         onClick={(e) => { e.stopPropagation(); toggleAssignee(email); }}
                                                                     >
                                                                         {emp.image || emp.profilePicture ? (
-                                                                            <img src={emp.image || emp.profilePicture} className="w-7 h-7 rounded-full object-cover border border-slate-200" />
+                                                                            <div className="relative w-7 h-7 rounded-full overflow-hidden"><Image fill sizes="(max-width: 768px) 100vw, 33vw" alt="" src={cld(emp.image || emp.profilePicture, { w: 128, q: 'auto' })} className="rounded-full object-cover border border-slate-200 w-full h-full" /></div>
                                                                         ) : (
                                                                             <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500 border border-slate-200">
                                                                                 {name[0]?.toUpperCase()}
@@ -1313,10 +1305,10 @@ export default function GeneralSettings() {
                                                         return (
                                                             <span
                                                                 key={email}
-                                                                className="inline-flex items-center gap-2 px-3 py-1.5 bg-violet-50 text-violet-700 border border-violet-200 rounded-full text-xs font-bold group hover:bg-violet-100 transition-colors"
+                                                                className="relative inline-flex items-center gap-2 px-3 py-1.5 bg-violet-50 text-violet-700 border border-violet-200 rounded-full text-xs font-bold group hover:bg-violet-100 transition-colors"
                                                             >
                                                                 {emp?.image || emp?.profilePicture ? (
-                                                                    <img src={emp.image || emp.profilePicture} className="w-5 h-5 rounded-full object-cover border border-violet-200" />
+                                                                    <div className="relative w-5 h-5 rounded-full overflow-hidden"><Image fill sizes="(max-width: 768px) 100vw, 33vw" alt="" src={cld(emp.image || emp.profilePicture, { w: 128, q: 'auto' })} className="rounded-full object-cover border border-violet-200 w-full h-full" /></div>
                                                                 ) : (
                                                                     <div className="w-5 h-5 rounded-full bg-violet-200 text-violet-700 flex items-center justify-center text-[9px] font-black">
                                                                         {name[0]?.toUpperCase()}
@@ -1371,13 +1363,13 @@ export default function GeneralSettings() {
                                                                         return (
                                                                             <button
                                                                                 key={email}
-                                                                                className={`w-full text-left px-4 py-2.5 text-sm flex items-center gap-3 transition-colors ${
+                                                                                className={`relative w-full text-left px-4 py-2.5 text-sm flex items-center gap-3 transition-colors ${
                                                                                     isSelected ? 'bg-violet-50 text-violet-700' : 'hover:bg-slate-50 text-slate-700'
                                                                                 }`}
                                                                                 onClick={(e) => { e.stopPropagation(); toggleEmailBotRecipient(email); }}
                                                                             >
                                                                                 {emp.image || emp.profilePicture ? (
-                                                                                    <img src={emp.image || emp.profilePicture} className="w-7 h-7 rounded-full object-cover border border-slate-200" />
+                                                                                    <div className="relative w-7 h-7 rounded-full overflow-hidden"><Image fill sizes="(max-width: 768px) 100vw, 33vw" alt="" src={cld(emp.image || emp.profilePicture, { w: 128, q: 'auto' })} className="rounded-full object-cover border border-slate-200 w-full h-full" /></div>
                                                                                 ) : (
                                                                                     <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500 border border-slate-200">
                                                                                         {name[0]?.toUpperCase()}
@@ -1407,7 +1399,8 @@ export default function GeneralSettings() {
                                                 <select
                                                     value={emailBotTime}
                                                     onChange={(e) => setEmailBotTime(e.target.value)}
-                                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-700 font-bold focus:outline-none focus:ring-2 focus:ring-violet-200 focus:border-violet-300 transition-all appearance-none cursor-pointer"
+                                                    disabled={true}
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-400 font-bold focus:outline-none transition-all appearance-none cursor-not-allowed opacity-70"
                                                 >
                                                     {Array.from({ length: 24 }, (_, i) => {
                                                         const h = i;
@@ -1416,7 +1409,7 @@ export default function GeneralSettings() {
                                                     })}
                                                 </select>
                                                 <p className="text-[10px] text-slate-400 leading-relaxed">
-                                                    Pacific Standard Time (GMT-7). The report runs automatically every day at this time.
+                                                    The report runs automatically every day at approximately 6:00 AM Pacific Time. The time selector above is currently inactive.
                                                 </p>
 
                                                 {/* Force Send Button */}
@@ -1661,13 +1654,13 @@ export default function GeneralSettings() {
                                                                                 return (
                                                                                     <button
                                                                                         key={email}
-                                                                                        className={`w-full text-left px-4 py-2.5 text-sm flex items-center gap-3 transition-colors hover:bg-slate-50 ${
+                                                                                        className={`relative w-full text-left px-4 py-2.5 text-sm flex items-center gap-3 transition-colors hover:bg-slate-50 ${
                                                                                             isSelected ? 'bg-amber-50/50' : ''
                                                                                         }`}
                                                                                         onClick={(e) => { e.stopPropagation(); toggleSchedAlertRecipient(email); }}
                                                                                     >
                                                                                         {emp.image || emp.profilePicture ? (
-                                                                                            <img src={emp.image || emp.profilePicture} className="w-7 h-7 rounded-full object-cover border border-slate-200 shadow-sm" />
+                                                                                            <div className="relative w-7 h-7 rounded-full overflow-hidden"><Image fill sizes="(max-width: 768px) 100vw, 33vw" alt="" src={cld(emp.image || emp.profilePicture, { w: 128, q: 'auto' })} className="rounded-full object-cover border border-slate-200 shadow-sm w-full h-full" /></div>
                                                                                         ) : (
                                                                                             <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-500 border border-slate-200 shadow-sm uppercase">
                                                                                                 {name[0]}
@@ -2093,13 +2086,13 @@ export default function GeneralSettings() {
                                                                                 return (
                                                                                     <button
                                                                                         key={email}
-                                                                                        className={`w-full text-left px-4 py-2.5 text-sm flex items-center gap-3 transition-colors ${
+                                                                                        className={`relative w-full text-left px-4 py-2.5 text-sm flex items-center gap-3 transition-colors ${
                                                                                             isSelected ? 'bg-rose-50 text-rose-700' : 'hover:bg-slate-50 text-slate-700'
                                                                                         }`}
                                                                                         onClick={(e) => { e.stopPropagation(); toggleDayOffAlertRecipient(email); }}
                                                                                     >
                                                                                         {emp.image || emp.profilePicture ? (
-                                                                                            <img src={emp.image || emp.profilePicture} className="w-7 h-7 rounded-full object-cover border border-slate-200" />
+                                                                                            <div className="relative w-7 h-7 rounded-full overflow-hidden"><Image fill sizes="(max-width: 768px) 100vw, 33vw" alt="" src={cld(emp.image || emp.profilePicture, { w: 128, q: 'auto' })} className="rounded-full object-cover border border-slate-200 w-full h-full" /></div>
                                                                                         ) : (
                                                                                             <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500 border border-slate-200">
                                                                                                 {name[0]?.toUpperCase()}

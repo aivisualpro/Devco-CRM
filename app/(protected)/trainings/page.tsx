@@ -7,9 +7,11 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { useCurrentUser } from '@/lib/context/AppContext';
 
 import { Header, Badge } from '@/components/ui';
 import { cn } from '@/lib/utils';
+import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
 
 interface TrainingRecord {
     category?: string;
@@ -39,7 +41,7 @@ function formatDate(dateStr?: string) {
     try {
         const d = new Date(dateStr);
         if (isNaN(d.getTime())) return '-';
-        return format(d, 'MMM dd, yyyy');
+        return formatWallDate(d);
     } catch {
         return '-';
     }
@@ -78,6 +80,7 @@ function handleViewFile(url?: string) {
 export default function TrainingsPage() {
     const [employee, setEmployee] = useState<Employee | null>(null);
     const [loading, setLoading] = useState(true);
+    const currentUser = useCurrentUser();
 
     useEffect(() => {
         fetchMyTrainings();
@@ -86,20 +89,12 @@ export default function TrainingsPage() {
     const fetchMyTrainings = async () => {
         setLoading(true);
         try {
-            const storedUser = localStorage.getItem('devco_user');
-            if (!storedUser) {
-                toast.error('Please log in to view your trainings');
-                setLoading(false);
-                return;
-            }
-            const user = JSON.parse(storedUser);
-            const email = user?.email || user?._id;
+            const email = currentUser?.email || currentUser?._id;
             if (!email) {
                 toast.error('Unable to identify logged in user');
                 setLoading(false);
                 return;
             }
-
             const res = await fetch('/api/webhook/devcoBackend', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

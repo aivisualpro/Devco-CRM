@@ -8,12 +8,9 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const SETTINGS_TYPE = 'AppSettings';
 const BOT_KEY = 'emailBot_dailySummary';
 
-/* ─── Helper: Get today's date string in PST (YYYY-MM-DD) ─── */
-function getTodayPST(): string {
-    const now = new Date();
-    // PST is UTC-7 (we use fixed offset for Pacific Standard Time as requested)
-    const pst = new Date(now.getTime() - 7 * 60 * 60 * 1000);
-    return pst.toISOString().split('T')[0];
+/* ─── Helper: Get today's date string in PT (YYYY-MM-DD) ─── */
+function getTodayPT(): string {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 }
 
 /* ─── Helper: Format date for display ─── */
@@ -293,7 +290,7 @@ export async function POST(req: NextRequest) {
                 return NextResponse.json({ success: false, error: 'No recipients configured.' }, { status: 400 });
             }
 
-            const dateStr = body.date || getTodayPST();
+            const dateStr = body.date || getTodayPT();
             const { html, stats } = await generateDailySummaryHTML(dateStr);
 
             const fromName = config.fromName || 'DEVCO Notifications';

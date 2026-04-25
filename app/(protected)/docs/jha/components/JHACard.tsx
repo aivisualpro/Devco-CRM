@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Check, Edit, Trash2, User, Download, Mail, Loader2 } from 'lucide-react';
+import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
 
 interface JHACardProps {
     jha: any;
@@ -34,7 +35,7 @@ export const JHACard: React.FC<JHACardProps> = ({
 }) => {
     const [isDownloading, setIsDownloading] = useState(false);
     
-    const dateStr = (jha.date || schedule?.fromDate) ? new Date(jha.date || schedule?.fromDate).toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' }) : 'N/A';
+    const dateStr = (jha.date || schedule?.fromDate) ? formatWallDate(jha.date || schedule?.fromDate) : 'N/A';
     const creator = employees.find(e => e.value === jha.createdBy);
     const sigCount = (jha.signatures || []).length;
 

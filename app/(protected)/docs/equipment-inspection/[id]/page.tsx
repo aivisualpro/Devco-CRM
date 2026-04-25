@@ -1,5 +1,7 @@
 'use client';
 
+import { cld } from '@/lib/cld';
+import Image from 'next/image';
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import {
@@ -10,7 +12,7 @@ import {
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
-import { Header, Button, Badge, Input } from '@/components/ui';
+import { Header, Button, Badge, Input, PageHeader, UserChip } from '@/components/ui';
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
     DialogDescription
@@ -18,6 +20,7 @@ import {
 import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
 import { cn } from '@/lib/utils';
+import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
 
 const TEMPLATE_ID = '1hrcARBznVAnT3sqCC2LB5s9rAXX9MpX1C2M24m77qCQ';
 
@@ -109,7 +112,7 @@ export default function EquipmentInspectionDetailPage() {
     const buildPdfPayload = () => {
         if (!record) return null;
         const dateStr = record.date && !isNaN(new Date(record.date).getTime())
-            ? format(new Date(record.date), 'MM/dd/yyyy')
+            ? formatWallDate(record.date)
             : '';
         const emp = getEmployeeByEmail(record.createdBy);
         const createdByName = emp ? `${emp.firstName || ''} ${emp.lastName || ''}`.trim() : record.createdBy || '';
@@ -277,40 +280,43 @@ export default function EquipmentInspectionDetailPage() {
                         <ArrowLeft size={14} /> Back to Equipment Inspections
                     </button>
 
-                    {/* Header */}
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-                        <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#0F4C75] to-[#3282B8] flex items-center justify-center shadow-lg shadow-blue-500/20">
-                                <ClipboardCheck size={24} className="text-white" />
+                    <PageHeader
+                        title={
+                            <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#0F4C75] to-[#3282B8] flex items-center justify-center shadow-lg shadow-blue-500/20">
+                                    <ClipboardCheck size={24} className="text-white" />
+                                </div>
+                                <div>
+                                    <h1 className="text-xl font-black text-slate-900">Equipment Inspection</h1>
+                                    <p className="text-xs text-slate-400 mt-0.5">{record.equipment || 'N/A'}</p>
+                                </div>
                             </div>
-                            <div>
-                                <h1 className="text-xl font-black text-slate-900">Equipment Inspection</h1>
-                                <p className="text-xs text-slate-400 mt-0.5">{record.equipment || 'N/A'}</p>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                            <Button variant="outline" size="sm" className="border-slate-300 hover:bg-slate-50"
-                                onClick={handleDownloadPDF} disabled={isGeneratingPDF}>
-                                {isGeneratingPDF ? <Loader2 size={14} className="animate-spin mr-1.5" /> : <Download size={14} className="mr-1.5" />}
-                                PDF
-                            </Button>
-                            <Button variant="outline" size="sm" className="border-slate-300 hover:bg-slate-50"
-                                onClick={() => setIsEmailModalOpen(true)}>
-                                <Mail size={14} className="mr-1.5" /> Email
-                            </Button>
-                            {canEdit && (
+                        }
+                        actions={
+                            <>
                                 <Button variant="outline" size="sm" className="border-slate-300 hover:bg-slate-50"
-                                    onClick={() => router.push(`/docs/equipment-inspection?edit=${record._id}&returnTo=${encodeURIComponent(`/docs/equipment-inspection/${record._id}`)}`)}>
-                                    <Pencil size={14} className="mr-1.5" /> Edit
+                                    onClick={handleDownloadPDF} disabled={isGeneratingPDF}>
+                                    {isGeneratingPDF ? <Loader2 size={14} className="animate-spin mr-1.5" /> : <Download size={14} className="mr-1.5" />}
+                                    PDF
                                 </Button>
-                            )}
-                            {canDelete && (
-                                <Button variant="destructive" size="sm" onClick={() => setIsDeleteOpen(true)}>
-                                    <Trash2 size={14} className="mr-1.5" /> Delete
+                                <Button variant="outline" size="sm" className="border-slate-300 hover:bg-slate-50"
+                                    onClick={() => setIsEmailModalOpen(true)}>
+                                    <Mail size={14} className="mr-1.5" /> Email
                                 </Button>
-                            )}
-                        </div>
-                    </div>
+                                {canEdit && (
+                                    <Button variant="outline" size="sm" className="border-slate-300 hover:bg-slate-50"
+                                        onClick={() => router.push(`/docs/equipment-inspection?edit=${record._id}&returnTo=${encodeURIComponent(`/docs/equipment-inspection/${record._id}`)}`)}>
+                                        <Pencil size={14} className="mr-1.5" /> Edit
+                                    </Button>
+                                )}
+                                {canDelete && (
+                                    <Button variant="destructive" size="sm" onClick={() => setIsDeleteOpen(true)}>
+                                        <Trash2 size={14} className="mr-1.5" /> Delete
+                                    </Button>
+                                )}
+                            </>
+                        }
+                    />
 
                     {/* Summary Cards */}
                     <div className="grid grid-cols-3 gap-3 mb-6">
@@ -339,7 +345,7 @@ export default function EquipmentInspectionDetailPage() {
                                     <Calendar size={10} /> Date
                                 </label>
                                 <p className="text-slate-800 font-bold mt-1 text-lg">
-                                    {record.date && !isNaN(new Date(record.date).getTime()) ? format(new Date(record.date), 'MMMM dd, yyyy') : '-'}
+                                    {record.date && !isNaN(new Date(record.date).getTime()) ? formatWallDate(record.date) : '-'}
                                 </p>
                             </div>
                             <div className="p-4 border-b border-slate-100">
@@ -383,16 +389,7 @@ export default function EquipmentInspectionDetailPage() {
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Created By</label>
                                 <div className="mt-1 flex items-center gap-2">
                                     {createdByEmp ? (
-                                        <>
-                                            <div className="w-8 h-8 rounded-full bg-[#0F4C75] text-white flex items-center justify-center text-xs font-bold overflow-hidden shrink-0">
-                                                {createdByEmp.profilePicture ? (
-                                                    <img src={createdByEmp.profilePicture} alt="" className="w-full h-full object-cover" />
-                                                ) : (
-                                                    `${createdByEmp.firstName?.[0] || ''}${createdByEmp.lastName?.[0] || ''}`
-                                                )}
-                                            </div>
-                                            <span className="font-bold text-slate-800">{createdByEmp.firstName} {createdByEmp.lastName}</span>
-                                        </>
+                                        <UserChip user={createdByEmp} size="md" />
                                     ) : (
                                         <span className="text-slate-600">{record.createdBy || '-'}</span>
                                     )}

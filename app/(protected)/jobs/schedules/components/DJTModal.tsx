@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import React, { useState, useEffect } from 'react';
 import { 
     CheckCircle2, Edit, FilePlus, Clock, Download, Loader2, 

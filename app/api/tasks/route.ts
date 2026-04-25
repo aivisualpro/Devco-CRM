@@ -4,26 +4,55 @@ import { DevcoTask, Employee, Constant } from '@/lib/models';
 import { Resend } from 'resend';
 import { getUserFromRequest } from '@/lib/permissions/middleware';
 import { isSuperAdmin } from '@/lib/permissions/service';
+import { revalidateTag } from 'next/cache';
+import { getWeekIdFromDate } from '@/lib/scheduleUtils';
+
+import { parsePagination, parseSearch, buildPaginationResponse } from '@/lib/api/pagination';
+import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
+
+export const revalidate = 60;
 
 export async function GET(req: NextRequest) {
     try {
         await connectToDatabase();
+        
+        const { page, limit, skip, sort } = parsePagination(req);
+        const { q } = parseSearch(req);
+        
         const { searchParams } = new URL(req.url);
         const assignee = searchParams.get('assignee');
         
-        let query = {};
+        let query: any = {};
         if (assignee) {
-            query = { assignees: assignee };
+            query.assignees = assignee;
         }
         
-        const tasks = await DevcoTask.find(query).sort({ createdAt: -1 });
+        if (q) {
+            query.$or = [
+                { task: { $regex: q, $options: 'i' } },
+                { customerName: { $regex: q, $options: 'i' } },
+                { estimate: { $regex: q, $options: 'i' } },
+                { jobAddress: { $regex: q, $options: 'i' } }
+            ];
+        }
         
-        // Debug: Log task owners to server console
-        // console.log(`[API] Fetched ${tasks.length} tasks. Creators present:`, 
-        //     Array.from(new Set(tasks.map((t: any) => t.createdBy || 'undefined')))
-        // );
+        const appliedSort = sort || { createdAt: -1 };
+        const selectedFields = '_id task dueDate assignees status customerId customerName estimate jobAddress createdBy createdAt lastUpdatedBy lastUpdatedAt';
+        
+        const [tasks, total] = await Promise.all([
+            DevcoTask.find(query)
+                .select(selectedFields)
+                .lean()
+                .sort(appliedSort as any)
+                .skip(skip)
+                .limit(limit),
+            DevcoTask.countDocuments(query)
+        ]);
 
-        return NextResponse.json({ success: true, tasks });
+        return NextResponse.json({ 
+            success: true, 
+            ...buildPaginationResponse(tasks, total, page, limit) 
+        });
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
@@ -66,7 +95,7 @@ export async function POST(req: NextRequest) {
                         const recipientEmails = assigneeDocs.map((e: any) => e.email).filter(Boolean);
 
                         if (recipientEmails.length > 0) {
-                            const fmtDateShort = (d: any) => d ? new Date(d).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : 'N/A';
+                            const fmtDateShort = (d: any) => d ? formatWallDate(d) : 'N/A';
                             
                             const taskFields = [
                                 { label: 'Customer', value: taskData.customerName || '--', icon: '🏢' },
@@ -96,6 +125,7 @@ export async function POST(req: NextRequest) {
             });
         }
         
+        revalidateTag(`dashboard-${getWeekIdFromDate(task.dueDate || task.createdAt)}`, undefined as any);
         return NextResponse.json({ success: true, task });
     } catch (error: any) {
         console.error('POST /api/tasks error:', error);
@@ -153,6 +183,9 @@ export async function PATCH(req: NextRequest) {
             lastUpdatedAt: new Date()
         }, { new: true });
         
+        if (updatedTask) {
+            revalidateTag(`dashboard-${getWeekIdFromDate(updatedTask.dueDate || updatedTask.createdAt)}`, undefined as any);
+        }
         return NextResponse.json({ success: true, task: updatedTask });
     } catch (error: any) {
         console.error('PATCH /api/tasks error:', error);
@@ -197,6 +230,7 @@ export async function DELETE(req: NextRequest) {
         }
         
         await DevcoTask.findByIdAndDelete(id);
+        revalidateTag(`dashboard-${getWeekIdFromDate(task.dueDate || task.createdAt)}`, undefined as any);
         return NextResponse.json({ success: true });
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });

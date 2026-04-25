@@ -910,8 +910,8 @@ const changelog = [
         highlights: [
             'Dynamic Header Buttons with visual feedback',
             'Liquid fill animation for Markup %',
-            'Fringe Rate MongoDB fix',
-            'AppSheet sync temporarily disabled'
+            'Fringe Rate MongoDB fix'
+
         ],
         changes: [
             {

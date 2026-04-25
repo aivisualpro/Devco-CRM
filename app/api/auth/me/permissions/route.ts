@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest } from '@/lib/permissions/middleware';
 import { getUserPermissions, createCachedPermissions } from '@/lib/permissions/service';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
     try {
         const user = await getUserFromRequest(request);
@@ -33,6 +35,10 @@ export async function GET(request: NextRequest) {
                 userId: user.userId,
                 email: user.email,
                 role: user.role
+            }
+        }, {
+            headers: {
+                'Cache-Control': 'private, max-age=60, stale-while-revalidate=300'
             }
         });
     } catch (error) {

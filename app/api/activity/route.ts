@@ -3,6 +3,8 @@ import { connectToDatabase } from '@/lib/db';
 import { Activity } from '@/lib/models';
 import mongoose from 'mongoose';
 
+export const revalidate = 60;
+
 export async function GET(request: NextRequest) {
     try {
         await connectToDatabase();

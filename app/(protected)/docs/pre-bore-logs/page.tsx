@@ -25,6 +25,7 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
+import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
 
 const SOIL_TYPES = [
     'Base & Sand',
@@ -261,17 +262,7 @@ export default function PreBoreLogsPage() {
                         payload: { limit: 500 }
                     })
                 }),
-                fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'getEstimates',
-                        payload: {
-                            limit: 500,
-                            projection: { _id: 1, estimate: 1, projectName: 1, jobAddress: 1, customerName: 1, contactName: 1, customer: 1, versionNumber: 1 }
-                        }
-                    })
-                }),
+                fetch(`/api/estimates?limit=500`),
                 fetch('/api/webhook/devcoBackend', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -442,7 +433,7 @@ export default function PreBoreLogsPage() {
 
         // Build a datetime-local value from stored date + startTime
         const buildDateTimeLocal = () => {
-            const dateStr = log.date ? format(new Date(log.date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
+            const dateStr = log.date ? formatWallDate(log.date) : format(new Date(), 'yyyy-MM-dd');
             if (log.startTime && log.startTime.includes('T')) return log.startTime.slice(0, 16);
             if (log.startTime) {
                 const match = log.startTime.match(/(\d+):(\d+)\s*(AM|PM)?/i);
@@ -459,7 +450,7 @@ export default function PreBoreLogsPage() {
         };
 
         setFormData({
-            date: log.date ? format(new Date(log.date), 'yyyy-MM-dd') : '',
+            date: log.date ? formatWallDate(log.date) : '',
             customerForeman: log.customerForeman || '',
             customerWorkRequestNumber: log.customerWorkRequestNumber || '',
             startTime: buildDateTimeLocal(),
@@ -560,7 +551,7 @@ export default function PreBoreLogsPage() {
             })
             .map(s => ({
                 id: s._id,
-                label: s.fromDate ? format(new Date(s.fromDate), 'MMM dd, yyyy') : 'No date',
+                label: s.fromDate ? formatWallDate(s.fromDate) : 'No date',
                 value: s._id
             }));
     }, [schedules]);
@@ -747,11 +738,11 @@ export default function PreBoreLogsPage() {
     // ==================== Build PDF Payload ====================
     const buildPdfPayload = (log: PreBoreLog) => {
         const dateStr = log.date && !isNaN(new Date(log.date).getTime())
-            ? format(new Date(log.date), 'MM/dd/yyyy')
+            ? formatWallDate(log.date)
             : '';
 
         const startTimeStr = log.startTime && !isNaN(new Date(log.startTime).getTime())
-            ? format(new Date(log.startTime), 'hh:mm a')
+            ? formatWallDate(log.startTime)
             : log.startTime || '';
 
         const estInfo = estimates.find(e => e._id === log.estimate || e.estimate === log.estimate);
@@ -947,7 +938,7 @@ export default function PreBoreLogsPage() {
                                             <div className="flex items-start justify-between mb-2">
                                                 <div>
                                                     <div className="text-sm font-bold text-slate-800">
-                                                        {log.date && !isNaN(new Date(log.date).getTime()) ? format(new Date(log.date), 'MMM dd, yyyy') : '-'}
+                                                        {log.date && !isNaN(new Date(log.date).getTime()) ? formatWallDate(log.date) : '-'}
                                                     </div>
                                                     <span className="text-xs text-slate-500 truncate block max-w-[180px]">{log.customerName || '-'}</span>
                                                 </div>
@@ -1046,7 +1037,7 @@ export default function PreBoreLogsPage() {
                                                             )}
                                                         </TableCell>
                                                         <TableCell className="font-medium text-slate-700 text-xs whitespace-nowrap">
-                                                            {log.date && !isNaN(new Date(log.date).getTime()) ? format(new Date(log.date), 'MMM dd, yyyy') : '-'}
+                                                            {log.date && !isNaN(new Date(log.date).getTime()) ? formatWallDate(log.date) : '-'}
                                                         </TableCell>
                                                         <TableCell className="text-xs text-slate-700 font-semibold max-w-[130px] truncate">
                                                             {(() => {
@@ -1337,7 +1328,7 @@ export default function PreBoreLogsPage() {
                                             {selectedScheduleId
                                                 ? (() => {
                                                     const s = schedules.find(s => s._id === selectedScheduleId);
-                                                    return s?.fromDate ? format(new Date(s.fromDate), 'MMM dd, yyyy') : 'Selected';
+                                                    return s?.fromDate ? formatWallDate(s.fromDate) : 'Selected';
                                                 })()
                                                 : (loadingSchedules ? 'Loading...' : 'Select Schedule...')}
                                         </span>
@@ -1357,7 +1348,7 @@ export default function PreBoreLogsPage() {
                                                     const sched = schedules.find(s => s._id === newVal);
                                                     if (sched?.fromDate) {
                                                         const d = new Date(sched.fromDate);
-                                                        const dateStr = format(d, 'yyyy-MM-dd');
+                                                        const dateStr = formatWallDate(d);
                                                         const timeStr = `${dateStr}T${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
                                                         setFormData(prev => ({ ...prev, date: dateStr, startTime: timeStr }));
                                                     }

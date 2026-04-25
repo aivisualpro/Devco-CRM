@@ -61,7 +61,7 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
                     (typeof body[key] === 'object' && body[key] !== null) || 
                     key === 'updatedAt' || 
                     key === 'historyLog' ||
-                    key === 'syncedToAppSheet' ||
+
                     key === '$push' ||
                     key === '$set'
                 ) continue;

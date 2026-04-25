@@ -1,10 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-
+// DbMigrator: placeholder component for one-time DB migrations.
+// Currently no active migrations. Remove or add migration logic as needed.
 export default function DbMigrator() {
-  useEffect(() => {
-    fetch('/api/fix-test').then(res => res.json()).then(console.log).catch(console.error);
-  }, []);
   return null;
 }

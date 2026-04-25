@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Upload, Clock, Import, ClipboardList, FileSpreadsheet, FileText, Loader2, ChevronRight, RefreshCw, Image, Footprints, DollarSign, Layout, Receipt, Link as LinkIcon, MapPin, FileBarChart, Search, X, Drill, GraduationCap, FlaskConical } from 'lucide-react';
-import { Header } from '@/components/ui';
+import { Header, PageHeader, EmptyState } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import Papa from 'papaparse';
 
@@ -99,10 +99,10 @@ export default function ImportsPage() {
                 const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
                 if (!data || data.length === 0) throw new Error("No data found in CSV");
 
-                const res = await fetch('/api/webhook/devcoBackend', {
+                const res = await fetch(`/api/estimates/import`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'importEstimates', payload: { estimates: data } })
+                    body: JSON.stringify({data})
                 });
                 const resData = await res.json();
                 if (resData.success) {
@@ -1059,15 +1059,13 @@ export default function ImportsPage() {
             
             <main className="flex-1 overflow-y-auto max-w-5xl w-full mx-auto px-4 sm:px-6 py-8">
                 {/* Header */}
-                <div className="mb-8">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-                        <div>
-                            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Data Imports</h1>
-                            <p className="text-sm text-slate-400 font-medium mt-1">
-                                Bulk import your data using CSV files &middot; <span className="text-slate-500 font-bold">{filteredItems.length}</span> actions
-                            </p>
-                        </div>
-                    </div>
+                <PageHeader 
+                    title="Data Imports" 
+                    className="mb-8"
+                />
+                <p className="text-sm text-slate-400 font-medium mt-[-20px] mb-6">
+                    Bulk import your data using CSV files &middot; <span className="text-slate-500 font-bold">{filteredItems.length}</span> actions
+                </p>
 
                     {/* Search Bar */}
                     <div className="relative">
@@ -1099,17 +1097,15 @@ export default function ImportsPage() {
                             </div>
                         )}
                     </div>
-                </div>
 
                 {/* Categorized Cards */}
                 {groupedItems.length === 0 ? (
-                    <div className="text-center py-20">
-                        <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                            <Search className="w-7 h-7 text-slate-300" />
-                        </div>
-                        <h3 className="text-lg font-bold text-slate-500 mb-1">No results found</h3>
-                        <p className="text-sm text-slate-400 font-medium">Try searching for a different term</p>
-                    </div>
+                    <EmptyState 
+                        icon={<Search className="w-8 h-8 text-slate-400" />} 
+                        title="No results found" 
+                        description="Try searching for a different term" 
+                        className="py-20"
+                    />
                 ) : (
                     <div className="space-y-8">
                         {groupedItems.map(({ category, items }) => (

@@ -1,5 +1,7 @@
 'use client';
 
+import { cld } from '@/lib/cld';
+import Image from 'next/image';
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { Phone, Mail, MessageSquare, Search } from 'lucide-react';
 import { Header, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Pagination, SkeletonTable, Badge, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
@@ -100,7 +102,7 @@ export default function ContactsPage() {
     };
 
     return (
-        <div className="flex flex-col h-full bg-slate-50">
+        <div className="flex flex-col h-full">
              <div className="flex-none">
                 <Header
                     hideLogo={false}
@@ -116,7 +118,7 @@ export default function ContactsPage() {
                 />
             </div>
 
-            <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-4">
+            <div className="flex-1 flex flex-col min-h-0 overflow-y-auto pt-2 px-4 pb-0">
                 {loading ? (
                      <>
                         <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -145,16 +147,16 @@ export default function ContactsPage() {
                                 </div>
                             ) : (
                                 mobileEmployees.map((emp) => (
-                                    <div key={emp._id} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center gap-4">
-                                        <div className="w-12 h-12 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm overflow-hidden shrink-0">
+                                     <div key={emp._id} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-50 hover:border-slate-100 transition-all flex items-center gap-4">
+                                        <div className="relative w-12 h-12 rounded-full bg-slate-100 border border-slate-200 text-slate-500 flex items-center justify-center font-normal text-sm overflow-hidden shrink-0">
                                             {emp.profilePicture ? (
-                                                <img src={emp.profilePicture} alt="" className="w-full h-full object-cover" />
+                                                <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(emp.profilePicture, { w: 1200 })} alt="" className="object-cover w-full h-full" /></div>
                                             ) : (
                                                 (emp.firstName?.[0] || '') + (emp.lastName?.[0] || '')
                                             )}
                                         </div>
                                          <div className="flex-1 min-w-0">
-                                            <h3 className="font-bold text-slate-800 text-sm truncate">{emp.firstName} {emp.lastName}</h3>
+                                            <h3 className="font-normal text-slate-600 text-xs truncate">{emp.firstName} {emp.lastName}</h3>
                                             
                                             <div className="flex items-center gap-4">
                                                 {emp.mobile && (
@@ -208,15 +210,15 @@ export default function ContactsPage() {
                                             <TableRow key={emp._id} className="hover:bg-slate-50/50">
                                                 <TableCell className="font-medium text-slate-900">
                                                     <div className="flex items-center gap-3">
-                                                        <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 text-xs font-bold overflow-hidden border border-slate-200">
+                                                        <div className="relative w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 text-xs font-normal overflow-hidden border border-slate-200">
                                                             {emp.profilePicture ? (
-                                                                <img src={emp.profilePicture} alt="" className="w-full h-full object-cover" />
+                                                                <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(emp.profilePicture, { w: 1200 })} alt="" className="object-cover w-full h-full" /></div>
                                                             ) : (
                                                                 (emp.firstName?.[0] || '') + (emp.lastName?.[0] || '')
                                                             )}
                                                         </div>
                                                          <div>
-                                                            <p className="font-bold">{emp.firstName} {emp.lastName}</p>
+                                                            <p className="font-normal text-slate-600 text-sm">{emp.firstName} {emp.lastName}</p>
                                                         </div>
                                                     </div>
                                                 </TableCell>

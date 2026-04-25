@@ -1,28 +1,49 @@
 'use client';
 
-import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import { useRouter, useParams } from 'next/navigation';
-import { Save, RefreshCw, Plus, Trash2, ChevronsUp, ChevronsDown, Copy, FileText, LayoutTemplate, ArrowLeft, Download, ChevronDown, ChevronRight, FileSpreadsheet, Check, Pencil, X, FilePlus, Upload, Bold, Italic, Underline, Strikethrough, AlignLeft, AlignCenter, AlignRight, AlignJustify, List, ListOrdered, Link, Image, Eraser } from 'lucide-react';
-import { Header, Loading, Button, AddButton, ConfirmModal, SkeletonEstimateHeader, SkeletonAccordion, FullEstimateSkeleton, Modal, LetterPageEditor, MyDropDown, MyTemplate, MyProposal, ClientModal, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
-import { useToast } from '@/hooks/useToast';
-import { useAddShortcut } from '@/hooks/useAddShortcut';
-import 'react-quill-new/dist/quill.snow.css';
-import dynamic from 'next/dynamic';
+import { useEffect, useState, useMemo, useRef, useCallback, useLayoutEffect } from 'react';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false }) as any;
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+import { useRouter, useParams } from 'next/navigation';
+import useSWR from 'swr';
+import { Save, RefreshCw, Copy, LayoutTemplate, ArrowLeft, Download, FileSpreadsheet, FilePlus } from 'lucide-react';
+import { Header, Button, ConfirmModal, SkeletonEstimateHeader, SkeletonAccordion, FullEstimateSkeleton, Modal, MyDropDown, ClientModal, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
+import { useToast } from '@/hooks/useToast';
+import { useCurrentUser } from '@/lib/context/AppContext';
+
+
 import {
-    EstimateHeaderCard,
-    AccordionSection,
     AddItemModal,
     LaborCalculationModal,
-    TemplateSelector,
-    EstimateDetailsModal,
-    EstimateLineItemsCard,
-    EstimateDocsCard,
-    EstimateScheduleCard,
-    EstimateAerialLayoutCard
+    EstimateDetailsModal
 } from './components';
+
+import dynamic from 'next/dynamic';
+
+const EstimateHeaderCard = dynamic(
+    () => import('./components/EstimateHeaderCard').then(m => m.EstimateHeaderCard),
+    { ssr: false, loading: () => <SkeletonEstimateHeader /> }
+);
+
+
+const EstimateLineItemsCard = dynamic(
+    () => import('./components/EstimateLineItemsCard').then(m => m.EstimateLineItemsCard),
+    { ssr: false, loading: () => <SkeletonAccordion /> }
+);
+
+const EstimateDocsCard = dynamic(
+    () => import('./components/EstimateDocsCard').then(m => m.EstimateDocsCard),
+    { ssr: false, loading: () => <SkeletonAccordion /> }
+);
+
+const EstimateScheduleCard = dynamic(
+    () => import('./components/EstimateScheduleCard').then(m => m.EstimateScheduleCard),
+    { ssr: false, loading: () => <SkeletonAccordion /> }
+);
+
+const EstimateAerialLayoutCard = dynamic(
+    () => import('./components/EstimateAerialLayoutCard').then(m => m.EstimateAerialLayoutCard),
+    { ssr: false, loading: () => <SkeletonAccordion /> }
+);
 import {
     getLaborBreakdown,
     getFringeRate,
@@ -36,11 +57,22 @@ import {
     type LaborBreakdown,
     type FringeConstant
 } from '@/lib/estimateCalculations';
-import { CalendarClock } from 'lucide-react';
-import { ScheduleItem } from '@/app/(protected)/jobs/schedules/components/ScheduleCard';
-import { TimeCardContent } from '@/app/(protected)/jobs/time-cards/page';
+import type { ScheduleItem } from '@/app/(protected)/jobs/schedules/components/ScheduleCard';
 
-const DRAFT_KEY_PREFIX = 'estimate_draft_';
+const TimeCardContent = dynamic(
+    () => import('@/app/(protected)/jobs/time-cards/TimeCardContent').then(m => m.TimeCardContent),
+    { ssr: false, loading: () => <SkeletonAccordion /> }
+);
+
+const MyProposal = dynamic(
+    () => import('@/components/ui/MyProposal').then(m => m.MyProposal),
+    { ssr: false, loading: () => <div className="w-full h-full min-h-[500px] flex items-center justify-center bg-white rounded-3xl border border-slate-200">
+        <div className="flex flex-col items-center space-y-4">
+            <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-gray-500 font-medium">Loading Proposal Engine...</p>
+        </div>
+    </div> }
+);
 
 // Types
 interface Template {
@@ -200,13 +232,12 @@ const baseSectionConfigs = [
 ];
 
 export default function EstimateViewPage() {
+    const globalCurrentUser = useCurrentUser();
     const router = useRouter();
     const params = useParams();
     const slug = params.slug as string;
-    const { toasts, success, error: toastError, removeToast } = useToast();
+    const { success, error: toastError } = useToast();
 
-    // State
-    // State
     const [estimate, setEstimate] = useState<Estimate | null>(null);
 
 
@@ -223,35 +254,25 @@ export default function EstimateViewPage() {
 
     // Template Editing State
     const [editorPages, setEditorPages] = useState<{ content: string }[]>([{ content: '' }]);
-
-    // Insert variable into Quill editor
-    const insertVariable = (variableName: string) => {
-        // Try to find a focused editor
-        for (const ref of quillRefs.current) {
-            if (ref) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const editor = (ref as any).getEditor();
-                const range = editor.getSelection();
-                if (range) {
-                    editor.insertText(range.index, `{{${variableName}}} `);
-                    editor.setSelection(range.index + variableName.length + 5);
-                    return;
-                }
-            }
-        }
-        // Fallback: insert into first page
-        if (quillRefs.current[0]) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const editor = (quillRefs.current[0] as any).getEditor();
-            const length = editor.getLength();
-            editor.insertText(length - 1, `{{${variableName}}} `);
-        }
-    };
     const [showPdfPreview, setShowPdfPreview] = useState(false);
     const [generatingProposal, setGeneratingProposal] = useState(false);
     const [formData, setFormData] = useState<Estimate | null>(null);
     const [activeClient, setActiveClient] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+
+    useIsomorphicLayoutEffect(() => {
+        if (typeof window !== 'undefined') {
+            try {
+                const cached = sessionStorage.getItem(`preload_estimate_${slug}`);
+                if (cached) {
+                    const parsed = JSON.parse(cached);
+                    setEstimate(parsed);
+                    setFormData(parsed);
+                    setLoading(false);
+                }
+            } catch (e) {}
+        }
+    }, [slug]);
     const [saving, setSaving] = useState(false);
     const [unsavedChanges, setUnsavedChanges] = useState(false);
     const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
@@ -267,19 +288,34 @@ export default function EstimateViewPage() {
     const [changeOrderConfirmOpen, setChangeOrderConfirmOpen] = useState<{ id: string } | null>(null);
 
     // Visibility State
-    const [visibleSections, setVisibleSections] = useState({
+    const DEFAULT_SECTIONS = {
         aerialLayout: true,
         estimateDocs: false,
         lineItems: true,
         proposal: true,
         schedules: true,
         timesheet: false
+    };
+
+    const [visibleSections, setVisibleSections] = useState(() => {
+        if (typeof window === 'undefined') return DEFAULT_SECTIONS;
+        try {
+            const raw = localStorage.getItem(`estimate_visible_sections_${slug}`);
+            return raw ? { ...DEFAULT_SECTIONS, ...JSON.parse(raw) } : DEFAULT_SECTIONS;
+        } catch {
+            return DEFAULT_SECTIONS;
+        }
     });
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem(`estimate_visible_sections_${slug}`, JSON.stringify(visibleSections));
+        }
+    }, [visibleSections, slug]);
     const [showSectionMenu, setShowSectionMenu] = useState(false);
 
     // Schedules State
     const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
-    const [schedulesLoaded, setSchedulesLoaded] = useState(false);
     const [allConstants, setAllConstants] = useState<any[]>([]);
     const [currentUser, setCurrentUser] = useState<any>(null);
 
@@ -412,9 +448,8 @@ export default function EstimateViewPage() {
     useEffect(() => {
         if (employeesData.length > 0 && !settingsLoaded) {
             try {
-                const user = JSON.parse(localStorage.getItem('devco_user') || '{}');
-                const userEmail = user.email;
-                if (user) setCurrentUser(user);
+                const userEmail = globalCurrentUser?.email;
+                if (globalCurrentUser) setCurrentUser(globalCurrentUser);
 
                 if (userEmail) {
                     const emp = employeesData.find((e: any) => e._id === userEmail || e.email === userEmail);
@@ -443,8 +478,7 @@ export default function EstimateViewPage() {
         if (!settingsLoaded) return;
 
         const timeoutId = setTimeout(async () => {
-            const user = JSON.parse(localStorage.getItem('devco_user') || '{}');
-            const userEmail = user.email;
+            const userEmail = globalCurrentUser?.email;
             if (!userEmail) return;
 
             const settings = [];
@@ -482,11 +516,9 @@ export default function EstimateViewPage() {
     const [activeSection, setActiveSection] = useState<SectionConfig | null>(null);
     const [explanationItem, setExplanationItem] = useState<LineItem | null>(null);
     const [breakdownData, setBreakdownData] = useState<LaborBreakdown | null>(null);
-
     const [itemToDelete, setItemToDelete] = useState<{ section: SectionConfig; item: LineItem } | null>(null);
 
     // Template Editing State
-    const [editorContent, setEditorContent] = useState('');
     const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
     const [newTemplateTitle, setNewTemplateTitle] = useState('');
     const [isSavingTemplate, setIsSavingTemplate] = useState(false);
@@ -494,10 +526,8 @@ export default function EstimateViewPage() {
     // Confirmation State for Version Delete
     const [versionToDelete, setVersionToDelete] = useState<{ id: string, number: number } | null>(null);
     const [saveType, setSaveType] = useState<'update' | 'create'>('update');
+    const [hasCustomProposal, setHasCustomProposal] = useState(false);
     const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
-    const [proposalServicesOpen, setProposalServicesOpen] = useState(false);
-    const [isAddingProposalService, setIsAddingProposalService] = useState(false);
-    const [hasCustomProposal, setHasCustomProposal] = useState(false); // Track if proposal has custom edits
 
     // Client Modal State
     const [isClientModalOpen, setIsClientModalOpen] = useState(false);
@@ -563,7 +593,7 @@ export default function EstimateViewPage() {
 
     // Load estimate
     const loadEstimate = useCallback(async (silent = false) => {
-        if (!silent) setLoading(true);
+        if (!silent && !sessionStorage.getItem(`preload_estimate_${slug}`)) setLoading(true);
         try {
             let result;
             if (slug.includes('-V')) {
@@ -591,8 +621,16 @@ export default function EstimateViewPage() {
                 if (data.bidMarkUp) {
                     data.bidMarkUp = String(data.bidMarkUp).replace(/[^0-9.]/g, '');
                 }
-                setEstimate(data);
-                setFormData(data);
+                setEstimate(prev => ({
+                    ...data,
+                    subTotal: data.subTotal || prev?.subTotal,
+                    grandTotal: data.grandTotal || prev?.grandTotal
+                }));
+                setFormData(prev => ({
+                    ...data,
+                    subTotal: data.subTotal || prev?.subTotal,
+                    grandTotal: data.grandTotal || prev?.grandTotal
+                }));
                 setUnsavedChanges(false);
 
                 if (data.estimate) {
@@ -613,31 +651,6 @@ export default function EstimateViewPage() {
                         if (latest.htmlContent) setPreviewHtml(latest.htmlContent);
                     }
                 }
-
-                // Check for local draft using the fetched ID
-                /* 
-                // TEMPORARILY DISABLED TO FIX STALE DATA ISSUES
-                const draftKey = `${DRAFT_KEY_PREFIX}${data._id}`;
-                const savedDraft = localStorage.getItem(draftKey);
-                if (savedDraft) {
-                    try {
-                        const draftData = JSON.parse(savedDraft);
-                        if (draftData.estimate._id === data._id) {
-                            setEstimate(draftData.estimate);
-                            setFormData(draftData.formData);
-                            setUnsavedChanges(true);
-                            if (toastShownRef.current !== data._id) {
-                                toastShownRef.current = data._id;
-                                setTimeout(() => {
-                                    success('Restored unsaved changes from this browser');
-                                }, 500);
-                            }
-                        }
-                    } catch (e) {
-                        console.error('Failed to parse draft', e);
-                    }
-                }
-                */
             } else {
                 toastError('Estimate not found');
             }
@@ -648,156 +661,201 @@ export default function EstimateViewPage() {
         if (!silent) setLoading(false);
     }, [slug, toastError, success]);
 
-    // Load catalogs - single batch request
+    // Load catalogs - parallel requests with sessionStorage caching
     const loadCatalogs = useCallback(async () => {
-        try {
-            const result = await apiCall('getAllCatalogueItems');
-            if (result.success && result.result) {
-                const { equipment, labor, material, overhead, subcontractor, disposal, miscellaneous, tools, constant } = result.result;
-                setEquipmentCatalog(equipment || []);
-                setLaborCatalog(labor || []);
-                setMaterialCatalog(material || []);
-                setOverheadCatalog(overhead || []);
-                setSubcontractorCatalog(subcontractor || []);
-                setDisposalCatalog(disposal || []);
-                setMiscellaneousCatalog(miscellaneous || []);
-                setToolsCatalog(tools || []);
-                setMiscellaneousCatalog(miscellaneous || []);
-                setToolsCatalog(tools || []);
-                setMiscellaneousCatalog(miscellaneous || []);
-                setFringeConstants((constant || []) as unknown as FringeConstant[]);
-                setAllConstants(constant || []);
+        const CACHE_KEY = 'devco_catalogs_cache';
+        const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-                // Process Status Options
-                const statuses = (constant || [])
-                    .filter((c: any) => {
-                        const type = (c.type || c.category || '').toLowerCase();
-                        return type === 'estimate status';
-                    })
-                    .map((c: any) => ({
-                        id: c._id,
-                        label: c.description || c.value || '',
-                        value: c.description || c.value || '',
-                        color: c.color
-                    }))
-                    .filter((c: any) => c.label)
-                    .sort((a: any, b: any) => String(a.label).localeCompare(String(b.label)));
-                setStatusOptions(statuses);
+        // Helper to apply catalog data to state
+        const applyCatalogData = (catalogResult: any, employees: any[], clients: any[]) => {
+            const { equipment, labor, material, overhead, subcontractor, disposal, miscellaneous, tools, constant } = catalogResult;
+            setEquipmentCatalog(equipment || []);
+            setLaborCatalog(labor || []);
+            setMaterialCatalog(material || []);
+            setOverheadCatalog(overhead || []);
+            setSubcontractorCatalog(subcontractor || []);
+            setDisposalCatalog(disposal || []);
+            setMiscellaneousCatalog(miscellaneous || []);
+            setToolsCatalog(tools || []);
+            setFringeConstants((constant || []) as unknown as FringeConstant[]);
+            setAllConstants(constant || []);
 
-                // Process Service Options
-                const services = (constant || [])
-                    .filter((c: any) => {
-                        const type = (c.type || c.category || '').toLowerCase();
-                        return type === 'services' || type === 'service';
+            // Process Status Options
+            const statuses = (constant || [])
+                .filter((c: any) => {
+                    const type = (c.type || c.category || '').toLowerCase();
+                    return type === 'estimate status';
+                })
+                .map((c: any) => ({
+                    id: c._id,
+                    label: c.description || c.value || '',
+                    value: c.description || c.value || '',
+                    color: c.color
+                }))
+                .filter((c: any) => c.label)
+                .sort((a: any, b: any) => String(a.label).localeCompare(String(b.label)));
+            setStatusOptions(statuses);
+
+            // Process Service Options
+            const services = (constant || [])
+                .filter((c: any) => {
+                    const type = (c.type || c.category || '').toLowerCase();
+                    return type === 'services' || type === 'service';
+                })
+                .map((c: any) => ({
+                    id: c._id,
+                    label: (c.description || c.value || 'Unnamed Service').trim(),
+                    value: (c.description || c.value || '').trim(),
+                    color: c.color
+                }))
+                .sort((a: any, b: any) => a.label.localeCompare(b.label));
+            setServiceOptions(services);
+
+            // Process Fringe Options
+            const fringes = (constant || [])
+                .filter((c: any) => {
+                    const type = (c.type || c.category || '').toLowerCase();
+                    return type === 'fringe';
+                })
+                .map((c: any) => ({
+                    id: c._id,
+                    label: c.description || c.value || '',
+                    value: (c.description || c.value || '').trim(),
+                    color: c.color
+                }))
+                .filter((c: any) => c.label)
+                .sort((a: any, b: any) => String(a.label).localeCompare(String(b.label)));
+            setFringeOptions(fringes);
+
+            // Process Certified Payroll Options
+            const certifiedPayroll = (constant || [])
+                .filter((c: any) => {
+                    const type = (c.type || c.category || '').toLowerCase();
+                    return type === 'certified payroll';
+                })
+                .map((c: any) => ({
+                    id: c._id,
+                    label: c.description || c.value || '',
+                    value: (c.description || c.value || '').trim(),
+                    color: c.color
+                }))
+                .filter((c: any) => c.label)
+                .sort((a: any, b: any) => String(a.label).localeCompare(String(b.label)));
+            setCertifiedPayrollOptions(certifiedPayroll);
+            // Process Planning Options
+            const planning = (constant || [])
+                .filter((c: any) => {
+                    const type = (c.type || c.category || '').toLowerCase();
+                    return type === 'planning';
+                })
+                .map((c: any) => ({
+                    id: c._id,
+                    label: c.description || c.value || '',
+                    value: (c.description || c.value || '').trim(),
+                    color: c.color
+                }))
+                .filter((c: any) => c.label)
+                .sort((a: any, b: any) => String(a.label).localeCompare(String(b.label)));
+            setPlanningOptions(planning);
+
+            // Apply employees
+            if (employees.length > 0) {
+                setEmployeesData(employees);
+                const empOptions = employees
+                    .filter((emp: any) => {
+                        if (emp.status === 'inactive') return false;
+                        const email = (emp.email || emp._id || '').toLowerCase();
+                        const allowed = [
+                            'ns@devco-inc.com',
+                            'nr@devco-inc.com',
+                            'cd@devco-inc.com',
+                            'sean@devco-inc.com',
+                            'dt@devco-inc.com'
+                        ];
+                        return allowed.includes(email);
                     })
-                    .map((c: any) => ({
-                        id: c._id,
-                        label: (c.description || c.value || 'Unnamed Service').trim(),
-                        value: (c.description || c.value || '').trim(),
-                        color: c.color
+                    .map((emp: any) => ({
+                        id: emp._id,
+                        label: `${emp.firstName} ${emp.lastName}`,
+                        value: emp._id,
+                        profilePicture: emp.profilePicture
                     }))
                     .sort((a: any, b: any) => a.label.localeCompare(b.label));
-                setServiceOptions(services);
-
-                // Process Fringe Options
-                const fringes = (constant || [])
-                    .filter((c: any) => {
-                        const type = (c.type || c.category || '').toLowerCase();
-                        return type === 'fringe';
-                    })
-                    .map((c: any) => ({
-                        id: c._id,
-                        label: c.description || c.value || '',
-                        value: (c.description || c.value || '').trim(), // Ensure trim
-                        color: c.color
-                    }))
-                    .filter((c: any) => c.label)
-                    .sort((a: any, b: any) => String(a.label).localeCompare(String(b.label)));
-                setFringeOptions(fringes);
-
-                // Process Certified Payroll Options
-                const certifiedPayroll = (constant || [])
-                    .filter((c: any) => {
-                        const type = (c.type || c.category || '').toLowerCase();
-                        return type === 'certified payroll';
-                    })
-                    .map((c: any) => ({
-                        id: c._id,
-                        label: c.description || c.value || '',
-                        value: (c.description || c.value || '').trim(),
-                        color: c.color
-                    }))
-                    .filter((c: any) => c.label)
-                    .sort((a: any, b: any) => String(a.label).localeCompare(String(b.label)));
-                setCertifiedPayrollOptions(certifiedPayroll);
-
-                // Process Planning Options
-                const planning = (constant || [])
-                    .filter((c: any) => {
-                        const type = (c.type || c.category || '').toLowerCase();
-                        return type === 'planning';
-                    })
-                    .map((c: any) => ({
-                        id: c._id,
-                        label: c.description || c.value || '',
-                        value: (c.description || c.value || '').trim(),
-                        color: c.color
-                    }))
-                    .filter((c: any) => c.label)
-                    .sort((a: any, b: any) => String(a.label).localeCompare(String(b.label)));
-                setPlanningOptions(planning);
-
-                // Fetch Employees for Proposal Writer
-                const employeeRes = await apiCall('getEmployees');
-                if (employeeRes.success && employeeRes.result) {
-                    // Store full employee data for signature lookup
-                    setEmployeesData(employeeRes.result);
-
-                    const employees = employeeRes.result
-                        .filter((emp: any) => {
-                            if (emp.status === 'inactive') return false;
-                            const email = (emp.email || emp._id || '').toLowerCase();
-                            const allowed = [
-                                'ns@devco-inc.com',
-                                'nr@devco-inc.com',
-                                'cd@devco-inc.com',
-                                'sean@devco-inc.com',
-                                'dt@devco-inc.com'
-                            ];
-                            return allowed.includes(email);
-                        })
-                        .map((emp: any) => ({
-                            id: emp._id,
-                            label: `${emp.firstName} ${emp.lastName}`,
-                            value: emp._id,
-                            profilePicture: emp.profilePicture
-                        }))
-                        .sort((a: any, b: any) => a.label.localeCompare(b.label));
-
-                    setEmployeeOptions(employees);
-                }
-
-                // Fetch Clients
-                const clientRes = await apiCall('getClients');
-                if (clientRes.success && clientRes.result) {
-                    const clients = clientRes.result.map((c: any) => ({
-                        id: c._id || c.recordId,
-                        label: c.name,
-                        value: c._id || c.recordId
-                    })).sort((a: any, b: any) => a.label.localeCompare(b.label));
-                    setClientOptions(clients);
-
-                    // If we have a customerId but no customerName in formData, try to resolve it now
-                    if (formData?.customerId && !formData.customerName) {
-                        const client = clients.find((c: any) => c.value === formData.customerId);
-                        if (client) {
-                            setFormData(prev => prev ? { ...prev, customerName: client.label } : null);
-                        }
-                    }
-                }
-
-
+                setEmployeeOptions(empOptions);
             }
+
+            // Apply clients
+            if (clients.length > 0) {
+                const clientOpts = clients.map((c: any) => ({
+                    id: c._id || c.recordId,
+                    label: c.name,
+                    value: c._id || c.recordId
+                })).sort((a: any, b: any) => a.label.localeCompare(b.label));
+                setClientOptions(clientOpts);
+
+                setFormData(prev => {
+                    if (prev?.customerId && !prev.customerName) {
+                        const client = clientOpts.find((c: any) => c.value === prev.customerId);
+                        if (client) return { ...prev, customerName: client.label };
+                    }
+                    return prev;
+                });
+            }
+        };
+
+        // Try to load from cache first for instant render
+        try {
+            const cached = sessionStorage.getItem(CACHE_KEY);
+            if (cached) {
+                const { data, timestamp } = JSON.parse(cached);
+                if (Date.now() - timestamp < CACHE_TTL) {
+                    applyCatalogData(data.catalogResult, data.employees, data.clients);
+                    setCatalogsLoaded(true);
+
+                    // Still refresh in background (stale-while-revalidate)
+                    Promise.all([
+                        apiCall('getAllCatalogueItems'),
+                        apiCall('getEmployees'),
+                        apiCall('getClients')
+                    ]).then(([result, employeeRes, clientRes]) => {
+                        const catalogResult = result.success ? result.result : data.catalogResult;
+                        const employees = employeeRes.success ? employeeRes.result : data.employees;
+                        const clients = clientRes.success ? clientRes.result : data.clients;
+                        applyCatalogData(catalogResult, employees, clients);
+                        // Update cache
+                        try {
+                            sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+                                data: { catalogResult, employees, clients },
+                                timestamp: Date.now()
+                            }));
+                        } catch {}
+                    }).catch(() => {});
+                    return;
+                }
+            }
+        } catch (e) {}
+
+        // No cache or stale — fetch fresh
+        try {
+            const [result, employeeRes, clientRes] = await Promise.all([
+                apiCall('getAllCatalogueItems'),
+                apiCall('getEmployees'),
+                apiCall('getClients')
+            ]);
+
+            const catalogResult = result.success ? result.result : {};
+            const employees = employeeRes.success ? employeeRes.result || [] : [];
+            const clients = clientRes.success ? clientRes.result || [] : [];
+
+            applyCatalogData(catalogResult, employees, clients);
+
+            // Save to cache
+            try {
+                sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+                    data: { catalogResult, employees, clients },
+                    timestamp: Date.now()
+                }));
+            } catch {}
         } catch (err) {
             console.error('Error loading catalogs:', err);
             toastError('Failed to load catalogs');
@@ -831,14 +889,15 @@ export default function EstimateViewPage() {
             loadEstimate();
             loadCatalogs();
         }
-        // Fetch templates
-        apiCall('getTemplates').then(res => {
-            if (res.success && res.result) {
-                setTemplates(res.result);
-                // Don't auto-select - let user choose
-            }
-        });
-    }, [slug, loadEstimate, loadCatalogs]);
+        // Fetch templates ONLY when the Proposal section is visible
+        if (visibleSections.proposal) {
+            apiCall('getTemplates').then(res => {
+                if (res.success && res.result) {
+                    setTemplates(res.result);
+                }
+            });
+        }
+    }, [slug, loadEstimate, loadCatalogs, visibleSections.proposal]);
 
     // Synchronize client options (contacts/addresses) when customer changes
     useEffect(() => {
@@ -912,39 +971,32 @@ export default function EstimateViewPage() {
         }
     }, [formData?.customerId, formData?.customerName, clientOptions]);
 
-    // Fetch Schedules
+    // Fetch Schedules via SWR (Paused until needed by a visible section)
+    const estimateNumber = estimate?.estimate || estimate?.proposalNo;
+    const isSchedulesNeeded = visibleSections.schedules || visibleSections.aerialLayout || visibleSections.timesheet;
+
+    const { data: swrSchedules } = useSWR(
+        (isSchedulesNeeded && estimateNumber) ? ['/api/schedules', estimateNumber] : null,
+        async ([url, num]) => {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'getSchedulesPage',
+                    payload: { filters: { estimate: num }, limit: 100 }
+                })
+            });
+            const data = await res.json();
+            return data.result?.schedules || [];
+        },
+        { revalidateOnFocus: false, dedupingInterval: 60000 }
+    );
+
     useEffect(() => {
-        // Use the estimate number (e.g. 26-0027) to find related schedules
-        const estimateNumber = estimate?.estimate || estimate?.proposalNo;
-        if (!estimateNumber) return;
-
-        async function fetchSchedules() {
-            try {
-                const res = await fetch('/api/schedules', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'getSchedulesPage',
-                        payload: {
-                            filters: { estimate: estimateNumber },
-                            limit: 100
-                        }
-                    })
-                });
-                const data = await res.json();
-                if (data.success && data.result?.schedules) {
-                    setSchedules(data.result.schedules);
-                }
-            } catch (err) {
-                console.error('Error loading schedules', err);
-            } finally {
-                setSchedulesLoaded(true);
-            }
+        if (swrSchedules) {
+            setSchedules(swrSchedules);
         }
-
-        // Only fetch once or if estimate number changes
-        if (!schedulesLoaded) fetchSchedules();
-    }, [estimate?.estimate, estimate?.proposalNo, schedulesLoaded]);
+    }, [swrSchedules]);
 
 
 
@@ -999,8 +1051,15 @@ export default function EstimateViewPage() {
 
     // Chart data (always reflects current totals)
     const chartData = useMemo(() => {
-        if (!sections.length) return { slices: [], subTotal: 0, grandTotal: 0, markupPct: 0 };
-        // ... same chart logic ...
+        const markupPct = parseNum(formData?.bidMarkUp || estimate?.bidMarkUp);
+
+        // If sections haven't loaded yet (catalogs still fetching), use preloaded totals
+        if (!sections.length) {
+            const preSubTotal = Number(estimate?.subTotal || 0);
+            const preGrandTotal = Number(estimate?.grandTotal || 0);
+            return { slices: [], subTotal: preSubTotal, grandTotal: preGrandTotal, markupPct };
+        }
+
         const slices = sections.map(s => ({
             id: s.id,
             label: s.title,
@@ -1008,16 +1067,21 @@ export default function EstimateViewPage() {
             color: s.color
         }));
 
-        const subTotal = slices.reduce((sum, s) => sum + s.value, 0);
-        const markupPct = parseNum(formData?.bidMarkUp || estimate?.bidMarkUp);
-        const grandTotal = subTotal * (1 + markupPct / 100);
+        const calculatedSubTotal = slices.reduce((sum, s) => sum + s.value, 0);
+        const calculatedGrandTotal = calculatedSubTotal * (1 + markupPct / 100);
+
+        // If line-item calculation yields 0 but estimate has stored totals, prefer stored
+        const subTotal = calculatedSubTotal === 0 && Number(estimate?.subTotal) > 0
+            ? Number(estimate?.subTotal) : calculatedSubTotal;
+        const grandTotal = calculatedSubTotal === 0 && Number(estimate?.grandTotal) > 0
+            ? Number(estimate?.grandTotal) : calculatedGrandTotal;
 
         return { slices, subTotal, grandTotal, markupPct };
-    }, [sections, formData?.bidMarkUp, estimate?.bidMarkUp]);
+    }, [sections, formData?.bidMarkUp, estimate?.bidMarkUp, estimate?.subTotal, estimate?.grandTotal]);
 
     // Auto-save logic (debounced 800ms)
     useEffect(() => {
-        if (!unsavedChanges || !estimate || !formData || saving) return;
+        if (!unsavedChanges || !estimate || !formData) return;
 
         const timer = setTimeout(() => {
             // Skip auto-save if user is currently editing an input
@@ -1053,29 +1117,30 @@ export default function EstimateViewPage() {
         });
     }, [chartData.grandTotal, estimate?._id, formData?.status]);
 
-    // Auto-refresh preview when SERVICES change (debounce 500ms)
-    // Only regenerate if services change - preserve saved proposal otherwise
     // Auto-refresh preview when data changes (debounce 800ms)
+    // Only runs when Proposal section is visible
     useEffect(() => {
-        // Run if we have a template selected and not in manual edit mode
-        if (!selectedTemplateId || isEditingTemplate || generatingProposal || saving || isSavingTemplate || !estimate) {
+        // Skip entirely when proposal section is not visible
+        if (!visibleSections.proposal) return;
+
+        if (!selectedTemplateId || isEditingTemplate || generatingProposal || isSavingTemplate || !estimate) {
             return;
         }
 
-        // Debounce the preview generation to handle rapid typing
         const timer = setTimeout(() => {
             handlePreview(true); // silent refresh
         }, 800);
 
         return () => clearTimeout(timer);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [formData, chartData, selectedTemplateId, isEditingTemplate, viewingProposalId, estimate?.proposals, saving, isSavingTemplate]);
+    }, [formData, chartData, selectedTemplateId, isEditingTemplate, viewingProposalId, estimate?.proposals, isSavingTemplate, visibleSections.proposal]);
 
 
     // Unified Template Matching & Versioning Effect
-    // Triggers when services change (debounced to simulate "blur/focus change")
+    // Only runs when the Proposal section is visible
     useEffect(() => {
-        if (!initialLoadComplete || !templates.length || isEditingTemplate || generatingProposal || saving || isSavingTemplate) return;
+        if (!visibleSections.proposal) return;
+        if (!initialLoadComplete || !templates.length || isEditingTemplate || generatingProposal || isSavingTemplate) return;
 
         const services = formData?.services || [];
 
@@ -1085,7 +1150,7 @@ export default function EstimateViewPage() {
 
         return () => clearTimeout(timer);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [formData?.services, templates, initialLoadComplete]);
+    }, [formData?.services, templates, initialLoadComplete, visibleSections.proposal]);
 
     const handleAutoTemplateMatch = async (services: string[]) => {
         if (!estimate) return;
@@ -1097,7 +1162,7 @@ export default function EstimateViewPage() {
         // Only proceed if the template recommendation actually changes
         if (newTid === selectedTemplateId) return;
 
-        console.log(`Matching template ${newTid} for services: ${services.join(', ')}`);
+        if (process.env.NODE_ENV !== 'production') console.log(`Matching template ${newTid} for services: ${services.join(', ')}`);
 
         // Before changing, check if we already have versions for the NEW template
         const existingVersions = (estimate?.proposals || []).filter((p: any) => p.templateId === newTid);
@@ -1137,8 +1202,6 @@ export default function EstimateViewPage() {
         try {
             // Generate the HTML with current editor pages content
             const pagesToSave = editorPages;
-            const contentToSave = editorPages[0]?.content || '';
-
             const currentEstimate = {
                 ...estimate,
                 ...formData,
@@ -1265,7 +1328,6 @@ export default function EstimateViewPage() {
         setGeneratingProposal(true);
         // Invalidate pending previews
         lastPreviewRequestTime.current = Date.now();
-        const tidToUse = tid === 'empty' ? null : tid;
 
         // Extract custom variable values from the DOM
         const customVariables: Record<string, string> = {};
@@ -1339,8 +1401,9 @@ export default function EstimateViewPage() {
         setGeneratingProposal(false);
     };
 
-    // Auto-select template based on services
+    // Auto-select template based on services — only when Proposal section is visible
     useEffect(() => {
+        if (!visibleSections.proposal) return;
         if (!templates.length || isEditingTemplate || !formData || !estimate || viewingProposalId) return;
 
         const selectedServices = formData.services || [];
@@ -1389,7 +1452,8 @@ export default function EstimateViewPage() {
             }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [formData?.services, templates, isEditingTemplate, viewingProposalId]);
+    }, [formData?.services, templates, isEditingTemplate, viewingProposalId, visibleSections.proposal]);
+
 
     const handleHeaderUpdate = async (field: string, value: string | number | boolean | string[]) => {
         if (!formData) return;
@@ -1514,7 +1578,7 @@ export default function EstimateViewPage() {
         setUnsavedChanges(true);
     };
 
-    const handleAddItem = async (section: SectionConfig, data: Record<string, unknown>, isManual: boolean) => {
+    const handleAddItem = async (section: SectionConfig, data: Record<string, unknown>) => {
         if (!estimate) return;
         const processedData = { ...data };
         processedData._id = 'temp_' + Date.now() + Math.random().toString(36).substr(2, 9);
@@ -1544,12 +1608,15 @@ export default function EstimateViewPage() {
 
     const handleDuplicateItem = async (section: SectionConfig, item: LineItem) => {
         if (!estimate) return;
-        const { _id, ...rest } = item;
+        const { ...rest } = item;
         const newItem = {
             ...rest,
             _id: `new_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             estimateId: estimate?._id
         };
+        // Explicitly remove _id if it's there
+        delete (newItem as any)._id;
+        newItem._id = `new_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
         const items = (estimate[section.key] as LineItem[]) || [];
         const index = items.findIndex(i => i._id === item._id);
@@ -1860,14 +1927,6 @@ export default function EstimateViewPage() {
         router.push(`/estimates/${clickedId}`);
     };
 
-    // Toggle all sections
-    const allExpanded = sections.every(s => openSections[s.id]);
-    const handleToggleAll = () => {
-        const newState: Record<string, boolean> = {};
-        sections.forEach(s => { newState[s.id] = !allExpanded; });
-        setOpenSections(newState);
-    };
-
     // Get active catalog (helper)
     const getActiveCatalog = (): LineItem[] => {
         if (!activeSection) return [];
@@ -2109,7 +2168,7 @@ export default function EstimateViewPage() {
                                     ]}
                                     selectedValues={Object.keys(visibleSections).filter(k => visibleSections[k as keyof typeof visibleSections])}
                                     onSelect={(val) => {
-                                        setVisibleSections(prev => ({
+                                        setVisibleSections((prev: typeof visibleSections) => ({
                                             ...prev,
                                             [val]: !prev[val as keyof typeof visibleSections]
                                         }));

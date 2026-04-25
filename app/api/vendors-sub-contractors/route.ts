@@ -1,6 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import VendorsSubContractors from '@/lib/models/VendorsSubContractors';
+import { parsePagination, parseSearch, buildPaginationResponse } from '@/lib/api/pagination';
+
+export async function GET(req: NextRequest) {
+    try {
+        await connectToDatabase();
+        const { page, limit, skip, sort } = parsePagination(req);
+        const { q } = parseSearch(req);
+
+        let query: any = {};
+        if (q) {
+            query.name = { $regex: q, $options: 'i' };
+        }
+
+        const appliedSort = sort || { name: 1 };
+        const selectedFields = '_id type name address contacts createdBy createdAt updatedAt';
+
+        const [items, total] = await Promise.all([
+            VendorsSubContractors.find(query)
+                .select(selectedFields)
+                .lean()
+                .sort(appliedSort as any)
+                .skip(skip)
+                .limit(limit),
+            VendorsSubContractors.countDocuments(query)
+        ]);
+
+        return NextResponse.json({
+            success: true,
+            ...buildPaginationResponse(items, total, page, limit)
+        });
+    } catch (error: any) {
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+}
 
 export async function POST(request: NextRequest) {
     try {
@@ -11,6 +45,7 @@ export async function POST(request: NextRequest) {
         switch (action) {
 
             case 'getAll': {
+                // Keep for backward compatibility or change callers
                 const docs = await VendorsSubContractors.find().sort({ name: 1 }).lean();
                 return NextResponse.json({ success: true, result: docs });
             }

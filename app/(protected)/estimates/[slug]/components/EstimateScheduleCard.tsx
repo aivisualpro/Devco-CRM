@@ -1,5 +1,7 @@
 'use client';
 
+import { cld } from '@/lib/cld';
+import Image from 'next/image';
 import React, { useState, useMemo } from 'react';
 import { CalendarClock } from 'lucide-react';
 import { ScheduleCard, ScheduleItem } from '@/app/(protected)/jobs/schedules/components/ScheduleCard';
@@ -12,6 +14,7 @@ import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { useToast } from '@/hooks/useToast';
 import { Modal } from '@/components/ui';
 import { getLocalNowISO } from '@/lib/scheduleUtils';
+import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
 
 interface EstimateScheduleCardProps {
     schedules: ScheduleItem[];
@@ -199,8 +202,8 @@ export const EstimateScheduleCard: React.FC<EstimateScheduleCardProps> = ({
                     // Add time info if available
                     const timesheet = schedule?.timesheet?.find((t: any) => t.employee === sig.employee);
                     if (timesheet) {
-                        const inTime = new Date(timesheet.clockIn).toLocaleTimeString([], {hour:'numeric', minute:'2-digit', timeZone: 'UTC'});
-                        const outTime = new Date(timesheet.clockOut).toLocaleTimeString([], {hour:'numeric', minute:'2-digit', timeZone: 'UTC'});
+                        const inTime = formatWallTime(timesheet.clockIn);
+                        const outTime = formatWallTime(timesheet.clockOut);
                         variables[`Times_${idx}`] = `${inTime} - ${outTime}`;
                     }
                 });
@@ -367,8 +370,7 @@ export const EstimateScheduleCard: React.FC<EstimateScheduleCardProps> = ({
                                     JHASignatures: [],
                                     hasDJT: false,
                                     djt: undefined,
-                                    DJTSignatures: [],
-                                    syncedToAppSheet: false
+                                    DJTSignatures: []
                                 };
                                 setEditingSchedule(clonedItem as ScheduleItem);
                                 setEditScheduleOpen(true);
@@ -765,8 +767,8 @@ export const EstimateScheduleCard: React.FC<EstimateScheduleCardProps> = ({
                 title={mediaTitle}
                 maxWidth="4xl"
             >
-                <div className="flex justify-center items-center p-4">
-                    <img src={mediaUrl} alt={mediaTitle} className="max-w-full max-h-[70vh] object-contain rounded-xl" />
+                <div className="relative flex justify-center items-center p-4">
+                    <div className="relative max-w-full max-h-[70vh] rounded-xl overflow-hidden"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(mediaUrl, { w: 1200 })} alt={mediaTitle} className="object-contain rounded-xl w-full h-full" /></div>
                 </div>
             </Modal>
 

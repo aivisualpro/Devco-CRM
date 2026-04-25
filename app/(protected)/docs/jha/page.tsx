@@ -16,6 +16,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
 import { useRouter } from 'next/navigation';
 import { JHACard } from './components/JHACard';
+import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
 
 interface Signature {
     employee: string;
@@ -110,10 +111,92 @@ export default function JHAPage() {
         if (longPressTimer.current) clearTimeout(longPressTimer.current);
     };
 
+    // ── Phase 1: JHA records (fast — renders cards immediately) ──
+    const fetchJHAs = async () => {
+        setLoading(true);
+        try {
+            const res = await fetch('/api/jha', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    action: 'getJHAs',
+                    payload: { page: currentPage, limit: itemsPerPage, search }
+                })
+            });
+            const data = await res.json();
+            if (data?.success) {
+                setJhas(data.result.jhas);
+                setTotalJHAs(data.result.total);
+            }
+        } catch (err) {
+            console.error('Error fetching JHAs:', err);
+            error('Failed to load JHA records');
+        }
+        setLoading(false);
+    };
+
+    // ── Phase 2: Supporting data (lazy — loads in background, never blocks UI) ──
+    const [supportLoaded, setSupportLoaded] = useState(false);
+    const fetchSupportingData = async () => {
+        if (supportLoaded) return;
+        try {
+            // Lightweight parallel calls — no getSchedulesPage mega-query
+            const [empRes, schedRes, estRes, clientRes] = await Promise.all([
+                fetch('/api/webhook/devcoBackend', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'getEmployees' })
+                }).then(r => r.json()),
+                fetch('/api/schedules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'getSchedulesPage',
+                        payload: {
+                            startDate: new Date(new Date().setMonth(new Date().getMonth() - 2)).toISOString(),
+                            skipInitialData: true,
+                            limit: 500,
+                        }
+                    })
+                }).then(r => r.json()),
+                fetch(`/api/estimates`).then(r => r.json()),
+                fetch('/api/webhook/devcoBackend', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'getClients' })
+                }).then(r => r.json()),
+            ]);
+
+            if (empRes?.success) {
+                const emps = (empRes.result || []).map((e: any) => ({
+                    value: e.email,
+                    label: `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.email,
+                    image: e.profilePicture || '',
+                    email: e.email,
+                    firstName: e.firstName,
+                    lastName: e.lastName,
+                }));
+                setEmployees(emps);
+            }
+            if (schedRes?.success) setSchedules(schedRes.result.schedules || []);
+            if (estRes?.success) setEstimates(estRes.result || []);
+            if (clientRes?.success) setClients(clientRes.result || []);
+            setSupportLoaded(true);
+        } catch (err) {
+            console.error('Error fetching supporting data:', err);
+        }
+    };
+
     useEffect(() => {
-        fetchData();
+        fetchJHAs();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentPage]);
+
+    // Lazy-load supporting data once on mount (non-blocking)
+    useEffect(() => {
+        fetchSupportingData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Search Debounce
     useEffect(() => {
@@ -121,61 +204,12 @@ export default function JHAPage() {
             if (currentPage !== 1) {
                 setCurrentPage(1); // Reset to page 1 on search
             } else {
-                fetchData();
+                fetchJHAs();
             }
         }, 500);
         return () => clearTimeout(timer);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [search]);
-
-    const fetchData = async () => {
-        setLoading(true);
-        try {
-            const promises: Promise<any>[] = [
-                fetch('/api/jha', {
-                    method: 'POST',
-                    body: JSON.stringify({ 
-                        action: 'getJHAs',
-                        payload: { page: currentPage, limit: itemsPerPage, search }
-                    })
-                }).then(r => r.json())
-            ];
-
-            if (schedules.length === 0) {
-                 promises.push(
-                     fetch('/api/schedules', {
-                        method: 'POST',
-                        body: JSON.stringify({ 
-                            action: 'getSchedulesPage',
-                            payload: {
-                                // 2 months lookback is more than enough for available JHA assignments, vastly improving speed
-                                startDate: new Date(new Date().setMonth(new Date().getMonth() - 2)).toISOString()
-                            }
-                        }) 
-                    }).then(r => r.json())
-                 );
-            }
-
-            const [jhaData, schedData] = await Promise.all(promises);
-
-            if (jhaData?.success) {
-                 setJhas(jhaData.result.jhas);
-                 setTotalJHAs(jhaData.result.total);
-            }
-
-            if (schedData?.success) {
-                setSchedules(schedData.result.schedules || []);
-                setEmployees(schedData.result.initialData.employees || []);
-                setEstimates(schedData.result.initialData.estimates || []);
-                setClients(schedData.result.initialData.clients || []);
-            }
-
-        } catch (err) {
-            console.error('Error fetching data:', err);
-            error('Failed to load data');
-        }
-        setLoading(false);
-    };
 
     // Helper to get client name
     const getClientName = (schedule: Schedule | undefined) => {
@@ -207,7 +241,7 @@ export default function JHAPage() {
             .filter(s => !s.jha || Object.keys(s.jha).length === 0)
             .map(s => ({
                 value: s._id,
-                label: `${s.estimate || 'No Est'} - ${s.fromDate ? new Date(s.fromDate).toLocaleDateString('en-US', { timeZone: 'UTC' }) : 'No Date'}`,
+                label: `${s.estimate || 'No Est'} - ${s.fromDate ? formatWallDate(s.fromDate) : 'No Date'}`,
                 ...s
             }));
     }, [schedules]);
@@ -272,7 +306,7 @@ export default function JHAPage() {
             const data = await res.json();
             if (data.success) {
                 success('JHA deleted successfully');
-                fetchData();
+                fetchJHAs();
             } else {
                 error('Failed to delete JHA');
             }
@@ -304,7 +338,7 @@ export default function JHAPage() {
             if (data.success) {
                 success('JHA saved successfully');
                 setIsJHAModalOpen(false);
-                fetchData();
+                fetchJHAs();
             } else {
                 error('Failed to save JHA');
             }
@@ -345,7 +379,7 @@ export default function JHAPage() {
             success('Signature saved');
             setActiveSignatureEmployee(null);
             
-            fetchData();
+            fetchJHAs();
         } catch (err) {
             error('Failed to save signature');
         }
@@ -381,7 +415,7 @@ export default function JHAPage() {
                 jobLocation: schedule?.jobLocation || '',
                 foremanName: schedule?.foremanName || '',
                 projectName: estimate?.projectTitle || estimate?.projectName || '',
-                date: target.date ? new Date(target.date).toLocaleDateString() : '',
+                date: target.date ? formatWallDate(target.date) : '',
                 day: new Date(target.date || schedule?.fromDate || new Date()).toLocaleDateString('en-US', { weekday: 'long' }),
             };
 
@@ -479,7 +513,7 @@ export default function JHAPage() {
                 jobLocation: schedule?.jobLocation || '',
                 foremanName: schedule?.foremanName || '',
                 projectName: estimate?.projectTitle || estimate?.projectName || '',
-                date: selectedJHA.date ? new Date(selectedJHA.date).toLocaleDateString() : '',
+                date: selectedJHA.date ? formatWallDate(selectedJHA.date) : '',
                 day: new Date(selectedJHA.date || schedule?.fromDate || new Date()).toLocaleDateString('en-US', { weekday: 'long' }),
             };
 
@@ -615,7 +649,7 @@ export default function JHAPage() {
                             {paginatedJHAs.map((jha: any, idx: number) => {
                                 const schedule = jha.scheduleRef;
                                 const clientName = getClientName(schedule);
-                                const dateStr = (jha.date || schedule?.fromDate) ? new Date(jha.date || schedule?.fromDate).toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' }) : 'N/A';
+                                const dateStr = (jha.date || schedule?.fromDate) ? formatWallDate(jha.date || schedule?.fromDate) : 'N/A';
                                 return (
                                     <JHACard
                                         key={`${jha._id || 'jha'}-${idx}`}
@@ -669,7 +703,7 @@ export default function JHAPage() {
                     >
                         <div className="p-4 border-b border-slate-100">
                             <p className="text-sm font-bold text-slate-800">
-                                JHA — {actionSheetItem.date ? new Date(actionSheetItem.date).toLocaleDateString('en-US', { timeZone: 'UTC' }) : 'N/A'}
+                                JHA — {actionSheetItem.date ? formatWallDate(actionSheetItem.date) : 'N/A'}
                             </p>
                             <p className="text-xs text-slate-500">{getClientName(actionSheetItem.scheduleRef)}</p>
                         </div>

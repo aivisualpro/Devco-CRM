@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest } from '@/lib/permissions/middleware';
 import { Types } from 'mongoose';
 
+const parseNum = (val: any) => {
+    if (typeof val === 'number') return val;
+    if (!val) return 0;
+    return Number(String(val).replace(/[^0-9.-]+/g, '')) || 0;
+};
+
 // Increase Vercel serverless function timeout to prevent 504 on cold starts
 export const maxDuration = 60;
 import { connectToDatabase } from '@/lib/db';
@@ -25,6 +31,85 @@ import {
     GlobalCustomVariable,
     Activity,
 } from '@/lib/models';
+import { unstable_cache, revalidateTag } from 'next/cache';
+
+const getCachedEstimateStats = unstable_cache(
+    async (startDate?: string, endDate?: string) => {
+        await connectToDatabase();
+        const pipeline: any[] = [];
+
+        // 1. Normalize fields (handle String vs Date for createdAt, String vs Number for grandTotal)
+        pipeline.push({
+            $addFields: {
+                // Prioritize 'date' field (e.g. "10/6/2023"), fallback to 'createdAt'
+                normalizedDate: {
+                    $cond: {
+                        if: {
+                            $and: [
+                                { $ifNull: ["$date", false] },
+                                { $ne: ["$date", ""] }
+                            ]
+                        },
+                        then: {
+                            $convert: {
+                                input: "$date",
+                                to: "date",
+                                onError: "$createdAt", // If date string is invalid, use createdAt
+                                onNull: "$createdAt"
+                            }
+                        },
+                        else: "$createdAt"
+                    }
+                },
+
+                // Ensure grandTotal is a number
+                normalizedTotal: {
+                    $cond: {
+                        if: { $isNumber: "$grandTotal" }, // if number, use it
+                        then: "$grandTotal",
+                        else: { $toDouble: "$grandTotal" } // try to parse string
+                    }
+                }
+            }
+        });
+
+        // 2. Build Match Query
+        const matchQuery: any = { status: { $ne: 'deleted' } };
+
+        if (startDate || endDate) {
+            matchQuery.normalizedDate = {};
+            // Ensure we compare Date objects to Date objects
+            if (startDate) matchQuery.normalizedDate.$gte = new Date(startDate);
+            if (endDate) matchQuery.normalizedDate.$lte = new Date(endDate);
+        }
+
+        pipeline.push({ $match: matchQuery });
+
+        // 3. Group and Project
+        pipeline.push({
+            $group: {
+                _id: '$status',
+                count: { $sum: 1 },
+                total: { $sum: "$normalizedTotal" }
+            }
+        });
+
+        pipeline.push({
+            $project: {
+                _id: 0,
+                status: '$_id',
+                count: 1,
+                total: 1
+            }
+        });
+
+        pipeline.push({ $sort: { total: -1 } });
+
+        return await Estimate.aggregate(pipeline);
+    },
+    ['estimate-stats'],
+    { tags: ['schedule-counts'], revalidate: 300 }
+);
 
 import { v2 as cloudinary } from 'cloudinary';
 import { uploadToR2, removeFromR2 } from '@/lib/s3';
@@ -252,190 +337,8 @@ async function uploadRawToCloudinary(fileString: string, fileName: string, conte
     }
 }
 
-export async function uploadDocumentToR2(base64String: string, fileName: string, contentType: string) {
+async function uploadDocumentToR2(base64String: string, fileName: string, contentType: string) {
     return await uploadToR2(base64String, `documents/${fileName}`, contentType);
-}
-
-const getAppSheetConfig = () => ({
-    appId: process.env.APPSHEET_APP_ID || "3a1353f3-966e-467d-8947-a4a4d0c4c0c5",
-    accessKey: process.env.APPSHEET_ACCESS || "V2-lWtLA-VV7bn-bEktT-S5xM7-2WUIf-UQmIA-GY6qH-A1S3E",
-    tableName: process.env.APSHEET_ESTIMATE_TABLE || "Customer Jobs"
-});
-
-const getAppSheetClientConfig = () => ({
-    appId: process.env.APPSHEET_APP_ID || "3a1353f3-966e-467d-8947-a4a4d0c4c0c5",
-    accessKey: process.env.APPSHEET_ACCESS || "V2-lWtLA-VV7bn-bEktT-S5xM7-2WUIf-UQmIA-GY6qH-A1S3E",
-    tableName: process.env.APSHEET_CUSTOMERS_TABLE || "Customers"
-});
-
-function toBoolean(value: unknown): boolean {
-    if (value === 'Y' || value === 'y' || value === true) return true;
-    return false;
-}
-function toYN(value: boolean): string {
-    return value === true ? 'Y' : 'N';
-}
-
-function parseNum(val: unknown): number {
-    return parseFloat(String(val).replace(/[^0-9.-]+/g, "")) || 0;
-}
-
-// AppSheet sync helper
-async function updateAppSheet(data: any, lineItems: Record<string, unknown[]> | null = null, action: "Add" | "Edit" | "Delete" = "Edit") {
-    // 1. Production Check
-    if (process.env.NODE_ENV !== 'production') {
-        console.log(`[AppSheet] Skipping ${action} sync: Not in production environment.`);
-        return { success: true, skipped: true };
-    }
-
-    const { appId, accessKey, tableName } = getAppSheetConfig();
-
-    if (!appId || !accessKey) {
-        console.error('[AppSheet] Missing credentials');
-        return { success: false, skipped: true, reason: "No AppSheet credentials" };
-    }
-
-    // 2. Prepare Data Mapping
-    // Ensure we handle numeric fields safely with formatting
-    const fmtMoney = (val: any) => (parseFloat(String(val).replace(/[^0-9.-]+/g, "")) || 0).toFixed(2);
-
-    // Mapping keys to AppSheet columns as requested
-    const appSheetRow = {
-        "Proposal Number": String(data.estimate || ""),
-        "Project Name": String(data.projectName || ""),
-        "Proposal Writer": String(data.proposalWriter || ""),
-        "Client": String(data.customerId || ""),
-        "Customer Job Number": String(data.customerJobNumber || ""),
-        "Client Contact Full Name": String(data.contactName || ""),
-        "Client Contact Email": String(data.contactEmail || ""),
-        "Client Contact Phone": String(data.contactPhone || ""),
-        "Accounting Contact": String(data.accountingContact || ""),
-        "Accounting email": String(data.accountingEmail || ""),
-        "PO Name": String(data.poName || ""),
-        "PO Address": String(data.PoAddress || ""),
-        "PO Phone": String(data.PoPhone || ""),
-        "OC Name": String(data.ocName || ""),
-        "OC Address": String(data.ocAddress || ""),
-        "OC Phone": String(data.ocPhone || ""),
-        "SubC Name": String(data.subCName || ""),
-        "SubC Address": String(data.subCAddress || ""),
-        "SubC Phone": String(data.subCPhone || ""),
-        "LI Name": String(data.liName || ""),
-        "LI Address": String(data.liAddress || ""),
-        "LI Phone": String(data.liPhone || ""),
-        "SC Name": String(data.scName || ""),
-        "SC Address": String(data.scAddress || ""),
-        "SC Phone": String(data.scPhone || ""),
-        "Bond Number": String(data.bondNumber || ""),
-        "Job Location / Address": String(data.jobAddress || ""),
-        "Labor Agreement": String(data.fringe || ""),
-        "Certified Payroll": String(data.certifiedPayroll || ""),
-        "Prevailing Wage": data.prevailingWage === true ? "Yes" : "No",
-        "Project ID": String(data.projectId || ""),
-        "FB Name": String(data.fbName || ""),
-        "FB Address": String(data.fbAddress || ""),
-        "e-CPR System": String(data.eCPRSystem || ""),
-        "Wet Utilities": String(data.wetUtilities || ""),
-        "Dry Utilities": String(data.dryUtilities || ""),
-        "Project Description": String(data.projectDescription || ""),
-        "Estimated start date": String(data.estimatedStartDate || ""),
-        "Estimated completion date": String(data.estimatedCompletionDate || ""),
-        "Site Conditions": String(data.siteConditions || ""),
-        "Date": String(data.date || ""),
-        "Status": String(data.status || ""),
-        "Prelim Amount": String(data.prelimAmount || ""),
-        "Billing Terms": String(data.billingTerms || ""),
-        "Other Billing Terms": String(data.otherBillingTerms || ""),
-        "Total Estimated Cost": fmtMoney(data.grandTotal),
-        "extension": String(data.extension || "")
-    };
-
-    const APPSHEET_URL = `https://api.appsheet.com/api/v2/apps/${encodeURIComponent(appId)}/tables/${encodeURIComponent(tableName)}/Action`;
-
-    try {
-        console.log(`[AppSheet] Syncing ${action} for Estimate #${data.estimate}...`);
-
-        const response = await fetch(APPSHEET_URL, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "ApplicationAccessKey": accessKey
-            },
-            body: JSON.stringify({
-                Action: action,
-                Properties: { Locale: "en-US", Timezone: "Pacific Standard Time" },
-                Rows: [appSheetRow]
-            })
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`[AppSheet] Error ${response.status}:`, errorText);
-            return { success: false, status: response.status, error: `AppSheet ${response.status}: ${errorText}` };
-        }
-
-        console.log(`[AppSheet] Sync Success`);
-        return { success: true };
-    } catch (error) {
-        console.error("[AppSheet] Network/Execution Error:", error);
-        return { success: false, error: String(error) };
-    }
-}
-
-// AppSheet Client Sync Helper
-async function updateAppSheetClient(data: any | any[], action: "Add" | "Edit" | "Delete" = "Edit") {
-    if (process.env.NODE_ENV !== 'production') {
-        console.log(`[AppSheet Client] Skipping ${action} sync: Not in production environment.`);
-        return;
-    }
-
-    const { appId, accessKey, tableName } = getAppSheetClientConfig();
-    if (!appId || !accessKey) return;
-
-    const items = Array.isArray(data) ? data : [data];
-    if (items.length === 0) return;
-
-    const rows = items.map((client: any) => {
-        // Extract Primary Contact
-        const contacts = Array.isArray(client.contacts) ? client.contacts : [];
-        const primaryContact = contacts.find((c: any) => c.primary) || contacts.find((c: any) => c.active) || contacts[0] || {};
-
-        // Extract Accounting Contact
-        const accountingContact = contacts.find((c: any) => c.type === 'Accounting') || {};
-
-        return {
-            "Record_ID": String(client._id || ""),
-            "Name": String(client.name || ""),
-            "Business Address": String(client.businessAddress || ""),
-            "Proposal Writer": String(client.proposalWriter || ""),
-            "Contact Full Name": String(primaryContact.name || ""),
-            "Email": String(primaryContact.email || ""),
-            "Phone": String(primaryContact.phone || ""),
-            "Accounting Contact": String(accountingContact.name || ""),
-            "Accounting email": String(accountingContact.email || ""),
-            "Status": String(client.status || "")
-        };
-    });
-
-    const APPSHEET_URL = `https://api.appsheet.com/api/v2/apps/${encodeURIComponent(appId)}/tables/${encodeURIComponent(tableName)}/Action`;
-
-    try {
-        await fetch(APPSHEET_URL, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "ApplicationAccessKey": accessKey
-            },
-            body: JSON.stringify({
-                Action: action,
-                Properties: { Locale: "en-US", Timezone: "Pacific Standard Time" },
-                Rows: rows
-            })
-        });
-        console.log(`[AppSheet Client] Synced ${action} for ${rows.length} clients.`);
-    } catch (error) {
-        console.error("[AppSheet Client] Error:", error);
-    }
 }
 
 // Catalogue type to model mapping
@@ -488,7 +391,7 @@ export async function POST(request: NextRequest) {
         // Security Check: Verify user is active
         const userPayload = await getUserFromRequest(request);
         if (userPayload) {
-            const user = await Employee.findById(userPayload.userId).lean();
+            const user = await Employee.findById(userPayload.userId).select('-password -refreshToken -__v').lean();
             if (user && user.status !== 'Active') {
                 return NextResponse.json({ success: false, error: 'Account is inactive' }, { status: 401 });
             }
@@ -517,29 +420,6 @@ export async function POST(request: NextRequest) {
             return est;
         };
 
-        // Handle AppSheet webhook payload
-        if (Data && Data.recordId) {
-            const docData = {
-                _id: Data.recordId,
-                estimate: Data.estimate,
-                date: Data.date,
-                customerId: Data.customerId,
-                customerName: Data.customerName,
-                proposalNo: Data.proposalNo,
-                bidMarkUp: Data.bidMarkUp,
-
-                fringe: Data.fringe,
-                updatedAt: new Date()
-            };
-
-            const result = await Estimate.findByIdAndUpdate(
-                Data.recordId,
-                docData,
-                { upsert: true, new: true, setDefaultsOnInsert: true }
-            );
-
-            return NextResponse.json({ success: true, result: { id: result._id, data: result } });
-        }
 
         // Action handling
         switch (action) {
@@ -801,79 +681,8 @@ export async function POST(request: NextRequest) {
 
 
             case 'getEstimateStats': {
-                // Aggregate estimates by status with count and total grandTotal
                 const { startDate, endDate } = payload || {};
-
-                const pipeline: any[] = [];
-
-                // 1. Normalize fields (handle String vs Date for createdAt, String vs Number for grandTotal)
-                pipeline.push({
-                    $addFields: {
-                        // Prioritize 'date' field (e.g. "10/6/2023"), fallback to 'createdAt'
-                        normalizedDate: {
-                            $cond: {
-                                if: {
-                                    $and: [
-                                        { $ifNull: ["$date", false] },
-                                        { $ne: ["$date", ""] }
-                                    ]
-                                },
-                                then: {
-                                    $convert: {
-                                        input: "$date",
-                                        to: "date",
-                                        onError: "$createdAt", // If date string is invalid, use createdAt
-                                        onNull: "$createdAt"
-                                    }
-                                },
-                                else: "$createdAt"
-                            }
-                        },
-
-                        // Ensure grandTotal is a number
-                        normalizedTotal: {
-                            $cond: {
-                                if: { $isNumber: "$grandTotal" }, // if number, use it
-                                then: "$grandTotal",
-                                else: { $toDouble: "$grandTotal" } // try to parse string
-                            }
-                        }
-                    }
-                });
-
-                // 2. Build Match Query
-                const matchQuery: any = { status: { $ne: 'deleted' } };
-
-                if (startDate || endDate) {
-                    matchQuery.normalizedDate = {};
-                    // Ensure we compare Date objects to Date objects
-                    if (startDate) matchQuery.normalizedDate.$gte = new Date(startDate);
-                    if (endDate) matchQuery.normalizedDate.$lte = new Date(endDate);
-                }
-
-                pipeline.push({ $match: matchQuery });
-
-                // 3. Group and Project
-                pipeline.push({
-                    $group: {
-                        _id: '$status',
-                        count: { $sum: 1 },
-                        total: { $sum: "$normalizedTotal" }
-                    }
-                });
-
-                pipeline.push({
-                    $project: {
-                        _id: 0,
-                        status: '$_id',
-                        count: 1,
-                        total: 1
-                    }
-                });
-
-                pipeline.push({ $sort: { total: -1 } });
-
-                const stats = await Estimate.aggregate(pipeline);
+                const stats = await getCachedEstimateStats(startDate, endDate);
                 return NextResponse.json({ success: true, result: stats });
             }
 
@@ -881,63 +690,19 @@ export async function POST(request: NextRequest) {
                 const { id } = payload || {};
                 if (!id) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
 
-                const est = await Estimate.findById(id).lean();
-                if (!est) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
-
-                // With embedded documents, we simply return the estimate
-                // Ensure arrays exist
-                const result = {
-                    ...est,
-                    labor: (est as any).labor || [],
-                    equipment: (est as any).equipment || [],
-                    material: (est as any).material || [],
-                    tools: (est as any).tools || [],
-                    overhead: (est as any).overhead || [],
-                    subcontractor: (est as any).subcontractor || [],
-                    disposal: (est as any).disposal || [],
-                    miscellaneous: (est as any).miscellaneous || []
-                };
-
-                return NextResponse.json({ success: true, result });
+                const { GET } = await import('@/app/api/estimates/[id]/route');
+                // Mock request object for the GET handler
+                const mockReq = new NextRequest(new URL(`http://localhost/api/estimates/${id}`));
+                return await GET(mockReq, { params: Promise.resolve({ id }) });
             }
 
             case 'getEstimateBySlug': {
                 const { slug } = payload || {};
                 if (!slug) return NextResponse.json({ success: false, error: 'Missing slug' }, { status: 400 });
 
-                // Try by ID first (works for V1-CO1 etc)
-                let est = await Estimate.findById(slug).lean();
-
-                if (!est) {
-                    // Fallback to slug parsing: EstimateNumber-V[VersionNumber]
-                    const lastIndex = slug.lastIndexOf('-V');
-                    if (lastIndex !== -1) {
-                        const estimateNumber = slug.substring(0, lastIndex);
-                        const versionStr = slug.substring(lastIndex + 2);
-                        const versionNumber = parseInt(versionStr, 10);
-
-                        if (!isNaN(versionNumber)) {
-                            est = await Estimate.findOne({ estimate: estimateNumber, versionNumber }).lean();
-                        }
-                    }
-                }
-
-                if (!est) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
-
-                // Ensure arrays exist
-                const result = {
-                    ...est,
-                    labor: (est as any).labor || [],
-                    equipment: (est as any).equipment || [],
-                    material: (est as any).material || [],
-                    tools: (est as any).tools || [],
-                    overhead: (est as any).overhead || [],
-                    subcontractor: (est as any).subcontractor || [],
-                    disposal: (est as any).disposal || [],
-                    miscellaneous: (est as any).miscellaneous || []
-                };
-
-                return NextResponse.json({ success: true, result });
+                const { GET } = await import('@/app/api/estimates/[id]/route');
+                const mockReq = new NextRequest(new URL(`http://localhost/api/estimates/${slug}`));
+                return await GET(mockReq, { params: Promise.resolve({ id: slug }) });
             }
 
             case 'getEstimatesByProposal': {
@@ -1002,139 +767,15 @@ export async function POST(request: NextRequest) {
             }
 
             case 'createEstimate': {
-                // Get current year (last 2 digits)
-                const currentYear = new Date().getFullYear();
-                const yearSuffix = currentYear.toString().slice(-2);
-                const startSeq = 1;
-
-                // GAP FILLING LOGIC:
-                // Find already used sequences for this year to fill any gaps (e.g., if 634 is deleted, reuse it)
-                const regex = new RegExp(`^${yearSuffix}-`);
-                const existingEstimates = await Estimate.find({ estimate: { $regex: regex } })
-                    .select('estimate')
-                    .lean(); // Use lean for speed
-
-                const usedSequences = new Set<number>();
-                existingEstimates.forEach((doc: any) => {
-                    if (doc.estimate) {
-                        const parts = doc.estimate.split('-');
-                        if (parts.length === 2) {
-                            const seq = parseInt(parts[1], 10);
-                            if (!isNaN(seq)) {
-                                usedSequences.add(seq);
-                            }
-                        }
-                    }
+                const { POST } = await import('@/app/api/estimates/route');
+                const mockReq = new NextRequest(new URL(`http://localhost/api/estimates`), {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
                 });
-
-                // Start from base 633 and find first one NOT in the set
-                let nextSeq = startSeq;
-                while (usedSequences.has(nextSeq)) {
-                    nextSeq++;
-                }
-
-                const estimateNumber = `${yearSuffix}-${String(nextSeq).padStart(4, '0')}`;
-
-                const id = `${estimateNumber}-V1`;
-
-                const estimateData = {
-                    ...payload,
-                    _id: id,
-                    estimate: estimateNumber,
-                    date: payload?.date || new Date().toLocaleDateString(),
-                    customerName: payload?.customerName || '',
-                    proposalNo: payload?.proposalNo || estimateNumber,
-                    bidMarkUp: '30%',
-                    status: 'pending',
-                    versionNumber: 1,
-                    // Initialize empty arrays
-                    labor: [],
-                    equipment: [],
-                    material: [],
-                    tools: [],
-                    overhead: [],
-                    subcontractor: [],
-                    disposal: [],
-                    miscellaneous: [],
-
-                    createdAt: new Date(),
-                    updatedAt: new Date()
-                };
-
-                // Ensure createdBy is set
-                if (!(estimateData as any).createdBy && (estimateData as any).proposalWriter) {
-                    (estimateData as any).createdBy = (estimateData as any).proposalWriter;
-                }
-
-                const est = await Estimate.create(estimateData) as any;
-
-                // Log Activity
-                try {
-                    const activityId = new Types.ObjectId().toString();
-                    await Activity.create({
-                        _id: activityId,
-                        user: (() => {
-                            const u = (estimateData as any).proposalWriter || (estimateData as any).createdBy || '';
-                            return Array.isArray(u) ? u.join(', ') : String(u);
-                        })(),
-                        action: 'created_estimate',
-                        type: 'estimate',
-                        title: `Created Estimate #${est.estimate}`,
-                        entityId: est.estimate, // Use estimate number or _id. Used number for display often, but ID for link. 
-                        // Actually, dashboard link uses ID/slug. If estimate number is unique, good. But usually ID is safer. 
-                        // If entityId is used for link /estimates/[slug], and [slug] can be ID or estimate#, then estimate# is fine if unique.
-                        // Let's use est.estimate (string) as it's cleaner for user.
-                        metadata: { estimate_id: est._id },
-                        createdAt: new Date()
-                    });
-                } catch (e) {
-                    console.error('Failed to log activity:', e);
-                }
-                updateAppSheet(est, null, "Add").catch(err => console.error('Background AppSheet sync failed:', err));
-
-                return NextResponse.json({ success: true, result: est });
+                return await POST(mockReq);
             }
 
-            case 'syncToAppSheet': {
-                // Only sync to AppSheet on production (Vercel)
-                if (process.env.NODE_ENV !== 'production') {
-                    return NextResponse.json({ success: false, error: 'AppSheet sync only works on production' });
-                }
 
-                const { id } = payload || {};
-                if (!id) return NextResponse.json({ success: false, error: 'Estimate ID is required' });
-
-                const est = await Estimate.findById(id).lean();
-                if (!est) return NextResponse.json({ success: false, error: 'Estimate not found' });
-
-                console.log(`[AppSheet Manual Sync] Syncing Estimate: ${id}`);
-
-                // Try Add first
-                const addResult = await updateAppSheet(est, null, "Add");
-
-                if (!addResult.success && !addResult.skipped) {
-                    const errorStr = String(addResult.error || "").toLowerCase();
-                    // If add failed due to duplicate/existing record, try Edit
-                    if (errorStr.includes("duplicate") || errorStr.includes("already exists") || errorStr.includes("row having key")) {
-                        console.log(`[AppSheet Manual Sync] Add failed (duplicate), retrying with Edit...`);
-                        const editResult = await updateAppSheet(est, null, "Edit");
-
-                        if (!editResult.success) {
-                            return NextResponse.json({
-                                success: false,
-                                error: `Sync Failed. ADD Error: ${addResult.error}. EDIT Error: ${editResult.error}`
-                            });
-                        }
-                    } else {
-                        // Some other error (e.g. validation, column missing)
-                        return NextResponse.json({ success: false, error: addResult.error });
-                    }
-                }
-
-                // Success
-                await Estimate.findByIdAndUpdate(id, { syncedToAppSheet: true });
-                return NextResponse.json({ success: true, message: 'Estimate synced to AppSheet successfully' });
-            }
 
             case 'cloneEstimate': {
                 const { id: sourceId } = payload || {};
@@ -1184,13 +825,11 @@ export async function POST(request: NextRequest) {
 
                 const newEst = await Estimate.create(newEstData);
 
-                // Sync to AppSheet - Clone is effectively an "Edit" to the same proposal number, or actually an "Add" if we consider versioning?
-                // But AppSheet key is "estimate" (Proposal Number).
-                // So if we clone 24-1000-V1 to 24-1000-V2, the key 24-1000 ALEADY EXISTS.
-                // So this is an "Edit" in AppSheet terms.
-                updateAppSheet(newEst, null, "Edit").catch(err => console.error('Clone sync error:', err));
 
 
+
+                revalidateTag('schedule-counts', undefined as any);
+                revalidateTag('wip-calculations', undefined as any);
                 return NextResponse.json({ success: true, result: newEst });
             }
 
@@ -1268,10 +907,11 @@ export async function POST(request: NextRequest) {
 
                 const newEst = await Estimate.create(newEstData);
 
-                // Sync to AppSheet - Copy creates NEW proposal number --> Add
-                updateAppSheet(newEst, null, "Add").catch(err => console.error('Copy sync error:', err));
 
 
+
+                revalidateTag('schedule-counts', undefined as any);
+                revalidateTag('wip-calculations', undefined as any);
                 return NextResponse.json({ success: true, result: newEst });
             }
 
@@ -1335,13 +975,10 @@ export async function POST(request: NextRequest) {
 
                 const newCO = await Estimate.create(newCOData);
 
-                // Sync to AppSheet - This is a new record with a unique ID that still shares the Proposal Number
-                // We'll treat it as an Add? Or Edit? 
-                // AppSheet key is "Proposal Number" (estimate). If we want multiple COs in AppSheet, 
-                // AppSheet might need a different key or we just overwrite the main one. 
-                // Usually COs are separate records in AppSheet too.
-                updateAppSheet(newCO, null, "Add").catch(err => console.error('CO sync error:', err));
 
+
+                revalidateTag('schedule-counts', undefined as any);
+                revalidateTag('wip-calculations', undefined as any);
                 return NextResponse.json({ success: true, result: newCO });
             }
 
@@ -1349,164 +986,15 @@ export async function POST(request: NextRequest) {
                 const { id: estId, ...updateData } = payload || {};
                 if (!estId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
 
-                // === STATUS PROTECTION: Prevent "Lost" if any sibling version is Won/Completed ===
-                if (updateData.status && updateData.status === 'Lost') {
-                    const currentEst = await Estimate.findById(estId).lean();
-                    if (currentEst && currentEst.estimate) {
-                        const siblingWithWonOrCompleted = await Estimate.findOne({
-                            estimate: currentEst.estimate,
-                            _id: { $ne: estId },
-                            status: { $in: ['Won', 'Completed'] }
-                        }).lean();
-                        if (siblingWithWonOrCompleted) {
-                            return NextResponse.json({
-                                success: false,
-                                error: `Cannot mark as Lost — Version ${siblingWithWonOrCompleted.versionNumber || ''} is already "${siblingWithWonOrCompleted.status}". A won/completed estimate cannot have a lost sibling.`
-                            }, { status: 400 });
-                        }
-                    }
-                }
-
-                // Directly update the specific version document
-                const updated = await Estimate.findByIdAndUpdate(
-                    estId,
-                    { ...updateData, updatedAt: new Date() },
-                    { new: true }
-                );
-
-                // Log Activity
-                if (updated) {
-                    try {
-                        const activityId = new Types.ObjectId().toString();
-                        await Activity.create({
-                            _id: activityId,
-                            user: (() => {
-                                const u = (updateData as any).proposalWriter ||
-                                    (updateData as any).createdBy ||
-                                    (payload as any).updatedBy ||
-                                    updated?.proposalWriter ||
-                                    'System';
-                                return Array.isArray(u) ? u.join(', ') : String(u);
-                            })(),
-                            action: 'updated_estimate',
-                            type: 'estimate',
-                            title: `Updated Estimate #${updated.estimate}`,
-                            entityId: updated.estimate, // Using estimate number for link construction if slug uses it
-                            metadata: { estimate_id: updated._id },
-                            createdAt: new Date()
-                        });
-                    } catch (e) {
-                        console.error('Failed to log activity:', e);
-                    }
-
-                    // Sync to AppSheet if status changed
-                    if (updateData.status) {
-                        updateAppSheet(updated, null, "Edit").catch(err => console.error('Background AppSheet sync failed:', err));
-                    }
-                }
-
-                if (updated && updated.estimate) {
-                    // Fields that should be synced across ALL versions of this estimate
-                    const SHARED_FIELDS = [
-                        'projectName', 'jobAddress', 'contactAddress', 'customerId', 'customerName',
-                        'contactName', 'contactEmail', 'contactPhone', 'contactId',
-                        'accountingContact', 'accountingEmail', 'accountingPhone', 'PoORPa', 'poName', 'PoAddress', 'PoPhone',
-                        'ocName', 'ocAddress', 'ocPhone',
-                        'subCName', 'subCAddress', 'subCPhone',
-                        'liName', 'liAddress', 'liPhone',
-                        'scName', 'scAddress', 'scPhone',
-                        'bondNumber', 'projectId', 'fbName', 'fbAddress', 'eCPRSystem',
-                        'typeOfServiceRequired', 'wetUtilities', 'dryUtilities',
-                        'projectDescription', 'estimatedStartDate', 'estimatedCompletionDate', 'siteConditions',
-                        'prelimAmount', 'billingTerms', 'otherBillingTerms',
-                        // Synced operational fields (not money-related)
-                        'fringe', 'certifiedPayroll', 'prevailingWage',
-                        'estimateVendorsSubContractors', 'services', 'proposalWriter'
-                    ];
-
-                    // Construct update object for shared fields
-                    const sharedUpdate: Record<string, any> = {};
-                    let hasSharedUpdates = false;
-
-                    SHARED_FIELDS.forEach(field => {
-                        if (updateData[field] !== undefined) {
-                            sharedUpdate[field] = updateData[field];
-                            hasSharedUpdates = true;
-                        }
-                    });
-
-                    // Propagate to all other versions if shared fields are present
-                    if (hasSharedUpdates) {
-                        try {
-                            await Estimate.updateMany(
-                                {
-                                    estimate: updated.estimate, // Same Estimate Number
-                                    _id: { $ne: updated._id }   // Exclude the one we just updated
-                                },
-                                {
-                                    $set: {
-                                        ...sharedUpdate,
-                                        updatedAt: new Date()
-                                    }
-                                }
-                            );
-                            console.log(`Synced shared fields for Estimate #${updated.estimate} across versions.`);
-                        } catch (syncErr) {
-                            console.error('Failed to sync shared fields across versions:', syncErr);
-                        }
-                    }
-                }
-
-                // AppSheet Sync - Only if this is the LATEST version
-                if (updated && updated.estimate) {
-                    try {
-                        const latestVer = await Estimate.find({ estimate: updated.estimate }).sort({ versionNumber: -1 }).limit(1).lean();
-                        if (latestVer.length > 0 && String(latestVer[0]._id) === String(updated._id)) {
-                            // This IS the latest version, so sync it
-                            await updateAppSheet(updated.toObject(), null, "Edit");
-                        }
-                    } catch (e) {
-                        console.error('AppSheet Update Sync Error:', e);
-                    }
-                }
-                return NextResponse.json({ success: true, result: updated });
+                const { PATCH } = await import('@/app/api/estimates/[id]/route');
+                const mockReq = new NextRequest(new URL(`http://localhost/api/estimates/${estId}`), {
+                    method: 'PATCH',
+                    body: JSON.stringify(updateData)
+                });
+                return await PATCH(mockReq, { params: Promise.resolve({ id: estId }) });
             }
 
-            case 'syncToAppSheet': {
-                const { id, mode } = payload || {};
-                if (!id) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
 
-                const est = await Estimate.findById(id).lean();
-                if (!est) return NextResponse.json({ success: false, error: 'Estimate not found' }, { status: 404 });
-
-                // Explicit Mode
-                if (mode === 'Add') {
-                    const result = await updateAppSheet(est, null, "Add");
-                    return NextResponse.json(result);
-                }
-                if (mode === 'Edit') {
-                    const result = await updateAppSheet(est, null, "Edit");
-                    return NextResponse.json(result);
-                }
-
-                // Default "Smart" Mode (Edit -> Add Fallback)
-                const result = await updateAppSheet(est, null, "Edit");
-
-                if (!result.success && result.status === 404) {
-                    console.log('Edit failed (404), trying Add...');
-                    const addResult = await updateAppSheet(est, null, "Add");
-                    return NextResponse.json(addResult);
-                }
-
-                if (!result.success) {
-                    if (result.error && result.error.includes("not found")) {
-                        const addResult = await updateAppSheet(est, null, "Add");
-                        return NextResponse.json(addResult);
-                    }
-                }
-
-                return NextResponse.json(result);
-            }
 
             case 'deleteEstimate': {
                 const { id: deleteId } = payload || {};
@@ -1523,16 +1011,7 @@ export async function POST(request: NextRequest) {
                 // 2. Delete the target version
                 await Estimate.findByIdAndDelete(deleteId);
 
-                // 3. Handle AppSheet Sync for Deletion
-                if (estimateNumber) {
-                    // Check if there are other versions left (temporarily, before renumbering)
-                    const remaining = await Estimate.find({ estimate: estimateNumber }).sort({ versionNumber: -1 }).limit(1).lean();
 
-                    if (remaining.length === 0) {
-                        // No versions left, truly DELETE from AppSheet
-                        updateAppSheet(estToDelete, null, "Delete").catch(err => console.error('Delete sync error:', err));
-                    }
-                }
 
                 if (isCO) {
                     // --- CASE A: Deleting a Change Order ---
@@ -1609,19 +1088,9 @@ export async function POST(request: NextRequest) {
                     }
                 }
 
-                // 5. Final Sync Check
-                // If we shifted versions, the "Latest" version might have a new ID/Version.
-                // Sync the current latest to ensure AppSheet has the correct data for the "Estimate Number" key.
-                const finalLatest = await Estimate.find({ estimate: estimateNumber })
-                    .sort({ versionNumber: -1 })
-                    .limit(1)
-                    .lean();
 
-                if (finalLatest.length > 0) {
-                    // Sync this as an Edit (restoring the "Estimate" record to the content of the latest version)
-                    updateAppSheet(finalLatest[0], null, "Edit").catch(err => console.error('Renumber-Sync error:', err));
-                }
-
+                revalidateTag('schedule-counts', undefined as any);
+                revalidateTag('wip-calculations', undefined as any);
                 return NextResponse.json({ success: true });
             }
 
@@ -2252,8 +1721,8 @@ export async function POST(request: NextRequest) {
                 delete (clientData as any).phone;
 
                 const newClient = await Client.create(clientData);
-                // Sync to AppSheet
-                updateAppSheetClient(newClient, "Add").catch(err => console.error('AppSheet Client Sync Error:', err));
+
+
 
                 return NextResponse.json({ success: true, result: newClient });
             }
@@ -2374,9 +1843,9 @@ export async function POST(request: NextRequest) {
                         ]);
                     }
 
-                    // Sync to AppSheet
+
                     if (updated) {
-                        updateAppSheetClient(updated, "Edit").catch(err => console.error('AppSheet Client Sync Error:', err));
+
                     }
 
                     return NextResponse.json({ success: true, result: updated });
@@ -2390,8 +1859,8 @@ export async function POST(request: NextRequest) {
                 const { id: clientDelId } = payload || {};
                 if (!clientDelId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
                 await Client.findByIdAndDelete(clientDelId);
-                // Sync to AppSheet
-                updateAppSheetClient({ _id: clientDelId }, "Delete").catch(err => console.error('AppSheet Client Sync Error:', err));
+
+
 
                 return NextResponse.json({ success: true });
             }
@@ -2798,7 +2267,7 @@ export async function POST(request: NextRequest) {
                 const empFilter: any = {};
                 if (!includeInactive) empFilter.status = { $ne: 'Inactive' };
                 const employees = await Employee.find(empFilter)
-                    .select('-reportFilters -password')
+                    .select('-reportFilters -password -refreshToken -__v')
                     .sort({ firstName: 1 })
                     .lean();
                 // password already excluded via .select() above
@@ -2808,7 +2277,7 @@ export async function POST(request: NextRequest) {
             case 'getEmployeeById': {
                 const { id } = payload || {};
                 if (!id) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
-                const employee = await Employee.findById(id).lean();
+                const employee = await Employee.findById(id).select('-password -refreshToken -__v').lean();
                 if (!employee) return NextResponse.json({ success: false, error: 'Employee not found' }, { status: 404 });
                 // Only show password if the logged-in user is viewing their OWN record
                 const isOwnRecord = userPayload && (userPayload.userId === id || userPayload.email === id);
@@ -2853,7 +2322,9 @@ export async function POST(request: NextRequest) {
                 }
                 // Upload any base64 files in sub-document arrays to R2
                 await processEmployeeSubDocFiles(updateData, empId);
-                const updated = await Employee.findByIdAndUpdate(empId, { ...updateData, updatedAt: new Date() }, { new: true });
+                const updated = await Employee.findByIdAndUpdate(empId, { ...updateData, updatedAt: new Date() }, { new: true }).select('-password -refreshToken -__v');
+                if (empId) revalidateTag(`permissions-${empId}`, undefined as any);
+                if (updateData.appRole) revalidateTag('permissions-all', undefined as any);
                 return NextResponse.json({ success: true, result: updated });
             }
 
@@ -2861,6 +2332,7 @@ export async function POST(request: NextRequest) {
                 const { id: empDelId } = payload || {};
                 if (!empDelId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
                 await Employee.findByIdAndDelete(empDelId);
+                if (empDelId) revalidateTag(`permissions-${empDelId}`, undefined as any);
                 return NextResponse.json({ success: true });
             }
 
@@ -3031,6 +2503,7 @@ export async function POST(request: NextRequest) {
                     };
                 }).filter(Boolean);
                 const result = await Employee.bulkWrite(operations as any);
+                revalidateTag('permissions-all', undefined as any);
                 return NextResponse.json({ success: true, result });
             }
             case 'importReceiptsAndCosts': {
@@ -3285,6 +2758,12 @@ export async function POST(request: NextRequest) {
                     }
                 }
                 return NextResponse.json({ success: true, count: records.length, modified: modifiedCount });
+            }
+
+            case 'getEquipmentItems': {
+                const { default: EquipmentItemModel } = await import('@/lib/models/EquipmentItem');
+                const equipmentItems = await EquipmentItemModel.find({}).sort({ classification: 1, equipmentMachine: 1 }).lean();
+                return NextResponse.json({ success: true, result: equipmentItems });
             }
 
             default:

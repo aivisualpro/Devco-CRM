@@ -10,7 +10,7 @@ import {
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
-import { Header, Button, Badge, Input } from '@/components/ui';
+import { Header, Button, Badge, Input, PageHeader, UserChip, EmptyState } from '@/components/ui';
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
     DialogDescription
@@ -18,6 +18,7 @@ import {
 import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
 import { cn } from '@/lib/utils';
+import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
 
 interface PreBoreLogItem {
     _id?: string;
@@ -213,11 +214,11 @@ export default function PreBoreLogDetailPage() {
         if (!log) return null;
 
         const dateStr = log.date && !isNaN(new Date(log.date).getTime())
-            ? format(new Date(log.date), 'MM/dd/yyyy')
+            ? formatWallDate(log.date)
             : '';
 
         const startTimeStr = log.startTime && !isNaN(new Date(log.startTime).getTime())
-            ? format(new Date(log.startTime), 'hh:mm a')
+            ? formatWallDate(log.startTime)
             : log.startTime || '';
 
         const variables: Record<string, any> = {
@@ -354,18 +355,7 @@ export default function PreBoreLogDetailPage() {
         const emp = getEmployeeByEmail(email);
         if (!emp) return <span className="text-slate-600">{email}</span>;
 
-        return (
-            <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-[#0F4C75] text-white flex items-center justify-center text-xs font-bold overflow-hidden shrink-0">
-                    {emp.profilePicture ? (
-                        <img src={emp.profilePicture} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                        `${emp.firstName?.[0] || ''}${emp.lastName?.[0] || ''}`
-                    )}
-                </div>
-                <span className="text-slate-700 font-medium">{emp.firstName} {emp.lastName}</span>
-            </div>
-        );
+        return <UserChip user={emp} size="md" />;
     };
 
     if (loading) {
@@ -396,11 +386,11 @@ export default function PreBoreLogDetailPage() {
     }
 
     const dateFormatted = log.date && !isNaN(new Date(log.date).getTime())
-        ? format(new Date(log.date), 'MMM dd, yyyy')
+        ? formatWallDate(log.date)
         : '-';
 
     const startTimeFormatted = log.startTime && !isNaN(new Date(log.startTime).getTime())
-        ? format(new Date(log.startTime), 'hh:mm a')
+        ? formatWallDate(log.startTime)
         : log.startTime || '-';
 
     return (
@@ -410,64 +400,58 @@ export default function PreBoreLogDetailPage() {
             <div className="flex-1 overflow-auto p-6">
                 <div className="max-w-6xl mx-auto space-y-6 pb-10">
 
-                    {/* Back Button */}
-                    <button
-                        onClick={() => router.push('/docs/pre-bore-logs')}
-                        className="flex items-center gap-2 text-slate-600 hover:text-[#0F4C75] transition-colors font-medium text-sm mb-4 group"
-                    >
-                        <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
-                        Back to Pre-Bore Logs
-                    </button>
-
-                    {/* Page Header: Title + Action Buttons */}
-                    <div className="flex items-center justify-between flex-wrap gap-4">
-                        <h1 className="text-2xl font-bold text-slate-800">
-                            Pre-Bore Log Details
-                        </h1>
-                        <div className="flex items-center gap-2 flex-wrap">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className="border-slate-300 hover:bg-slate-50"
-                                onClick={handleDownloadPDF}
-                                disabled={isGeneratingPDF}
-                            >
-                                {isGeneratingPDF ? (
-                                    <Loader2 size={14} className="mr-1.5 animate-spin" />
-                                ) : (
-                                    <Download size={14} className="mr-1.5" />
-                                )}
-                                PDF
-                            </Button>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className="border-slate-300 hover:bg-slate-50"
-                                onClick={() => setIsEmailModalOpen(true)}
-                            >
-                                <Mail size={14} className="mr-1.5" /> Email
-                            </Button>
-                            {canEdit && (
+                    <PageHeader
+                        title="Pre-Bore Log Details"
+                        breadcrumbs={[
+                            { label: 'Pre-Bore Logs', href: '/docs/pre-bore-logs' },
+                            { label: 'Details' }
+                        ]}
+                        actions={
+                            <>
                                 <Button
                                     variant="outline"
                                     size="sm"
                                     className="border-slate-300 hover:bg-slate-50"
-                                    onClick={() => router.push(`/docs/pre-bore-logs?edit=${scheduleId}_${preBoreId}&returnTo=${encodeURIComponent(`/docs/pre-bore-logs/${rawId}`)}`)}
+                                    onClick={handleDownloadPDF}
+                                    disabled={isGeneratingPDF}
                                 >
-                                    <Pencil size={14} className="mr-1.5" /> Edit
+                                    {isGeneratingPDF ? (
+                                        <Loader2 size={14} className="mr-1.5 animate-spin" />
+                                    ) : (
+                                        <Download size={14} className="mr-1.5" />
+                                    )}
+                                    PDF
                                 </Button>
-                            )}
-                            {canDelete && (
                                 <Button
-                                    variant="destructive"
+                                    variant="outline"
                                     size="sm"
-                                    onClick={() => setIsDeleteOpen(true)}
+                                    className="border-slate-300 hover:bg-slate-50"
+                                    onClick={() => setIsEmailModalOpen(true)}
                                 >
-                                    <Trash2 size={14} className="mr-1.5" /> Delete
+                                    <Mail size={14} className="mr-1.5" /> Email
                                 </Button>
-                            )}
-                        </div>
-                    </div>
+                                {canEdit && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="border-slate-300 hover:bg-slate-50"
+                                        onClick={() => router.push(`/docs/pre-bore-logs?edit=${scheduleId}_${preBoreId}&returnTo=${encodeURIComponent(`/docs/pre-bore-logs/${rawId}`)}`)}
+                                    >
+                                        <Pencil size={14} className="mr-1.5" /> Edit
+                                    </Button>
+                                )}
+                                {canDelete && (
+                                    <Button
+                                        variant="destructive"
+                                        size="sm"
+                                        onClick={() => setIsDeleteOpen(true)}
+                                    >
+                                        <Trash2 size={14} className="mr-1.5" /> Delete
+                                    </Button>
+                                )}
+                            </>
+                        }
+                    />
 
                     {/* Info Card */}
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -726,9 +710,11 @@ export default function PreBoreLogDetailPage() {
                                 </table>
                             </div>
                         ) : (
-                            <div className="p-8 text-center text-slate-400">
-                                No rod log items recorded
-                            </div>
+                            <EmptyState 
+                                icon={<FileText className="w-8 h-8 text-slate-400" />} 
+                                title="No rod log items recorded" 
+                                className="p-8"
+                            />
                         )}
                     </div>
 

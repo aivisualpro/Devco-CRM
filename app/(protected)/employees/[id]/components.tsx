@@ -1,5 +1,7 @@
 'use client';
 
+import { cld } from '@/lib/cld';
+import Image from 'next/image';
 import { useState, useRef } from 'react';
 import { User, Mail, Phone, MapPin, Briefcase, Calendar, ChevronDown, CheckCircle, XCircle, Eye, EyeOff, KeyRound, Save, X, RefreshCw, Copy } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -126,11 +128,11 @@ export function EmployeeHeaderCard({ employee, onUpdate, animate, onEditSignatur
                                 onChange={handleImageUpload}
                             />
                             {employee.profilePicture ? (
-                                <img
+                                <div className="relative w-16 h-16 rounded-2xl overflow-hidden"><Image fill priority sizes="(max-width: 768px) 100vw, 33vw"
                                     src={employee.profilePicture}
                                     alt={`${employee.firstName} ${employee.lastName}`}
-                                    className="w-16 h-16 rounded-2xl object-cover shadow-lg transform rotate-3 group-hover:opacity-80 transition-opacity"
-                                />
+                                    className="rounded-2xl object-cover shadow-lg transform rotate-3 group-hover:opacity-80 transition-opacity w-full h-full"
+                                /></div>
                             ) : (
                                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-2xl shadow-lg transform rotate-3 group-hover:opacity-80 transition-opacity">
                                     {employee.firstName?.[0]}{employee.lastName?.[0]}
@@ -176,9 +178,9 @@ export function EmployeeHeaderCard({ employee, onUpdate, animate, onEditSignatur
                          {employee.signature ? (
                              <div 
                                 onClick={onEditSignature}
-                                className="mt-2 h-12 border border-dashed border-slate-300 rounded-lg flex items-center justify-center bg-white/50 cursor-pointer hover:bg-white transition-colors"
+                                className="relative mt-2 h-12 border border-dashed border-slate-300 rounded-lg flex items-center justify-center bg-white/50 cursor-pointer hover:bg-white transition-colors"
                              >
-                                 <img src={employee.signature} alt="Signature" className="max-h-full max-w-full" />
+                                 <div className="relative w-full h-full"><Image priority fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(employee.signature, { w: 1200 })} alt="Signature" className="w-full h-full object-contain" /></div>
                              </div>
                          ) : (
                              <div 

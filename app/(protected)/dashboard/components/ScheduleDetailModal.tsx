@@ -1,5 +1,7 @@
 'use client';
 
+import { cld } from '@/lib/cld';
+import Image from 'next/image';
 import React, { useState, useEffect } from 'react';
 import { 
     X, Calendar, Clock, MapPin, User, Shield, ShieldCheck, 
@@ -42,7 +44,7 @@ interface Schedule {
     todayObjectives?: Objective[];
     aerialImage?: string;
     siteLayout?: string;
-    syncedToAppSheet?: boolean;
+
     notifyAssignees?: string | boolean;
     perDiem?: string | boolean;
     certifiedPayroll?: string | boolean;
@@ -159,7 +161,7 @@ export const ScheduleDetailModal = ({ isOpen, onClose, schedule, initialData, on
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center gap-3">
                                                         <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-500 overflow-hidden shrink-0 group-hover:ring-2 group-hover:ring-slate-100 transition-all">
-                                                            {emp?.image ? <img src={emp.image} className="w-full h-full object-cover" /> : (ts.employee?.[0] || 'U').toUpperCase()}
+                                                            {emp?.image ? <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" alt="Image" src={cld(emp.image, { w: 128, q: 'auto' })} className="object-cover w-full h-full" /></div> : (ts.employee?.[0] || 'U').toUpperCase()}
                                                         </div>
                                                         <div>
                                                             <p className="text-xs font-bold text-slate-700">{emp?.label || ts.employee}</p>
@@ -226,7 +228,7 @@ export const ScheduleDetailModal = ({ isOpen, onClose, schedule, initialData, on
                                         <div className="flex items-center justify-between mb-5">
                                             <div className="flex items-center gap-4">
                                                 <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center text-sm font-black text-slate-500 overflow-hidden ring-4 ring-slate-50 shadow-inner shrink-0">
-                                                    {emp?.image ? <img src={emp.image} className="w-full h-full object-cover" /> : (ts.employee?.[0] || 'U').toUpperCase()}
+                                                    {emp?.image ? <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" alt="Image" src={cld(emp.image, { w: 128, q: 'auto' })} className="object-cover w-full h-full" /></div> : (ts.employee?.[0] || 'U').toUpperCase()}
                                                 </div>
                                                 <div className="min-w-0">
                                                     <p className="text-[15px] font-black text-slate-900 tracking-tight truncate">{emp?.label || ts.employee}</p>
@@ -344,8 +346,8 @@ export const ScheduleDetailModal = ({ isOpen, onClose, schedule, initialData, on
 
                                     if (tagImage) {
                                         return (
-                                            <div className="w-14 h-14 shrink-0 rounded-full overflow-hidden shadow-lg border-2 border-white ring-1 ring-slate-100">
-                                                <img src={tagImage} alt={tagLabel} className="w-full h-full object-cover" />
+                                            <div className="relative w-14 h-14 shrink-0 rounded-full overflow-hidden shadow-lg border-2 border-white ring-1 ring-slate-100">
+                                                <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(tagImage, { w: 128, q: 'auto' })} alt={tagLabel} className="object-cover w-full h-full" /></div>
                                             </div>
                                         );
                                     } else if (tagColor) {
@@ -431,7 +433,7 @@ export const ScheduleDetailModal = ({ isOpen, onClose, schedule, initialData, on
                                         return (
                                             <div key={idx} className="flex items-center gap-4">
                                                 <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-black text-sm shrink-0 ${person.color} overflow-hidden shadow-md ring-4 ring-white`}>
-                                                    {emp?.image ? <img src={emp.image} className="w-full h-full object-cover" /> : person.role}
+                                                    {emp?.image ? <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" alt="Image" src={cld(emp.image, { w: 128, q: 'auto' })} className="object-cover w-full h-full" /></div> : person.role}
                                                 </div>
                                                 <div className="min-w-0">
                                                     <p className="text-[13px] font-black text-slate-900 leading-tight">
@@ -451,7 +453,7 @@ export const ScheduleDetailModal = ({ isOpen, onClose, schedule, initialData, on
                                             return (
                                                 <div key={i} className="flex items-center gap-3 p-2.5 bg-[#F8FAFC] rounded-2xl border border-slate-100/50 shadow-sm">
                                                     <div className="w-8 h-8 rounded-full bg-white shadow-sm overflow-hidden flex items-center justify-center text-[11px] font-black text-slate-500 shrink-0 border border-slate-100">
-                                                        {emp?.image ? <img src={emp.image} className="w-full h-full object-cover" /> : email[0].toUpperCase()}
+                                                        {emp?.image ? <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" alt="Image" src={cld(emp.image, { w: 128, q: 'auto' })} className="object-cover w-full h-full" /></div> : email[0].toUpperCase()}
                                                     </div>
                                                     <span className="text-[12px] font-black text-slate-800 truncate">{emp?.label?.split(' ')[0] || email.split('@')[0]}</span>
                                                 </div>
@@ -474,7 +476,7 @@ export const ScheduleDetailModal = ({ isOpen, onClose, schedule, initialData, on
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">{person.label}</p>
                                                 <div className="flex items-center gap-2.5">
                                                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0 ${person.color} overflow-hidden shadow-inner`}>
-                                                        {emp?.image ? <img src={emp.image} className="w-full h-full object-cover" /> : person.role}
+                                                        {emp?.image ? <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" alt="Image" src={cld(emp.image, { w: 128, q: 'auto' })} className="object-cover w-full h-full" /></div> : person.role}
                                                     </div>
                                                     <div className="min-w-0">
                                                         <p className="text-xs font-black text-slate-800 truncate">{emp?.label?.split(' ')[0] || person.email.split('@')[0]}</p>
@@ -495,7 +497,7 @@ export const ScheduleDetailModal = ({ isOpen, onClose, schedule, initialData, on
                                             return (
                                                 <div key={i} className="inline-flex items-center gap-2 pl-1 pr-3 py-1 bg-white rounded-full border border-slate-100 shadow-sm">
                                                     <div className="w-5 h-5 rounded-full bg-slate-100 overflow-hidden flex items-center justify-center text-[10px] font-bold text-slate-400 shrink-0">
-                                                        {emp?.image ? <img src={emp.image} className="w-full h-full object-cover" /> : email[0].toUpperCase()}
+                                                        {emp?.image ? <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" alt="Image" src={cld(emp.image, { w: 128, q: 'auto' })} className="object-cover w-full h-full" /></div> : email[0].toUpperCase()}
                                                     </div>
                                                     <span className="text-[11px] font-bold text-slate-600">{emp?.label || email.split('@')[0]}</span>
                                                 </div>
@@ -572,7 +574,7 @@ export const ScheduleDetailModal = ({ isOpen, onClose, schedule, initialData, on
                                     onClick={() => onOpenMedia('image', schedule.aerialImage!, 'Aerial View')}
                                     className="relative group h-32 md:h-24 rounded-2xl overflow-hidden border-2 border-white shadow-md transition-transform active:scale-95"
                                 >
-                                    <img src={schedule.aerialImage} className="w-full h-full object-cover" alt="Aerial" />
+                                    <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(schedule.aerialImage, { w: 1200 })} className="object-cover w-full h-full" alt="Aerial" /></div>
                                 </button>
                             )}
                             {schedule.siteLayout && (

@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import { DevcoQuickBooks } from '@/lib/models';
+import { unstable_cache } from 'next/cache';
 
-export async function GET() {
-    try {
+const getCachedWipCalculations = unstable_cache(
+    async () => {
         await connectToDatabase();
 
         console.log('Fetching QuickBooks projects from MongoDB...');
@@ -77,7 +78,7 @@ export async function GET() {
         });
 
         // Map MongoDB projects to the format expected by the UI
-        const formattedProjects = projects.map(p => {
+        return projects.map(p => {
             const income = p.income || 0;
             const qbCost = p.qbCost || 0;
             // devcoCost is pre-computed during Sync and stored directly on the document
@@ -118,7 +119,13 @@ export async function GET() {
                 Balance: 0
             };
         });
-
+    },
+    ['wip-calculations'],
+    { tags: ['wip-calculations'], revalidate: 300 }
+);
+export async function GET() {
+    try {
+        const formattedProjects = await getCachedWipCalculations();
         console.log(`Returning ${formattedProjects.length} formatted projects`);
         return NextResponse.json(formattedProjects);
     } catch (error: any) {

@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import React, { useState, useRef, useCallback } from 'react';
 import { Upload, Loader2, Paperclip, X, FileText, Image as ImageIcon } from 'lucide-react';
 

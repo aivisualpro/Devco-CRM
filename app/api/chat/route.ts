@@ -5,6 +5,7 @@ import Constant from '@/lib/models/Constant';
 import Employee from '@/lib/models/Employee';
 import { Resend } from 'resend';
 import { getUserFromRequest } from '@/lib/permissions/middleware';
+import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
 
 export const dynamic = 'force-dynamic';
 
@@ -138,7 +139,7 @@ export async function POST(request: NextRequest) {
                         const recipientEmails = assigneeDocs.map((e: any) => e.email).filter(Boolean).filter((email: string) => email !== user.email);
 
                         if (recipientEmails.length > 0) {
-                            const fmtDateShort = (d: any) => d ? new Date(d).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : 'N/A';
+                            const fmtDateShort = (d: any) => d ? formatWallDate(d) : 'N/A';
                             
                             const chatFields = [
                                 { label: 'Sender', value: user.email || '--', icon: '👤' },

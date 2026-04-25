@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
+import { revalidateTag } from 'next/cache';
 import { connectToDatabase } from '@/lib/db';
 import Role, { UserPermissionOverride, PermissionAuditLog } from '@/lib/models/Role';
 import Employee from '@/lib/models/Employee';
@@ -55,6 +56,10 @@ export async function GET(request: NextRequest) {
             modules: Object.entries(MODULES).map(([key, value]) => ({ key, value })),
             actions: Object.entries(ACTIONS).map(([key, value]) => ({ key, value })),
             scopes: Object.entries(DATA_SCOPE).map(([key, value]) => ({ key, value })),
+        }, {
+            headers: {
+                'Cache-Control': 'private, max-age=60, stale-while-revalidate=300'
+            }
         });
     } catch (error) {
         console.error('Error fetching roles:', error);
@@ -116,6 +121,8 @@ export async function POST(request: NextRequest) {
             performedBy: user.userId,
             performedByName: user.email,
         });
+
+        revalidateTag('permissions-all', undefined as any);
 
         return NextResponse.json({ success: true, role });
     } catch (error) {
@@ -232,6 +239,7 @@ export async function PUT(request: NextRequest) {
                 performedBy: user.userId,
                 performedByName: user.email,
             });
+            revalidateTag('permissions-all', undefined as any);
         }
 
         return NextResponse.json({ success: true, role });
@@ -306,6 +314,8 @@ export async function DELETE(request: NextRequest) {
             performedBy: user.userId,
             performedByName: user.email,
         });
+
+        revalidateTag('permissions-all', undefined as any);
 
         return NextResponse.json({ success: true });
     } catch (error) {
