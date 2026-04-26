@@ -1190,7 +1190,7 @@ export async function POST(request: NextRequest) {
 
                 if (timesheetId) {
                     // Stopping existing
-                    const tsIndex = (schedule.timesheet || []).findIndex(t => String(t._id) === String(timesheetId));
+                    const tsIndex = (schedule.timesheet || []).findIndex((t: any) => String(t._id) === String(timesheetId));
                     if (tsIndex > -1) {
                         const existingTs = schedule.timesheet![tsIndex];
                         const updateObj: any = {};
