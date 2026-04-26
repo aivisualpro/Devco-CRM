@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import useSWRInfinite from 'swr/infinite';
 import { useRouter } from 'next/navigation';
 import { Bell, Check, CheckCheck, Trash2, X, Calendar, Clock, FileText, AlertCircle, Sparkles, ChevronRight, Volume2, VolumeX } from 'lucide-react';
+import Pusher from 'pusher-js';
 
 interface AppNotification {
     _id: string;
@@ -23,6 +24,7 @@ const NOTIFICATION_ICONS: Record<string, React.ReactNode> = {
     schedule_updated: <Clock size={16} className="text-blue-500" />,
     estimate_won: <Sparkles size={16} className="text-amber-500" />,
     estimate_updated: <FileText size={16} className="text-indigo-500" />,
+    task_assigned: <Calendar size={16} className="text-purple-500" />,
     general: <AlertCircle size={16} className="text-slate-500" />,
 };
 
@@ -31,6 +33,7 @@ const NOTIFICATION_COLORS: Record<string, string> = {
     schedule_updated: 'from-blue-500/10 to-blue-500/5 border-blue-200/50',
     estimate_won: 'from-amber-500/10 to-amber-500/5 border-amber-200/50',
     estimate_updated: 'from-indigo-500/10 to-indigo-500/5 border-indigo-200/50',
+    task_assigned: 'from-purple-500/10 to-purple-500/5 border-purple-200/50',
     general: 'from-slate-500/10 to-slate-500/5 border-slate-200/50',
 };
 
@@ -46,14 +49,40 @@ function timeAgo(dateStr: string): string {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export default function NotificationBell() {
+export default function NotificationBell({ currentUser }: { currentUser?: any }) {
     const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
     const [desktopNotificationsEnabled, setDesktopNotificationsEnabled] = useState(false);
+    const [soundEnabled, setSoundEnabled] = useState(true);
     const [animateBell, setAnimateBell] = useState(false);
     const panelRef = useRef<HTMLDivElement>(null);
     const bellRef = useRef<HTMLButtonElement>(null);
     const prevUnreadRef = useRef(0);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+
+    useEffect(() => {
+        audioRef.current = new Audio('/sounds/notify.mp3');
+        audioRef.current.volume = 0.4;
+        
+        const storedSoundPref = localStorage.getItem(`devco_sound_pref_${currentUser?.email || 'guest'}`);
+        if (storedSoundPref !== null) {
+            setSoundEnabled(storedSoundPref === 'true');
+        }
+    }, [currentUser?.email]);
+
+    const playNotificationSound = useCallback(() => {
+        if (soundEnabled && audioRef.current) {
+            audioRef.current.currentTime = 0;
+            audioRef.current.play().catch(() => {/* user hasn't interacted yet */});
+        }
+    }, [soundEnabled]);
+
+    const toggleSound = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        const newVal = !soundEnabled;
+        setSoundEnabled(newVal);
+        localStorage.setItem(`devco_sound_pref_${currentUser?.email || 'guest'}`, String(newVal));
+    };
 
     // Use SWRInfinite for fetching notifications
     const getKey = (pageIndex: number, previousPageData: any) => {
@@ -64,7 +93,7 @@ export default function NotificationBell() {
     const fetcher = (url: string) => fetch(url).then(res => res.json());
 
     const { data, size, setSize, mutate, isValidating } = useSWRInfinite(getKey, fetcher, {
-        refreshInterval: 15000,
+        refreshInterval: 5000,
         revalidateOnFocus: true,
     });
 
@@ -82,7 +111,7 @@ export default function NotificationBell() {
     }, []);
 
     // Show desktop notification
-    const showDesktopNotification = useCallback((title: string, body: string, link?: string) => {
+    const showDesktopNotification = useCallback((title: string, body: string, link?: string, notificationId?: string) => {
         if (!desktopNotificationsEnabled || !('Notification' in window)) return;
         if (document.hasFocus()) return; // Don't show if app is focused
 
@@ -90,7 +119,7 @@ export default function NotificationBell() {
             body,
             icon: '/favicon.png',
             badge: '/favicon.png',
-            tag: 'devco-notification',
+            tag: notificationId ? `devco-${notificationId}` : 'devco-notification',
             silent: false,
         });
 
@@ -100,25 +129,40 @@ export default function NotificationBell() {
             notif.close();
         };
 
-        // Auto-close after 8 seconds
         setTimeout(() => notif.close(), 8000);
     }, [desktopNotificationsEnabled, router]);
 
-    // Show desktop notification if new unread notifications appeared
+    // Pusher Subscribe
     useEffect(() => {
-        if (data && data[0]) {
-            const newUnread = data[0].unreadCount || 0;
-            if (newUnread > prevUnreadRef.current && prevUnreadRef.current >= 0) {
-                const latestUnread = data[0].result?.find((n: AppNotification) => !n.read);
-                if (latestUnread) {
-                    showDesktopNotification(latestUnread.title, latestUnread.message, latestUnread.link);
-                    setAnimateBell(true);
-                    setTimeout(() => setAnimateBell(false), 1000);
-                }
+        if (!currentUser?.email) return;
+        
+        // Ensure pusher env vars are available
+        if (!process.env.NEXT_PUBLIC_PUSHER_KEY) return;
+
+        const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY, {
+            cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
+            authEndpoint: '/api/pusher/auth',
+        });
+        
+        const channelName = `private-notifications-${currentUser.email.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+        const channel = pusher.subscribe(channelName);
+        
+        channel.bind('new-notification', (payload: any) => {
+            mutate(); // refresh SWR cache
+            if (!payload.silent) {
+                showDesktopNotification(payload.title, payload.message, payload.link, payload.notificationId);
+                playNotificationSound();
+                setAnimateBell(true);
+                setTimeout(() => setAnimateBell(false), 1000);
             }
-            prevUnreadRef.current = newUnread;
-        }
-    }, [data, showDesktopNotification]);
+        });
+        
+        return () => {
+            channel.unbind_all();
+            pusher.unsubscribe(channelName);
+            pusher.disconnect();
+        };
+    }, [currentUser?.email, mutate, showDesktopNotification, playNotificationSound]);
 
     // Check notification permission on mount
     useEffect(() => {
@@ -151,7 +195,6 @@ export default function NotificationBell() {
     }, [isOpen]);
 
     const markAsRead = async (notificationId: string) => {
-        // Optimistic update
         mutate((currentData: any) => {
             if (!currentData) return currentData;
             return currentData.map((pageData: any) => ({
@@ -282,6 +325,18 @@ export default function NotificationBell() {
                                 )}
                             </div>
                             <div className="flex items-center gap-1">
+                                {/* Sound Toggle */}
+                                <button
+                                    onClick={toggleSound}
+                                    className={`p-1.5 rounded-lg transition-all ${soundEnabled ? 'text-[#0F4C75] bg-[#0F4C75]/10' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
+                                    title={soundEnabled ? 'Sound enabled' : 'Enable sound'}
+                                >
+                                    {soundEnabled ? (
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
+                                    ) : (
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
+                                    )}
+                                </button>
                                 {/* Desktop Notification Toggle */}
                                 <button
                                     onClick={(e) => {

@@ -117,12 +117,12 @@ export default function ConstantsPage() {
 
     const handleSave = async () => {
         try {
-            const action = editItem ? 'updateConstant' : 'addConstant';
+            const action = editItem ? 'update' : 'create';
             const payload = editItem
-                ? { id: editItem._id, item: formData }
-                : { item: formData };
+                ? { _id: editItem._id, ...formData }
+                : formData;
 
-            const res = await fetch('/api/webhook/devcoBackend', {
+            const res = await fetch('/api/constants', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action, payload })
@@ -152,7 +152,7 @@ export default function ConstantsPage() {
             const res = await fetch('/api/constants', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'delete', payload: { id: deleteId } })
+                body: JSON.stringify({ action: 'delete', payload: { _id: deleteId } })
             });
             const data = await res.json();
             if (data.success) {

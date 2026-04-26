@@ -5,7 +5,7 @@ import { Eraser, Check, PenTool, Trash2 } from 'lucide-react';
 
 interface SignaturePadProps {
     value?: string;
-    onChange: (signature: string) => void;
+    onChange: (signature: string) => Promise<void> | void;
     className?: string;
     label?: string; // e.g., "Signature for Adeel"
 }
@@ -14,6 +14,7 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ value, onChange, cla
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
     const [hasSignature, setHasSignature] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     
     // Mode: 'view' (showing existing image) or 'edit' (drawing new one)
     const [isEditing, setIsEditing] = useState(!value);
@@ -105,12 +106,19 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ value, onChange, cla
         }
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         const canvas = canvasRef.current;
         if (canvas && hasSignature) {
+            setIsSaving(true);
             const dataUrl = canvas.toDataURL('image/png');
-            onChange(dataUrl);
-            setIsEditing(false);
+            try {
+                await onChange(dataUrl);
+                setIsEditing(false);
+            } catch (err) {
+                console.error("Error saving signature", err);
+            } finally {
+                setIsSaving(false);
+            }
         }
     };
 
@@ -180,11 +188,15 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ value, onChange, cla
                 <button
                     type="button"
                     onClick={handleSave}
-                    disabled={!hasSignature}
+                    disabled={!hasSignature || isSaving}
                     className="flex-[2] flex items-center justify-center gap-1 px-4 py-2 text-xs font-bold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    <Check size={14} />
-                    Confirm & Save
+                    {isSaving ? (
+                        <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                        <Check size={14} />
+                    )}
+                    {isSaving ? 'Saving...' : 'Confirm & Save'}
                 </button>
             </div>
         </div>

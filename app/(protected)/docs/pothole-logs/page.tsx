@@ -26,6 +26,7 @@ import { cn } from '@/lib/utils';
 import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
 import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
+import { useAllEmployees } from '@/lib/hooks/api';
 
 // Dropdown options
 const UTILITY_TYPES = [
@@ -125,7 +126,7 @@ export default function PotholeLogsPage() {
     const [loading, setLoading] = useState(true);
     const [logs, setLogs] = useState<PotholeLog[]>([]);
     const [estimates, setEstimates] = useState<Estimate[]>([]);
-    const [employees, setEmployees] = useState<Employee[]>([]);
+    const { employees, getByEmail: getEmployeeByEmail } = useAllEmployees();
     const [search, setSearch] = useState('');
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' });
 
@@ -183,7 +184,7 @@ export default function PotholeLogsPage() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [logsRes, estimatesRes, employeesRes] = await Promise.all([
+            const [logsRes, estimatesRes] = await Promise.all([
                 fetch('/api/pothole-logs', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -195,15 +196,13 @@ export default function PotholeLogsPage() {
                         }
                     })
                 }),
-                fetch(`/api/estimates?limit=500`),
-                fetch(`/api/employees`)
+                fetch(`/api/estimates?limit=500`)
             ]);
 
-            const [logsData, estimatesData, employeesData] = await Promise.all([logsRes.json(), estimatesRes.json(), employeesRes.json()]);
+            const [logsData, estimatesData] = await Promise.all([logsRes.json(), estimatesRes.json()]);
 
             if (logsData.success) setLogs(logsData.result || []);
             if (estimatesData.success) setEstimates(estimatesData.result || []);
-            if (employeesData.success) setEmployees(employeesData.result || []);
         } catch (err) {
             console.error(err);
             toast.error('Failed to fetch data');
@@ -262,11 +261,7 @@ export default function PotholeLogsPage() {
         return estimates.find(e => e._id === estimateId || e.estimate === estimateId);
     };
 
-    // Find employee by email
-    const getEmployeeByEmail = (email: string) => {
-        if (!email) return null;
-        return employees.find(e => e.email?.toLowerCase() === email.toLowerCase());
-    };
+
 
     const handleSort = (key: string) => {
         setSortConfig(current => ({
@@ -625,7 +620,7 @@ export default function PotholeLogsPage() {
                                         <div
                                             key={log._id}
                                             className="bg-white rounded-2xl border border-slate-100 p-4 active:scale-[0.98] transition-transform shadow-sm"
-                                            onClick={() => router.push(`/docs/pothole-logs/${log._id}`)}
+                                            onMouseEnter={() => router.prefetch(`/docs/pothole-logs/${log._id}`)} onClick={() => router.push(`/docs/pothole-logs/${log._id}`)}
                                             onTouchStart={() => handleLongPressStart(log)}
                                             onTouchEnd={handleLongPressEnd}
                                             onTouchCancel={handleLongPressEnd}
@@ -701,7 +696,7 @@ export default function PotholeLogsPage() {
                                                 <React.Fragment key={log._id}>
                                                     <TableRow
                                                         className="group hover:bg-slate-50 transition-colors cursor-pointer"
-                                                        onClick={() => router.push(`/docs/pothole-logs/${log._id}`)}
+                                                        onMouseEnter={() => router.prefetch(`/docs/pothole-logs/${log._id}`)} onClick={() => router.push(`/docs/pothole-logs/${log._id}`)}
                                                     >
                                                         <TableCell onClick={(e) => e.stopPropagation()}>
                                                             {log.potholeItems?.length > 0 && (
@@ -719,7 +714,7 @@ export default function PotholeLogsPage() {
                                                         <TableCell>
                                                             <span
                                                                 className="font-semibold text-[#0F4C75] text-xs cursor-pointer hover:underline"
-                                                                onClick={(e) => { e.stopPropagation(); router.push(`/estimates/${estInfo?._id || log.estimate}`); }}
+                                                                onMouseEnter={() => router.prefetch(`/estimates/${estInfo?._id || log.estimate}`)} onClick={(e) => { e.stopPropagation(); router.push(`/estimates/${estInfo?._id || log.estimate}`); }}
                                                             >
                                                                 {estInfo?.estimate || log.estimate || 'N/A'}
                                                             </span>
@@ -846,7 +841,7 @@ export default function PotholeLogsPage() {
                         </div>
                         <div className="p-2">
                             <button
-                                onClick={() => { router.push(`/docs/pothole-logs/${actionSheetItem._id}`); setActionSheetItem(null); }}
+                                onMouseEnter={() => router.prefetch(`/docs/pothole-logs/${actionSheetItem._id}`)} onClick={() => { router.push(`/docs/pothole-logs/${actionSheetItem._id}`); setActionSheetItem(null); }}
                                 className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50"
                             >
                                 <Eye size={18} /> View

@@ -79,8 +79,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         // 1. Identify which fields the user is changing
         const keys = Object.keys(body);
         
-        // 2. Reject if QBO_OWNED_FIELDS
-        const hasQboOwned = keys.some(k => (QBO_OWNED_FIELDS as readonly string[]).includes(k));
+        // 2. Reject if QBO_OWNED_FIELDS (except 'status' which is a valid Estimate field)
+        const qboFieldsToCheck = (QBO_OWNED_FIELDS as readonly string[]).filter(k => k !== 'status');
+        const hasQboOwned = keys.some(k => qboFieldsToCheck.includes(k));
         if (hasQboOwned) {
             return NextResponse.json({ 
                 success: false, 

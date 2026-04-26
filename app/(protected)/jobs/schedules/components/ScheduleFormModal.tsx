@@ -131,8 +131,8 @@ export function ScheduleFormModal({ isOpen, onClose, schedule, initialData, onSa
                                     placeholder="Select Tag"
                                     disableBlank={true}
                                     options={initialData.constants.filter((c: any) => c.type === 'Schedule Items').map((c: any) => ({
-                                        label: c.description,
-                                        value: c.description,
+                                        label: c.value || c.description,
+                                        value: c.value || c.description,
                                         image: c.image,
                                         color: c.color
                                     }))}
@@ -392,8 +392,8 @@ export function ScheduleFormModal({ isOpen, onClose, schedule, initialData, onSa
                                     multiple={true}
                                     disableBlank={true}
                                     options={initialData.constants.filter((c: any) => c.type?.toLowerCase() === 'services').map((c: any) => ({
-                                        label: c.description,
-                                        value: c.description,
+                                        label: c.value || c.description,
+                                        value: c.value || c.description,
                                         image: c.image,
                                         color: c.color
                                     }))}

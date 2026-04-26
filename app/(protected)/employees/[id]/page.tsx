@@ -9,6 +9,7 @@ import { Header, Button, ConfirmModal, Modal, Input, SearchableSelect, Underline
 import { SignaturePad } from '@/components/ui/SignaturePad';
 import { useToast } from '@/hooks/useToast';
 import { EmployeeHeaderCard, AccordionCard, DetailRow } from './components';
+import { PageSkeleton } from './loading';
 import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -440,13 +441,26 @@ export default function EmployeeViewPage() {
     const [stateOptions, setStateOptions] = useState<string[]>([]);
 
     // API Call Helper
-    const apiCall = async (action: string, payload: Record<string, unknown> = {}) => {
-        const res = await fetch('/api/webhook/devcoBackend', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action, payload })
-        });
-        return res.json();
+    const apiCall = async (action: string, payload: Record<string, any> = {}) => {
+        try {
+            let url = '';
+            let method = 'POST';
+            let body: any = payload;
+
+            if (action === 'getEmployeeById') { url = `/api/employees/${payload.id}`; method = 'GET'; }
+            else if (action === 'updateEmployee') { url = `/api/employees/${payload.id}`; method = 'PATCH'; body = payload.item; }
+            else if (action === 'deleteEmployee') { url = `/api/employees/${payload.id}`; method = 'DELETE'; }
+            else if (action === 'getEmployees') { url = '/api/employees'; method = 'GET'; }
+
+            const options: RequestInit = { method, headers: { 'Content-Type': 'application/json' } };
+            if (method !== 'GET') options.body = JSON.stringify(body);
+
+            const res = await fetch(url, options);
+            return await res.json();
+        } catch (err) {
+            console.error('API Error:', err);
+            return { success: false, error: String(err) };
+        }
     };
 
     const loadEmployee = async (silent = false) => {
@@ -607,17 +621,7 @@ export default function EmployeeViewPage() {
     };
 
     if (loading) {
-        return (
-            <>
-                <Header />
-                <div className="flex-1 p-8 flex items-center justify-center">
-                    <div className="flex flex-col items-center gap-4">
-                        <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
-                        <p className="text-gray-400 font-medium">Loading Employee Profile...</p>
-                    </div>
-                </div>
-            </>
-        );
+        return <PageSkeleton />;
     }
 
     if (!employee) return null; // Should redirect in loadEmployee
@@ -630,7 +634,7 @@ export default function EmployeeViewPage() {
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <button
-                                    onClick={() => canViewEmployees ? router.push('/employees') : router.push('/')}
+                                    onMouseEnter={() => router.prefetch('/employees')} onClick={() => canViewEmployees ? router.push('/employees') : router.push('/')}
                                     className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors"
                                 >
                                     <ArrowLeft className="w-5 h-5" />

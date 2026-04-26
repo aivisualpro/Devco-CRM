@@ -48,6 +48,7 @@ interface Schedule {
     notifyAssignees?: string | boolean;
     perDiem?: string | boolean;
     certifiedPayroll?: string | boolean;
+    fringe?: string;
 }
 
 interface ScheduleDetailModalProps {
@@ -510,19 +511,31 @@ export const ScheduleDetailModal = ({ isOpen, onClose, schedule, initialData, on
 
                         <div className="grid grid-cols-2 gap-3">
                             {[
-                                { label: 'Notify', active: schedule.notifyAssignees },
-                                { label: 'Per Diem', active: schedule.perDiem },
-                                { label: 'Payroll', active: schedule.certifiedPayroll },
-                                { label: 'JHA', active: schedule.hasJHA }
-                            ].map((flag, idx) => (
-                                <div key={idx} className="flex flex-col gap-1.5">
-                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{flag.label}</span>
-                                    <div className={`px-3 py-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-2 transition-all ${flag.active ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-50 text-slate-400 border border-slate-100'}`}>
-                                        <div className={`w-1.5 h-1.5 rounded-full ${flag.active ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
-                                        {flag.active ? 'YES' : 'NO'}
+                                { label: 'Fringe', val: schedule.fringe },
+                                { label: 'Certified', val: schedule.certifiedPayroll },
+                                { label: 'Per Diem', val: schedule.perDiem },
+                                { label: 'Notify', val: schedule.notifyAssignees }
+                            ].map((flag, idx) => {
+                                const valString = flag.val === true ? 'Yes' : (flag.val === false ? 'No' : (flag.val || 'Unknown'));
+                                const constant = initialData.constants?.find((c: any) => c.description === valString || c.value === valString);
+                                const color = constant?.color || (['Yes', 'TRUE'].includes(String(valString)) ? '#10b981' : '#94a3b8');
+                                const bgColor = constant?.color ? `${constant.color}15` : (['Yes', 'TRUE'].includes(String(valString)) ? '#ecfdf5' : '#f8fafc');
+                                const textColor = constant?.color || (['Yes', 'TRUE'].includes(String(valString)) ? '#059669' : '#94a3b8');
+                                const borderColor = constant?.color ? `${constant.color}30` : (['Yes', 'TRUE'].includes(String(valString)) ? '#d1fae5' : '#f1f5f9');
+
+                                return (
+                                    <div key={idx} className="flex flex-col gap-1.5">
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{flag.label}</span>
+                                        <div 
+                                            className="px-3 py-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-2 transition-all border"
+                                            style={{ backgroundColor: bgColor, color: textColor, borderColor }}
+                                        >
+                                            <div className="w-1.5 h-1.5 rounded-full shadow-sm" style={{ backgroundColor: color }} />
+                                            {valString}
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
 

@@ -424,7 +424,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                             {rightContent}
 
                             {/* Notification Bell */}
-                            <NotificationBell />
+                            <NotificationBell currentUser={user} />
 
                             {/* User Profile Dropdown - Always visible for logout access */}
                             <div className="relative ml-2" ref={dropdownRef}>
@@ -573,7 +573,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                                     return (
                                                         <button
                                                             key={item.href}
-                                                            onClick={() => {
+                                                            onMouseEnter={() => router.prefetch(item.href)} onClick={() => {
                                                                 router.push(item.href);
                                                                 setIsMobileMenuOpen(false);
                                                                 setMobileOpenGroup(null);

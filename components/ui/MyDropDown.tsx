@@ -249,7 +249,7 @@ export function MyDropDown({
                         style={{ maxHeight: coords?.maxHeight ? `${coords.maxHeight - 60}px` : '15rem' }}
                         onWheel={(e) => e.stopPropagation()}
                     >
-                        {filteredOptions.map((opt) => {
+                        {filteredOptions.map((opt, index) => {
                             const active = isSelected(opt.value);
                             const content = (
                                 <div
@@ -320,7 +320,7 @@ export function MyDropDown({
 
                             if (opt.tooltip && opt.disabled) {
                                 return (
-                                    <Tooltip key={opt.id}>
+                                    <Tooltip key={`${opt.id || opt.value}-${index}`}>
                                         <TooltipTrigger asChild>
                                             {content}
                                         </TooltipTrigger>
@@ -331,7 +331,7 @@ export function MyDropDown({
                                 );
                             }
 
-                            return <div key={opt.id}>{content}</div>;
+                            return <div key={`${opt.id || opt.value}-${index}`}>{content}</div>;
                         })}
 
                         {/* Add New Option */}

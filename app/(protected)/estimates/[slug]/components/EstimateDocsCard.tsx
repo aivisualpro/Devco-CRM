@@ -376,11 +376,12 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
         if (jhaData.success && jhaData.result?.jhas) {
             const filtered = jhaData.result.jhas.filter((j: any) => scheduleIds.includes(String(j.schedule_id || '')));
-            setJhaRecords(filtered.length > 0 ? filtered : jhaData.result.jhas);
+            setJhaRecords(filtered);
         }
 
         if (djtData.success && djtData.result?.djts) {
-            const uniqueDjts = Array.from(new Map(djtData.result.djts.map((d: any) => [String(d.schedule_id), d])).values());
+            const filtered = djtData.result.djts.filter((d: any) => scheduleIds.includes(String(d.schedule_id || '')));
+            const uniqueDjts = Array.from(new Map(filtered.map((d: any) => [String(d.schedule_id), d])).values());
             setJobTicketRecords(uniqueDjts);
         }
 

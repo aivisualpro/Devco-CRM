@@ -130,7 +130,7 @@ export const BillingTicketModal: React.FC<ReceiptModalProps> = ({
                 });
                 const base64 = await base64Promise;
 
-                const res = await fetch('/api/webhook/devcoBackend', {
+                const res = await fetch('/api/misc', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

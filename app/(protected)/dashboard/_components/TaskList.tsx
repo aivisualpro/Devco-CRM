@@ -4,7 +4,7 @@ import useSWR from 'swr';
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useCurrentUser } from '@/lib/context/AppContext';
-import { Badge, Modal, Button, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, MyDropDown } from '@/components/ui';
+import { Badge, Modal, Button, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, MyDropDown, SearchableSelect } from '@/components/ui';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { CheckCircle2, Plus, GripVertical, Edit, Copy, Trash2, Activity as ActivityIcon, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
@@ -210,7 +210,7 @@ function KanbanColumn({
 function TaskFormModal({
     isOpen, onClose, onSave, editingTask, employees, clients, estimates, currentUserEmail, isSuperAdmin,
 }: {
-    isOpen: boolean; onClose: () => void; onSave: (data: Partial<TodoItem>) => void;
+    isOpen: boolean; onClose: () => void; onSave: (data: Partial<TodoItem>) => Promise<void>;
     editingTask?: TodoItem | null; employees: any[]; clients: any[]; estimates: any[];
     currentUserEmail: string; isSuperAdmin: boolean;
 }) {
@@ -218,12 +218,18 @@ function TaskFormModal({
     const canEdit = !isEditing || editingTask?.createdBy === currentUserEmail || isSuperAdmin;
     const [formData, setFormData] = useState<Partial<TodoItem>>({ task: '', dueDate: '', status: 'todo', assignees: [] });
     const [isAssigneeOpen, setIsAssigneeOpen] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [customerSearch, setCustomerSearch] = useState('');
     const [estimateSearch, setEstimateSearch] = useState('');
     const [isCustomerOpen, setIsCustomerOpen] = useState(false);
     const [isEstimateOpen, setIsEstimateOpen] = useState(false);
 
-    const employeeOptions = useMemo(() => employees.map(e => ({ id: e.value, label: e.label, value: e.value, profilePicture: e.image })), [employees]);
+    const employeeOptions = useMemo(() => employees.map(e => ({ 
+        id: e.email || e._id, 
+        label: `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.email || 'Unknown User', 
+        value: e.email || e._id, 
+        profilePicture: e.profilePicture 
+    })), [employees]);
     const filteredClients = useMemo(() => {
         let f = clients || [];
         if (customerSearch.trim()) f = f.filter((c: any) => (c.name || '').toLowerCase().includes(customerSearch.toLowerCase()));
@@ -236,53 +242,155 @@ function TaskFormModal({
         return f.slice(0, 20);
     }, [estimates, formData.customerId, estimateSearch]);
 
-    useState(() => {
+    useEffect(() => {
         if (editingTask) {
             setFormData({ task: editingTask.task, dueDate: editingTask.dueDate?.slice(0, 10), status: editingTask.status, assignees: editingTask.assignees || [], customerId: editingTask.customerId, customerName: editingTask.customerName, estimate: editingTask.estimate, jobAddress: editingTask.jobAddress });
         } else {
             setFormData({ task: '', dueDate: '', status: 'todo', assignees: [] });
         }
-    });
+    }, [editingTask]);
 
     if (!isOpen) return null;
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={editingTask ? 'Edit Task' : 'Add New Task'}>
-            <div className="space-y-4">
-                <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-1">Task Description</label>
-                    <textarea className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-100 outline-none min-h-[100px]" placeholder="What needs to be done?" value={formData.task} onChange={e => setFormData({ ...formData, task: e.target.value })} disabled={!canEdit} />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1">Due Date</label>
-                        <input type="date" className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-100 outline-none" value={formData.dueDate || ''} onChange={e => setFormData({ ...formData, dueDate: e.target.value })} disabled={!canEdit} />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1">Status</label>
-                        <select className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-100 outline-none" value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value as any })} disabled={!canEdit}>
-                            <option value="todo">To Do</option>
-                            <option value="in progress">In Progress</option>
-                            <option value="done">Done</option>
-                        </select>
-                    </div>
-                </div>
-                <div className="relative">
-                    <label className="block text-sm font-bold text-slate-700 mb-1">Assign To</label>
-                    <div id="task-assignee-trigger" className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm flex items-center justify-between cursor-pointer hover:border-blue-300 min-h-[50px]" onClick={() => canEdit && setIsAssigneeOpen(!isAssigneeOpen)}>
-                        <div className="flex -space-x-2 overflow-hidden">
-                            {(formData.assignees || []).length > 0 ? formData.assignees?.map(email => {
-                                const emp = employees.find(e => e.value === email);
-                                return <div key={email} className="w-8 h-8 rounded-full border-2 border-white bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600 shadow-sm" title={emp?.label || email}>{emp?.label?.[0] || email[0]}</div>;
-                            }) : <span className="text-slate-400 ml-1">Select team members...</span>}
+            <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                    {/* Left Column */}
+                    <div className="flex flex-col gap-6">
+                        <div className="space-y-2">
+                            <label className="block text-sm font-bold text-slate-900">Task Description</label>
+                            <textarea className="w-full bg-white border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-black/5 focus:border-black outline-none min-h-[100px] transition-all placeholder:text-slate-400" placeholder="What needs to be done?" value={formData.task} onChange={e => setFormData({ ...formData, task: e.target.value })} disabled={!canEdit} />
                         </div>
-                        <ChevronDown size={14} className={`text-slate-400 transition-transform ${isAssigneeOpen ? 'rotate-180' : ''}`} />
+
+                        <div className="space-y-2">
+                            <div className="relative">
+                                <label className="block text-sm font-bold text-slate-900 mb-1">Assign To</label>
+                                <div id="task-assignee-trigger" className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm flex items-center justify-between cursor-pointer hover:border-blue-300 min-h-[42px]" onClick={() => canEdit && setIsAssigneeOpen(!isAssigneeOpen)}>
+                                    <div className="flex -space-x-2 overflow-hidden">
+                                        {(formData.assignees || []).length > 0 ? formData.assignees?.map((email: string) => {
+                                            const emp = employeeOptions.find((e: any) => e.value === email);
+                                            return (
+                                                <div key={email} className="w-8 h-8 rounded-full border-2 border-white bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600 shadow-sm overflow-hidden" title={emp?.label || email}>
+                                                    {emp?.profilePicture ? (
+                                                        <img src={emp.profilePicture} alt={emp.label} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        emp?.label?.[0] || email[0]
+                                                    )}
+                                                </div>
+                                            );
+                                        }) : <span className="text-slate-400 ml-1">Select team members...</span>}
+                                    </div>
+                                    <ChevronDown size={14} className={`text-slate-400 transition-transform ${isAssigneeOpen ? 'rotate-180' : ''}`} />
+                                </div>
+                                <MyDropDown 
+                                    isOpen={isAssigneeOpen} 
+                                    onClose={() => setIsAssigneeOpen(false)} 
+                                    anchorId="task-assignee-trigger" 
+                                    options={employeeOptions} 
+                                    selectedValues={formData.assignees || []} 
+                                    multiSelect={true} 
+                                    onSelect={(val: string) => { 
+                                        if (!canEdit) return; 
+                                        const cur = formData.assignees || []; 
+                                        setFormData((prev: any) => ({ ...prev, assignees: cur.includes(val) ? cur.filter((v: string) => v !== val) : [...cur, val] })); 
+                                    }} 
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="block text-sm font-bold text-slate-900">Due Date</label>
+                            <input type="date" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all" value={formData.dueDate || ''} onChange={e => setFormData({ ...formData, dueDate: e.target.value })} disabled={!canEdit} />
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="block text-sm font-bold text-slate-900">Status</label>
+                            <select className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all" value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value as any })} disabled={!canEdit}>
+                                <option value="todo">To Do</option>
+                                <option value="in progress">In Progress</option>
+                                <option value="done">Done</option>
+                            </select>
+                        </div>
                     </div>
-                    <MyDropDown isOpen={isAssigneeOpen} onClose={() => setIsAssigneeOpen(false)} anchorId="task-assignee-trigger" options={employeeOptions} selectedValues={formData.assignees || []} multiSelect={true} onSelect={val => { if (!canEdit) return; const cur = formData.assignees || []; setFormData({ ...formData, assignees: cur.includes(val) ? cur.filter(v => v !== val) : [...cur, val] }); }} />
+
+                    {/* Right Column */}
+                    <div className="flex flex-col gap-6">
+                        <div className="space-y-2">
+                            <SearchableSelect
+                                id="taskClient"
+                                label="Client"
+                                placeholder="Select client"
+                                disableBlank={true}
+                                disabled={!canEdit}
+                                options={clients.map((c: any) => ({ label: c.name, value: c._id }))}
+                                value={formData.customerId || ''}
+                                onChange={(val) => {
+                                    const client = clients.find((c: any) => c._id === val);
+                                    setFormData((prev: any) => ({
+                                        ...prev,
+                                        customerId: val,
+                                        customerName: client?.name || '',
+                                        estimate: (prev?.customerId && prev.customerId !== val) ? '' : prev?.estimate
+                                    }));
+                                }}
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <SearchableSelect
+                                id="taskEstimate"
+                                label="Estimate / Proposal"
+                                placeholder="Select estimate"
+                                disableBlank={true}
+                                disabled={!canEdit}
+                                options={estimates
+                                    .filter((e: any) => !formData.customerId || (e.customerId && e.customerId.toString() === formData.customerId.toString()))
+                                    .map((e: any) => ({ label: `${e.estimate}${e.projectName ? ` - ${e.projectName}` : ''}`, value: e.estimate }))}
+                                value={formData.estimate || ''}
+                                onChange={(val) => {
+                                    const est = estimates.find((e: any) => e.estimate === val);
+                                    const client = clients.find((c: any) => c._id === est?.customerId);
+                                    setFormData((prev: any) => ({ 
+                                        ...prev, 
+                                        estimate: val,
+                                        customerId: est?.customerId || prev?.customerId, 
+                                        customerName: client?.name || prev?.customerName,
+                                        jobAddress: est?.jobAddress || prev?.jobAddress || ''
+                                    }));
+                                }}
+                            />
+                        </div>
+
+                        {formData.estimate && formData.jobAddress && (
+                            <div className="space-y-2">
+                                <label className="block text-sm font-bold text-slate-900">Job Location</label>
+                                <div className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-700 h-[42px] overflow-hidden text-ellipsis whitespace-nowrap">
+                                    {formData.jobAddress}
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
-                <div className="flex justify-end gap-3 mt-6">
-                    <Button variant="outline" onClick={onClose}>Cancel</Button>
-                    <Button onClick={() => onSave(formData)} disabled={!formData.task?.trim() || !canEdit} className={`bg-blue-600 hover:bg-blue-700 text-white ${!canEdit ? 'hidden' : ''}`}>{editingTask ? 'Update Task' : 'Create Task'}</Button>
+
+                <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                    <button type="button" onClick={onClose} disabled={isSaving} className="px-6 py-2 bg-white border border-slate-200 text-slate-900 text-sm font-bold rounded-lg hover:bg-slate-50 transition-all font-sans disabled:opacity-50">
+                        Cancel
+                    </button>
+                    <button 
+                        onClick={async () => {
+                            try {
+                                setIsSaving(true);
+                                await onSave(formData);
+                            } finally {
+                                setIsSaving(false);
+                            }
+                        }} 
+                        disabled={!formData.task?.trim() || !canEdit || isSaving} 
+                        className={`px-6 py-2 bg-[#1A1A1A] text-white text-sm font-bold rounded-lg hover:bg-black transition-all shadow-sm font-sans disabled:opacity-50 ${!canEdit ? 'hidden' : ''}`}
+                    >
+                        {isSaving ? (editingTask ? 'Updating...' : 'Creating...') : (editingTask ? 'Update Task' : 'Create Task')}
+                    </button>
                 </div>
             </div>
         </Modal>
@@ -295,11 +403,13 @@ export function TaskList({
     scope,
     initialData,
     className,
+    onTaskMutate,
 }: {
     week: string;
     scope: 'all' | 'self';
     initialData?: any;
     className?: string;
+    onTaskMutate?: () => void;
 }) {
     const { user, isSuperAdmin, can } = usePermissions();
     const currentUser = useCurrentUser();
@@ -320,7 +430,7 @@ export function TaskList({
     const [todos, setTodos] = useState<TodoItem[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTask, setEditingTask] = useState<TodoItem | null>(null);
-    const [taskView, setTaskView] = useState<'self' | 'all'>('self');
+    const [taskView, setTaskView] = useState<'self' | 'all'>('all');
 
     // Sync SWR data → local state
     useEffect(() => {
@@ -341,14 +451,27 @@ export function TaskList({
     const handleDrop = useCallback(async (e: React.DragEvent, newStatus: string) => {
         e.preventDefault();
         const todoId = e.dataTransfer.getData('todoId');
+        
+        mutate((currentData: any) => {
+            if (!currentData) return currentData;
+            return { ...currentData, tasks: (currentData.tasks || []).map((t: any) => t._id === todoId ? { ...t, status: newStatus } : t) };
+        }, { revalidate: false });
+
         setTodos(prev => prev.map(t => t._id === todoId ? { ...t, status: newStatus as TodoItem['status'] } : t));
         await fetch('/api/tasks', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: todoId, status: newStatus, lastUpdatedBy: userEmail }) });
-    }, [userEmail]);
+        onTaskMutate?.();
+    }, [userEmail, mutate, onTaskMutate]);
 
     const handleStatusChange = useCallback(async (item: TodoItem, newStatus: TodoItem['status']) => {
+        mutate((currentData: any) => {
+            if (!currentData) return currentData;
+            return { ...currentData, tasks: (currentData.tasks || []).map((t: any) => t._id === item._id ? { ...t, status: newStatus, lastUpdatedAt: new Date().toISOString() } : t) };
+        }, { revalidate: false });
+
         setTodos(prev => prev.map(t => t._id === item._id ? { ...t, status: newStatus, lastUpdatedAt: new Date().toISOString() } : t));
         await fetch('/api/tasks', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: item._id, status: newStatus, lastUpdatedBy: userEmail }) });
-    }, [userEmail]);
+        onTaskMutate?.();
+    }, [userEmail, mutate, onTaskMutate]);
 
     const handleOpenModal = useCallback((task?: TodoItem) => {
         setEditingTask(task || null);
@@ -359,19 +482,36 @@ export function TaskList({
         const isEditing = !!editingTask?._id;
         try {
             const res = await fetch('/api/tasks', {
-                method: isEditing ? 'PUT' : 'POST',
+                method: isEditing ? 'PATCH' : 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(isEditing ? { ...formData, id: editingTask._id } : { ...formData, createdBy: userEmail, status: formData.status || 'todo' }),
             });
-            const data = await res.json();
-            if (data.success) {
-                setTodos(prev => isEditing ? prev.map(t => t._id === editingTask._id ? { ...t, ...formData } : t) : [data.task || { ...formData, _id: Date.now().toString() } as any, ...prev]);
+            const dataRes = await res.json();
+            
+            if (!res.ok || !dataRes.success) {
+                toast.error(dataRes.error || 'Failed to save task');
+                return;
+            }
+            
+            if (dataRes.success) {
+                const newTask = dataRes.task || dataRes.result;
+                
+                mutate((currentData: any) => {
+                    if (!currentData) return currentData;
+                    const oldTasks = currentData.tasks || [];
+                    const updatedTasks = isEditing
+                        ? oldTasks.map((t: any) => t._id === editingTask._id ? newTask : t)
+                        : [newTask, ...oldTasks];
+                    return { ...currentData, tasks: updatedTasks };
+                }, { revalidate: false });
+
+                setTodos(prev => isEditing ? prev.map(t => t._id === editingTask._id ? newTask : t) : [newTask, ...prev]);
                 setIsModalOpen(false);
                 toast.success(isEditing ? 'Task updated' : 'Task created');
-                mutate();
+                onTaskMutate?.();
             }
         } catch { toast.error('Failed to save task'); }
-    }, [editingTask, userEmail, mutate]);
+    }, [editingTask, userEmail, mutate, onTaskMutate]);
 
     const handleCopyTask = useCallback((item: TodoItem, e: React.MouseEvent) => {
         e.stopPropagation();
@@ -381,17 +521,50 @@ export function TaskList({
 
     const handleDeleteTask = useCallback(async (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
+
+        // Save previous state for potential rollback
+        const previousTodos = [...todos];
+
+        // Optimistic update
+        mutate((currentData: any) => {
+            if (!currentData) return currentData;
+            return { ...currentData, tasks: (currentData.tasks || []).filter((t: any) => t._id !== id) };
+        }, { revalidate: false });
         setTodos(prev => prev.filter(t => t._id !== id));
-        await fetch('/api/tasks', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
-        toast.success('Task deleted');
-        mutate();
-    }, [mutate]);
+
+        try {
+            const res = await fetch(`/api/tasks?id=${id}`, { method: 'DELETE' });
+            const data = await res.json();
+            
+            if (res.ok && data.success) {
+                toast.success('Task deleted');
+                onTaskMutate?.();
+            } else {
+                // Revert optimistic update
+                setTodos(previousTodos);
+                mutate();
+                toast.error(data.error || 'Failed to delete task');
+            }
+        } catch (error) {
+            // Revert optimistic update
+            setTodos(previousTodos);
+            mutate();
+            toast.error('Network error while deleting task');
+        }
+    }, [todos, mutate, onTaskMutate]);
 
     const employees = initialData?.employees || data?.employees || [];
     const clients = initialData?.clients || data?.clients || [];
     const estimates = initialData?.estimates || data?.estimates || [];
 
-    const columnProps = { employees, currentUserEmail: userEmail, isSuperAdmin: !!isSuperAdmin, canViewEstimates, onDragOver: handleDragOver, onDrop: handleDrop, onEdit: handleOpenModal, onCopy: handleCopyTask, onStatusChange: handleStatusChange, onDelete: handleDeleteTask };
+    const mappedEmployees = useMemo(() => employees.map((e: any) => ({
+        ...e,
+        value: e.email || e._id,
+        label: `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.email || 'Unknown User',
+        image: e.profilePicture
+    })), [employees]);
+
+    const columnProps = { employees: mappedEmployees, currentUserEmail: userEmail, isSuperAdmin: !!isSuperAdmin, canViewEstimates, onDragOver: handleDragOver, onDrop: handleDrop, onEdit: handleOpenModal, onCopy: handleCopyTask, onStatusChange: handleStatusChange, onDelete: handleDeleteTask };
 
     return (
         <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm p-3 ${className || ''}`}>
@@ -434,7 +607,7 @@ export function TaskList({
                 onClose={() => setIsModalOpen(false)}
                 onSave={handleSaveTask}
                 editingTask={editingTask}
-                employees={employees}
+                employees={mappedEmployees}
                 clients={clients}
                 estimates={estimates}
                 currentUserEmail={userEmail}

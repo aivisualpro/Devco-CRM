@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/db';
-import { DevcoTask, Employee, Constant } from '@/lib/models';
+import { DevcoTask, Employee, Constant, Notification } from '@/lib/models';
 import { Resend } from 'resend';
 import { getUserFromRequest } from '@/lib/permissions/middleware';
 import { isSuperAdmin } from '@/lib/permissions/service';
-import { revalidateTag } from 'next/cache';
+import { createNotifications } from '@/lib/notifications';
+import { revalidateTag, revalidatePath } from 'next/cache';
 import { getWeekIdFromDate } from '@/lib/scheduleUtils';
 
 import { parsePagination, parseSearch, buildPaginationResponse } from '@/lib/api/pagination';
@@ -79,6 +80,25 @@ export async function POST(req: NextRequest) {
         const task = await (DevcoTask as any).create(taskData);
         console.log(`[API] Task created by ${user.email}:`, task._id);
 
+        revalidateTag(`dashboard-${getWeekIdFromDate(task.dueDate || task.createdAt)}`, 'default');
+        revalidateTag('tasks-list', 'default');
+        revalidateTag(`task-${task._id}`, 'default');
+        revalidatePath('/api/dashboard');
+
+        // --- Notifications ---
+        const currentUserEmail = user.email?.toLowerCase().trim() || '';
+        const allRecipients = Array.isArray(taskData.assignees) ? taskData.assignees.map((e: string) => e.toLowerCase().trim()) : [];
+        const filteredEmails = allRecipients;
+
+        void createNotifications({
+            recipientEmails: filteredEmails,
+            type: 'task_assigned',
+            title: `New Task: ${task.task}`,
+            message: `You've been assigned a new task${task.customerName ? ` for ${task.customerName}` : ''}.`,
+            link: `/dashboard`,
+            metadata: { taskId: task._id.toString() }
+        }).catch(err => console.error('[notif]', err));
+
         // ── Task Alert Email (Background) ──
         if (Array.isArray(taskData.assignees) && taskData.assignees.length > 0) {
             Promise.resolve().then(async () => {
@@ -124,8 +144,7 @@ export async function POST(req: NextRequest) {
                 }
             });
         }
-        
-        revalidateTag(`dashboard-${getWeekIdFromDate(task.dueDate || task.createdAt)}`, undefined as any);
+
         return NextResponse.json({ success: true, task });
     } catch (error: any) {
         console.error('POST /api/tasks error:', error);
@@ -184,7 +203,39 @@ export async function PATCH(req: NextRequest) {
         }, { new: true });
         
         if (updatedTask) {
-            revalidateTag(`dashboard-${getWeekIdFromDate(updatedTask.dueDate || updatedTask.createdAt)}`, undefined as any);
+            revalidateTag(`dashboard-${getWeekIdFromDate(updatedTask.dueDate || updatedTask.createdAt)}`, 'default');
+            revalidateTag('tasks-list', 'default');
+            revalidateTag(`task-${updatedTask._id}`, 'default');
+            revalidatePath('/api/dashboard');
+            
+            const oldAssignees = task.assignees || [];
+            const newAssignees = updatedTask.assignees || [];
+            if (oldAssignees.some((a: string) => !newAssignees.includes(a)) || 
+                newAssignees.some((a: string) => !oldAssignees.includes(a))) {
+                [...new Set([...oldAssignees, ...newAssignees])].forEach(email => {
+                    revalidateTag(`tasks-user-${email.toLowerCase().trim()}`, 'default');
+                });
+            }
+            
+            // --- Notifications ---
+            const currentUserEmail = user.email?.toLowerCase().trim() || '';
+            const allRecipients = Array.isArray(updatedTask.assignees) ? updatedTask.assignees.map((e: string) => e.toLowerCase().trim()) : [];
+            const filteredEmails = allRecipients.filter((e: string) => e !== currentUserEmail);
+
+            let type = 'general';
+            let msg = `${(user as any).firstName || 'Someone'} updated the task: ${updatedTask.task}`;
+            if (updates.status && updates.status !== task.status) {
+                msg = `${(user as any).firstName || 'Someone'} marked task "${updatedTask.task}" as ${updates.status}`;
+            }
+
+            void createNotifications({
+                recipientEmails: filteredEmails,
+                type,
+                title: `Task Updated`,
+                message: msg,
+                link: `/dashboard`,
+                metadata: { taskId: updatedTask._id.toString() }
+            }).catch(err => console.error('[notif]', err));
         }
         return NextResponse.json({ success: true, task: updatedTask });
     } catch (error: any) {
@@ -230,7 +281,11 @@ export async function DELETE(req: NextRequest) {
         }
         
         await DevcoTask.findByIdAndDelete(id);
-        revalidateTag(`dashboard-${getWeekIdFromDate(task.dueDate || task.createdAt)}`, undefined as any);
+        await Notification.deleteMany({ 'metadata.taskId': id }).catch(err => console.error('[notif-delete]', err));
+        revalidateTag(`dashboard-${getWeekIdFromDate(task.dueDate || task.createdAt)}`, 'default');
+        revalidateTag('tasks-list', 'default');
+        revalidateTag(`task-${id}`, 'default');
+        revalidatePath('/api/dashboard');
         return NextResponse.json({ success: true });
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });

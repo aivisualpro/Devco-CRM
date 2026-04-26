@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { Eraser, Check, Loader2 } from 'lucide-react';
 
 interface SignaturePadProps {
-    onSave: (dataUrl: string) => void;
+    onSave: (dataUrl: string) => Promise<void> | void;
     employeeName: string;
     isLoading?: boolean;
 }
@@ -95,19 +95,26 @@ export default function SignaturePad({ onSave, employeeName, isLoading = false }
         }
     };
 
-    const saveSignature = () => {
-        if (isLoading) return;
+    const [isSaving, setIsSaving] = useState(false);
+
+    const saveSignature = async () => {
+        if (isLoading || isSaving) return;
         const canvas = canvasRef.current;
         if (canvas && hasSignature) {
             const dataUrl = canvas.toDataURL('image/png');
-            onSave(dataUrl);
+            setIsSaving(true);
+            try {
+                await onSave(dataUrl);
+            } finally {
+                setIsSaving(false);
+            }
         }
     };
 
     return (
         <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
             <h4 className="text-sm font-bold text-slate-700 mb-2">Signature for {employeeName}</h4>
-            <div className={`relative w-full h-40 bg-slate-50 border border-slate-300 rounded-lg overflow-hidden touch-none ${isLoading ? 'opacity-50 pointer-events-none' : ''}`}>
+            <div className={`relative w-full h-40 bg-slate-50 border border-slate-300 rounded-lg overflow-hidden touch-none ${isLoading || isSaving ? 'opacity-50 pointer-events-none' : ''}`}>
                 <canvas
                     ref={canvasRef}
                     className="w-full h-full cursor-crosshair"
@@ -124,7 +131,7 @@ export default function SignaturePad({ onSave, employeeName, isLoading = false }
                 <button
                     type="button"
                     onClick={clearCanvas}
-                    disabled={isLoading}
+                    disabled={isLoading || isSaving}
                     className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-red-500 bg-slate-100 dark:bg-slate-800 rounded-lg transition-colors disabled:opacity-50"
                 >
                     <Eraser size={14} />
@@ -133,10 +140,10 @@ export default function SignaturePad({ onSave, employeeName, isLoading = false }
                 <button
                     type="button"
                     onClick={saveSignature}
-                    disabled={!hasSignature || isLoading}
+                    disabled={!hasSignature || isLoading || isSaving}
                     className="flex items-center gap-1 px-4 py-1.5 text-xs font-bold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[120px] justify-center"
                 >
-                    {isLoading ? (
+                    {(isLoading || isSaving) ? (
                         <>
                             <Loader2 size={14} className="animate-spin" />
                             Saving...

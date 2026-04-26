@@ -314,9 +314,14 @@ export async function POST(request: NextRequest) {
                 });
 
                 if (!djt) {
-                    // If standard save hasn't happened yet, we might have an issue.
-                    // But usually DJT is created before signing.
-                    return NextResponse.json({ success: false, error: 'Daily Job Ticket not found. Please save the ticket content first.' }, { status: 404 });
+                    // Automatically create a new DJT on the fly if it doesn't exist yet
+                    djt = new DailyJobTicket({
+                        _id: new mongoose.Types.ObjectId().toString(),
+                        schedule_id: schedule_id,
+                        createdBy: createdBy || employee || 'system',
+                        createdAt: new Date(),
+                        signatures: []
+                    });
                 }
 
                 // Patch missing createdBy if needed (legacy docs or incomplete creations)
@@ -369,7 +374,7 @@ export async function POST(request: NextRequest) {
                     // This ensures "2026-02-04T07:00" stays as "2026-02-04T07:00:00.000Z"
                     // instead of being shifted by new Date() parsing
                     const clockInISO = schedule.fromDate
-                        ? robustNormalizeISO(String(schedule.fromDate))
+                        ? new Date(schedule.fromDate).toISOString()
                         : clockOutISO;
 
                     // Extract date part from the normalized ISO string (YYYY-MM-DD)
@@ -414,41 +419,40 @@ export async function POST(request: NextRequest) {
                         if (lunchStartDateTime) updateObj[`timesheet.${existingIndex}.lunchStart`] = lunchStartDateTime;
                         if (lunchEndDateTime) updateObj[`timesheet.${existingIndex}.lunchEnd`] = lunchEndDateTime;
                         updateObj[`timesheet.${existingIndex}.updatedAt`] = clockOutISO;
+                        
+                        updateObj['DJTSignatures'] = updatedSignatures;
+                        if (schedule?.djt) {
+                            updateObj['djt.signatures'] = updatedSignatures;
+                        }
+
+                        await Schedule.updateOne(
+                            { _id: djt.schedule_id },
+                            { $set: updateObj }
+                        );
+                    } else {
+                        // Push new timesheet record
+                        const setObj: any = { 'DJTSignatures': updatedSignatures };
+                        if (schedule?.djt) {
+                            setObj['djt.signatures'] = updatedSignatures;
+                        }
 
                         await Schedule.updateOne(
                             { _id: djt.schedule_id },
                             {
-                                $set: {
-                                    ...updateObj,
-                                    'djt.signatures': updatedSignatures,
-                                    'DJTSignatures': updatedSignatures
-                                }
-                            }
-                        );
-                    } else {
-                        // Push new timesheet record
-                        await Schedule.updateOne(
-                            { _id: djt.schedule_id },
-                            {
                                 $push: { timesheet: timesheetRecord },
-                                $set: {
-                                    'djt.signatures': updatedSignatures,
-                                    'DJTSignatures': updatedSignatures
-                                }
+                                $set: setObj
                             }
                         );
                     }
                 } else {
                     // No schedule found, just sync signatures
                     if (djt.schedule_id) {
+                        // Use a find operation to check if djt is null before updating, or just set DJTSignatures
+                        // Since we don't have the schedule object here, it's safer to just set DJTSignatures
+                        // to avoid the {djt: null} error on an unknown schedule.
                         await Schedule.updateOne(
                             { _id: djt.schedule_id },
-                            {
-                                $set: {
-                                    'djt.signatures': updatedSignatures,
-                                    'DJTSignatures': updatedSignatures
-                                }
-                            }
+                            { $set: { 'DJTSignatures': updatedSignatures } }
                         );
                     }
                 }

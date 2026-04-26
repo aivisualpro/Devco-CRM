@@ -8,6 +8,7 @@ import { Loader2, Plus, Save, MessageSquare, FileText, ToggleLeft, ToggleRight, 
 import { Header } from '@/components/ui';
 import { AppContext, useAppSettings } from '@/lib/context/AppContext';
 import { useContext } from 'react';
+import { useAllEmployees } from '@/lib/hooks/api';
 
 /* ─── Types ─── */
 interface ConstantItem {
@@ -220,7 +221,7 @@ export default function GeneralSettings() {
     const [custLoading, setCustLoading] = useState(false);
 
     // ─── Workflow Settings State ───
-    const [employees, setEmployees] = useState<any[]>([]);
+    const { employees } = useAllEmployees();
     const [billingTicketAssignees, setBillingTicketAssignees] = useState<string[]>([]);
     const [workflowLoading, setWorkflowLoading] = useState(false);
     const [workflowSaving, setWorkflowSaving] = useState(false);
@@ -326,11 +327,6 @@ export default function GeneralSettings() {
     const fetchWorkflowSettings = useCallback(async () => {
         setWorkflowLoading(true);
         try {
-            if (employees.length === 0) {
-                const empRes = await fetch(`/api/employees`);
-                const empData = await empRes.json();
-                if (empData.success) setEmployees(empData.result || []);
-            }
             if (settings['billingTicketAssignees']) {
                 setBillingTicketAssignees(settings['billingTicketAssignees']);
             } else {
@@ -341,17 +337,11 @@ export default function GeneralSettings() {
         } finally {
             setWorkflowLoading(false);
         }
-    }, [employees.length, settings]);
+    }, [settings]);
 
     const fetchEmailBotSettings = useCallback(async () => {
         setEmailBotLoading(true);
         try {
-            if (employees.length === 0) {
-                const empRes = await fetch(`/api/employees`);
-                const empData = await empRes.json();
-                if (empData.success) setEmployees(empData.result || []);
-            }
-
             const res = await fetch('/api/email-bot');
             const data = await res.json();
             if (data.success && data.result) {
@@ -393,7 +383,7 @@ export default function GeneralSettings() {
         } finally {
             setEmailBotLoading(false);
         }
-    }, [employees.length, settings]);
+    }, [settings]);
 
     const handleSaveEmailBot = async () => {
         setEmailBotSaving(true);
@@ -636,7 +626,7 @@ export default function GeneralSettings() {
     }, [employees, dayOffAlertSearch]);
 
     useEffect(() => {
-        if (activeTab === 'workflow' && employees.length === 0) {
+        if (activeTab === 'workflow') {
             fetchWorkflowSettings();
         }
         if (activeTab === 'emailBot') {

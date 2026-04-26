@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { Phone, Mail, MessageSquare, Search } from 'lucide-react';
 import { Header, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Pagination, SkeletonTable, Badge, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
+import { useAllEmployees } from '@/lib/hooks/api';
 
 interface Employee {
     _id: string; // email as id usually
@@ -19,33 +20,15 @@ interface Employee {
 }
 
 export default function ContactsPage() {
-    const [employees, setEmployees] = useState<Employee[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { employees: allEmployees, isLoading: loading } = useAllEmployees();
     const [search, setSearch] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [visibleCount, setVisibleCount] = useState(20);
     const itemsPerPage = 15;
     const observerTarget = useRef(null);
 
-    useEffect(() => {
-        async function fetchEmployees() {
-            setLoading(true);
-            try {
-                const res = await fetch(`/api/employees`);
-                const data = await res.json();
-                if (data.success) {
-                    setEmployees(data.result || []);
-                }
-            } catch (err) {
-                console.error('Error fetching employees:', err);
-            }
-            setLoading(false);
-        }
-        fetchEmployees();
-    }, []);
-
     const filteredEmployees = useMemo(() => {
-        return employees.filter(c => {
+        return allEmployees.filter(c => {
             // Only show active employees
             if (c.status !== 'Active') return false;
 
@@ -63,7 +46,7 @@ export default function ContactsPage() {
             const nameB = `${b.firstName || ''} ${b.lastName || ''}`.toLowerCase();
             return nameA.localeCompare(nameB);
         });
-    }, [employees, search]);
+    }, [allEmployees, search]);
 
     const paginatedEmployees = filteredEmployees.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
     const mobileEmployees = filteredEmployees.slice(0, visibleCount);

@@ -6,8 +6,13 @@ import { revalidateTag } from 'next/cache';
 export async function POST(req: NextRequest) {
     try {
         await connectToDatabase();
+        const payload = await req.json();
         const { employees } = payload || {};
                 if (!Array.isArray(employees)) return NextResponse.json({ success: false, error: 'Invalid employees array' }, { status: 400 });
+                const parseNum = (val: any) => {
+                    const parsed = parseFloat(String(val).replace(/[^0-9.-]+/g, ""));
+                    return isNaN(parsed) ? 0 : parsed;
+                };
                 const operations = employees.map((e: any) => {
                     if (!e.email) return null;
                     let scheduleActive = e.isScheduleActive;

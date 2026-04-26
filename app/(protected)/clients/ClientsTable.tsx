@@ -10,7 +10,7 @@ import { ClientForm, ClientFormValues } from "@/components/forms/ClientForm";
 import { useToast } from '@/hooks/useToast';
 import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
-import { useInfiniteClients } from '@/lib/hooks/api';
+import { useInfiniteClients, useAllEmployees } from '@/lib/hooks/api';
 import { DataTable, ColumnDef } from '@/components/data-table/DataTable';
 
 interface ClientContact {
@@ -71,7 +71,7 @@ export default function ClientsTable({ initialData }: { initialData: any[] }) {
     const router = useRouter();
     const { can } = usePermissions();
     const { success, error } = useToast();
-    const [employees, setEmployees] = useState<Employee[]>([]);
+    const { employees, getByEmail } = useAllEmployees();
     const [search, setSearch] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [activeTab, setActiveTab] = useState('all');
@@ -96,24 +96,8 @@ export default function ClientsTable({ initialData }: { initialData: any[] }) {
         { fallbackData: initialData }
     );
 
-    useEffect(() => {
-        fetchEmployees();
-    }, []);
-
     const counts = backendCounts || { all: 0, active: 0, inactive: 0 };
     const filteredClients = clients;
-
-    const fetchEmployees = async () => {
-        try {
-            const res = await fetch(`/api/employees`);
-            const data = await res.json();
-            if (data.success) {
-                setEmployees(data.result || []);
-            }
-        } catch (err) {
-            console.error('Error fetching employees:', err);
-        }
-    };
 
     const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -241,7 +225,7 @@ export default function ClientsTable({ initialData }: { initialData: any[] }) {
             key: 'writer',
             header: 'Writer',
             cell: (client) => {
-                const writer = employees.find(e => e._id === client.proposalWriter || e.email === client.proposalWriter);
+                const writer = getByEmail(client.proposalWriter || '');
                 return writer ? (
                     <Tooltip>
                         <TooltipTrigger asChild>
@@ -434,13 +418,13 @@ export default function ClientsTable({ initialData }: { initialData: any[] }) {
     );
 
     const mobileCard = (client: Client) => {
-        const writer = employees.find(e => e._id === client.proposalWriter || e.email === client.proposalWriter);
+        const writer = getByEmail(client.proposalWriter || '');
         const primaryContact = client.contacts?.find(con => con.primary) || client.contacts?.find(con => con.active) || client.contacts?.[0];
 
         return (
             <div
                 className="bg-white rounded-2xl p-3 shadow-sm border border-slate-50 hover:border-slate-100 transition-all active:scale-[0.98] flex flex-col min-h-[140px] cursor-pointer"
-                onClick={() => router.push(`/clients/${client._id}`)}
+                onMouseEnter={() => router.prefetch(`/clients/${client._id}`)} onClick={() => router.push(`/clients/${client._id}`)}
             >
                 {/* 1st Row: Client Name */}
                 <div className="mb-1.5">
@@ -508,7 +492,7 @@ export default function ClientsTable({ initialData }: { initialData: any[] }) {
                     title: 'No clients found', 
                     description: 'Get started by adding a new client.' 
                 }}
-                onRowClick={(client) => router.push(`/clients/${client._id}`)}
+                onRowMouseEnter={(client) => router.prefetch(`/clients/${client._id}`)} onRowClick={(client) => router.push(`/clients/${client._id}`)}
                 toolbar={toolbar}
                 mobileCard={mobileCard}
             />
@@ -526,15 +510,10 @@ export default function ClientsTable({ initialData }: { initialData: any[] }) {
                     onSubmit={async (data) => {
                         try {
                             const isEdit = !!data._id;
-                            const action = isEdit ? 'updateClient' : 'addClient';
-                            const payload = isEdit
-                                ? { id: data._id, item: data }
-                                : { item: data };
-
-                            const res = await fetch('/api/webhook/devcoBackend', {
-                                method: 'POST',
+                            const res = await fetch(isEdit ? `/api/clients/${data._id}` : '/api/clients', {
+                                method: isEdit ? 'PATCH' : 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ action, payload })
+                                body: JSON.stringify(isEdit ? data : data)
                             });
 
                             const resData = await res.json();

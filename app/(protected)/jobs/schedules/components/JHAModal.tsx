@@ -341,7 +341,7 @@ export const JHAModal = ({
                         </h4>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                             <div><p className="text-[10px] font-bold text-slate-400 uppercase">Date</p><p className="text-sm font-bold text-slate-700">{formatWallDate(selectedJHA.date)}</p></div>
-                            <div><p className="text-[10px] font-bold text-slate-400 uppercase">Time</p><p className="text-sm font-bold text-slate-700">{selectedJHA.jhaTime}</p></div>
+                            <div><p className="text-[10px] font-bold text-slate-400 uppercase">Time</p><p className="text-sm font-bold text-slate-700">{selectedJHA.createdAt ? new Date(selectedJHA.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : selectedJHA.jhaTime}</p></div>
                             <div>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase">Created By</p>
                                 {(() => {

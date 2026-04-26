@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
-import { JHA, Schedule, JHASignature, Activity } from '@/lib/models';
+import { JHA, Schedule, JHASignature, Activity, Notification } from '@/lib/models';
 import { v2 as cloudinary } from 'cloudinary';
+import { Resend } from 'resend';
 import mongoose from 'mongoose';
 import { getWeekIdFromDate } from '@/lib/scheduleUtils';
 import { revalidateTag } from 'next/cache';
@@ -105,7 +106,7 @@ export async function POST(request: NextRequest) {
                 // Using upsert based on schedule_id
                 const result = await JHA.findOneAndUpdate(
                     { schedule_id: jhaData.schedule_id },
-                    { $set: { ...updateData, jhaTime: updateData.jhaTime || new Date().toLocaleTimeString('en-US', { hour12: false, timeZone: 'UTC' }) } },
+                    { $set: { ...updateData, jhaTime: updateData.jhaTime || new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) } },
                     { upsert: true, new: true, setDefaultsOnInsert: true }
                 );
                 
@@ -132,6 +133,50 @@ export async function POST(request: NextRequest) {
                 if (result?.date || result?.createdAt) {
                     revalidateTag(`dashboard-${getWeekIdFromDate(result.date || result.createdAt)}`, undefined as any);
                 }
+
+                // ── Background Notification & Email ──
+                Promise.resolve().then(async () => {
+                    if (jhaData.createdBy) {
+                        try {
+                            const recipientEmail = jhaData.createdBy;
+                            const scheduleDoc = await Schedule.findById(jhaData.schedule_id).lean();
+                            const scheduleTitle = (scheduleDoc as any)?.title || 'Unknown Project';
+                            
+                            // 1. Bell Notification
+                            await Notification.create({
+                                recipientEmail,
+                                type: 'jha_created',
+                                title: 'JHA Created',
+                                message: `A Job Hazard Analysis was successfully submitted for ${scheduleTitle}.`,
+                                link: `/jobs/schedules?schedule=${jhaData.schedule_id}`,
+                                createdBy: 'system',
+                                createdAt: new Date()
+                            });
+
+                            // 2. Email Notification
+                            if (process.env.RESEND_API_KEY) {
+                                const resendClient = new Resend(process.env.RESEND_API_KEY);
+                                await resendClient.emails.send({
+                                    from: 'Devco CRM <info@devco.email>',
+                                    to: recipientEmail,
+                                    subject: `JHA Created: ${scheduleTitle}`,
+                                    html: `
+                                        <div style="font-family: sans-serif; color: #333;">
+                                            <h2>Job Hazard Analysis Created</h2>
+                                            <p>A new JHA has been successfully created/updated.</p>
+                                            <p><strong>Project/Schedule:</strong> ${scheduleTitle}</p>
+                                            <p><strong>Submitted By:</strong> ${recipientEmail}</p>
+                                            <br/>
+                                            <p>Log in to your DEVCO CRM dashboard to view the details.</p>
+                                        </div>
+                                    `
+                                });
+                            }
+                        } catch (err) {
+                            console.error('[JHA Background Notification Error]', err);
+                        }
+                    }
+                });
 
                 return NextResponse.json({ success: true, result });
             }

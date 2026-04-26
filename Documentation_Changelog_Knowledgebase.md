@@ -213,7 +213,7 @@ The core engine of the CRM, allowing for detailed project costing and tracking.
   - **Status**: Icon turns white on reference color background when status is selected.
   - **Markup %**: Displays percentage with liquid fill animation that rises based on value, with color gradient from light blue to dark navy.
   - **Fringe Rate**: Icon turns white on reference color background when rate is selected.
-- **Legacy Sync**: Built-in compatibility layer that synchronizes changes to the existing AppSheet backend to ensure data consistency across platforms.
+
 
 #### 2. Proposal & Template Engine
 A powerful system to turn raw estimates into professional, client-facing documents.
@@ -314,7 +314,7 @@ A real-time internal communication system tailored for Devco CRM.
     *   Fixed critical bug where Fringe Rate selection was not saving to MongoDB.
     *   Issue was caused by click-outside handler interfering with dropdown selection.
     *   Implemented dedicated `handleFringeChange` handler for reliable state updates.
-*   **AppSheet Sync**: Temporarily disabled AppSheet synchronization on estimate updates to prevent timeout errors.
+
 *   **UI Polish**:
     *   Added `Percent` and `HardHat` icons from lucide-react.
     *   Aligned all header buttons (Services, Status, Markup, Fringe) in a consistent 2x2 grid.

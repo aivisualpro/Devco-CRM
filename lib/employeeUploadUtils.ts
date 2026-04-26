@@ -1,5 +1,5 @@
-import { uploadToR2 } from '@/lib/api/r2-upload';
-import cloudinary from '@/lib/cld';
+import { uploadToR2 } from '@/lib/s3';
+import cloudinary from '@/lib/cloudinary';
 
 export async function uploadImage(imageString: string, publicId: string): Promise<string | null> {
     if (!imageString || !imageString.startsWith('data:image')) return imageString;

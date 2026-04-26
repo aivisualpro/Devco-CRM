@@ -136,7 +136,7 @@ const formatPhoneNumber = (value: string) => {
 };
 
 
-export default function EmployeesTable({ initialData }: { initialData?: any[] }) {
+export default function EmployeesTable({ initialData, initialRoles }: { initialData?: any[], initialRoles?: any[] }) {
     const router = useRouter();
     const { can } = usePermissions();
     const canEdit = can(MODULES.EMPLOYEES, ACTIONS.EDIT);
@@ -159,16 +159,9 @@ export default function EmployeesTable({ initialData }: { initialData?: any[] })
         q: search,
         status: activeTab === 'All' ? undefined : activeTab,
         limit: 25
-    });
+    }, { fallbackData: initialData });
 
-    const [roles, setRoles] = useState<any[]>([]);
-    useEffect(() => {
-        fetch('/api/roles').then(res => res.json()).then(data => {
-            if (data.success && data.result) {
-                setRoles(data.result);
-            }
-        }).catch(() => {});
-    }, []);
+    const [roles, setRoles] = useState<any[]>(initialRoles || []);
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentEmployee, setCurrentEmployee] = useState<Partial<Employee> | null>(null);
@@ -324,7 +317,7 @@ export default function EmployeesTable({ initialData }: { initialData?: any[] })
     ];
 
     const mobileCard = (emp: Employee) => (
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-50 hover:border-slate-100 transition-all active:scale-[0.98] flex flex-col items-center text-center relative" onClick={() => router.push(`/employees/${encodeURIComponent(emp._id)}`)}>
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-50 hover:border-slate-100 transition-all active:scale-[0.98] flex flex-col items-center text-center relative" onMouseEnter={() => router.prefetch(`/employees/${encodeURIComponent(emp._id)}`)} onClick={() => router.push(`/employees/${encodeURIComponent(emp._id)}`)}>
             <div className="relative w-16 h-16 rounded-full bg-slate-100 border-2 border-white shadow-sm overflow-hidden mb-3 shrink-0">
                 {emp.profilePicture ? (
                     <div className="relative w-full h-full">
@@ -424,7 +417,7 @@ export default function EmployeesTable({ initialData }: { initialData?: any[] })
                     title: 'No employees found', 
                     description: 'Get started by adding a new employee.' 
                 }}
-                onRowClick={(emp) => router.push(`/employees/${encodeURIComponent(emp._id)}`)}
+                onRowMouseEnter={(emp) => router.prefetch(`/employees/${encodeURIComponent(emp._id)}`)} onRowClick={(emp) => router.push(`/employees/${encodeURIComponent(emp._id)}`)}
                 toolbar={toolbar}
                 mobileCard={mobileCard}
             />

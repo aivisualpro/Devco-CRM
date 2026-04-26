@@ -21,6 +21,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
 import { cn } from '@/lib/utils';
 import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
+import { useAllEmployees } from '@/lib/hooks/api';
 
 const TEMPLATE_ID = '1hrcARBznVAnT3sqCC2LB5s9rAXX9MpX1C2M24m77qCQ';
 
@@ -61,7 +62,7 @@ export default function EquipmentInspectionDetailPage() {
     const canDelete = can(MODULES.JHA, ACTIONS.DELETE);
 
     const [record, setRecord] = useState<EquipmentInspection | null>(null);
-    const [employees, setEmployees] = useState<Employee[]>([]);
+    const { getByEmail: getEmployeeByEmail } = useAllEmployees();
     const [loading, setLoading] = useState(true);
 
     // UI state
@@ -79,19 +80,15 @@ export default function EquipmentInspectionDetailPage() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [inspRes, empRes] = await Promise.all([
-                fetch('/api/equipment-inspection', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getById', payload: { id } })
-                }),
-                fetch(`/api/employees`)
-            ]);
+            const inspRes = await fetch('/api/equipment-inspection', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'getById', payload: { id } })
+            });
 
-            const [inspData, empData] = await Promise.all([inspRes.json(), empRes.json()]);
+            const inspData = await inspRes.json();
 
             if (inspData.success) setRecord(inspData.result);
-            if (empData.success) setEmployees(empData.result || []);
         } catch (err) {
             console.error(err);
             toast.error('Failed to load inspection');
@@ -100,10 +97,7 @@ export default function EquipmentInspectionDetailPage() {
         }
     };
 
-    const getEmployeeByEmail = (email: string) => {
-        if (!email) return null;
-        return employees.find(e => e.email?.toLowerCase() === email.toLowerCase());
-    };
+
 
     const buildPdfPayload = () => {
         if (!record) return null;
@@ -270,7 +264,7 @@ export default function EquipmentInspectionDetailPage() {
                 <div className="max-w-4xl mx-auto p-4 lg:p-8">
                     {/* Back button */}
                     <button
-                        onClick={() => router.push('/docs/equipment-inspection')}
+                        onMouseEnter={() => router.prefetch('/docs/equipment-inspection')} onClick={() => router.push('/docs/equipment-inspection')}
                         className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-[#0F4C75] transition-colors mb-4 font-medium"
                     >
                         <ArrowLeft size={14} /> Back to Equipment Inspections
@@ -301,7 +295,7 @@ export default function EquipmentInspectionDetailPage() {
                                 </Button>
                                 {canEdit && (
                                     <Button variant="outline" size="sm" className="border-slate-300 hover:bg-slate-50"
-                                        onClick={() => router.push(`/docs/equipment-inspection?edit=${record._id}&returnTo=${encodeURIComponent(`/docs/equipment-inspection/${record._id}`)}`)}>
+                                        onMouseEnter={() => router.prefetch(`/docs/equipment-inspection?edit=${record._id}&returnTo=${encodeURIComponent(`/docs/equipment-inspection/${record._id}`)}`)} onClick={() => router.push(`/docs/equipment-inspection?edit=${record._id}&returnTo=${encodeURIComponent(`/docs/equipment-inspection/${record._id}`)}`)}>
                                         <Pencil size={14} className="mr-1.5" /> Edit
                                     </Button>
                                 )}

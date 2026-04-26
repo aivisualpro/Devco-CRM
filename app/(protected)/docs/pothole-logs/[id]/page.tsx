@@ -21,6 +21,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
 import { cn } from '@/lib/utils';
 import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
+import { useAllEmployees } from '@/lib/hooks/api';
 
 interface PotholeItem {
     _id?: string;
@@ -86,7 +87,7 @@ export default function PotholeLogDetailsPage() {
     const [loading, setLoading] = useState(true);
     const [log, setLog] = useState<PotholeLog | null>(null);
     const [estimate, setEstimate] = useState<Estimate | null>(null);
-    const [employees, setEmployees] = useState<Employee[]>([]);
+    const { getByEmail: getEmployeeByEmail } = useAllEmployees();
     const [isDeleteOpen, setIsDeleteOpen] = useState(false);
     const [deleting, setDeleting] = useState(false);
 
@@ -138,22 +139,12 @@ export default function PotholeLogDetailsPage() {
                 router.push('/docs/pothole-logs');
             }
 
-            // Fetch employees
-            const empRes = await fetch(`/api/employees`);
-            const empData = await empRes.json();
-            if (empData.success) setEmployees(empData.result || []);
-
         } catch (err) {
             console.error(err);
             toast.error('Failed to fetch data');
         } finally {
             setLoading(false);
         }
-    };
-
-    const getEmployeeByEmail = (email: string) => {
-        if (!email) return null;
-        return employees.find(e => e.email?.toLowerCase() === email.toLowerCase());
     };
 
     const getCreatorName = () => {
@@ -373,7 +364,7 @@ export default function PotholeLogDetailsPage() {
                 <div className="flex-1 flex items-center justify-center">
                     <div className="text-center">
                         <p className="text-slate-500 mb-4">Pothole log not found</p>
-                        <Button onClick={() => router.push('/docs/pothole-logs')}>
+                        <Button onMouseEnter={() => router.prefetch('/docs/pothole-logs')} onClick={() => router.push('/docs/pothole-logs')}>
                             <ArrowLeft size={16} className="mr-2" /> Back to Logs
                         </Button>
                     </div>
@@ -424,7 +415,7 @@ export default function PotholeLogDetailsPage() {
                                         variant="outline"
                                         size="sm"
                                         className="border-slate-300 hover:bg-slate-50"
-                                        onClick={() => router.push(`/docs/pothole-logs?edit=${log._id}`)}
+                                        onMouseEnter={() => router.prefetch(`/docs/pothole-logs?edit=${log._id}`)} onClick={() => router.push(`/docs/pothole-logs?edit=${log._id}`)}
                                     >
                                         <Pencil size={14} className="mr-1.5" /> Edit
                                     </Button>
@@ -474,7 +465,7 @@ export default function PotholeLogDetailsPage() {
                                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">DEVCO Job Number</label>
                                     <p
                                         className="text-[#0F4C75] font-bold flex items-center gap-2 mt-1 cursor-pointer hover:underline"
-                                        onClick={() => router.push(`/estimates/${estimate?._id || log.estimate}`)}
+                                        onMouseEnter={() => router.prefetch(`/estimates/${estimate?._id || log.estimate}`)} onClick={() => router.push(`/estimates/${estimate?._id || log.estimate}`)}
                                     >
                                         {estimate?.estimate || log.estimate || '-'}
                                         <ExternalLink size={12} />

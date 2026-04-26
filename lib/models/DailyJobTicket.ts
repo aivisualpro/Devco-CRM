@@ -63,13 +63,14 @@ const DailyJobTicketSchema: Schema = new Schema({
 });
 
 DailyJobTicketSchema.index({ schedule_id: 1 });
-DailyJobTicketSchema.index({ date: -1, createdAt: -1 });
 DailyJobTicketSchema.index({ createdAt: -1 });
 DailyJobTicketSchema.index({ createdBy: 1, createdAt: -1 });
 
 // Force model recompilation to ensure schema changes are picked up
 if (mongoose.models.DailyJobTicket) {
-    delete mongoose.models.DailyJobTicket;
+    if (process.env.NODE_ENV === 'development') {
+        delete mongoose.models.DailyJobTicket;
+    }
 }
 const DailyJobTicket = mongoose.model<IDailyJobTicket>('DailyJobTicket', DailyJobTicketSchema);
 

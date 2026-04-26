@@ -19,6 +19,7 @@ export interface DataTableProps<T> {
   onLoadMore: () => void;
   emptyState: { icon: ReactNode; title: string; description?: string; cta?: ReactNode };
   onRowClick?: (row: T) => void;
+  onRowMouseEnter?: (row: T) => void;
   selection?: { selected: Set<string>; onChange: (next: Set<string>) => void; rowKey: (row: T) => string };
   toolbar?: ReactNode;
   mobileCard?: (row: T) => ReactNode;
@@ -35,6 +36,7 @@ export function DataTable<T>({
   onLoadMore,
   emptyState,
   onRowClick,
+  onRowMouseEnter,
   selection,
   toolbar,
   mobileCard,
@@ -140,8 +142,9 @@ export function DataTable<T>({
                           return (
                             <TableRow
                               key={key}
-                              className={`transition-colors ${onRowClick ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                              className={`transition-colors ${(onRowClick || onRowMouseEnter) ? 'cursor-pointer hover:bg-gray-50' : ''}`}
                               onClick={() => onRowClick && onRowClick(row)}
+                              onMouseEnter={() => onRowMouseEnter && onRowMouseEnter(row)}
                             >
                               {columns.map(col => (
                                 <TableCell key={col.key}>

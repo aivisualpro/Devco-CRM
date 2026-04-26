@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
     try {
         await connectToDatabase();
-        const { type, id: catId, item } = payload || {};
+        const { type, id: catId, item } = await req.json();
                 if (!type || !catId) return NextResponse.json({ success: false, error: 'Missing type or id' }, { status: 400 });
 
                 const Model = getCatalogueModel(type);
@@ -70,7 +70,7 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
     try {
         await connectToDatabase();
-        const { type, id: catDelId } = payload || {};
+        const { type, id: catDelId } = await req.json();
                 if (!type || !catDelId) return NextResponse.json({ success: false, error: 'Missing type or id' }, { status: 400 });
 
                 const Model = getCatalogueModel(type);

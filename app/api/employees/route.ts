@@ -3,6 +3,8 @@ import { connectToDatabase } from '@/lib/db';
 import { Employee } from '@/lib/models';
 import { parsePagination, parseSearch, buildPaginationResponse } from '@/lib/api/pagination';
 import { uploadImage, processEmployeeSubDocFiles } from '@/lib/employeeUploadUtils';
+import { getUserFromRequest } from '@/lib/permissions/middleware';
+import { createNotifications } from '@/lib/notifications';
 
 export async function GET(req: NextRequest) {
     try {
@@ -100,7 +102,32 @@ export async function POST(req: NextRequest) {
                 // Upload any base64 files in sub-document arrays to R2
                 await processEmployeeSubDocFiles(item, item.email);
                 const employeeData = { ...item, _id: item.email, profilePicture: profilePictureUrl, signature: signatureUrl };
-                const newEmployee = await Employee.create(employeeData);
+                const newEmployee = await Employee.create(employeeData) as any;
+
+                // --- Notifications ---
+                Promise.resolve().then(async () => {
+                    try {
+                        const jwtUser = await getUserFromRequest(req);
+                        const adminDocs = await Employee.find({ appRole: { $regex: /^(super admin|admin)$/i }, status: 'Active' }).select('email').lean();
+                        const adminEmails = adminDocs.map((e: any) => e.email?.toLowerCase().trim()).filter(Boolean);
+                        
+                        const currentUserEmail = jwtUser?.email?.toLowerCase().trim() || '';
+                        const filteredEmails = adminEmails.filter((e: string) => e !== currentUserEmail);
+
+                        if (filteredEmails.length > 0) {
+                            await createNotifications({
+                                recipientEmails: filteredEmails,
+                                type: 'general',
+                                title: `New Employee Created`,
+                                message: `${(jwtUser as any)?.firstName || 'Someone'} added a new employee: ${newEmployee.firstName} ${newEmployee.lastName}`,
+                                link: `/employees/${newEmployee._id}`
+                            });
+                        }
+                    } catch (err) {
+                        console.error('[notif]', err);
+                    }
+                });
+
                 return NextResponse.json({ success: true, result: newEmployee });
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });

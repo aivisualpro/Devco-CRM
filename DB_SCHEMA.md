@@ -218,7 +218,7 @@ djt: Object (DJT)
 JHASignatures: Array (Mixed)
 DJTSignatures: Array (Mixed)
 todayObjectives: Array (Objective)
-syncedToAppSheet: Boolean
+
 isDayOffApproved: Boolean
 createdAt: Date
 updatedAt: Date
@@ -362,7 +362,7 @@ otherBillingTerms: String
 usaNumber: String
 receiptsAndCosts: Array (ReceiptItem)
 signedContracts: Array (SignedContract)
-syncedToAppSheet: Boolean
+
 labor: Array (Object)
 equipment: Array (Object)
 material: Array (Object)

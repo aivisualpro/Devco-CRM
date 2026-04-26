@@ -9,10 +9,7 @@ import { Plus, X, Save, ChevronDown, ChevronRight, ArrowLeft, FileText, Check, L
 import { Header, ToastContainer, Badge, SearchInput, Skeleton } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 
-const RichTextEditor = dynamic(() => import('@/components/editor/RichTextEditor').then(mod => mod.RichTextEditor), { 
-    ssr: false, 
-    loading: () => <Skeleton className="h-40 w-full" /> 
-});
+import { RichTextEditor } from '@/components/editor/RichTextEditor.lazy';
 interface CustomVariable {
     name: string;
     label: string;
@@ -112,13 +109,24 @@ export default function TemplateEditorPage() {
     const [formData, setFormData] = useState<Partial<Template>>({ title: '', subTitleDescription: '', status: 'draft' });
     const [pages, setPages] = useState<{ content: string }[]>([{ content: '' }]);
 
-    const apiCall = async (action: string, payload: Record<string, unknown> = {}) => {
+    const apiCall = async (action: string, payload: Record<string, any> = {}) => {
         try {
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action, payload })
-            });
+            let url = '';
+            let method = 'POST';
+            let body: any = payload;
+
+            if (action === 'getTemplates') { url = '/api/templates'; method = 'GET'; }
+            else if (action === 'addTemplate') { url = '/api/templates'; method = 'POST'; body = payload.item; }
+            else if (action === 'updateTemplate') { url = `/api/templates/${payload.id}`; method = 'PATCH'; body = payload.item; }
+            else if (action === 'deleteTemplate') { url = `/api/templates/${payload.id}`; method = 'DELETE'; }
+            else if (action === 'cloneTemplate') { url = `/api/templates/${payload.id}/clone`; method = 'POST'; }
+            else if (action === 'getConstants') { url = '/api/constants'; method = 'GET'; }
+            else if (action === 'addConstant') { url = '/api/constants'; method = 'POST'; body = { action: 'create', payload: payload.item }; }
+
+            const options: RequestInit = { method, headers: { 'Content-Type': 'application/json' } };
+            if (method !== 'GET') options.body = JSON.stringify(body);
+
+            const res = await fetch(url, options);
             return await res.json();
         } catch (err) {
             console.error('API Error:', err);

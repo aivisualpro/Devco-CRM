@@ -292,11 +292,10 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
             submitData.drugTestingRecords = drugRecords
             submitData.trainingCertifications = trainingRecords
 
-            const payload = initialData?._id
-                ? { id: initialData._id, item: submitData }
-                : { item: submitData }
-
-            const bodyStr = JSON.stringify({ action, payload })
+            const isEdit = !!initialData?._id;
+            const url = isEdit ? `/api/employees/${initialData._id}` : '/api/employees';
+            const method = isEdit ? 'PATCH' : 'POST';
+            const bodyStr = JSON.stringify(submitData);
 
             // Check payload size — Vercel serverless has a ~4.5MB limit
             const bodySizeMB = new Blob([bodyStr]).size / (1024 * 1024)
@@ -305,8 +304,8 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
                 return
             }
 
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
+            const res = await fetch(url, {
+                method: method,
                 headers: { 'Content-Type': 'application/json' },
                 body: bodyStr
             })

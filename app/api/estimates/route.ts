@@ -112,6 +112,7 @@ export async function GET(req: NextRequest) {
         const includeReceipts = url.searchParams.get('includeReceipts') === 'true';
         const sortKey = url.searchParams.get('sortKey') || 'updatedAt';
         const sortDirection = url.searchParams.get('sortDirection') || 'desc';
+        const customerId = url.searchParams.get('customerId');
 
         const skip = (page - 1) * limit;
         const f = filter.toLowerCase();
@@ -122,7 +123,7 @@ export async function GET(req: NextRequest) {
             projectName: 'projectName', status: 'status', grandTotal: 'grandTotal',
             subTotal: 'subTotal', margin: 'margin', bidMarkUp: 'bidMarkUp',
             proposalWriter: 'proposalWriter', fringe: 'fringe', certifiedPayroll: 'certifiedPayroll',
-            services: 'services', updatedAt: 'updatedAt', createdAt: 'createdAt',
+            services: 'services', updatedAt: 'updatedAt', createdAt: 'createdAt', versionNumber: 'versionNumber'
         };
         const dbSortField = fieldMap[sortKey] || 'updatedAt';
         const mongoSort: Record<string, 1 | -1> = { [dbSortField]: sortDir };
@@ -148,6 +149,7 @@ export async function GET(req: NextRequest) {
         }
 
         const baseQuery: any = { status: { $ne: 'deleted' } };
+        if (customerId) baseQuery.customerId = customerId;
         if (searchOrConditions) baseQuery.$or = searchOrConditions;
 
         const query: any = { ...baseQuery };
@@ -159,9 +161,14 @@ export async function GET(req: NextRequest) {
             else if (f === 'won') query.status = { $in: ['Won', 'Confirmed', 'won', 'confirmed'] };
         }
 
+        const isLite = url.searchParams.get('lite') === 'true';
         let selectFields = '-labor -equipment -material -tools -overhead -subcontractor -disposal -miscellaneous -proposals -proposal -receiptsAndCosts -billingTickets -jobPlanningDocs -releases -intentToLien -legalDocs -aerialImage -siteLayout -scopeOfWork -htmlContent -customVariables -coiDocument -notes -projectDescription -siteConditions';
         if (includeBilling) selectFields = selectFields.replace('-billingTickets', '').replace('-projectDescription', '');
         if (includeReceipts) selectFields = selectFields.replace('-receiptsAndCosts', '');
+        
+        if (isLite) {
+            selectFields = 'estimate customerName customerId jobAddress projectName';
+        }
 
         const dataQuery = Estimate.find(query).select(selectFields).sort(mongoSort).skip(skip).limit(limit);
         if (collationOptions) dataQuery.collation(collationOptions);

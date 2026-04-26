@@ -51,16 +51,18 @@ export function TableBody({ children, className = '' }: TableBodyProps) {
 interface TableRowProps {
     children: React.ReactNode;
     className?: string;
-    onClick?: () => void;
+    onClick?: (e?: React.MouseEvent) => void;
+    onMouseEnter?: (e?: React.MouseEvent) => void;
 }
 
 export const TableRow = React.forwardRef<HTMLTableRowElement, TableRowProps>(
-    ({ children, className = '', onClick }, ref) => {
+    ({ children, className = '', onClick, onMouseEnter }, ref) => {
         return (
             <tr
                 ref={ref}
                 className={`hover:bg-gray-50/50 transition-colors ${onClick ? 'cursor-pointer' : ''} ${className}`}
-                onClick={onClick}
+                onClick={onClick as any}
+                onMouseEnter={onMouseEnter as any}
             >
                 {children}
             </tr>

@@ -19,6 +19,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
 import { cn } from '@/lib/utils';
 import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
+import { useAllEmployees } from '@/lib/hooks/api';
 
 interface PreBoreLogItem {
     _id?: string;
@@ -90,7 +91,7 @@ export default function PreBoreLogDetailPage() {
 
     const [loading, setLoading] = useState(true);
     const [log, setLog] = useState<PreBoreLog | null>(null);
-    const [employees, setEmployees] = useState<Employee[]>([]);
+    const { getByEmail: getEmployeeByEmail } = useAllEmployees();
     const [isDeleteOpen, setIsDeleteOpen] = useState(false);
     const [deleting, setDeleting] = useState(false);
 
@@ -112,16 +113,13 @@ export default function PreBoreLogDetailPage() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [logRes, empRes] = await Promise.all([
-                fetch('/api/pre-bore-logs', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getPreBoreLogDetail', payload: { scheduleId, preBoreId } })
-                }),
-                fetch(`/api/employees`)
-            ]);
+            const logRes = await fetch('/api/pre-bore-logs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'getPreBoreLogDetail', payload: { scheduleId, preBoreId } })
+            });
 
-            const [logData, empData] = await Promise.all([logRes.json(), empRes.json()]);
+            const logData = await logRes.json();
 
             if (logData.success && logData.result) {
                 setLog(logData.result);
@@ -129,8 +127,6 @@ export default function PreBoreLogDetailPage() {
                 toast.error('Pre-bore log not found');
                 router.push('/docs/pre-bore-logs');
             }
-
-            if (empData.success) setEmployees(empData.result || []);
         } catch (err) {
             console.error(err);
             toast.error('Failed to fetch data');
@@ -139,10 +135,7 @@ export default function PreBoreLogDetailPage() {
         }
     };
 
-    const getEmployeeByEmail = (email: string) => {
-        if (!email) return null;
-        return employees.find(e => e.email?.toLowerCase() === email.toLowerCase());
-    };
+
 
     const getCreatorName = () => {
         if (!log?.createdBy) return '-';
@@ -372,7 +365,7 @@ export default function PreBoreLogDetailPage() {
                 <div className="flex-1 flex items-center justify-center">
                     <div className="text-center">
                         <p className="text-slate-500 mb-4">Pre-bore log not found</p>
-                        <Button onClick={() => router.push('/docs/pre-bore-logs')}>
+                        <Button onMouseEnter={() => router.prefetch('/docs/pre-bore-logs')} onClick={() => router.push('/docs/pre-bore-logs')}>
                             <ArrowLeft size={16} className="mr-2" /> Back to Logs
                         </Button>
                     </div>
@@ -431,7 +424,7 @@ export default function PreBoreLogDetailPage() {
                                         variant="outline"
                                         size="sm"
                                         className="border-slate-300 hover:bg-slate-50"
-                                        onClick={() => router.push(`/docs/pre-bore-logs?edit=${scheduleId}_${preBoreId}&returnTo=${encodeURIComponent(`/docs/pre-bore-logs/${rawId}`)}`)}
+                                        onMouseEnter={() => router.prefetch(`/docs/pre-bore-logs?edit=${scheduleId}_${preBoreId}&returnTo=${encodeURIComponent(`/docs/pre-bore-logs/${rawId}`)}`)} onClick={() => router.push(`/docs/pre-bore-logs?edit=${scheduleId}_${preBoreId}&returnTo=${encodeURIComponent(`/docs/pre-bore-logs/${rawId}`)}`)}
                                     >
                                         <Pencil size={14} className="mr-1.5" /> Edit
                                     </Button>

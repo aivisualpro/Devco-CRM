@@ -108,8 +108,8 @@ export function SearchableSelect({
     // Filter based on search
     const filteredOptions = React.useMemo(() => {
         return normalizedOptions.filter(opt =>
-            opt.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            opt.value.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (opt.label || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (opt.value || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
             (opt.subtitle && opt.subtitle.toLowerCase().includes(searchTerm.toLowerCase()))
         );
     }, [normalizedOptions, searchTerm]);

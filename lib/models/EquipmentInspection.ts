@@ -42,7 +42,9 @@ const EquipmentInspectionSchema = new Schema<IEquipmentInspection>({
 });
 
 if (mongoose.models.EquipmentInspection) {
-    delete mongoose.models.EquipmentInspection;
+    if (process.env.NODE_ENV === 'development') {
+        delete mongoose.models.EquipmentInspection;
+    }
 }
 
 const EquipmentInspection: Model<IEquipmentInspection> = mongoose.model<IEquipmentInspection>('EquipmentInspection', EquipmentInspectionSchema);

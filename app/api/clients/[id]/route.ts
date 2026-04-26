@@ -5,8 +5,8 @@ import { Client, Estimate, Schedule } from '@/lib/models';
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
         await connectToDatabase();
-        const { id: clientId } = payload || {};
-                if (!clientId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
+        const { id: clientId } = await params;
+        if (!clientId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
                 const client = await Client.findById(clientId);
                 if (!client) return NextResponse.json({ success: false, error: 'Client not found' }, { status: 404 });
                 return NextResponse.json({ success: true, result: client });

@@ -3,7 +3,7 @@ import { connectToDatabase } from '@/lib/db';
 import { DevcoQuickBooks } from '@/lib/models';
 import { unstable_cache } from 'next/cache';
 
-const getCachedWipCalculations = unstable_cache(
+export const getCachedWipCalculations = unstable_cache(
     async () => {
         await connectToDatabase();
 

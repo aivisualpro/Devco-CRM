@@ -7,11 +7,14 @@ export function SWRProvider({ children }: { children: React.ReactNode }) {
     return (
         <SWRConfig
             value={{
+                fetcher: fetcher,
+                dedupingInterval: 5000,
+                focusThrottleInterval: 60000,
                 revalidateOnFocus: false,
                 revalidateOnReconnect: true,
-                dedupingInterval: 5000,
-                fetcher: fetcher,
-                shouldRetryOnError: false,
+                keepPreviousData: true,
+                errorRetryCount: 2,
+                provider: () => new Map(),
             }}
         >
             {children}

@@ -325,20 +325,38 @@ const ScheduleSchema = new Schema({
     collection: 'devcoschedules'
 });
 
+ScheduleSchema.virtual('timesheetSummary').get(function() {
+    const ts = this.timesheet || [];
+    return {
+      total: ts.length,
+      activeCount: ts.filter((t: any) => t.clockIn && !t.clockOut).length,
+      completedCount: ts.filter((t: any) => t.clockIn && t.clockOut).length,
+    };
+});
+ScheduleSchema.set('toJSON', { virtuals: true });
+ScheduleSchema.set('toObject', { virtuals: true });
+
 // Add indexes for faster queries
 ScheduleSchema.index({ fromDate: -1 });
 ScheduleSchema.index({ projectManager: 1 });
 ScheduleSchema.index({ foremanName: 1 });
 ScheduleSchema.index({ assignees: 1 });
-ScheduleSchema.index({ fromDate: 1, assignees: 1 });
 
-ScheduleSchema.index({ customerId: 1, scheduledDate: -1 });
+ScheduleSchema.index({ fromDate: 1, projectManager: 1 });
+ScheduleSchema.index({ fromDate: 1, foremanName: 1 });
+ScheduleSchema.index({ fromDate: 1, assignees: 1 });
+ScheduleSchema.index({ 'timesheet.clockIn': 1 });
+// PERF: covers /jobs/time-cards aggregate ($unwind + filter by employee + clockIn date)
+ScheduleSchema.index({ 'timesheet.employee': 1, 'timesheet.clockIn': -1 });
+
+ScheduleSchema.index({ customerId: 1, fromDate: -1 });
+ScheduleSchema.index({ customerName: 1, fromDate: -1 });
 ScheduleSchema.index({ estimate: 1 });
-ScheduleSchema.index({ scheduledDate: -1 });
-ScheduleSchema.index({ status: 1 });
 
 if (mongoose.models.Schedule) {
-    delete mongoose.models.Schedule;
+    if (process.env.NODE_ENV === 'development') {
+        delete mongoose.models.Schedule;
+    }
 }
 
 const Schedule: Model<ISchedule> = mongoose.model<ISchedule>('Schedule', ScheduleSchema);

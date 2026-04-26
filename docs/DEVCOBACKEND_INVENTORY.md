@@ -43,11 +43,11 @@
 | [ ] | `deleteCloudinaryFiles` | DELETE | `API /api/misc` |  |
 | [ ] | `deleteDocumentFiles` | DELETE | `API /api/misc` |  |
 | [ ] | `getClientById` | READ | `GET /api/clients` |  |
-| [ ] | `getTemplates` | READ | `API /api/catalogue` |  |
-| [ ] | `addTemplate` | WRITE | `API /api/catalogue` |  |
-| [ ] | `updateTemplate` | WRITE | `API /api/catalogue` |  |
-| [ ] | `deleteTemplate` | DELETE | `API /api/catalogue` |  |
-| [ ] | `cloneTemplate` | WRITE | `API /api/catalogue` |  |
+| [x] | `getTemplates` | READ | `API /api/catalogue` |  |
+| [x] | `addTemplate` | WRITE | `API /api/catalogue` |  |
+| [x] | `updateTemplate` | WRITE | `API /api/catalogue` |  |
+| [x] | `deleteTemplate` | DELETE | `API /api/catalogue` |  |
+| [x] | `cloneTemplate` | WRITE | `API /api/catalogue` |  |
 | [ ] | `getGlobalCustomVariables` | READ | `API /api/misc` |  |
 | [ ] | `saveGlobalCustomVariables` | WRITE | `API /api/misc` |  |
 | [ ] | `previewProposal` | READ | `API /api/misc` |  |

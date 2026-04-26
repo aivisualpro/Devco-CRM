@@ -5,10 +5,7 @@ import dynamic from 'next/dynamic';
 import { Trash2, Plus } from 'lucide-react';
 import { Skeleton } from '@/components/ui';
 
-const RichTextEditor = dynamic(() => import('@/components/editor/RichTextEditor').then(mod => mod.RichTextEditor), { 
-    ssr: false, 
-    loading: () => <Skeleton className="h-40 w-full" /> 
-});
+import { RichTextEditor } from '@/components/editor/RichTextEditor.lazy';
 
 interface LetterPageEditorProps {
     pages: { content: string }[];

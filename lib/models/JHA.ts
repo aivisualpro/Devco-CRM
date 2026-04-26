@@ -131,7 +131,9 @@ JHASchema.index({ createdAt: -1 });
 
 // Force model recompilation to ensure schema changes are picked up
 if (mongoose.models.JHA) {
-    delete mongoose.models.JHA;
+    if (process.env.NODE_ENV === 'development') {
+        delete mongoose.models.JHA;
+    }
 }
 const JHA = mongoose.model<IJHA>('JHA', JHASchema);
 

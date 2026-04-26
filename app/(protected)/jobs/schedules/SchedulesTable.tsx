@@ -63,7 +63,7 @@ interface Objective {
 
 // ScheduleItem interface imported from components/ScheduleCard
 
-function SchedulesTable({ serverSchedules }: { serverSchedules?: ScheduleItem[] }) {
+function SchedulesTable({ serverData }: { serverData?: any }) {
     const router = useRouter();
     const { success, error: toastError } = useToast();
     const { user, getDataScope: getScope, isSuperAdmin } = usePermissions();
@@ -73,8 +73,8 @@ function SchedulesTable({ serverSchedules }: { serverSchedules?: ScheduleItem[] 
     // Map Modal State
     const [mapModalOpen, setMapModalOpen] = useState(false);
     const [selectedMapRoute, setSelectedMapRoute] = useState<{ start?: string, end?: string, distance?: number }>({});
-    const [schedules, setSchedules] = useState<ScheduleItem[]>(serverSchedules || []);
-    const [loading, setLoading] = useState(!serverSchedules || serverSchedules.length === 0);
+    const [schedules, setSchedules] = useState<ScheduleItem[]>(serverData?.schedules || []);
+    const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState('');
     // Initialize selectedDates with all days of the current week (Sunday to Saturday)
     // Initialize selectedDates with all days of the current week (Monday to Sunday)
@@ -97,10 +97,17 @@ function SchedulesTable({ serverSchedules }: { serverSchedules?: ScheduleItem[] 
     const [activeDayTab, setActiveDayTab] = useState<string>('all');
     const [selectedSchedule, setSelectedSchedule] = useState<ScheduleItem | null>(null);
     const [page, setPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
-    const [totalCount, setTotalCount] = useState(0);
-    const [serverCounts, setServerCounts] = useState<Record<string, number>>({});
-    const [serverCapacity, setServerCapacity] = useState(0);
+    const [totalPages, setTotalPages] = useState(serverData?.totalPages || 1);
+    const [totalCount, setTotalCount] = useState(serverData?.total || 0);
+    const [serverCounts, setServerCounts] = useState<Record<string, number>>(() => {
+        if (serverData?.counts) {
+            const countsMap: Record<string, number> = {};
+            serverData.counts.forEach((c: any) => countsMap[c._id] = c.count);
+            return countsMap;
+        }
+        return {};
+    });
+    const [serverCapacity, setServerCapacity] = useState(serverData?.capacity || 0);
     // Initialize filterWeek with current week value (matching selectedDates initialization)
     const [filterWeek, setFilterWeek] = useState(() => {
         const today = new Date();
@@ -140,7 +147,7 @@ function SchedulesTable({ serverSchedules }: { serverSchedules?: ScheduleItem[] 
         container.addEventListener('scroll', handleScroll, { passive: true });
         return () => container.removeEventListener('scroll', handleScroll);
     }, [schedules]);
-    const [hasMore, setHasMore] = useState(true);
+    const [hasMore, setHasMore] = useState(serverData ? 1 < serverData.totalPages : true);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
 
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -286,7 +293,6 @@ function SchedulesTable({ serverSchedules }: { serverSchedules?: ScheduleItem[] 
         fetchDayOffStats();
     }, []);
 
-    // Initial data for dropdowns
     const [initialData, setInitialData] = useState<{
         clients: any[];
         employees: any[];
@@ -294,6 +300,9 @@ function SchedulesTable({ serverSchedules }: { serverSchedules?: ScheduleItem[] 
         estimates: any[];
         equipmentItems: any[];
     }>(() => {
+        if (serverData?.initialData) {
+            return serverData.initialData;
+        }
         if (typeof window !== 'undefined') {
             const cached = localStorage.getItem('devco_schedules_initial_data');
             if (cached) {
@@ -373,6 +382,12 @@ function SchedulesTable({ serverSchedules }: { serverSchedules?: ScheduleItem[] 
                 if (reset) {
                     setSchedules(newSchedules);
                     
+                    setSelectedSchedule(prev => {
+                        if (!prev) return null;
+                        const updated = newSchedules.find((s: any) => s._id === prev._id);
+                        return updated || prev;
+                    });
+                    
                     if (result.initialData) {
                         setInitialData(result.initialData);
                         try {
@@ -393,6 +408,12 @@ function SchedulesTable({ serverSchedules }: { serverSchedules?: ScheduleItem[] 
                         const uniqueNew = newSchedules.filter((s: any) => !existingIds.has(s._id));
                         return [...prev, ...uniqueNew];
                     });
+                    
+                    setSelectedSchedule(prev => {
+                        if (!prev) return null;
+                        const updated = newSchedules.find((s: any) => s._id === prev._id);
+                        return updated || prev;
+                    });
                 }
 
                 setTotalCount(result.total || 0);
@@ -408,20 +429,27 @@ function SchedulesTable({ serverSchedules }: { serverSchedules?: ScheduleItem[] 
         }
     };
 
-    // Trigger fetch when filters change - include currentUser to re-fetch with proper permissions
+    // Skip initial fetch since it's handled server-side, but fetch if filters change
+    const isInitialMount = useRef(true);
     useEffect(() => {
-        // Only fetch if we have a currentUser (to avoid duplicate fetch on mount before user loads)
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+            return;
+        }
         if (!currentUser) return;
         setPage(1);
         fetchPageData(1, true);
     }, [search, selectedDates, filterEstimate, filterClient, filterEmployee, filterService, filterTag, filterCertifiedPayroll, currentUser]);
 
-    // Cleanup Effect (Optional)
-    // useEffect(() => {
-    //     fetchPageData(); // Initial load handled by filter effect above? 
-    //     // Actually, on mount selectedDates is set, so it triggers. 
-    //     // But we need to be careful about double fetch if strict mode.
-    // }, []);
+    // Synchronize selectedSchedule with schedules to ensure right panel immediately updates
+    useEffect(() => {
+        if (selectedSchedule) {
+            const updated = schedules.find((s: any) => s._id === selectedSchedule._id);
+            if (updated && updated !== selectedSchedule) {
+                setSelectedSchedule(updated);
+            }
+        }
+    }, [schedules, selectedSchedule]);
 
     const handleLoadMore = () => {
         if (!hasMore || isLoadingMore || loading) return;
@@ -854,6 +882,9 @@ function SchedulesTable({ serverSchedules }: { serverSchedules?: ScheduleItem[] 
             };
 
             setSchedules(prev => prev.map(s => s._id === updatedSchedule._id ? { ...s, ...updatedSchedule } : s));
+            if (selectedSchedule?._id === updatedSchedule._id) {
+                setSelectedSchedule(prev => prev ? { ...prev, ...updatedSchedule } : null);
+            }
 
             // Optimistically update serverCounts if date changed
             const originalSchedule = schedules.find(s => s._id === updatedSchedule._id);
@@ -942,7 +973,7 @@ function SchedulesTable({ serverSchedules }: { serverSchedules?: ScheduleItem[] 
 
         const prevSchedules = [...schedules];
         setSchedules(prev => [...schedulesToCreate, ...prev]);
-        setTotalCount(prev => prev + schedulesToCreate.length);
+        setTotalCount((prev: number) => prev + schedulesToCreate.length);
 
         setServerCounts(prev => {
             const newCounts = { ...prev };
@@ -991,7 +1022,7 @@ function SchedulesTable({ serverSchedules }: { serverSchedules?: ScheduleItem[] 
         setIsConfirmOpen(false);
         setDeleteId(null);
         setSchedules(prev => prev.filter(s => s._id !== idToDelete));
-        setTotalCount(prev => Math.max(0, prev - 1));
+        setTotalCount((prev: number) => Math.max(0, prev - 1));
 
         const scheduleToDelete = schedules.find(s => s._id === idToDelete);
         if (scheduleToDelete) {
@@ -1852,7 +1883,7 @@ function SchedulesTable({ serverSchedules }: { serverSchedules?: ScheduleItem[] 
                     _id: tempId,
                     scheduleId: schedule._id,
                     employee: employeeEmail,
-                    clockIn: getLocalNowISO(),
+                    clockIn: schedule.fromDate || getLocalNowISO(),
                     locationIn: `${latitude},${longitude}`,
                     type: 'Drive Time',
                     status: 'Pending'
@@ -2644,7 +2675,7 @@ function SchedulesTable({ serverSchedules }: { serverSchedules?: ScheduleItem[] 
                                             setSelectedJHA({
                                                 schedule_id: item._id,
                                                 date: new Date(),
-                                                jhaTime: new Date().toLocaleTimeString('en-US', { hour12: false, timeZone: 'UTC' }),
+                                                jhaTime: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
                                                 createdBy: userEmail || '',
                                                 emailCounter: 0,
                                                 signatures: [],
@@ -2742,47 +2773,55 @@ function SchedulesTable({ serverSchedules }: { serverSchedules?: ScheduleItem[] 
 
 
                                             {/* Row 1: Tag Icon & Client Name */}
-                                            <div className="flex items-center gap-4">
-                                                {(() => {
-                                                    const tagConstant = initialData.constants.find(c => c.description === selectedSchedule.item || c.value === selectedSchedule.item);
-                                                    const tagImage = tagConstant?.image;
-                                                    const tagColor = tagConstant?.color;
-                                                    const tagLabel = selectedSchedule.item || selectedSchedule.service || 'S';
+                                            <div className="flex items-start justify-between">
+                                                <div className="flex items-center gap-4">
+                                                    {(() => {
+                                                        const tagConstant = initialData.constants.find(c => c.description === selectedSchedule.item || c.value === selectedSchedule.item);
+                                                        const tagImage = tagConstant?.image;
+                                                        const tagColor = tagConstant?.color;
+                                                        const tagLabel = selectedSchedule.item || selectedSchedule.service || 'S';
 
-                                                    if (tagImage) {
-                                                        return (
-                                                            <div className="w-12 h-12 shrink-0 rounded-full overflow-hidden shadow-md">
-                                                                <img src={tagImage} alt={tagLabel} className="w-full h-full object-cover" />
-                                                            </div>
-                                                        );
-                                                    } else if (tagColor) {
-                                                        return (
-                                                            <div className="w-12 h-12 shrink-0 rounded-full shadow-sm flex items-center justify-center text-white font-black text-sm" style={{ backgroundColor: tagColor }}>
-                                                                {tagLabel.substring(0, 2).toUpperCase()}
-                                                            </div>
-                                                        );
-                                                    } else {
-                                                        return (
-                                                            <div className="w-12 h-12 shrink-0 rounded-full bg-slate-100 flex items-center justify-center text-[#0F4C75] font-black text-sm">
-                                                                {tagLabel.substring(0, 2).toUpperCase()}
-                                                            </div>
-                                                        );
-                                                    }
-                                                })()}
-                                                {selectedSchedule.item !== 'Day Off' && (
-                                                    <div>
-                                                        <p className="text-xl font-black text-[#0F4C75] leading-none mb-1">{getCustomerName(selectedSchedule)}</p>
-                                                        {(() => {
-                                                            const est = initialData.estimates.find(e => e.value === selectedSchedule.estimate);
-                                                            const displayAddress = est?.jobAddress;
+                                                        if (tagImage) {
+                                                            return (
+                                                                <div className="w-12 h-12 shrink-0 rounded-full overflow-hidden shadow-md">
+                                                                    <img src={tagImage} alt={tagLabel} className="w-full h-full object-cover" />
+                                                                </div>
+                                                            );
+                                                        } else if (tagColor) {
+                                                            return (
+                                                                <div className="w-12 h-12 shrink-0 rounded-full shadow-sm flex items-center justify-center text-white font-black text-sm" style={{ backgroundColor: tagColor }}>
+                                                                    {tagLabel.substring(0, 2).toUpperCase()}
+                                                                </div>
+                                                            );
+                                                        } else {
+                                                            return (
+                                                                <div className="w-12 h-12 shrink-0 rounded-full bg-slate-100 flex items-center justify-center text-[#0F4C75] font-black text-sm">
+                                                                    {tagLabel.substring(0, 2).toUpperCase()}
+                                                                </div>
+                                                            );
+                                                        }
+                                                    })()}
+                                                    {selectedSchedule.item !== 'Day Off' && (
+                                                        <div>
+                                                            <p className="text-xl font-black text-[#0F4C75] leading-none mb-1">{getCustomerName(selectedSchedule)}</p>
+                                                            {(() => {
+                                                                const est = initialData.estimates.find(e => e.value === selectedSchedule.estimate);
+                                                                const displayAddress = est?.jobAddress;
 
-                                                            if (displayAddress && displayAddress !== 'N/A') {
-                                                                return <p className="text-xs font-bold text-slate-400 mb-1">{displayAddress}</p>;
-                                                            }
-                                                            return null;
-                                                        })()}
-                                                    </div>
-                                                )}
+                                                                if (displayAddress && displayAddress !== 'N/A') {
+                                                                    return <p className="text-xs font-bold text-slate-400 mb-1">{displayAddress}</p>;
+                                                                }
+                                                                return null;
+                                                            })()}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div 
+                                                    className="text-[9px] font-mono font-bold text-slate-400 bg-slate-50 px-2 py-1.5 rounded-lg border border-slate-100/50 flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity select-all"
+                                                    title="Schedule ID"
+                                                >
+                                                    {selectedSchedule._id}
+                                                </div>
                                             </div>
 
                                             {/* Row 3: Title & Date */}
@@ -2794,7 +2833,7 @@ function SchedulesTable({ serverSchedules }: { serverSchedules?: ScheduleItem[] 
                                                     {selectedSchedule.item !== 'Day Off' && selectedSchedule.estimate && (
                                                         <span 
                                                             className="text-[#0F4C75] bg-[#E6EEF8] px-2 py-0.5 rounded-full hover:bg-[#b0cde8] transition-colors cursor-pointer shadow-sm active:scale-95 z-10 relative"
-                                                            onClick={(e) => {
+                                                            onMouseEnter={() => router.prefetch(`/estimates/${selectedSchedule.estimate}`)} onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 router.push(`/estimates/${selectedSchedule.estimate}`);
                                                             }}
@@ -2894,31 +2933,31 @@ function SchedulesTable({ serverSchedules }: { serverSchedules?: ScheduleItem[] 
                                             {/* Row 8b: Tag, Notify, Per Diem, Payroll - 4 Columns */}
                                             {selectedSchedule.item !== 'Day Off' && (
                                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
-                                                    <div>
-                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Tag</p>
-                                                        <Badge className="bg-[#E6EEF8] text-[#0F4C75] hover:bg-[#dbe6f5] border-none">{selectedSchedule.item || 'N/A'}</Badge>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Notify</p>
-                                                        <Badge variant={(selectedSchedule.notifyAssignees === 'Yes' || selectedSchedule.notifyAssignees === 'TRUE' || selectedSchedule.notifyAssignees === true) ? 'success' : 'default'} className="gap-1.5 pl-1.5">
-                                                            <div className={`w-2 h-2 rounded-full ${(selectedSchedule.notifyAssignees === 'Yes' || selectedSchedule.notifyAssignees === 'TRUE' || selectedSchedule.notifyAssignees === true) ? 'bg-green-500' : 'bg-slate-400'}`} />
-                                                            {(selectedSchedule.notifyAssignees === 'Yes' || selectedSchedule.notifyAssignees === 'TRUE' || selectedSchedule.notifyAssignees === true) ? 'Yes' : 'No'}
-                                                        </Badge>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Per Diem</p>
-                                                        <Badge variant={(selectedSchedule.perDiem === 'Yes' || selectedSchedule.perDiem === 'TRUE' || selectedSchedule.perDiem === true) ? 'success' : 'default'} className="gap-1.5 pl-1.5">
-                                                            <div className={`w-2 h-2 rounded-full ${(selectedSchedule.perDiem === 'Yes' || selectedSchedule.perDiem === 'TRUE' || selectedSchedule.perDiem === true) ? 'bg-green-500' : 'bg-slate-400'}`} />
-                                                            {(selectedSchedule.perDiem === 'Yes' || selectedSchedule.perDiem === 'TRUE' || selectedSchedule.perDiem === true) ? 'Yes' : 'No'}
-                                                        </Badge>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Payroll</p>
-                                                        <Badge variant={(selectedSchedule.certifiedPayroll === 'Yes' || selectedSchedule.certifiedPayroll === 'TRUE' || selectedSchedule.certifiedPayroll === true) ? 'success' : 'default'} className="gap-1.5 pl-1.5">
-                                                            <div className={`w-2 h-2 rounded-full ${(selectedSchedule.certifiedPayroll === 'Yes' || selectedSchedule.certifiedPayroll === 'TRUE' || selectedSchedule.certifiedPayroll === true) ? 'bg-green-500' : 'bg-slate-400'}`} />
-                                                            {(selectedSchedule.certifiedPayroll === 'Yes' || selectedSchedule.certifiedPayroll === 'TRUE' || selectedSchedule.certifiedPayroll === true) ? 'Yes' : 'No'}
-                                                        </Badge>
-                                                    </div>
+                                                    {[
+                                                        { label: 'Tag', val: selectedSchedule.item || 'N/A' },
+                                                        { label: 'Notify', val: selectedSchedule.notifyAssignees },
+                                                        { label: 'Per Diem', val: selectedSchedule.perDiem },
+                                                        { label: 'Payroll', val: selectedSchedule.certifiedPayroll }
+                                                    ].map((flag, idx) => {
+                                                        const valString = flag.val === true ? 'Yes' : (flag.val === false ? 'No' : (flag.val || (idx === 0 ? 'N/A' : 'No')));
+                                                        const constant = initialData.constants?.find((c: any) => c.description === valString || c.value === valString);
+                                                        const isYes = ['Yes', 'TRUE'].includes(String(valString));
+                                                        
+                                                        const color = constant?.color || (isYes ? '#10b981' : (idx === 0 ? '#0F4C75' : '#94a3b8'));
+                                                        const bgColor = constant?.color ? `${constant.color}15` : (isYes ? '#ecfdf5' : (idx === 0 ? '#E6EEF8' : '#f8fafc'));
+                                                        const textColor = constant?.color || (isYes ? '#059669' : (idx === 0 ? '#0F4C75' : '#64748b'));
+                                                        const borderColor = constant?.color ? `${constant.color}30` : (isYes ? '#d1fae5' : (idx === 0 ? '#bfdbfe' : '#f1f5f9'));
+
+                                                        return (
+                                                            <div key={idx}>
+                                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">{flag.label}</p>
+                                                                <Badge className="gap-1.5 pl-2 pr-3 py-1 border transition-all" style={{ backgroundColor: bgColor, color: textColor, borderColor }}>
+                                                                    <div className="w-1.5 h-1.5 rounded-full shadow-sm" style={{ backgroundColor: color }} />
+                                                                    {valString}
+                                                                </Badge>
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
                                             )}
 
@@ -3182,90 +3221,193 @@ function SchedulesTable({ serverSchedules }: { serverSchedules?: ScheduleItem[] 
 
                                                 {/* TAB 3: TIME CARD */}
                                                 {detailActiveTab === 'timecard' && (
-                                                    <div>
-                                                        {selectedSchedule.timesheet && selectedSchedule.timesheet.length > 0 ? (
-                                                            <div>
-                                                                <div className="flex items-center justify-between mb-3">
-                                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Timesheets</p>
-                                                                    <Badge variant="default" className="bg-slate-100 text-slate-500 border-none">{selectedSchedule.timesheet.length} Entries</Badge>
-                                                                </div>
+                                                    <div className="space-y-6">
+                                                        {(() => {
+                                                            const timesheets = selectedSchedule.timesheet || [];
+                                                            const driveTimeEntries = timesheets.filter((ts: any) => {
+                                                                const type = (ts.type || '').toLowerCase();
+                                                                return type.includes('drive') || type.includes('shop') || ts.shopTime === 'Yes';
+                                                            });
+                                                            const siteTimeEntries = timesheets.filter((ts: any) => {
+                                                                const type = (ts.type || '').toLowerCase();
+                                                                return !type.includes('drive') && !type.includes('shop') && ts.shopTime !== 'Yes';
+                                                            });
 
-                                                                {Object.entries(
-                                                                    selectedSchedule.timesheet.reduce((acc: any, item: any) => {
-                                                                        const type = item.type || 'Other';
-                                                                        if (!acc[type]) acc[type] = [];
-                                                                        acc[type].push(item);
-                                                                        return acc;
-                                                                    }, {}) as Record<string, any[]>
-                                                                ).map(([type, items], groupIdx) => (
-                                                                    <div key={groupIdx} className="mb-4 last:mb-0">
-                                                                        <div className="flex items-center gap-2 mb-2">
-                                                                            <div className="w-1.5 h-1.5 rounded-full bg-[#0F4C75]"></div>
-                                                                            <h5 className="text-xs font-bold text-[#0F4C75] uppercase tracking-wide">{type}</h5>
+                                                            if (timesheets.length === 0) {
+                                                                return (
+                                                                    <div className="p-8 text-center text-slate-400 bg-white rounded-xl border border-slate-200">
+                                                                        <ClipboardList size={36} className="mx-auto mb-2 opacity-20" />
+                                                                        <p className="text-xs font-medium">No timesheet entries yet.</p>
+                                                                    </div>
+                                                                );
+                                                            }
+
+                                                            const renderEmployee = (ts: any) => {
+                                                                const emp = initialData.employees.find(e => e.value === ts.employee);
+                                                                return (
+                                                                    <div className="flex items-center gap-2.5">
+                                                                        <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[9px] font-bold text-slate-500 overflow-hidden shrink-0 border border-white shadow-sm">
+                                                                            {emp?.image ? (
+                                                                                <img src={emp.image} className="w-full h-full object-cover" />
+                                                                            ) : (
+                                                                                (emp?.label?.[0] || ts.employee?.[0] || '?').toUpperCase()
+                                                                            )}
                                                                         </div>
-                                                                        <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
-                                                                            <table className="w-full text-left border-collapse">
-                                                                                <thead>
-                                                                                    <tr className="bg-slate-50/80 border-b border-slate-100">
-                                                                                        <th className="p-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider w-[25%]">Employee</th>
-                                                                                        <th className="p-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-center">In</th>
-                                                                                        <th className="p-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-center">Out</th>
-                                                                                        {!type.includes('SITE') && (
-                                                                                            <th className="p-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-right">Dist.</th>
-                                                                                        )}
-                                                                                        <th className="p-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-right">Hrs</th>
-                                                                                        <th className="p-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-right w-20">Actions</th>
-                                                                                    </tr>
-                                                                                </thead>
-                                                                                <tbody className="text-xs text-slate-600 divide-y divide-slate-50">
-                                                                                    {items.map((ts, idx) => {
-                                                                                        const emp = initialData.employees.find(e => e.value === ts.employee);
-                                                                                        const { hours, distance } = calculateTimesheetData(ts, selectedSchedule.fromDate);
-                                                                                        return (
-                                                                                            <tr key={idx} className="group hover:bg-blue-50/30 transition-colors">
-                                                                                                <td className="p-2">
-                                                                                                    <div className="flex items-center gap-2.5">
-                                                                                                        <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[9px] font-bold text-slate-500 overflow-hidden shrink-0 border border-white shadow-sm">
-                                                                                                            {emp?.image ? (
-                                                                                                                <img src={emp.image} className="w-full h-full object-cover" />
-                                                                                                            ) : (
-                                                                                                                (emp?.label?.[0] || ts.employee?.[0] || '?').toUpperCase()
-                                                                                                            )}
+                                                                        <p className="font-bold text-slate-700 truncate max-w-[120px]">{emp?.label || ts.employee}</p>
+                                                                    </div>
+                                                                );
+                                                            };
+
+                                                            const renderActions = (ts: any) => (
+                                                                <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
+                                                                    <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                            <button
+                                                                                onClick={(e) => { e.stopPropagation(); handleEditTimesheetClick(ts, selectedSchedule._id); }}
+                                                                                className="p-1.5 text-slate-400 hover:text-[#0F4C75] hover:bg-blue-50 rounded-lg transition-colors"
+                                                                            >
+                                                                                <Edit size={12} />
+                                                                            </button>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent>
+                                                                            <p>Edit</p>
+                                                                        </TooltipContent>
+                                                                    </Tooltip>
+                                                                    <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    handleDeleteTimesheet(ts._id || ts.recordId);
+                                                                                }}
+                                                                                className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                                                                            >
+                                                                                <Trash2 size={12} />
+                                                                            </button>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent>
+                                                                            <p>Delete</p>
+                                                                        </TooltipContent>
+                                                                    </Tooltip>
+                                                                </div>
+                                                            );
+
+                                                            return (
+                                                                <>
+                                                                    {siteTimeEntries.length > 0 && (
+                                                                        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                                                                            <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <MapPin size={16} className="text-emerald-500" />
+                                                                                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Site Time</h3>
+                                                                                </div>
+                                                                                <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 border-none">{siteTimeEntries.length} Entries</Badge>
+                                                                            </div>
+                                                                            <div className="overflow-x-auto">
+                                                                                <table className="w-full text-left border-collapse">
+                                                                                    <thead>
+                                                                                        <tr className="bg-white border-b border-slate-100">
+                                                                                            <th className="p-3 text-[9px] uppercase font-bold text-slate-400">Employee</th>
+                                                                                            <th className="p-3 text-[9px] uppercase font-bold text-slate-400 text-center">In</th>
+                                                                                            <th className="p-3 text-[9px] uppercase font-bold text-slate-400 text-center">Out</th>
+                                                                                            <th className="p-3 text-[9px] uppercase font-bold text-slate-400 text-right">Hrs</th>
+                                                                                            <th className="p-3 text-[9px] uppercase font-bold text-slate-400 text-right w-20">Actions</th>
+                                                                                        </tr>
+                                                                                    </thead>
+                                                                                    <tbody className="text-xs text-slate-600 divide-y divide-slate-50">
+                                                                                        {siteTimeEntries.map((ts: any, i: number) => {
+                                                                                            const { hours } = calculateTimesheetData(ts, selectedSchedule.fromDate);
+                                                                                            return (
+                                                                                                <tr key={i} className="hover:bg-slate-50 group transition-colors">
+                                                                                                    <td className="p-3">{renderEmployee(ts)}</td>
+                                                                                                    <td className="p-3 text-center font-medium">
+                                                                                                        <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100/50 text-[10px]">
+                                                                                                            {formatTimeOnly(ts.clockIn)}
                                                                                                         </div>
-                                                                                                        <div className="min-w-0 flex items-center gap-2">
-                                                                                                            <p className="font-bold text-slate-700 truncate max-w-[120px]">{emp?.label || ts.employee}</p>
-                                                                                                            {(String(ts.dumpWashout).toLowerCase() === 'true' || ts.dumpWashout === true || String(ts.dumpWashout).toLowerCase() === 'yes') && (
-                                                                                                                <Droplets size={12} className="text-teal-500" />
-                                                                                                            )}
-                                                                                                            {(String(ts.shopTime).toLowerCase() === 'true' || ts.shopTime === true) && (
-                                                                                                                <Warehouse size={12} className="text-amber-500" />
-                                                                                                            )}
+                                                                                                    </td>
+                                                                                                    <td className="p-3 text-center font-medium">
+                                                                                                        <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-rose-50 text-rose-700 border border-rose-100/50 text-[10px]">
+                                                                                                            {formatTimeOnly(ts.clockOut)}
                                                                                                         </div>
-                                                                                                    </div>
-                                                                                                </td>
-                                                                                                <td className="p-2 text-center font-medium bg-slate-50/30 group-hover:bg-transparent transition-colors">
-                                                                                                    <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100/50">
-                                                                                                        {formatTimeOnly(ts.clockIn)}
-                                                                                                    </div>
-                                                                                                </td>
-                                                                                                <td className="p-2 text-center font-medium">
-                                                                                                    <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-rose-50 text-rose-700 border border-rose-100/50">
-                                                                                                        {formatTimeOnly(ts.clockOut)}
-                                                                                                    </div>
-                                                                                                </td>
-                                                                                                {!type.includes('SITE') && (
-                                                                                                    <td className="p-2 text-right font-medium text-slate-500">
+                                                                                                    </td>
+                                                                                                    <td className="p-3 text-right font-black text-[#0F4C75] text-[11px]">{hours > 0 ? hours.toFixed(2) : '-'}</td>
+                                                                                                    <td className="p-3 text-right">{renderActions(ts)}</td>
+                                                                                                </tr>
+                                                                                            );
+                                                                                        })}
+                                                                                    </tbody>
+                                                                                </table>
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {driveTimeEntries.length > 0 && (
+                                                                        <div className={`bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm ${siteTimeEntries.length > 0 ? 'mt-6' : ''}`}>
+                                                                            <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <Car size={16} className="text-blue-500" />
+                                                                                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Drive & Shop Time</h3>
+                                                                                </div>
+                                                                                <Badge className="bg-blue-50 text-blue-700 border-blue-100 border-none">{driveTimeEntries.length} Entries</Badge>
+                                                                            </div>
+                                                                            <div className="overflow-x-auto">
+                                                                                <table className="w-full text-left border-collapse">
+                                                                                    <thead>
+                                                                                        <tr className="bg-white border-b border-slate-100">
+                                                                                            <th className="p-3 text-[9px] uppercase font-bold text-slate-400">Employee</th>
+                                                                                            <th className="p-3 text-[9px] uppercase font-bold text-slate-400 text-center">Date</th>
+                                                                                            <th className="p-3 text-[9px] uppercase font-bold text-slate-400 text-center">Washout</th>
+                                                                                            <th className="p-3 text-[9px] uppercase font-bold text-slate-400 text-center">Shop</th>
+                                                                                            <th className="p-3 text-[9px] uppercase font-bold text-slate-400 text-left">Dist</th>
+                                                                                            <th className="p-3 text-[9px] uppercase font-bold text-slate-400 text-right">Hrs</th>
+                                                                                            <th className="p-3 text-[9px] uppercase font-bold text-slate-400 text-right w-20">Actions</th>
+                                                                                        </tr>
+                                                                                    </thead>
+                                                                                    <tbody className="text-xs text-slate-600 divide-y divide-slate-50">
+                                                                                        {driveTimeEntries.map((ts: any, i: number) => {
+                                                                                            const { hours, distance } = calculateTimesheetData(ts, selectedSchedule.fromDate);
+                                                                                            
+                                                                                            const getQty = (val: any, numericQty?: number) => {
+                                                                                                if (typeof numericQty === 'number' && numericQty > 0) return numericQty;
+                                                                                                const str = String(val || '');
+                                                                                                const match = str.match(/\((\d+)\s+qty\)/);
+                                                                                                if (match) return parseFloat(match[1]);
+                                                                                                if (val === true || str.toLowerCase() === 'true' || str.toLowerCase() === 'yes') return 1;
+                                                                                                return 0;
+                                                                                            };
+                                                                                            const washoutQty = getQty(ts.dumpWashout, ts.dumpQty);
+                                                                                            const shopQty = getQty(ts.shopTime, ts.shopQty);
+
+                                                                                            return (
+                                                                                                <tr key={i} className="hover:bg-slate-50 group transition-colors">
+                                                                                                    <td className="p-3">{renderEmployee(ts)}</td>
+                                                                                                    <td className="p-3 text-center text-[11px] font-medium text-slate-600">
+                                                                                                        {ts.clockIn ? new Date(ts.clockIn).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : '-'}
+                                                                                                    </td>
+                                                                                                    <td className="p-3 text-center">
+                                                                                                        {washoutQty > 0 ? (
+                                                                                                            <span className="text-[9px] font-black uppercase bg-orange-500 text-white px-2 py-1 rounded shadow-sm inline-flex flex-col items-center min-w-[60px] justify-center leading-none gap-0.5">
+                                                                                                                <span className="flex items-center gap-1">WASHOUT <CheckCircle2 size={10} /></span>
+                                                                                                                <span className="text-[8px] opacity-90">{washoutQty} QTY</span>
+                                                                                                            </span>
+                                                                                                        ) : <span className="text-slate-300">-</span>}
+                                                                                                    </td>
+                                                                                                    <td className="p-3 text-center">
+                                                                                                        {shopQty > 0 ? (
+                                                                                                            <span className="text-[9px] font-black uppercase bg-blue-500 text-white px-2 py-1 rounded shadow-sm inline-flex flex-col items-center min-w-[60px] justify-center leading-none gap-0.5">
+                                                                                                                <span className="flex items-center gap-1">SHOP <CheckCircle2 size={10} /></span>
+                                                                                                                <span className="text-[8px] opacity-90">{shopQty} QTY</span>
+                                                                                                            </span>
+                                                                                                        ) : <span className="text-slate-300">-</span>}
+                                                                                                    </td>
+                                                                                                    <td className="p-3 text-left font-medium text-slate-500 text-[11px]">
                                                                                                         {distance > 0 ? (
                                                                                                             <button
                                                                                                                 onClick={(e) => {
                                                                                                                     e.stopPropagation();
                                                                                                                     const isCoord = (val: any) => typeof val === 'string' && val.includes(',');
                                                                                                                     if (isCoord(ts.locationIn) && isCoord(ts.locationOut)) {
-                                                                                                                        setSelectedMapRoute({
-                                                                                                                            start: ts.locationIn,
-                                                                                                                            end: ts.locationOut,
-                                                                                                                            distance: distance
-                                                                                                                        });
+                                                                                                                        setSelectedMapRoute({ start: ts.locationIn, end: ts.locationOut, distance: distance });
                                                                                                                         setMapModalOpen(true);
                                                                                                                     }
                                                                                                                 }}
@@ -3275,58 +3417,19 @@ function SchedulesTable({ serverSchedules }: { serverSchedules?: ScheduleItem[] 
                                                                                                             </button>
                                                                                                         ) : '-'}
                                                                                                     </td>
-                                                                                                )}
-                                                                                                <td className="p-2 text-right font-bold text-[#0F4C75]">
-                                                                                                    {hours > 0 ? hours.toFixed(2) : '-'}
-                                                                                                </td>
-                                                                                                <td className="p-2 text-right">
-                                                                                                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
-                                                                                                        <Tooltip>
-                                                                                                            <TooltipTrigger asChild>
-                                                                                                                <button
-                                                                                                                    onClick={(e) => { e.stopPropagation(); handleEditTimesheetClick(ts, selectedSchedule._id); }}
-                                                                                                                    className="p-1.5 text-slate-400 hover:text-[#0F4C75] hover:bg-blue-50 rounded-lg transition-colors"
-                                                                                                                >
-                                                                                                                    <Edit size={12} />
-                                                                                                                </button>
-                                                                                                            </TooltipTrigger>
-                                                                                                            <TooltipContent>
-                                                                                                                <p>Edit</p>
-                                                                                                            </TooltipContent>
-                                                                                                        </Tooltip>
-                                                                                                        <Tooltip>
-                                                                                                            <TooltipTrigger asChild>
-                                                                                                                <button
-                                                                                                                    onClick={(e) => {
-                                                                                                                        e.stopPropagation();
-                                                                                                                        handleDeleteTimesheet(ts._id || ts.recordId);
-                                                                                                                    }}
-                                                                                                                    className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
-                                                                                                                >
-                                                                                                                    <Trash2 size={12} />
-                                                                                                                </button>
-                                                                                                            </TooltipTrigger>
-                                                                                                            <TooltipContent>
-                                                                                                                <p>Delete</p>
-                                                                                                            </TooltipContent>
-                                                                                                        </Tooltip>
-                                                                                                    </div>
-                                                                                                </td>
-                                                                                            </tr>
-                                                                                        );
-                                                                                    })}
-                                                                                </tbody>
-                                                                            </table>
+                                                                                                    <td className="p-3 text-right font-black text-[#0F4C75] text-[11px]">{hours > 0 ? hours.toFixed(2) : '-'}</td>
+                                                                                                    <td className="p-3 text-right">{renderActions(ts)}</td>
+                                                                                                </tr>
+                                                                                            );
+                                                                                        })}
+                                                                                    </tbody>
+                                                                                </table>
+                                                                            </div>
                                                                         </div>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        ) : (
-                                                            <div className="p-8 text-center text-slate-400 bg-white rounded-xl border border-slate-200">
-                                                                <ClipboardList size={36} className="mx-auto mb-2 opacity-20" />
-                                                                <p className="text-xs font-medium">No timesheet entries yet.</p>
-                                                            </div>
-                                                        )}
+                                                                    )}
+                                                                </>
+                                                            );
+                                                        })()}
                                                     </div>
                                                 )}
 
@@ -3697,11 +3800,14 @@ function SchedulesTable({ serverSchedules }: { serverSchedules?: ScheduleItem[] 
                                         <p className="text-[11px] text-slate-400 font-bold truncate">
                                             {selectedSchedule.item !== 'Day Off' ? getCustomerName(selectedSchedule) : selectedSchedule.item}
                                         </p>
+                                        <div className="mt-1">
+                                            <span className="text-[8px] font-mono text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 select-all">{selectedSchedule._id}</span>
+                                        </div>
                                     </div>
                                 </div>
                                 <button
                                     onClick={() => { setShowMobileDetail(false); setSelectedSchedule(null); }}
-                                    className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors shrink-0 ml-2"
+                                    className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors shrink-0 ml-2 self-start"
                                 >
                                     <X size={16} className="text-slate-500" />
                                 </button>
@@ -3715,7 +3821,7 @@ function SchedulesTable({ serverSchedules }: { serverSchedules?: ScheduleItem[] 
                                 {selectedSchedule.item !== 'Day Off' && selectedSchedule.estimate && (
                                     <span 
                                         className="text-[#0F4C75] bg-[#E6EEF8] px-2 py-0.5 rounded-full text-[11px] hover:bg-[#b0cde8] transition-colors cursor-pointer shadow-sm active:scale-95 z-10 relative"
-                                        onClick={(e) => {
+                                        onMouseEnter={() => router.prefetch(`/estimates/${selectedSchedule.estimate}`)} onClick={(e) => {
                                             e.stopPropagation();
                                             router.push(`/estimates/${selectedSchedule.estimate}`);
                                         }}
@@ -4998,10 +5104,10 @@ function SchedulesTable({ serverSchedules }: { serverSchedules?: ScheduleItem[] 
     );
 }
 
-export default function SchedulesPage({ initialData }: { initialData?: ScheduleItem[] }) {
+export default function SchedulesTableClient({ serverData }: { serverData?: any }) {
     return (
         <Suspense fallback={<Loading />}>
-            <SchedulesTable serverSchedules={initialData} />
+            <SchedulesTable serverData={serverData} />
         </Suspense>
     );
 }

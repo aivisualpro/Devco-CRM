@@ -23,16 +23,14 @@ export async function GET(req: NextRequest) {
         }
 
         const userEmail = jwtUser.email.toLowerCase().trim();
-        // Use case-insensitive regex for email matching
-        const emailFilter = { $regex: userEmail, $options: 'i' };
-        const filter: any = { recipientEmail: emailFilter };
+        const filter: any = { recipientEmail: userEmail };
         if (unreadOnly) filter.read = false;
 
         const col = db.collection('notifications');
 
         const [notifications, unreadCount, total] = await Promise.all([
             col.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).toArray(),
-            col.countDocuments({ recipientEmail: emailFilter, read: false }),
+            col.countDocuments({ recipientEmail: userEmail, read: false }),
             col.countDocuments(filter)
         ]);
 
@@ -45,6 +43,10 @@ export async function GET(req: NextRequest) {
             total,
             page,
             totalPages: Math.ceil(total / limit)
+        }, {
+            headers: {
+                'Cache-Control': 'private, no-store'
+            }
         });
     } catch (error) {
         console.error('[Notifications API] GET Error:', error);
@@ -71,14 +73,13 @@ export async function POST(req: NextRequest) {
 
         const col = db.collection('notifications');
         const userEmail = jwtUser.email.toLowerCase().trim();
-        const emailFilter = { $regex: userEmail, $options: 'i' };
 
         switch (action) {
             case 'markRead': {
                 const { notificationId } = body;
                 if (notificationId) {
                     await col.updateOne(
-                        { _id: new mongoose.Types.ObjectId(notificationId), recipientEmail: emailFilter },
+                        { _id: new mongoose.Types.ObjectId(notificationId), recipientEmail: userEmail },
                         { $set: { read: true, readAt: new Date() } }
                     );
                 }
@@ -87,7 +88,7 @@ export async function POST(req: NextRequest) {
 
             case 'markAllRead': {
                 await col.updateMany(
-                    { recipientEmail: emailFilter, read: false },
+                    { recipientEmail: userEmail, read: false },
                     { $set: { read: true, readAt: new Date() } }
                 );
                 return NextResponse.json({ success: true });
@@ -96,13 +97,13 @@ export async function POST(req: NextRequest) {
             case 'delete': {
                 const { notificationId } = body;
                 if (notificationId) {
-                    await col.deleteOne({ _id: new mongoose.Types.ObjectId(notificationId), recipientEmail: emailFilter });
+                    await col.deleteOne({ _id: new mongoose.Types.ObjectId(notificationId), recipientEmail: userEmail });
                 }
                 return NextResponse.json({ success: true });
             }
 
             case 'clearAll': {
-                await col.deleteMany({ recipientEmail: emailFilter });
+                await col.deleteMany({ recipientEmail: userEmail });
                 return NextResponse.json({ success: true });
             }
 

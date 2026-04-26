@@ -26,6 +26,7 @@ import { cn } from '@/lib/utils';
 import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
 import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
+import { useAllEmployees } from '@/lib/hooks/api';
 
 const SOIL_TYPES = [
     'Base & Sand',
@@ -141,7 +142,7 @@ export default function PreBoreLogsPage() {
     const [logs, setLogs] = useState<PreBoreLog[]>([]);
     const [estimates, setEstimates] = useState<Estimate[]>([]);
     const [clients, setClients] = useState<Client[]>([]);
-    const [employees, setEmployees] = useState<Employee[]>([]);
+    const { employees, getByEmail: getEmployeeByEmail } = useAllEmployees();
     const [search, setSearch] = useState('');
 
     // Cascading Selection: Customer -> Estimate -> Schedule
@@ -253,7 +254,7 @@ export default function PreBoreLogsPage() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [logsRes, estimatesRes, employeesRes, clientsRes] = await Promise.all([
+            const [logsRes, estimatesRes, clientsRes] = await Promise.all([
                 fetch('/api/pre-bore-logs', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -263,15 +264,13 @@ export default function PreBoreLogsPage() {
                     })
                 }),
                 fetch(`/api/estimates?limit=500`),
-                fetch(`/api/employees`),
                 fetch(`/api/clients?limit=500`)
             ]);
 
-            const [logsData, estimatesData, employeesData, clientsData] = await Promise.all([logsRes.json(), estimatesRes.json(), employeesRes.json(), clientsRes.json()]);
+            const [logsData, estimatesData, clientsData] = await Promise.all([logsRes.json(), estimatesRes.json(), clientsRes.json()]);
 
             if (logsData.success) setLogs(logsData.result || []);
             if (estimatesData.success) setEstimates(estimatesData.result || []);
-            if (employeesData.success) setEmployees(employeesData.result || []);
             if (clientsData.success) setClients(clientsData.result || []);
         } catch (err) {
             console.error(err);
@@ -366,11 +365,7 @@ export default function PreBoreLogsPage() {
         return result;
     }, [logs, search, sortConfig]);
 
-    // Find employee by email
-    const getEmployeeByEmail = (email: string) => {
-        if (!email) return null;
-        return employees.find(e => e.email?.toLowerCase() === email.toLowerCase());
-    };
+
 
     const handleSort = (key: string) => {
         setSortConfig(current => ({
@@ -910,7 +905,7 @@ export default function PreBoreLogsPage() {
                                         <div
                                             key={log._id}
                                             className="bg-white rounded-2xl border border-slate-100 p-4 active:scale-[0.98] transition-transform shadow-sm"
-                                            onClick={() => router.push(`/docs/pre-bore-logs/${log.scheduleId}___${log._id}`)}
+                                            onMouseEnter={() => router.prefetch(`/docs/pre-bore-logs/${log.scheduleId}___${log._id}`)} onClick={() => router.push(`/docs/pre-bore-logs/${log.scheduleId}___${log._id}`)}
                                             onTouchStart={() => handleLongPressStart(log)}
                                             onTouchEnd={handleLongPressEnd}
                                             onTouchCancel={handleLongPressEnd}
@@ -1000,11 +995,12 @@ export default function PreBoreLogsPage() {
                                         ) : filteredLogs.map((log) => {
                                             const isExpanded = expandedRows.has(log._id);
                                             const estInfo = estimates.find(e => e._id === log.estimate || e.estimate === log.estimate);
+                                            const latestSlug = log.estimate ? (estimates.filter(e => e.estimate === log.estimate).sort((a, b) => (b.versionNumber || 0) - (a.versionNumber || 0))[0]?._id || log.estimate) : '';
                                             return (
                                                 <React.Fragment key={log._id}>
                                                     <TableRow
                                                         className="group hover:bg-slate-50 transition-colors cursor-pointer"
-                                                        onClick={() => router.push(`/docs/pre-bore-logs/${log.scheduleId}___${log._id}`)}
+                                                        onMouseEnter={() => router.prefetch(`/docs/pre-bore-logs/${log.scheduleId}___${log._id}`)} onClick={() => router.push(`/docs/pre-bore-logs/${log.scheduleId}___${log._id}`)}
                                                     >
                                                         <TableCell onClick={(e) => e.stopPropagation()}>
                                                             {log.preBoreLogs?.length > 0 && (
@@ -1029,14 +1025,9 @@ export default function PreBoreLogsPage() {
                                                                 return log.scheduleCustomerName || log.customerName || '-';
                                                             })()}
                                                         </TableCell>
-                                                        <TableCell className="text-xs text-blue-600 font-medium cursor-pointer hover:underline" onClick={(e) => {
+                                                        <TableCell className="text-xs text-blue-600 font-medium cursor-pointer hover:underline" onMouseEnter={() => latestSlug && router.prefetch(`/estimates/${latestSlug}`)} onClick={(e) => {
                                                             e.stopPropagation();
-                                                            if (!log.estimate) return;
-                                                            // Navigate to the latest version of this estimate
-                                                            const matchingVersions = estimates
-                                                                .filter(e => e.estimate === log.estimate)
-                                                                .sort((a, b) => (b.versionNumber || 0) - (a.versionNumber || 0));
-                                                            const latestSlug = matchingVersions[0]?._id || log.estimate;
+                                                            if (!latestSlug) return;
                                                             router.push(`/estimates/${latestSlug}`);
                                                         }}>
                                                             {log.estimate || '-'}
@@ -1715,7 +1706,7 @@ export default function PreBoreLogsPage() {
                     </div>
 
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => {
+                        <Button variant="outline" onMouseEnter={() => returnTo && router.prefetch(returnTo)} onClick={() => {
                             setIsModalOpen(false);
                             if (returnTo) router.push(returnTo);
                         }}>Cancel</Button>

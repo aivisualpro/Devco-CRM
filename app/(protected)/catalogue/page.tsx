@@ -328,23 +328,15 @@ function CatalogueContent() {
         const finalData = dataToSave || formData;
 
         try {
-            const action = editItem ? 'updateCatalogueItem' : 'addCatalogueItem';
-            const payload = editItem
+            const method = editItem ? 'PATCH' : 'POST';
+            const bodyData = editItem
                 ? { type: activeCategory, id: editItem._id, item: finalData }
                 : { type: activeCategory, item: finalData };
 
-            // Note: Checked API route previously, it accepts `payload.data` for `addCatalogueItem`.
-            // For `updateCatalogueItem`, it accepts `payload.data` as well.
-            // Wait, previous `catalogue/page.tsx` used `payload: { type: ..., item: formData }`.
-            // I should verify `route.ts`...
-            // Step 279 view of route.ts showed: const { type, data } = payload;
-            // So it SHOULD be `data`. The previous implementation might have been using `item` incorrectly OR the API handles both?
-            // Let's stick to `data` as per my backup reading.
-
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
+            const res = await fetch('/api/catalogue', {
+                method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action, payload })
+                body: JSON.stringify(bodyData)
             });
             const data = await res.json();
 

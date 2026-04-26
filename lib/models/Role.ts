@@ -49,7 +49,9 @@ const RoleSchema = new Schema({
 // Clear cached model on HMR to pick up schema changes
 if (process.env.NODE_ENV !== 'production' && mongoose.models.Role) {
     console.log('[MODEL] Deleting Role model from cache for HMR');
-    delete mongoose.models.Role;
+    if (process.env.NODE_ENV === 'development') {
+        delete mongoose.models.Role;
+    }
 }
 
 const Role: Model<IRole> = mongoose.models.Role || mongoose.model<IRole>('Role', RoleSchema);

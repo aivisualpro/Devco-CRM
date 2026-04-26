@@ -9,6 +9,7 @@ import { Save, RefreshCw, Copy, LayoutTemplate, ArrowLeft, Download, FileSpreads
 import { Header, Button, ConfirmModal, SkeletonEstimateHeader, SkeletonAccordion, FullEstimateSkeleton, Modal, MyDropDown, ClientModal, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { useCurrentUser } from '@/lib/context/AppContext';
+import { useAllEmployees } from '@/lib/hooks/api';
 
 
 import {
@@ -436,8 +437,17 @@ export default function EstimateViewPage() {
     const [fringeOptions, setFringeOptions] = useState<{ id: string; label: string; value: string; color?: string }[]>([]);
     const [planningOptions, setPlanningOptions] = useState<{ id: string; label: string; value: string; color?: string }[]>([]);
     const [certifiedPayrollOptions, setCertifiedPayrollOptions] = useState<{ id: string; label: string; value: string; color?: string }[]>([]);
-    const [employeeOptions, setEmployeeOptions] = useState<{ id: string; label: string; value: string; color?: string; profilePicture?: string }[]>([]);
-    const [employeesData, setEmployeesData] = useState<any[]>([]); // Full employee data for signature/position lookup
+    const { employees: hookEmployees } = useAllEmployees();
+    const employeeOptions = useMemo(() => hookEmployees
+        .filter((emp: any) => emp.status !== 'inactive')
+        .map((emp: any) => ({
+            id: emp._id,
+            label: `${emp.firstName} ${emp.lastName}`,
+            value: emp._id,
+            profilePicture: emp.profilePicture
+        }))
+        .sort((a: any, b: any) => a.label.localeCompare(b.label)), [hookEmployees]);
+    const employeesData = hookEmployees; // Full employee data for signature/position lookup
     const [clientOptions, setClientOptions] = useState<{ id: string; label: string; value: string }[]>([]);
     const [contactOptions, setContactOptions] = useState<{ id: string; label: string; value: string; email?: string; phone?: string }[]>([]);
     const [addressOptions, setAddressOptions] = useState<{ id: string; label: string; value: string }[]>([]);
@@ -471,7 +481,7 @@ export default function EstimateViewPage() {
                 setSettingsLoaded(true);
             }
         }
-    }, [employeesData]);
+    }, [hookEmployees]);
 
     // Save visibility settings to Backend
     useEffect(() => {
@@ -538,13 +548,42 @@ export default function EstimateViewPage() {
     };
 
     // API helpers
-    const apiCall = async (action: string, payload: Record<string, unknown> = {}) => {
-        const res = await fetch('/api/webhook/devcoBackend', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action, payload })
-        });
-        return res.json();
+    const apiCall = async (action: string, payload: Record<string, any> = {}) => {
+        try {
+            let url = '';
+            let method = 'POST';
+            let body: any = payload;
+
+            if (action === 'getEstimateBySlug') { url = `/api/estimates/${payload.slug}`; method = 'GET'; }
+            else if (action === 'getEstimateById') { url = `/api/estimates/${payload.id}`; method = 'GET'; }
+            else if (action === 'getEstimatesByProposal') { url = `/api/estimates/proposal/${payload.estimateNumber}`; method = 'GET'; }
+            else if (action === 'getAllCatalogueItems') { url = '/api/catalogue/all'; method = 'GET'; }
+            else if (action === 'getEmployees') { url = '/api/employees'; method = 'GET'; }
+            else if (action === 'getClients') { url = '/api/clients?limit=5000&lite=true'; method = 'GET'; }
+            else if (action === 'getTemplates') { url = '/api/templates'; method = 'GET'; }
+            else if (action === 'getClientById') { url = `/api/clients/${payload.id}`; method = 'GET'; }
+            else if (action === 'updateEstimate') { 
+                url = `/api/estimates/${payload.id}`; 
+                method = 'PATCH'; 
+                const { id, item, ...rest } = payload;
+                body = item || rest;
+            }
+            else if (action === 'createEstimate') { 
+                url = '/api/estimates'; 
+                method = 'POST'; 
+                const { item, ...rest } = payload;
+                body = item || rest;
+            }
+
+            const options: RequestInit = { method, headers: { 'Content-Type': 'application/json' } };
+            if (method !== 'GET') options.body = JSON.stringify(body);
+
+            const res = await fetch(url, options);
+            return await res.json();
+        } catch (err) {
+            console.error('API Error:', err);
+            return { success: false, error: String(err) };
+        }
     };
 
     // Helper: Calculate sections (Totals only, no sort)
@@ -664,7 +703,7 @@ export default function EstimateViewPage() {
         const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
         // Helper to apply catalog data to state
-        const applyCatalogData = (catalogResult: any, employees: any[], clients: any[]) => {
+        const applyCatalogData = (catalogResult: any, clients: any[]) => {
             const { equipment, labor, material, overhead, subcontractor, disposal, miscellaneous, tools, constant } = catalogResult;
             setEquipmentCatalog(equipment || []);
             setLaborCatalog(labor || []);
@@ -755,31 +794,7 @@ export default function EstimateViewPage() {
                 .sort((a: any, b: any) => String(a.label).localeCompare(String(b.label)));
             setPlanningOptions(planning);
 
-            // Apply employees
-            if (employees.length > 0) {
-                setEmployeesData(employees);
-                const empOptions = employees
-                    .filter((emp: any) => {
-                        if (emp.status === 'inactive') return false;
-                        const email = (emp.email || emp._id || '').toLowerCase();
-                        const allowed = [
-                            'ns@devco-inc.com',
-                            'nr@devco-inc.com',
-                            'cd@devco-inc.com',
-                            'sean@devco-inc.com',
-                            'dt@devco-inc.com'
-                        ];
-                        return allowed.includes(email);
-                    })
-                    .map((emp: any) => ({
-                        id: emp._id,
-                        label: `${emp.firstName} ${emp.lastName}`,
-                        value: emp._id,
-                        profilePicture: emp.profilePicture
-                    }))
-                    .sort((a: any, b: any) => a.label.localeCompare(b.label));
-                setEmployeeOptions(empOptions);
-            }
+
 
             // Apply clients
             if (clients.length > 0) {
@@ -806,23 +821,20 @@ export default function EstimateViewPage() {
             if (cached) {
                 const { data, timestamp } = JSON.parse(cached);
                 if (Date.now() - timestamp < CACHE_TTL) {
-                    applyCatalogData(data.catalogResult, data.employees, data.clients);
+                    applyCatalogData(data.catalogResult, data.clients || []);
                     setCatalogsLoaded(true);
 
-                    // Still refresh in background (stale-while-revalidate)
                     Promise.all([
                         apiCall('getAllCatalogueItems'),
-                        apiCall('getEmployees'),
                         apiCall('getClients')
-                    ]).then(([result, employeeRes, clientRes]) => {
+                    ]).then(([result, clientRes]) => {
                         const catalogResult = result.success ? result.result : data.catalogResult;
-                        const employees = employeeRes.success ? employeeRes.result : data.employees;
-                        const clients = clientRes.success ? clientRes.result : data.clients;
-                        applyCatalogData(catalogResult, employees, clients);
+                        const clients = clientRes.items || clientRes.result || data.clients || [];
+                        applyCatalogData(catalogResult, clients);
                         // Update cache
                         try {
                             sessionStorage.setItem(CACHE_KEY, JSON.stringify({
-                                data: { catalogResult, employees, clients },
+                                data: { catalogResult, clients },
                                 timestamp: Date.now()
                             }));
                         } catch {}
@@ -834,22 +846,20 @@ export default function EstimateViewPage() {
 
         // No cache or stale — fetch fresh
         try {
-            const [result, employeeRes, clientRes] = await Promise.all([
+            const [result, clientRes] = await Promise.all([
                 apiCall('getAllCatalogueItems'),
-                apiCall('getEmployees'),
                 apiCall('getClients')
             ]);
 
             const catalogResult = result.success ? result.result : {};
-            const employees = employeeRes.success ? employeeRes.result || [] : [];
-            const clients = clientRes.success ? clientRes.result || [] : [];
+            const clients = clientRes.items || clientRes.result || [];
 
-            applyCatalogData(catalogResult, employees, clients);
+            applyCatalogData(catalogResult, clients);
 
             // Save to cache
             try {
                 sessionStorage.setItem(CACHE_KEY, JSON.stringify({
-                    data: { catalogResult, employees, clients },
+                    data: { catalogResult, clients },
                     timestamp: Date.now()
                 }));
             } catch {}
@@ -932,20 +942,26 @@ export default function EstimateViewPage() {
                     }
                     setContactOptions(contacts.sort((a: any, b: any) => a.label.localeCompare(b.label)));
 
-                    // Update Addresses - Exclude Primary/Business addresses
-                    const addresses = [...(client.addresses || []), ...(client.address || [])]
-                        .filter((a: any) => typeof a === 'object' ? !a.primary : true) // Filter out primary if object
-                        .map((a: any) => {
-                            const addrStr = typeof a === 'string' ? a : (a.fullAddress || a.address || a.street || JSON.stringify(a));
-                            return {
-                                id: addrStr,
-                                label: addrStr,
-                                value: addrStr
-                            };
-                        })
-                        .filter(a => a.value !== client.businessAddress); // Also filter out business address string match
+                    // Update Addresses - Include all addresses and deduplicate
+                    let rawAddresses = [...(client.addresses || []), ...(client.address || [])];
+                    if (client.businessAddress) {
+                        rawAddresses.push(client.businessAddress);
+                    }
+                    
+                    const addresses = rawAddresses.map((a: any) => {
+                        const addrStr = typeof a === 'string' ? a : (a.fullAddress || a.address || a.street || '');
+                        return {
+                            id: addrStr,
+                            label: addrStr,
+                            value: addrStr
+                        };
+                    });
 
-                    setAddressOptions(addresses.sort((a: any, b: any) => a.label.localeCompare(b.label)));
+                    // Filter out empty and deduplicate
+                    const validAddresses = addresses.filter(a => a.value && a.value.trim() !== '');
+                    const uniqueAddresses = Array.from(new Map(validAddresses.map(a => [a.value, a])).values());
+
+                    setAddressOptions(uniqueAddresses.sort((a: any, b: any) => a.label.localeCompare(b.label)));
                 } else {
                     setActiveClient(null);
                 }
@@ -2102,7 +2118,7 @@ export default function EstimateViewPage() {
                     <div className="text-6xl">🚫</div>
                     <h3 className="text-xl font-bold text-gray-900">Estimate Not Found</h3>
                     <p className="text-gray-500">The requested estimate could not be loaded.</p>
-                    <Button onClick={() => router.push('/estimates')}>Back to Estimates</Button>
+                    <Button onMouseEnter={() => router.prefetch('/estimates')} onClick={() => router.push('/estimates')}>Back to Estimates</Button>
                 </div>
             </div>
         );
@@ -2182,7 +2198,7 @@ export default function EstimateViewPage() {
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <button
-                                        onClick={() => router.push('/estimates')}
+                                        onMouseEnter={() => router.prefetch('/estimates')} onClick={() => router.push('/estimates')}
                                         className="flex items-center justify-center w-8 h-8 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                                     >
                                         <ArrowLeft className="w-5 h-5" />
@@ -2712,8 +2728,8 @@ export default function EstimateViewPage() {
                 initialClient={{ name: newClientName }}
                 employees={employeesData.map(e => ({
                     _id: e._id,
-                    firstName: e.firstName,
-                    lastName: e.lastName,
+                    firstName: e.firstName || '',
+                    lastName: e.lastName || '',
                     profilePicture: e.profilePicture,
                     email: e.email
                 }))}

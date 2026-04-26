@@ -5,7 +5,7 @@ import {
     ChevronRight, ChevronLeft, ChevronDown, User, Calendar as CalendarIcon,
     MapPin, Truck, Trash2, Edit, RotateCcw, FileText, Clock, RefreshCcw, Plus, CheckCircle2, X, Search, HardHat, Loader2
 } from 'lucide-react';
-import Link from 'next/link';
+import PrefetchLink from "@/components/PrefetchLink";
 import { useRouter, useSearchParams } from 'next/navigation';
 import useSWR from 'swr';
 import {
@@ -685,13 +685,16 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
 
 
     // Data Fetching via SWR
-    const extendedStart = new Date(weekRange.start);
-    extendedStart.setUTCDate(extendedStart.getUTCDate() - 30);
-    const extendedEnd = new Date(weekRange.end);
-    extendedEnd.setUTCDate(extendedEnd.getUTCDate() + 30);
+    // PERF: Only fetch the visible week (was ±30 days × 10,000 schedules — caused the page to take 5-20s).
+    // For schedules whose timesheet rows fall in this week but the schedule itself started slightly outside,
+    // we widen by ±7 days. Dedupe / keepPreviousData keep week navigation feeling instant.
+    const fetchStart = new Date(weekRange.start);
+    fetchStart.setUTCDate(fetchStart.getUTCDate() - 7);
+    const fetchEnd = new Date(weekRange.end);
+    fetchEnd.setUTCDate(fetchEnd.getUTCDate() + 7);
 
     const { data: timeCardsData, isLoading: timeCardsLoading, mutate: refetchTimeCards } = useSWR(
-        ['/api/schedules', 'timeCards', extendedStart.toISOString(), extendedEnd.toISOString()],
+        ['/api/schedules', 'timeCards', fetchStart.toISOString(), fetchEnd.toISOString()],
         async ([url, _, sDate, eDate]) => {
             const res = await fetch(url, {
                 method: 'POST',
@@ -699,7 +702,7 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
                 body: JSON.stringify({
                     action: 'getSchedulesPage',
                     payload: {
-                        limit: 10000,
+                        limit: 500,
                         includeTimesheets: true,
                         startDate: sDate,
                         endDate: eDate
@@ -710,7 +713,7 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
             if (!data.success) throw new Error(data.error || 'Failed to fetch data');
             return data.result;
         },
-        { revalidateOnFocus: false, dedupingInterval: 60000 }
+        { revalidateOnFocus: false, dedupingInterval: 60000, keepPreviousData: true }
     );
 
     const fetchTimeCards = refetchTimeCards; // alias for backwards compatibility
@@ -1085,7 +1088,7 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
                 body: JSON.stringify({ action: 'getScheduleById', payload: { id: ts.scheduleId } })
             });
             const dataGet = await resGet.json();
-            if (!dataGet.success) throw new Error("Schedule not found");
+            if (!dataGet.success || !dataGet.result) throw new Error("Schedule not found");
 
             const schedule = dataGet.result;
             const updatedTimesheets = (schedule.timesheet || []).map((t: any) => {
@@ -1151,7 +1154,7 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
                 body: JSON.stringify({ action: 'getScheduleById', payload: { id: ts.scheduleId } })
             });
             const dataGet = await resGet.json();
-            if (!dataGet.success) throw new Error("Schedule not found");
+            if (!dataGet.success || !dataGet.result) throw new Error("Schedule not found");
 
             const schedule = dataGet.result;
             const updatedTimesheets = (schedule.timesheet || []).map((t: any) => {
@@ -1216,7 +1219,7 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
                 body: JSON.stringify({ action: 'getScheduleById', payload: { id: ts.scheduleId } })
             });
             const dataGet = await resGet.json();
-            if (!dataGet.success) throw new Error("Schedule not found");
+            if (!dataGet.success || !dataGet.result) throw new Error("Schedule not found");
 
             const schedule = dataGet.result;
             const newTimesheets = (schedule.timesheet || []).filter((t: any) => (t._id || t.recordId) !== (ts._id || ts.recordId));
@@ -1333,7 +1336,7 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
                 body: JSON.stringify({ action: 'getScheduleById', payload: { id: editForm.scheduleId } })
             });
             const dataGet = await resGet.json();
-            if (!dataGet.success) throw new Error("Schedule not found");
+            if (!dataGet.success || !dataGet.result) throw new Error("Schedule not found");
 
             const schedule = dataGet.result as ScheduleDoc;
             const stats = calculateTimesheetData(editForm as any, schedule.fromDate);
@@ -1464,7 +1467,7 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
                 body: JSON.stringify({ action: 'getScheduleById', payload: { id: addForm.scheduleId } })
             });
             const dataGet = await resGet.json();
-            if (!dataGet.success) throw new Error("Schedule not found");
+            if (!dataGet.success || !dataGet.result) throw new Error("Schedule not found");
 
             const schedule = dataGet.result;
             const stats = calculateTimesheetData(newRecord, schedule.fromDate);
@@ -1542,7 +1545,7 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
                 body: JSON.stringify({ action: 'getScheduleById', payload: { id: quickEditForm.scheduleId } })
             });
             const dataGet = await resGet.json();
-            if (!dataGet.success) throw new Error("Schedule not found");
+            if (!dataGet.success || !dataGet.result) throw new Error("Schedule not found");
 
             const schedule = dataGet.result;
             const stats = calculateTimesheetData(quickEditForm as any);
@@ -1929,13 +1932,13 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
                                 </TooltipContent>
                             </Tooltip>
                         )}
-                        <Link
+                        <PrefetchLink
                             href="/reports/payroll"
                             className="hidden md:flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-sm transition-all active:scale-95"
                         >
                             <FileText size={16} />
                             Payroll Report
-                        </Link>
+                        </PrefetchLink>
                     </div>
                 }
             />

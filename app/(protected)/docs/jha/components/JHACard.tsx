@@ -64,7 +64,7 @@ export const JHACard: React.FC<JHACardProps> = ({
                         </div>
                         {canViewEstimates && schedule?.estimate ? (
                             <button 
-                                onClick={(e) => { e.stopPropagation(); router.push(`/estimates/${schedule.estimate}`); }}
+                                onMouseEnter={() => router.prefetch(`/estimates/${schedule.estimate}`)} onClick={(e) => { e.stopPropagation(); router.push(`/estimates/${schedule.estimate}`); }}
                                 className="bg-[#0F4C75]/10 text-[#0F4C75] hover:bg-[#0F4C75]/20 text-[11px] font-bold px-2.5 py-1 rounded-md transition-colors"
                             >
                                 {schedule.estimate}

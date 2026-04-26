@@ -1,14 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
-import { Client, Estimate } from '@/lib/models';
+import { Client, Estimate, Employee } from '@/lib/models';
 import { parsePagination, parseSearch, buildPaginationResponse } from '@/lib/api/pagination';
+import { getUserFromRequest } from '@/lib/permissions/middleware';
+import { createNotifications } from '@/lib/notifications';
 
 export async function GET(req: NextRequest) {
     try {
         await connectToDatabase();
 
-        const { page, limit, skip, sort } = parsePagination(req);
         const { searchParams } = new URL(req.url);
+        let { page, limit, skip, sort } = parsePagination(req);
+
+        // Allow larger limits for lite requests (dropdowns)
+        if (searchParams.get('lite') === 'true' && searchParams.get('limit')) {
+            limit = parseInt(searchParams.get('limit') as string, 10) || limit;
+            skip = (page - 1) * limit;
+        }
+
         const q = searchParams.get('q');
         const status = searchParams.get('status');
 
@@ -53,6 +62,10 @@ export async function GET(req: NextRequest) {
         }
 
         let findQuery = Client.find(query);
+        if (searchParams.get('lite') === 'true') {
+            findQuery = findQuery.select('name _id');
+        }
+        
         if (useTextSearch) {
             findQuery = findQuery.select({ score: { $meta: 'textScore' } });
         }
@@ -68,21 +81,28 @@ export async function GET(req: NextRequest) {
             Client.countDocuments({ ...baseQuery, status: { $nin: ['Active', 'deleted'] } })
         ]);
 
-        // Fetch unique estimates count for each client
-        const itemsWithCounts = await Promise.all(
-            items.map(async (client: any) => {
-                const uniqueEstimates = await Estimate.distinct('estimate', {
-                    customerId: client._id,
-                    isChangeOrder: { $ne: true }
-                });
-                return {
-                    ...client,
-                    estimatesCount: uniqueEstimates.length
-                };
-            })
-        );
+        let finalItems = items;
+        
+        // Skip expensive estimate counting if lite mode is requested
+        const isLite = searchParams.get('lite') === 'true';
+        
+        if (!isLite) {
+            // Fetch unique estimates count for each client
+            finalItems = await Promise.all(
+                items.map(async (client: any) => {
+                    const uniqueEstimates = await Estimate.distinct('estimate', {
+                        customerId: client._id,
+                        isChangeOrder: { $ne: true }
+                    });
+                    return {
+                        ...client,
+                        estimatesCount: uniqueEstimates.length
+                    };
+                })
+            );
+        }
 
-        const response = buildPaginationResponse(itemsWithCounts as any, total, page, limit);
+        const response = buildPaginationResponse(finalItems as any, total, page, limit);
         (response as any).counts = {
             all: total,
             active: totalActive,
@@ -175,9 +195,31 @@ export async function POST(req: NextRequest) {
                 delete (clientData as any).email;
                 delete (clientData as any).phone;
 
-                const newClient = await Client.create(clientData);
+                const newClient = await Client.create(clientData) as any;
 
+                // --- Notifications ---
+                Promise.resolve().then(async () => {
+                    try {
+                        const jwtUser = await getUserFromRequest(req);
+                        const adminDocs = await Employee.find({ appRole: { $regex: /^(super admin|admin)$/i }, status: 'Active' }).select('email').lean();
+                        const adminEmails = adminDocs.map((e: any) => e.email?.toLowerCase().trim()).filter(Boolean);
+                        
+                        const currentUserEmail = jwtUser?.email?.toLowerCase().trim() || '';
+                        const filteredEmails = adminEmails.filter((e: string) => e !== currentUserEmail);
 
+                        if (filteredEmails.length > 0) {
+                            await createNotifications({
+                                recipientEmails: filteredEmails,
+                                type: 'general',
+                                title: `New Client Created`,
+                                message: `${(jwtUser as any)?.firstName || 'Someone'} created a new client: ${newClient.name}`,
+                                link: `/clients/${newClient._id}`
+                            });
+                        }
+                    } catch (err) {
+                        console.error('[notif]', err);
+                    }
+                });
 
                 return NextResponse.json({ success: true, result: newClient });
     } catch (error: any) {

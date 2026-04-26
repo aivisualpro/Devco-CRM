@@ -2,10 +2,16 @@
   "name": "DEVCO | ERP",
   "short_name": "DEVCO",
   "description": "Manage Proposals and Jobs Management System",
+  "categories": [
+    "business",
+    "productivity"
+  ],
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#0F4C75",
+  "scope": "/",
+  "orientation": "portrait",
   "icons": [
     {
       "src": "/icons/icon-192.png",
@@ -20,5 +26,42 @@
       "purpose": "any maskable"
     }
   ],
-  "orientation": "portrait"
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "View CRM Dashboard",
+      "url": "/dashboard",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Schedules",
+      "short_name": "Schedules",
+      "description": "View Schedules",
+      "url": "/schedules",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Clients",
+      "short_name": "Clients",
+      "description": "View Clients",
+      "url": "/clients",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
 }

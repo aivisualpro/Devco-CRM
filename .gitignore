@@ -40,3 +40,14 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 DEVCOCRM-backup-*
+
+# playbook additions
+/scripts/debug/
+.DS_Store
+tsconfig.tsbuildinfo
+.next/
+mobile-build/
+
+# agent
+/scratch/
+*.py

@@ -88,12 +88,12 @@ interface DashboardContextValue {
 
 const DashboardContext = createContext<DashboardContextValue | null>(null);
 
-export function DashboardProvider({ children }: { children: ReactNode }) {
+export function DashboardProvider({ children, initialWeek }: { children: ReactNode; initialWeek?: string }) {
     const router = useRouter();
     const searchParams = useSearchParams();
 
     const [currentWeekDate, setCurrentWeekDate] = useState<Date>(() => {
-        const week = searchParams.get('week');
+        const week = searchParams.get('week') || initialWeek;
         if (week && week.includes('-')) {
             try {
                 const [startPart] = week.split('-');

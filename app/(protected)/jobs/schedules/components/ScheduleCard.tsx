@@ -300,7 +300,7 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                             {item.item !== 'Day Off' && item.estimate && (
                                 <span 
                                     className="text-[10px] sm:text-[11px] font-bold text-[#0F4C75] bg-[#E6EEF8] px-2 py-0.5 rounded-full hover:bg-[#b0cde8] transition-colors cursor-pointer shadow-sm active:scale-95 relative z-10"
-                                    onClick={(e) => {
+                                    onMouseEnter={() => router.prefetch(`/estimates/${item.estimate}`)} onClick={(e) => {
                                         e.stopPropagation();
                                         router.push(`/estimates/${item.estimate}`);
                                     }}

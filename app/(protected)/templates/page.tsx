@@ -41,13 +41,24 @@ export default function TemplatesPage() {
     const [isAddingService, setIsAddingService] = useState(false);
     const itemsPerPage = 15;
 
-    const apiCall = async (action: string, payload: Record<string, unknown> = {}) => {
+    const apiCall = async (action: string, payload: Record<string, any> = {}) => {
         try {
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action, payload })
-            });
+            let url = '';
+            let method = 'POST';
+            let body: any = payload;
+
+            if (action === 'getTemplates') { url = '/api/templates'; method = 'GET'; }
+            else if (action === 'addTemplate') { url = '/api/templates'; method = 'POST'; body = payload.item; }
+            else if (action === 'updateTemplate') { url = `/api/templates/${payload.id}`; method = 'PATCH'; body = payload.item; }
+            else if (action === 'deleteTemplate') { url = `/api/templates/${payload.id}`; method = 'DELETE'; }
+            else if (action === 'cloneTemplate') { url = `/api/templates/${payload.id}/clone`; method = 'POST'; }
+            else if (action === 'getConstants') { url = '/api/constants'; method = 'GET'; }
+            else if (action === 'addConstant') { url = '/api/constants'; method = 'POST'; body = { action: 'create', payload: payload.item }; }
+
+            const options: RequestInit = { method, headers: { 'Content-Type': 'application/json' } };
+            if (method !== 'GET') options.body = JSON.stringify(body);
+
+            const res = await fetch(url, options);
             return await res.json();
         } catch (err) {
             console.error('API Error:', err);

@@ -374,40 +374,36 @@ export const ScheduleDetailsPopup: React.FC<ScheduleDetailsPopupProps> = ({
                             </p>
                         </div>
 
-                        {/* ROW 7: Flags - Improved Logic */}
-                        {/* ROW 7: Flags - Display Values */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            {[
-                                { label: 'FRINGE', val: schedule.fringe },
-                                { label: 'CERTIFIED', val: schedule.certifiedPayroll, color: 'text-indigo-600 bg-indigo-50 border-indigo-200' },
-                                { label: 'PER DIEM', val: schedule.perDiem },
-                                { label: 'NOTIFY', val: schedule.notifyAssignees }
-                            ].map((flag) => {
-                                // Determine display value
-                                const s = String(flag.val || '').trim();
-                                const isFalse = !flag.val || s.toLowerCase() === 'no' || s.toLowerCase() === 'false' || s === '0';
-                                
-                                let displayVal = 'No';
-                                if (!isFalse) {
-                                    if (s.toLowerCase() === 'yes' || s.toLowerCase() === 'true' || s === '1') displayVal = 'Yes';
-                                    else displayVal = s;
-                                }
+                        {/* ROW 7: Tag, Notify, Per Diem, Payroll - 4 Columns */}
+                        {schedule.item !== 'Day Off' && (
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+                                {[
+                                    { label: 'Tag', val: schedule.item || 'N/A' },
+                                    { label: 'Notify', val: schedule.notifyAssignees },
+                                    { label: 'Per Diem', val: schedule.perDiem },
+                                    { label: 'Payroll', val: schedule.certifiedPayroll }
+                                ].map((flag, idx) => {
+                                    const valString = flag.val === true ? 'Yes' : (flag.val === false ? 'No' : (flag.val || (idx === 0 ? 'N/A' : 'No')));
+                                    const constant = constants?.find((c: any) => c.description === valString || c.value === valString);
+                                    const isYes = ['Yes', 'TRUE'].includes(String(valString));
+                                    
+                                    const color = constant?.color || (isYes ? '#10b981' : (idx === 0 ? '#0F4C75' : '#94a3b8'));
+                                    const bgColor = constant?.color ? `${constant.color}15` : (isYes ? '#ecfdf5' : (idx === 0 ? '#E6EEF8' : '#f8fafc'));
+                                    const textColor = constant?.color || (isYes ? '#059669' : (idx === 0 ? '#0F4C75' : '#64748b'));
+                                    const borderColor = constant?.color ? `${constant.color}30` : (isYes ? '#d1fae5' : (idx === 0 ? '#bfdbfe' : '#f1f5f9'));
 
-                                const isActive = !isFalse;
-                                
-                                return (
-                                    <div key={flag.label} className={`
-                                        rounded-xl border flex flex-col items-center justify-center p-3 h-20 transition-all text-center
-                                        ${isActive ? (flag.color || 'text-slate-800 bg-slate-50 border-slate-300') : 'text-slate-300 border-slate-100 bg-white/50'}
-                                    `}>
-                                        <span className="text-[10px] font-black uppercase mb-1 opacity-70">{flag.label}</span>
-                                        <span className={`text-xs font-bold leading-tight line-clamp-2 ${isActive ? '' : 'text-slate-300'}`}>
-                                            {displayVal}
-                                        </span>
-                                    </div>
-                                );
-                            })}
-                        </div>
+                                    return (
+                                        <div key={idx}>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">{flag.label}</p>
+                                            <Badge className="gap-1.5 pl-2 pr-3 py-1 border transition-all w-fit" style={{ backgroundColor: bgColor, color: textColor, borderColor }}>
+                                                <div className="w-1.5 h-1.5 rounded-full shadow-sm" style={{ backgroundColor: color }} />
+                                                {valString}
+                                            </Badge>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
 
                         {/* ROW 8: Objectives */}
                         {schedule.todayObjectives && schedule.todayObjectives.length > 0 && (

@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Upload, Clock, Import, ClipboardList, FileSpreadsheet, FileText, Loader2, ChevronRight, RefreshCw, Image, Footprints, DollarSign, Layout, Receipt, Link as LinkIcon, MapPin, FileBarChart, Search, X, Drill, GraduationCap, FlaskConical } from 'lucide-react';
 import { Header, PageHeader, EmptyState } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
-import Papa from 'papaparse';
+
 
 export default function ImportsPage() {
     const { success, error: toastError } = useToast();
@@ -96,6 +96,7 @@ export default function ImportsPage() {
         reader.onload = async (event) => {
             try {
                 const text = event.target?.result as string;
+                const Papa = (await import('papaparse')).default;
                 const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
                 if (!data || data.length === 0) throw new Error("No data found in CSV");
 
@@ -131,6 +132,7 @@ export default function ImportsPage() {
             try {
                 const text = event.target?.result as string;
                 // Use PapaParse
+                const Papa = (await import('papaparse')).default;
                 const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
                 if (!data || data.length === 0) throw new Error("No data found in CSV");
 
@@ -326,6 +328,7 @@ export default function ImportsPage() {
         reader.onload = async (event) => {
             try {
                 const text = event.target?.result as string;
+                const Papa = (await import('papaparse')).default;
                 const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
                 
                 const res = await fetch('/api/jha', {
@@ -554,10 +557,11 @@ export default function ImportsPage() {
         reader.onload = async (event) => {
             try {
                 const text = event.target?.result as string;
+                const Papa = (await import('papaparse')).default;
                 const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
                 if (!data || data.length === 0) throw new Error("No data found in CSV");
 
-                const res = await fetch('/api/webhook/devcoBackend', {
+                const res = await fetch('/api/misc', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'importReceiptsAndCosts', payload: { records: data } })
@@ -588,10 +592,11 @@ export default function ImportsPage() {
         reader.onload = async (event) => {
             try {
                 const text = event.target?.result as string;
+                const Papa = (await import('papaparse')).default;
                 const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
                 if (!data || data.length === 0) throw new Error("No data found in CSV");
 
-                const res = await fetch('/api/webhook/devcoBackend', {
+                const res = await fetch('/api/misc', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'importPlanningDocs', payload: { records: data } })
@@ -622,6 +627,7 @@ export default function ImportsPage() {
         reader.onload = async (event) => {
             try {
                 const text = event.target?.result as string;
+                const Papa = (await import('papaparse')).default;
                 const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
                 if (!data || data.length === 0) throw new Error("No data found in CSV");
 
@@ -669,7 +675,7 @@ export default function ImportsPage() {
                     return cleanRow;
                 });
 
-                const res = await fetch('/api/webhook/devcoBackend', {
+                const res = await fetch('/api/misc', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'importBillingTickets', payload: { records: processedData } })
@@ -700,6 +706,7 @@ export default function ImportsPage() {
         reader.onload = async (event) => {
             try {
                 const text = event.target?.result as string;
+                const Papa = (await import('papaparse')).default;
                 const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
                 if (!data || data.length === 0) throw new Error("No data found in CSV");
 
@@ -734,6 +741,7 @@ export default function ImportsPage() {
         reader.onload = async (event) => {
             try {
                 const text = event.target?.result as string;
+                const Papa = (await import('papaparse')).default;
                 const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
                 if (!data || data.length === 0) throw new Error("No data found in CSV");
 
@@ -768,6 +776,7 @@ export default function ImportsPage() {
         reader.onload = async (event) => {
             try {
                 const text = event.target?.result as string;
+                const Papa = (await import('papaparse')).default;
                 const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
                 if (!data || data.length === 0) throw new Error("No data found in CSV");
 
@@ -802,6 +811,7 @@ export default function ImportsPage() {
         reader.onload = async (event) => {
             try {
                 const text = event.target?.result as string;
+                const Papa = (await import('papaparse')).default;
                 const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
                 if (!data || data.length === 0) throw new Error("No data found in CSV");
 
@@ -864,6 +874,7 @@ export default function ImportsPage() {
         reader.onload = async (event) => {
             try {
                 const text = event.target?.result as string;
+                const Papa = (await import('papaparse')).default;
                 const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
                 if (!data || data.length === 0) throw new Error("No data found in CSV");
 
@@ -898,10 +909,11 @@ export default function ImportsPage() {
         reader.onload = async (event) => {
             try {
                 const text = event.target?.result as string;
+                const Papa = (await import('papaparse')).default;
                 const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
                 if (!data || data.length === 0) throw new Error("No data found in CSV");
 
-                const res = await fetch('/api/webhook/devcoBackend', {
+                const res = await fetch('/api/misc', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'importDrugTestingRecords', payload: { records: data } })
@@ -932,6 +944,7 @@ export default function ImportsPage() {
         reader.onload = async (event) => {
             try {
                 const text = event.target?.result as string;
+                const Papa = (await import('papaparse')).default;
                 const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
                 if (!data || data.length === 0) throw new Error("No data found in CSV");
 

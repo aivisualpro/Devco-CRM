@@ -9,6 +9,7 @@ import { Header, ConfirmModal, Table, TableHead, TableBody, TableRow, TableHeade
 import { useToast } from '@/hooks/useToast';
 import { useCurrentUser } from '@/lib/context/AppContext';
 import { ClientHeaderCard, AccordionCard, DetailRow, DocumentGallery, DocumentPreviewModal } from './components';
+import { PageSkeleton } from './loading';
 
 // Types (Mirrors Client Interface)
 interface ClientContact {
@@ -118,13 +119,30 @@ function ClientViewPageContent() {
     });
 
     // API Call Helper
-    const apiCall = async (action: string, payload: Record<string, unknown> = {}) => {
-        const res = await fetch('/api/webhook/devcoBackend', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action, payload })
-        });
-        return res.json();
+    const apiCall = async (action: string, payload: Record<string, any> = {}) => {
+        try {
+            let url = '';
+            let method = 'POST';
+            let body: any = payload;
+
+            if (action === 'getClientById') { url = `/api/clients/${payload.id}`; method = 'GET'; }
+            else if (action === 'updateClient') { url = `/api/clients/${payload.id}`; method = 'PATCH'; body = payload.item; }
+            else if (action === 'deleteClient') { url = `/api/clients/${payload.id}`; method = 'DELETE'; }
+            else if (action === 'getEstimatesByCustomerId') { url = `/api/estimates?customerId=${payload.customerId}&limit=500`; method = 'GET'; }
+            else if (action === 'getConstants') { url = '/api/constants'; method = 'GET'; }
+            else if (action === 'getEmployees') { url = '/api/employees'; method = 'GET'; }
+            else if (action === 'deleteDocumentFiles') { url = '/api/misc'; method = 'POST'; body = { action, payload }; }
+            else if (action === 'createEstimate') { url = '/api/estimates'; method = 'POST'; body = payload; }
+
+            const options: RequestInit = { method, headers: { 'Content-Type': 'application/json' } };
+            if (method !== 'GET') options.body = JSON.stringify(body);
+
+            const res = await fetch(url, options);
+            return await res.json();
+        } catch (err) {
+            console.error('API Error:', err);
+            return { success: false, error: String(err) };
+        }
     };
 
     const loadClient = async (silent = false) => {
@@ -661,17 +679,7 @@ function ClientViewPageContent() {
 
 
     if (loading) {
-        return (
-            <>
-                <Header />
-                <div className="flex-1 p-8 flex items-center justify-center">
-                    <div className="flex flex-col items-center gap-4">
-                        <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-                        <p className="text-gray-400 font-medium">Loading Client Profile...</p>
-                    </div>
-                </div>
-            </>
-        );
+        return <PageSkeleton />;
     }
 
     if (!client) return null;
@@ -682,7 +690,7 @@ function ClientViewPageContent() {
                 <Header
                     leftContent={
                         <button
-                            onClick={() => router.push(fromPath || '/clients')}
+                            onMouseEnter={() => router.prefetch(fromPath || '/clients')} onClick={() => router.push(fromPath || '/clients')}
                             className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors"
                             title={fromPath ? "Go Back" : "Back to List"}
                         >

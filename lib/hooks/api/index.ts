@@ -116,3 +116,54 @@ export const useInfiniteConstants = constantsHooks.useInfiniteResource;
 const contactsHooks = createResourceHooks<BaseParams>('/api/contacts');
 export const useContacts = contactsHooks.useResource;
 export const useInfiniteContacts = contactsHooks.useInfiniteResource;
+
+// ─── Global Employee Lookup Hook ──────────────────────────────────────
+// Returns ALL active employees for lookup/dropdown/avatar use.
+// Cached aggressively because employee list changes rarely.
+import { useMemo } from 'react';
+
+interface EmployeeLookup {
+    _id: string;
+    email: string;
+    firstName?: string;
+    lastName?: string;
+    profilePicture?: string;
+    companyPosition?: string;
+    status?: string;
+    [key: string]: any;
+}
+
+const allEmployeesFetcher = async (url: string) => {
+    const res = await fetch(url);
+    const data = await res.json();
+    return data.items || [];
+};
+
+export function useAllEmployees() {
+    const { data, error, isLoading, mutate } = useSWR<EmployeeLookup[]>(
+        '/api/employees?limit=100&status=Active',
+        allEmployeesFetcher,
+        {
+            revalidateOnFocus: false,
+            revalidateIfStale: false,
+            dedupingInterval: 5 * 60 * 1000, // 5 minutes
+            keepPreviousData: true,
+        }
+    );
+
+    const employees = data || [];
+
+    const getByEmail = useMemo(() => {
+        const map = new Map<string, EmployeeLookup>();
+        for (const emp of employees) {
+            if (emp.email) map.set(emp.email.toLowerCase(), emp);
+            if (emp._id && emp._id !== emp.email) map.set(emp._id.toLowerCase(), emp);
+        }
+        return (email: string) => {
+            if (!email) return null;
+            return map.get(email.toLowerCase()) || null;
+        };
+    }, [employees]);
+
+    return { employees, getByEmail, isLoading, error, mutate };
+}

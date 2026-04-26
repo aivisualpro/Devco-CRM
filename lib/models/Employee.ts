@@ -161,7 +161,9 @@ EmployeeSchema.index({ firstName: 'text', lastName: 'text', email: 'text' });
 
 // Force fresh model registration to pick up schema changes across hot reloads
 if (mongoose.models.Employee) {
-    delete mongoose.models.Employee;
+    if (process.env.NODE_ENV === 'development') {
+        delete mongoose.models.Employee;
+    }
 }
 const Employee: Model<IEmployee> = mongoose.model<IEmployee>('Employee', EmployeeSchema);
 

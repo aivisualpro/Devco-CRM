@@ -30,6 +30,7 @@ import { cn } from '@/lib/utils';
 import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS, DATA_SCOPE } from '@/lib/permissions/types';
 import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
+import { useAllEmployees } from '@/lib/hooks/api';
 
 interface Estimate {
     _id: string;
@@ -88,7 +89,7 @@ export default function ReceiptsCostsPage() {
     const [receiptToDelete, setReceiptToDelete] = useState<FlatReceipt | null>(null);
     const [saving, setSaving] = useState(false);
 
-    const [employees, setEmployees] = useState<any[]>([]); // For ReceiptModal tags
+    const { employees } = useAllEmployees(); // For ReceiptModal tags
 
     // Filter Tabs
     const [approvalFilter, setApprovalFilter] = useState<'All' | 'Approved' | 'Not Approved'>('All');
@@ -152,14 +153,6 @@ export default function ReceiptsCostsPage() {
 
     useEffect(() => {
         fetchEstimates();
-
-        // Fetch employees
-        fetch(`/api/employees`)
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) setEmployees(data.result || []);
-            })
-            .catch(console.error);
     }, []);
 
     // Derived State: Flattened Receipts
@@ -706,7 +699,7 @@ export default function ReceiptsCostsPage() {
                                                     <TableCell>
                                                         <span
                                                             className="font-semibold text-[#0F4C75] text-xs cursor-pointer hover:underline"
-                                                            onClick={() => router.push(`/estimates/${receipt.estimateNumber}`)}
+                                                            onMouseEnter={() => router.prefetch(`/estimates/${receipt.estimateNumber}`)} onClick={() => router.push(`/estimates/${receipt.estimateNumber}`)}
                                                         >
                                                             {receipt.estimateNumber || 'N/A'}
                                                         </span>

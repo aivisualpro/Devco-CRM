@@ -27,6 +27,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
 import { cn } from '@/lib/utils';
 import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
+import { useAllEmployees } from '@/lib/hooks/api';
 
 const INSPECTION_TYPES = ['General Maintenance', 'Project Specific'];
 const INSPECTION_FREQUENCIES = ['Daily', 'Weekly', 'Monthly', 'Quarterly', 'Bi-Annually', 'Annually'];
@@ -107,7 +108,7 @@ export default function EquipmentInspectionPage() {
     const [inspections, setInspections] = useState<EquipmentInspection[]>([]);
     const [estimates, setEstimates] = useState<Estimate[]>([]);
     const [vehicles, setVehicles] = useState<VehicleDoc[]>([]);
-    const [employees, setEmployees] = useState<Employee[]>([]);
+    const { employees, getByEmail: getEmployeeByEmail } = useAllEmployees();
     const [loading, setLoading] = useState(true);
 
     // UI states
@@ -175,25 +176,23 @@ export default function EquipmentInspectionPage() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [inspRes, estRes, vehRes, empRes] = await Promise.all([
+            const [inspRes, estRes, vehRes] = await Promise.all([
                 fetch('/api/equipment-inspection', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'getAll', payload: {} })
                 }),
                 fetch(`/api/estimates?limit=1000`),
-                fetch('/api/vehicle-docs'),
-                fetch(`/api/employees`)
+                fetch('/api/vehicle-docs')
             ]);
 
-            const [inspData, estData, vehData, empData] = await Promise.all([
-                inspRes.json(), estRes.json(), vehRes.json(), empRes.json()
+            const [inspData, estData, vehData] = await Promise.all([
+                inspRes.json(), estRes.json(), vehRes.json()
             ]);
 
             if (inspData.success) setInspections(inspData.result || []);
             if (estData.success) setEstimates(estData.result || []);
             if (vehData.success) setVehicles(vehData.docs || []);
-            if (empData.success) setEmployees(empData.result || []);
         } catch (err) {
             console.error(err);
             toast.error('Failed to fetch data');
@@ -247,10 +246,7 @@ export default function EquipmentInspectionPage() {
         return vehicles.find(v => `${v.unit} - ${v.unitNumber}` === formData.equipment) || null;
     }, [formData.equipment, vehicles]);
 
-    const getEmployeeByEmail = (email: string) => {
-        if (!email) return null;
-        return employees.find(e => e.email?.toLowerCase() === email.toLowerCase());
-    };
+
 
     // Sorting
     const handleSort = (key: string) => {
@@ -737,7 +733,7 @@ export default function EquipmentInspectionPage() {
                                                     size="icon"
                                                     variant="ghost"
                                                     className="h-7 w-7 text-slate-400 hover:text-[#0F4C75]"
-                                                    onClick={(e) => { e.stopPropagation(); router.push(`/docs/equipment-inspection/${record._id}`); }}
+                                                    onMouseEnter={() => router.prefetch(`/docs/equipment-inspection/${record._id}`)} onClick={(e) => { e.stopPropagation(); router.push(`/docs/equipment-inspection/${record._id}`); }}
                                                     title="View Details"
                                                 >
                                                     <ChevronRight size={14} />
@@ -835,7 +831,7 @@ export default function EquipmentInspectionPage() {
                                                 <TableRow
                                                     key={record._id}
                                                     className="group hover:bg-slate-50 transition-colors cursor-pointer"
-                                                    onClick={() => router.push(`/docs/equipment-inspection/${record._id}`)}
+                                                    onMouseEnter={() => router.prefetch(`/docs/equipment-inspection/${record._id}`)} onClick={() => router.push(`/docs/equipment-inspection/${record._id}`)}
                                                 >
                                                     <TableCell className="font-medium text-slate-700 text-xs whitespace-nowrap">
                                                         {record.date && !isNaN(new Date(record.date).getTime()) ? formatWallDate(record.date) : '-'}
@@ -1399,7 +1395,7 @@ export default function EquipmentInspectionPage() {
                     </div>
 
                     <DialogFooter className="mt-6">
-                        <Button variant="outline" onClick={() => { setIsModalOpen(false); if (returnTo) router.push(returnTo); }}>Cancel</Button>
+                        <Button variant="outline" onMouseEnter={() => returnTo && router.prefetch(returnTo)} onClick={() => { setIsModalOpen(false); if (returnTo) router.push(returnTo); }}>Cancel</Button>
                         <Button onClick={handleSave} disabled={saving} className="bg-[#0F4C75] hover:bg-[#0a3a5c]">
                             {saving ? 'Saving...' : (editingRecord ? 'Update' : 'Create')}
                         </Button>

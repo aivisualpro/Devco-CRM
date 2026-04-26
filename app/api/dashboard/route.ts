@@ -79,17 +79,17 @@ export async function GET(request: NextRequest) {
 
                 // Optional fetching based on section
                 const schedulesPromise = (section === 'all' || section === 'schedules') 
-                    ? Schedule.find(scheduleQuery).lean().select('_id title fromDate toDate customerName jobAddress status service item assignees assigneeCount foremanName estimate description timesheet')
+                    ? Schedule.find(scheduleQuery).lean({ virtuals: true }).select('_id title fromDate toDate customerName jobAddress status service item assignees assigneeCount foremanName projectManager estimate description jha djt changeOfScope timesheet timesheetSummary fringe certifiedPayroll perDiem notifyAssignees todayObjectives aerialImage siteLayout')
                     : Promise.resolve([]);
 
                 // 1b. Timecard Schedules
                 const startMinus30 = new Date(startDate);
                 startMinus30.setDate(startMinus30.getDate() - 30);
-                const timecardSchedulesPromise = (section === 'all' || section === 'schedules')
+                const timecardSchedulesPromise = (section === 'all' || section === 'timecards')
                     ? Schedule.find({
                         fromDate: { $gte: startMinus30, $lte: endDate },
                         'timesheet.0': { $exists: true }
-                      }).lean().select('_id title fromDate toDate customerName jobAddress status service item assignees assigneeCount foremanName estimate description timesheet')
+                      }).lean().select('_id title fromDate toDate customerName jobAddress status service item assignees assigneeCount foremanName projectManager estimate description timesheet jha djt changeOfScope fringe certifiedPayroll perDiem notifyAssignees todayObjectives aerialImage siteLayout')
                     : Promise.resolve([]);
 
                 // 2. Estimate Stats
@@ -112,6 +112,8 @@ export async function GET(request: NextRequest) {
                     const estStart = new Date(now.getFullYear() - 1, 0, 1);
                     const estEnd = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59);
                     estMatch = { createdAt: { $gte: estStart, $lte: estEnd } };
+                } else if (filterParam === 'this_week') {
+                    estMatch = { createdAt: { $gte: startDate, $lte: endDate } };
                 }
 
                 const estimateStatsPromise = (section === 'all' || section === 'stats')

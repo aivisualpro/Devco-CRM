@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/useToast';
 import { useCurrentUser } from '@/lib/context/AppContext';
 import { useAddShortcut } from '@/hooks/useAddShortcut';
 import { cld } from '@/lib/cld';
+import { useAllEmployees } from '@/lib/hooks/api';
 
 interface Estimate {
     _id: string;
@@ -96,7 +97,7 @@ export default function EstimatesTable({ initialData }: { initialData?: any[] })
     const [showKnowledgeBase, setShowKnowledgeBase] = useState(false);
 
     const [constants, setConstants] = useState<any[]>([]);
-    const [employees, setEmployees] = useState<any[]>([]);
+    const { employees, getByEmail } = useAllEmployees();
     const [clients, setClients] = useState<any[]>([]);
     const [statusDropdownId, setStatusDropdownId] = useState<string | null>(null);
     const [wonConfirmationId, setWonConfirmationId] = useState<string | null>(null);
@@ -135,7 +136,16 @@ export default function EstimatesTable({ initialData }: { initialData?: any[] })
         else if (estimates.length === 0) setLoading(true); // Only show skeleton when table is empty
 
         try {
-            const res = await fetch(`/api/estimates?limit=30`);
+            const params = new URLSearchParams({
+                limit: '30',
+                page: pageToFetch.toString(),
+                filter: activeFilter,
+                sortKey: sortConfig.key,
+                sortDirection: sortConfig.direction,
+            });
+            if (search) params.append('search', search);
+
+            const res = await fetch(`/api/estimates?${params.toString()}`);
             const data = await res.json();
             if (data.success) {
                 const newEstimates = data.result || [];
@@ -310,37 +320,33 @@ export default function EstimatesTable({ initialData }: { initialData?: any[] })
         const SUPPORT_CACHE_KEY = 'devco_support_data_cache';
         const SUPPORT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-        const applyData = (constData: any[], empData: any[], clientData: any[]) => {
+        const applyData = (constData: any[], clientData: any[]) => {
             if (constData.length > 0) setConstants(constData);
-            if (empData.length > 0) setEmployees(empData);
             if (clientData.length > 0) setClients(clientData);
         };
 
         const fetchFresh = async () => {
-            const [constRes, empRes, clientRes] = await Promise.all([
+            const [constRes, clientRes] = await Promise.all([
                 fetch(`/api/constants`),
-                fetch(`/api/employees`),
                 fetch(`/api/clients`)
             ]);
             const constData = await constRes.json();
-            const empData = await empRes.json();
             const clientData = await clientRes.json();
 
             const constants = constData.success ? constData.result : [];
-            const employees = empData.success ? empData.result : [];
             const clients = clientData.success ? clientData.result : [];
 
-            applyData(constants, employees, clients);
+            applyData(constants, clients);
 
             // Save to cache
             try {
                 sessionStorage.setItem(SUPPORT_CACHE_KEY, JSON.stringify({
-                    data: { constants, employees, clients },
+                    data: { constants, clients },
                     timestamp: Date.now()
                 }));
             } catch (e) {}
 
-            return { constants, employees, clients };
+            return { constants, clients };
         };
 
         // Try cache first
@@ -349,7 +355,7 @@ export default function EstimatesTable({ initialData }: { initialData?: any[] })
             if (cached) {
                 const { data, timestamp } = JSON.parse(cached);
                 if (Date.now() - timestamp < SUPPORT_CACHE_TTL) {
-                    applyData(data.constants || [], data.employees || [], data.clients || []);
+                    applyData(data.constants || [], data.clients || []);
                     // Stale-while-revalidate: refresh in background
                     fetchFresh().catch(() => {});
                     return;
@@ -397,7 +403,7 @@ export default function EstimatesTable({ initialData }: { initialData?: any[] })
     };
 
     const getEmployee = (email: string) => {
-        return employees.find(e => e.email === email);
+        return getByEmail(email);
     };
 
     const getCustomerName = (est: Estimate) => {
@@ -535,6 +541,30 @@ export default function EstimatesTable({ initialData }: { initialData?: any[] })
         return `$${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} `;
     };
 
+    const getDisplayTotals = (e: Estimate) => {
+        let subTotal = e.subTotal || 0;
+        let margin = e.margin || 0;
+        let grandTotal = e.grandTotal || 0;
+        const markupStr = e.bidMarkUp ? String(e.bidMarkUp).replace('%', '') : '0';
+        const markup = parseFloat(markupStr) / 100 || 0;
+
+        if (subTotal === 0 && grandTotal === 0 && margin > 0 && markup > 0) {
+            subTotal = margin / markup;
+            grandTotal = subTotal + margin;
+        } else if (subTotal === 0 && grandTotal > 0 && margin > 0) {
+            subTotal = grandTotal - margin;
+        } else if (grandTotal === 0 && subTotal > 0 && margin > 0) {
+            grandTotal = subTotal + margin;
+        } else if (margin === 0 && subTotal > 0 && grandTotal > 0) {
+            margin = grandTotal - subTotal;
+        } else if (subTotal === 0 && margin === 0 && grandTotal > 0 && markup > 0) {
+            subTotal = grandTotal / (1 + markup);
+            margin = grandTotal - subTotal;
+        }
+
+        return { subTotal, margin, grandTotal };
+    };
+
     return (
         <div className="flex flex-col h-full">
             <div className="flex-none">
@@ -664,14 +694,18 @@ export default function EstimatesTable({ initialData }: { initialData?: any[] })
 
                                         return (
                                             <div
-                                                key={est._id}
-                                                className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 active:scale-[0.98] transition-all"
-                                                onClick={() => {
-                                                    const slug = est.estimate ? `${est.estimate}-V${est.versionNumber || 1}` : est._id;
-                                                    sessionStorage.setItem(`preload_estimate_${slug}`, JSON.stringify(est));
-                                                    router.push(`/estimates/${slug}`);
-                                                }}
-                                            >
+        key={est._id}
+        className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 active:scale-[0.98] transition-all cursor-pointer"
+        onMouseEnter={() => {
+            const slug = est.estimate ? `${est.estimate}-V${est.versionNumber || 1}` : est._id;
+            router.prefetch(`/estimates/${slug}`);
+        }}
+        onClick={() => {
+            const slug = est.estimate ? `${est.estimate}-V${est.versionNumber || 1}` : est._id;
+            sessionStorage.setItem(`preload_estimate_${slug}`, JSON.stringify(est));
+            router.push(`/estimates/${slug}`);
+        }}
+    >
                                                 {/* Top Row: Est # + Status */}
                                                 <div className="flex items-center justify-between mb-2">
                                                     <div className="flex items-center gap-2">
@@ -716,7 +750,7 @@ export default function EstimatesTable({ initialData }: { initialData?: any[] })
                                                     <div className="flex items-center gap-2">
                                                         {/* Grand Total */}
                                                         <span className="text-sm font-black text-slate-800">
-                                                            {formatCurrency(est.grandTotal)}
+                                                            {formatCurrency(getDisplayTotals(est).grandTotal)}
                                                         </span>
                                                         {/* Markup */}
                                                         {est.bidMarkUp && (
@@ -864,14 +898,18 @@ export default function EstimatesTable({ initialData }: { initialData?: any[] })
 
                                                 return (
                                                     <TableRow
-                                                        key={est._id}
-                                                        className="cursor-pointer hover:bg-gray-50 transition-colors"
-                                                        onClick={() => {
-                                                            const slug = est.estimate ? `${est.estimate}-V${est.versionNumber || 1}` : est._id;
-                                                            sessionStorage.setItem(`preload_estimate_${slug}`, JSON.stringify(est));
-                                                            router.push(`/estimates/${slug}`);
-                                                        }}
-                                                    >
+        key={est._id}
+        className="cursor-pointer hover:bg-gray-50 transition-colors"
+        onMouseEnter={() => {
+            const slug = est.estimate ? `${est.estimate}-V${est.versionNumber || 1}` : est._id;
+            router.prefetch(`/estimates/${slug}`);
+        }}
+        onClick={() => {
+            const slug = est.estimate ? `${est.estimate}-V${est.versionNumber || 1}` : est._id;
+            sessionStorage.setItem(`preload_estimate_${slug}`, JSON.stringify(est));
+            router.push(`/estimates/${slug}`);
+        }}
+    >
                                                         <TableCell className="font-medium text-slate-800 text-xs whitespace-nowrap">
                                                             {est.estimate || '-'}
                                                         </TableCell>
@@ -978,7 +1016,7 @@ export default function EstimatesTable({ initialData }: { initialData?: any[] })
                                                             </div>
                                                         </TableCell>
                                                         <TableCell className="font-medium text-slate-800 text-xs whitespace-nowrap">
-                                                            {formatCurrency(est.subTotal)}
+                                                            {formatCurrency(getDisplayTotals(est).subTotal)}
                                                         </TableCell>
                                                         <TableCell>
                                                             <span className="text-xs font-medium text-slate-600">
@@ -986,16 +1024,16 @@ export default function EstimatesTable({ initialData }: { initialData?: any[] })
                                                             </span>
                                                         </TableCell>
                                                         <TableCell className="font-semibold text-green-600 text-xs whitespace-nowrap">
-                                                            {formatCurrency(est.margin)}
+                                                            {formatCurrency(getDisplayTotals(est).margin)}
                                                         </TableCell>
                                                         <TableCell className="font-bold text-slate-800 text-xs whitespace-nowrap">
-                                                            {formatCurrency(est.grandTotal)}
+                                                            {formatCurrency(getDisplayTotals(est).grandTotal)}
                                                         </TableCell>
                                                         <TableCell className="font-medium text-amber-600 text-xs whitespace-nowrap">
                                                             {(() => {
                                                                 const coTotal = estimates
                                                                     .filter(e => e.estimate === est.estimate && e.isChangeOrder)
-                                                                    .reduce((sum, e) => sum + (e.grandTotal || 0), 0);
+                                                                    .reduce((sum, e) => sum + (getDisplayTotals(e).grandTotal), 0);
                                                                 return formatCurrency(coTotal);
                                                             })()}
                                                         </TableCell>
@@ -1003,8 +1041,8 @@ export default function EstimatesTable({ initialData }: { initialData?: any[] })
                                                             {(() => {
                                                                 const coTotal = estimates
                                                                     .filter(e => e.estimate === est.estimate && e.isChangeOrder)
-                                                                    .reduce((sum, e) => sum + (e.grandTotal || 0), 0);
-                                                                return formatCurrency((est.grandTotal || 0) + coTotal);
+                                                                    .reduce((sum, e) => sum + (getDisplayTotals(e).grandTotal), 0);
+                                                                return formatCurrency(getDisplayTotals(est).grandTotal + coTotal);
                                                             })()}
                                                         </TableCell>
                                                         <TableCell onClick={(e) => e.stopPropagation()}>

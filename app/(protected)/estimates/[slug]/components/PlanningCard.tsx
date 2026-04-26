@@ -234,7 +234,7 @@ export const PlanningCard: React.FC<PlanningCardProps> = ({
 
         if (urlsToDelete.length > 0) {
             try {
-                await fetch('/api/webhook/devcoBackend', {
+                await fetch('/api/misc', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
