@@ -463,13 +463,6 @@ EstimateSchema.index({ estimate: 1, status: 1 });   // compound
 EstimateSchema.index({ customerId: 1, createdAt: -1 });
 EstimateSchema.index({ title: 'text', description: 'text', estimate: 'text' });
 
-// Force model recompilation to ensure schema changes are picked up
-if (mongoose.models.Estimate) {
-    if (process.env.NODE_ENV === 'development') {
-        delete mongoose.models.Estimate;
-    }
-}
-
-const Estimate: Model<IEstimate> = mongoose.model<IEstimate>('Estimate', EstimateSchema);
+const Estimate: Model<IEstimate> = mongoose.models.Estimate || mongoose.model<IEstimate>('Estimate', EstimateSchema);
 
 export default Estimate;

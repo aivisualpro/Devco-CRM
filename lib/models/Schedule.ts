@@ -353,12 +353,6 @@ ScheduleSchema.index({ customerId: 1, fromDate: -1 });
 ScheduleSchema.index({ customerName: 1, fromDate: -1 });
 ScheduleSchema.index({ estimate: 1 });
 
-if (mongoose.models.Schedule) {
-    if (process.env.NODE_ENV === 'development') {
-        delete mongoose.models.Schedule;
-    }
-}
-
-const Schedule: Model<ISchedule> = mongoose.model<ISchedule>('Schedule', ScheduleSchema);
+const Schedule = mongoose.models.Schedule || mongoose.model('Schedule', ScheduleSchema);
 
 export default Schedule;

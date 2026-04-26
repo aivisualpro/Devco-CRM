@@ -67,13 +67,6 @@ const PotholeLogSchema: Schema = new Schema({
     timestamps: true
 });
 
-// Force model recompilation to ensure schema changes are picked up
-if (mongoose.models.PotholeLog) {
-    if (process.env.NODE_ENV === 'development') {
-        delete mongoose.models.PotholeLog;
-    }
-}
-
-const PotholeLog = mongoose.model<IPotholeLog>('PotholeLog', PotholeLogSchema);
+const PotholeLog = mongoose.models.PotholeLog || mongoose.model('PotholeLog', PotholeLogSchema);
 
 export default PotholeLog;

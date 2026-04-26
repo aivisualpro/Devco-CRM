@@ -60,12 +60,6 @@ const DevcoQuickBooksSchema = new Schema({
 });
 
 // Handle Next.js Hot Reload
-if (mongoose.models.DevcoQuickBooks) {
-    if (process.env.NODE_ENV === 'development') {
-        delete mongoose.models.DevcoQuickBooks;
-    }
-}
-
-const DevcoQuickBooks: Model<IDevcoQuickBooks> = mongoose.model<IDevcoQuickBooks>('DevcoQuickBooks', DevcoQuickBooksSchema);
+const DevcoQuickBooks = mongoose.models.DevcoQuickBooks || mongoose.model('DevcoQuickBooks', DevcoQuickBooksSchema);
 
 export default DevcoQuickBooks;

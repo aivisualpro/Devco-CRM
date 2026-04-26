@@ -50,12 +50,6 @@ const PrelimDocSchema = new Schema<IPrelimDoc>(
 );
 
 // Force re-register in dev (hot reload caches old schema with 'type' field)
-if (mongoose.models.PrelimDoc) {
-    if (process.env.NODE_ENV === 'development') {
-        delete mongoose.models.PrelimDoc;
-    }
-}
-
-const PrelimDoc: Model<IPrelimDoc> = mongoose.model<IPrelimDoc>('PrelimDoc', PrelimDocSchema);
+const PrelimDoc = mongoose.models.PrelimDoc || mongoose.model('PrelimDoc', PrelimDocSchema);
 
 export default PrelimDoc;

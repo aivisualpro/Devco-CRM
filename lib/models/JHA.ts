@@ -129,12 +129,6 @@ JHASchema.index({ schedule_id: 1 });
 JHASchema.index({ date: -1 });
 JHASchema.index({ createdAt: -1 });
 
-// Force model recompilation to ensure schema changes are picked up
-if (mongoose.models.JHA) {
-    if (process.env.NODE_ENV === 'development') {
-        delete mongoose.models.JHA;
-    }
-}
-const JHA = mongoose.model<IJHA>('JHA', JHASchema);
+const JHA = mongoose.models.JHA || mongoose.model('JHA', JHASchema);
 
 export default JHA;

@@ -31,12 +31,6 @@ const DJTSignatureSchema: Schema = new Schema({
     timestamps: true
 });
 
-// Force model recompilation to ensure schema changes are picked up
-if (mongoose.models.DJTSignature) {
-    if (process.env.NODE_ENV === 'development') {
-        delete mongoose.models.DJTSignature;
-    }
-}
-const DJTSignature = mongoose.model<IDJTSignature>('DJTSignature', DJTSignatureSchema);
+const DJTSignature = mongoose.models.DJTSignature || mongoose.model('DJTSignature', DJTSignatureSchema);
 
 export default DJTSignature;

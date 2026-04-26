@@ -33,11 +33,6 @@ NotificationSchema.index({ recipientEmail: 1, read: 1, createdAt: -1 });
 // TTL index: auto-delete notifications older than 90 days
 NotificationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 });
 
-// Prevent model overwrite in development
-if (process.env.NODE_ENV === 'development') {
-    delete mongoose.models.Notification;
-}
-
 const Notification: Model<INotification & Document> = mongoose.models.Notification || mongoose.model<INotification & Document>('Notification', NotificationSchema);
 
 export default Notification;

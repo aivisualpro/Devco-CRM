@@ -88,13 +88,6 @@ const PreBoreLogSchema: Schema = new Schema({
     collection: 'preborelogs'
 });
 
-// Force model recompilation to ensure schema changes are picked up
-if (mongoose.models.PreBoreLog) {
-    if (process.env.NODE_ENV === 'development') {
-        delete mongoose.models.PreBoreLog;
-    }
-}
-
-const PreBoreLog = mongoose.model<IPreBoreLog>('PreBoreLog', PreBoreLogSchema);
+const PreBoreLog = mongoose.models.PreBoreLog || mongoose.model('PreBoreLog', PreBoreLogSchema);
 
 export default PreBoreLog;

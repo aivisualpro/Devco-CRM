@@ -41,12 +41,6 @@ const EquipmentInspectionSchema = new Schema<IEquipmentInspection>({
     collection: 'DevcoEquipmentInspectionChecklist'
 });
 
-if (mongoose.models.EquipmentInspection) {
-    if (process.env.NODE_ENV === 'development') {
-        delete mongoose.models.EquipmentInspection;
-    }
-}
-
-const EquipmentInspection: Model<IEquipmentInspection> = mongoose.model<IEquipmentInspection>('EquipmentInspection', EquipmentInspectionSchema);
+const EquipmentInspection = mongoose.models.EquipmentInspection || mongoose.model('EquipmentInspection', EquipmentInspectionSchema);
 
 export default EquipmentInspection;

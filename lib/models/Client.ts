@@ -95,12 +95,6 @@ ClientSchema.index({ 'contacts.0.email': 1 });
 ClientSchema.index({ createdAt: -1 });
 ClientSchema.index({ name: 'text', 'contacts.email': 'text', 'contacts.name': 'text' });
 
-// Prevent model overwrite in development, but ensure schema changes are picked up
-if (process.env.NODE_ENV === 'development') {
-    console.log('[MODEL] Deleting Client model from cache for HMR');
-    delete mongoose.models.Client;
-}
 const Client: Model<IClient> = mongoose.models.Client || mongoose.model<IClient>('Client', ClientSchema);
-if (process.env.NODE_ENV !== 'production') console.log('[MODEL] Client model registered/retrieved');
 
 export default Client;
