@@ -31,7 +31,7 @@ export async function GET(
             amount: tx.amount,
             status: tx.transactionType?.toLowerCase() === 'invoice' ? 'Open' : 'Paid', // Dummy logic for UI
             statusColor: tx.transactionType?.toLowerCase() === 'invoice' ? 'amber' : 'emerald'
-        })).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        })).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
         return NextResponse.json(formattedTransactions);
     } catch (error: any) {
