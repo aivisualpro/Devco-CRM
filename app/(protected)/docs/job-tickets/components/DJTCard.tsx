@@ -166,22 +166,16 @@ export const DJTCard: React.FC<DJTCardProps> = ({
             {/* Row 7: Footer - Created By & Actions */}
             <div className="px-5 py-3.5 border-t border-slate-100 bg-slate-50 flex items-center justify-between mt-auto">
                 <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">Created:</span>
-                    {(() => {
-                        const creatorEmail = djt.createdBy;
-                        const validCreator = employees.find(e => 
-                            e.value === String(creatorEmail).trim().toLowerCase() ||
-                            e.label === creatorEmail ||
-                            e.email === creatorEmail
-                        );
-                        return (
-                            <span className="text-[11px] font-bold text-slate-700 truncate pr-1">
-                                {validCreator?.label || creatorEmail || 'Unknown'}
-                            </span>
-                        );
-                    })()}
+                    {creator ? (
+                        <div className="w-6 h-6 rounded-full bg-slate-200 overflow-hidden shrink-0 shadow-inner">
+                            {creator.image ? <img src={creator.image} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-slate-500">{creator.label?.[0]}</div>}
+                        </div>
+                    ) : (
+                        <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center shrink-0"><User size={12} className="text-slate-400"/></div>
+                    )}
+                    <span className="text-[12px] font-bold text-slate-600 truncate">{creator?.label || djt.createdBy || 'Unknown'}</span>
                     <div className="w-1 h-1 rounded-full bg-slate-300 mx-0.5 shrink-0" />
-                    <span className="text-[10px] font-medium text-slate-500 shrink-0">{djt.createdAt ? new Date(djt.createdAt).toLocaleDateString('en-US') : 'N/A'}</span>
+                    <span className="text-[11px] font-medium text-slate-500 shrink-0">{djt.createdAt ? new Date(djt.createdAt).toLocaleDateString('en-US') : 'N/A'}</span>
                 </div>
                 
                 <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>

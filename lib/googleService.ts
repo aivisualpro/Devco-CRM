@@ -1,6 +1,38 @@
 import { google } from 'googleapis';
 import { JWT } from 'google-auth-library';
 import { Readable } from 'stream';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const sharp = require('sharp');
+
+/**
+ * Optimize an image URL for PDF embedding.
+ * - Cloudinary URLs: apply URL-based transforms (fast, zero download)
+ * - Other URLs: download + resize with sharp
+ * Returns a compressed JPEG buffer ready for upload.
+ */
+async function optimizeImageForPdf(url: string, maxWidth = 400, maxHeight = 300, quality = 60): Promise<Buffer> {
+    // Cloudinary: apply URL transforms to avoid downloading full-res
+    if (url.includes('res.cloudinary.com') && url.includes('/upload/')) {
+        const transformedUrl = url.replace(
+            '/upload/',
+            `/upload/w_${maxWidth},h_${maxHeight},c_limit,q_${quality},f_jpg/`
+        );
+        const r = await fetch(transformedUrl);
+        if (r.ok) return Buffer.from(await r.arrayBuffer());
+        // Fall through to raw download if transform URL fails
+    }
+
+    // Non-Cloudinary (R2, etc.) or Cloudinary fallback: download raw + sharp compress
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`Failed to fetch image: ${r.status}`);
+    const raw = Buffer.from(await r.arrayBuffer());
+
+    // Resize + compress with sharp
+    return sharp(raw)
+        .resize(maxWidth, maxHeight, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality, mozjpeg: true })
+        .toBuffer();
+}
 
 // Load credentials
 const CLIENT_EMAIL = process.env.GOOGLE_CLIENT_EMAIL || '';
@@ -97,18 +129,26 @@ export async function processGoogleDoc(
                     try {
                         let buf: Buffer;
                         if (str.startsWith('data:image')) {
-                            buf = Buffer.from(str.split(',')[1], 'base64');
+                            const rawBuf = Buffer.from(str.split(',')[1], 'base64');
+                            // Compress base64 images (signatures etc.) with sharp
+                            try {
+                                buf = await sharp(rawBuf)
+                                    .resize(400, 300, { fit: 'inside', withoutEnlargement: true })
+                                    .jpeg({ quality: 60, mozjpeg: true })
+                                    .toBuffer();
+                            } catch {
+                                buf = rawBuf; // If sharp fails (e.g. SVG), use original
+                            }
                         } else {
-                            const r = await fetch(str);
-                            if (!r.ok) return null;
-                            buf = Buffer.from(await r.arrayBuffer());
+                            // HTTP URLs — optimize for PDF (resize + compress)
+                            buf = await optimizeImageForPdf(str, 400, 300, 60);
                         }
 
                         const res = await drive.files.create({
                             supportsAllDrives: true,
                             fields: 'id',
-                            requestBody: { name: `i_${Date.now()}.png`, mimeType: 'image/png', parents: [SHARED_DRIVE_FOLDER_ID] },
-                            media: { mimeType: 'image/png', body: Readable.from(buf) }
+                            requestBody: { name: `i_${Date.now()}.jpg`, mimeType: 'image/jpeg', parents: [SHARED_DRIVE_FOLDER_ID] },
+                            media: { mimeType: 'image/jpeg', body: Readable.from(buf) }
                         });
                         const id = res.data.id!;
                         tempImageIds.push(id);

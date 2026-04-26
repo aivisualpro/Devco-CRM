@@ -19,6 +19,8 @@ import { getLocalNowISO } from '@/lib/scheduleUtils';
 import { useRouter } from 'next/navigation';
 import { JHACard } from '@/app/(protected)/docs/jha/components/JHACard';
 import { DJTCard } from '@/app/(protected)/docs/job-tickets/components/DJTCard';
+import { PotholeLogCard } from '@/app/(protected)/docs/pothole-logs/components/PotholeLogCard';
+import { PreBoreLogCard } from '@/app/(protected)/docs/pre-bore-logs/components/PreBoreLogCard';
 import { SignedContractsCard } from './SignedContractsCard';
 import { PlanningCard } from './PlanningCard';
 import { ReceiptsCard } from './ReceiptsCard';
@@ -974,9 +976,124 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     };
 
     // --- Pothole Log Handlers ---
+    const POTHOLE_TEMPLATE_ID = '1wB2BrBGgkX_tVSJ0YsfFpEMuhKRLf0eQjs5tf9d27zI';
+
     const handleViewPotholeLog = (log: any) => {
-        setSelectedPotholeLog(log);
-        setPotholeModalOpen(true);
+        router.push(`/docs/pothole-logs/${log._id}`);
+    };
+
+    const handleDeletePotholeLog = async (log: any) => {
+        if (!confirm('Are you sure you want to delete this pothole log?')) return;
+        try {
+            const res = await fetch('/api/pothole-logs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'deletePotholeLog', payload: { id: log._id } })
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast.success('Pothole Log deleted');
+                refetchJobDocs();
+            } else toast.error(data.error || 'Failed to delete');
+        } catch (e) { console.error(e); toast.error('Error deleting pothole log'); }
+    };
+
+    const handleDownloadPotholeLogPDF = async (log: any, setDownloading: (b: boolean) => void) => {
+        setDownloading(true);
+        try {
+            const dateStr = log.date && !isNaN(new Date(log.date).getTime()) ? formatWallDate(log.date) : '';
+            const variables: Record<string, any> = {
+                date: dateStr,
+                estimate: formData?.estimate || log.estimate || '',
+                projectName: formData?.projectName || '',
+                jobAddress: log.jobAddress || log.projectionLocation || formData?.jobAddress || '',
+                createdBy: normalizedEmployees.find(e => e.value === log.createdBy)?.label || log.createdBy || '',
+                totalPotholes: String(log.potholeItems?.length || 0),
+                customerName: formData?.customerName || '',
+                customerJobNo: formData?.customerJobNo || '',
+            };
+            const items = (log.potholeItems || []).map((item: any, idx: number) => ({
+                potholeNo: item.potholeNo || String(idx + 1),
+                typeOfUtility: item.typeOfUtility || '',
+                soilType: item.soilType || '',
+                topDepthOfUtility: item.topDepthOfUtility || '',
+                bottomDepthOfUtility: item.bottomDepthOfUtility || '',
+                pin: item.pin || '',
+                latitude: item.latitude,
+                longitude: item.longitude,
+                photos: item.photos || [],
+                photo1: item.photo1,
+                photo2: item.photo2,
+            }));
+
+            const response = await fetch('/api/generate-pothole-pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ templateId: POTHOLE_TEMPLATE_ID, variables, items })
+            });
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = url;
+                a.download = `Pothole_Log_${formData?.estimate || log.estimate || 'Report'}_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+                a.click();
+                window.URL.revokeObjectURL(url);
+                toast.success('PDF downloaded');
+            } else {
+                throw new Error('Failed to generate PDF');
+            }
+        } catch (e) { console.error(e); toast.error('Failed to download PDF'); }
+        finally { setDownloading(false); }
+    };
+
+    const handleEmailPotholeLog = async (log: any) => {
+        const email = prompt('Enter recipient email address:');
+        if (!email) return;
+        try {
+            toast.loading('Generating & sending...', { id: 'pothole-email' });
+            const dateStr = log.date && !isNaN(new Date(log.date).getTime()) ? formatWallDate(log.date) : '';
+            const variables: Record<string, any> = {
+                date: dateStr,
+                estimate: formData?.estimate || log.estimate || '',
+                projectName: formData?.projectName || '',
+                jobAddress: log.jobAddress || log.projectionLocation || formData?.jobAddress || '',
+                createdBy: normalizedEmployees.find(e => e.value === log.createdBy)?.label || log.createdBy || '',
+                totalPotholes: String(log.potholeItems?.length || 0),
+                customerName: formData?.customerName || '',
+                customerJobNo: formData?.customerJobNo || '',
+            };
+            const items = (log.potholeItems || []).map((item: any, idx: number) => ({
+                potholeNo: item.potholeNo || String(idx + 1),
+                typeOfUtility: item.typeOfUtility || '',
+                soilType: item.soilType || '',
+                topDepthOfUtility: item.topDepthOfUtility || '',
+                bottomDepthOfUtility: item.bottomDepthOfUtility || '',
+                pin: item.pin || '',
+                latitude: item.latitude,
+                longitude: item.longitude,
+                photos: item.photos || [],
+                photo1: item.photo1,
+                photo2: item.photo2,
+            }));
+
+            const res = await fetch('/api/email-pothole-log', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    emailTo: email,
+                    subject: `Pothole Log Report - ${formData?.estimate || log.estimate || 'Report'}`,
+                    emailBody: `Please find attached the Pothole Log Report for estimate ${formData?.estimate || log.estimate || ''}.`,
+                    potholeLogId: log._id,
+                    pdfPayload: { templateId: POTHOLE_TEMPLATE_ID, variables, items },
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast.success('Email sent!', { id: 'pothole-email' });
+            } else {
+                throw new Error(data.error || 'Failed to send');
+            }
+        } catch (e: any) { console.error(e); toast.error(e.message || 'Failed to send email', { id: 'pothole-email' }); }
     };
 
     const handleCreatePotholeLog = async () => {
@@ -1003,9 +1120,149 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     };
 
     // --- Pre-Bore Log Handlers ---
+    const PRE_BORE_TEMPLATE_ID = '1oz3s9qdfMnMdEivJhr8T4qPS-lwVGsb1A79eB-Djgic';
+
     const handleViewPreBoreLog = (pb: any) => {
-        setSelectedPreBoreLog(pb);
-        setPreBoreModalOpen(true);
+        // Pre-bore logs use composite ID: scheduleId___legacyId
+        const schedId = pb.scheduleId || pb._scheduleId || '';
+        const pbId = pb.legacyId || pb._id || '';
+        if (schedId && pbId) {
+            router.push(`/docs/pre-bore-logs/${schedId}___${pbId}`);
+        } else {
+            setSelectedPreBoreLog(pb);
+            setPreBoreModalOpen(true);
+        }
+    };
+
+    const handleDeletePreBoreLog = async (pb: any) => {
+        if (!confirm('Are you sure you want to delete this pre-bore log?')) return;
+        try {
+            const schedId = pb.scheduleId || pb._scheduleId || '';
+            const res = await fetch('/api/pre-bore-logs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'deletePreBoreLog', payload: { id: schedId, legacyId: pb.legacyId } })
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast.success('Pre-Bore Log deleted');
+                refetchJobDocs();
+            } else toast.error(data.error || 'Failed to delete');
+        } catch (e) { console.error(e); toast.error('Error deleting pre-bore log'); }
+    };
+
+    const handleDownloadPreBoreLogPDF = async (pb: any, setDownloading: (b: boolean) => void) => {
+        setDownloading(true);
+        try {
+            const dateStr = pb.date && !isNaN(new Date(pb.date).getTime()) ? formatWallDate(pb.date) : '';
+            const variables: Record<string, any> = {
+                date: dateStr,
+                start_time: pb.startTime || '',
+                estimate: pb.estimate || formData?.estimate || '',
+                customer_name: pb.customerName || pb.scheduleCustomerName || formData?.customerName || '',
+                customer_foreman: pb.customerForeman || '',
+                customer_work_request: pb.customerWorkRequestNumber || '',
+                devco_operator: pb.devcoOperator || '',
+                address_bore_start: pb.addressBoreStart || '',
+                address_bore_end: pb.addressBoreEnd || '',
+                drill_size: pb.drillSize || '',
+                pilot_bore_size: pb.pilotBoreSize || '',
+                reamer_size_6: pb.reamerSize6 || '',
+                reamer_size_8: pb.reamerSize8 || '',
+                reamer_size_10: pb.reamerSize10 || '',
+                reamer_size_12: pb.reamerSize12 || '',
+                reamers: pb.reamers || [pb.reamerSize6, pb.reamerSize8, pb.reamerSize10, pb.reamerSize12].filter(Boolean).map((s: string) => `${s}"`).join(', ') || '',
+                soil_type: pb.soilType || '',
+                bore_length: pb.boreLength || '',
+                pipe_size: pb.pipeSize || '',
+                foreman_signature: pb.foremanSignature || '',
+                customer_signature: pb.customerSignature || '',
+                total_rods: String(pb.preBoreLogs?.length || 0),
+                created_by: normalizedEmployees.find(e => e.value === pb.createdBy)?.label || pb.createdBy || '',
+            };
+            const items = (pb.preBoreLogs || []).map((item: any, idx: number) => ({
+                rodNumber: item.rodNumber || String(idx + 1),
+                distance: item.distance || '',
+                topDepth: item.topDepth || '',
+                bottomDepth: item.bottomDepth || '',
+                overOrUnder: item.overOrUnder || '',
+                existingUtilities: item.existingUtilities || '',
+                picture: item.picture || '',
+            }));
+
+            const response = await fetch('/api/generate-prebore-pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ templateId: PRE_BORE_TEMPLATE_ID, variables, items })
+            });
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = url;
+                a.download = `Pre_Bore_Log_${formData?.estimate || pb.estimate || 'Report'}_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+                a.click();
+                window.URL.revokeObjectURL(url);
+                toast.success('PDF downloaded');
+            } else {
+                throw new Error('Failed to generate PDF');
+            }
+        } catch (e) { console.error(e); toast.error('Failed to download PDF'); }
+        finally { setDownloading(false); }
+    };
+
+    const handleEmailPreBoreLog = async (pb: any) => {
+        const email = prompt('Enter recipient email address:');
+        if (!email) return;
+        try {
+            toast.loading('Generating & sending...', { id: 'prebore-email' });
+            const dateStr = pb.date && !isNaN(new Date(pb.date).getTime()) ? formatWallDate(pb.date) : '';
+            const variables: Record<string, any> = {
+                date: dateStr,
+                start_time: pb.startTime || '',
+                estimate: pb.estimate || formData?.estimate || '',
+                customer_name: pb.customerName || pb.scheduleCustomerName || formData?.customerName || '',
+                customer_foreman: pb.customerForeman || '',
+                customer_work_request: pb.customerWorkRequestNumber || '',
+                devco_operator: pb.devcoOperator || '',
+                address_bore_start: pb.addressBoreStart || '',
+                address_bore_end: pb.addressBoreEnd || '',
+                drill_size: pb.drillSize || '',
+                pilot_bore_size: pb.pilotBoreSize || '',
+                soil_type: pb.soilType || '',
+                bore_length: pb.boreLength || '',
+                pipe_size: pb.pipeSize || '',
+                foreman_signature: pb.foremanSignature || '',
+                customer_signature: pb.customerSignature || '',
+                total_rods: String(pb.preBoreLogs?.length || 0),
+                created_by: normalizedEmployees.find(e => e.value === pb.createdBy)?.label || pb.createdBy || '',
+            };
+            const items = (pb.preBoreLogs || []).map((item: any, idx: number) => ({
+                rodNumber: item.rodNumber || String(idx + 1),
+                distance: item.distance || '',
+                topDepth: item.topDepth || '',
+                bottomDepth: item.bottomDepth || '',
+                overOrUnder: item.overOrUnder || '',
+                existingUtilities: item.existingUtilities || '',
+                picture: item.picture || '',
+            }));
+
+            const res = await fetch('/api/email-prebore-log', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    emailTo: email,
+                    subject: `Pre-Bore Log Report - ${formData?.estimate || pb.estimate || 'Report'}`,
+                    emailBody: `Please find attached the Pre-Bore Log Report.`,
+                    pdfPayload: { templateId: PRE_BORE_TEMPLATE_ID, variables, items },
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast.success('Email sent!', { id: 'prebore-email' });
+            } else {
+                throw new Error(data.error || 'Failed to send');
+            }
+        } catch (e: any) { console.error(e); toast.error(e.message || 'Failed to send email', { id: 'prebore-email' }); }
     };
 
     const handleCreatePreBoreLog = async () => {
@@ -4220,36 +4477,20 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     <Loader2 className="w-5 h-5 animate-spin text-rose-500" />
                                 </div>
                             ) : potholeLogRecords.length > 0 ? potholeLogRecords.map((log: any, idx: number) => (
-                                <div
+                                <PotholeLogCard
                                     key={`${log._id || 'log'}-${idx}`}
-                                    onClick={() => handleViewPotholeLog(log)}
-                                    className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-rose-50/60 hover:shadow-md hover:border-rose-200 transition-all duration-300"
-                                >
-                                    <div className="flex justify-between items-start mb-1">
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                                {safeFormatDate(log.date, 'MM/dd/yyyy')}
-                                            </p>
-                                            <p className="text-xs font-black text-slate-800 truncate">
-                                                {log.projectionLocation || 'Pothole Log'}
-                                            </p>
-                                        </div>
-                                        <Eye className="w-3.5 h-3.5 text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                                        <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-100">
-                                            {(log.potholeItems || []).length} Items
-                                        </span>
-                                        {log.locationOfPothole?.lat && (
-                                            <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-slate-100">
-                                                📍 GPS
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100/50">
-                                        <span className="text-[10px] text-slate-400 font-bold truncate">{log.createdBy || '-'}</span>
-                                    </div>
-                                </div>
+                                    log={log}
+                                    estimate={formData}
+                                    employees={normalizedEmployees}
+                                    canEdit={can(MODULES.JHA, ACTIONS.EDIT)}
+                                    canDelete={can(MODULES.JHA, ACTIONS.DELETE)}
+                                    onView={handleViewPotholeLog}
+                                    onEdit={handleViewPotholeLog}
+                                    onDelete={handleDeletePotholeLog}
+                                    onDownloadPDF={handleDownloadPotholeLogPDF}
+                                    onEmail={handleEmailPotholeLog}
+                                    router={router}
+                                />
                             )) : (
                                 <p className="text-[10px] text-slate-400 font-bold text-center py-4">No pothole logs</p>
                             )}
@@ -4283,41 +4524,20 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     <Loader2 className="w-5 h-5 animate-spin text-indigo-500" />
                                 </div>
                             ) : preBoreLogRecords.length > 0 ? preBoreLogRecords.map((pb: any, idx: number) => (
-                                <div
+                                <PreBoreLogCard
                                     key={`${pb.legacyId || pb._id || 'pb'}-${idx}`}
-                                    onClick={() => handleViewPreBoreLog(pb)}
-                                    className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-indigo-50/60 hover:shadow-md hover:border-indigo-200 transition-all duration-300"
-                                >
-                                    <div className="flex justify-between items-start mb-1">
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                                {safeFormatDate(pb.date, 'MM/dd/yyyy')}
-                                            </p>
-                                            <p className="text-xs font-black text-slate-800 truncate">
-                                                {pb.scheduleTitle || pb.addressBoreStart || 'Pre-Bore Log'}
-                                            </p>
-                                        </div>
-                                        <Eye className="w-3.5 h-3.5 text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                                        {pb.devcoOperator && (
-                                            <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100">
-                                                {pb.devcoOperator}
-                                            </span>
-                                        )}
-                                        <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-slate-100">
-                                            {(pb.preBoreLogs || []).length} Rods
-                                        </span>
-                                        {pb.boreLength && (
-                                            <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-slate-100">
-                                                {pb.boreLength} ft
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100/50">
-                                        <span className="text-[10px] text-slate-400 font-bold truncate">{pb.createdBy || pb.customerForeman || '-'}</span>
-                                    </div>
-                                </div>
+                                    log={pb}
+                                    estimate={formData}
+                                    employees={normalizedEmployees}
+                                    canEdit={can(MODULES.JHA, ACTIONS.EDIT)}
+                                    canDelete={can(MODULES.JHA, ACTIONS.DELETE)}
+                                    onView={handleViewPreBoreLog}
+                                    onEdit={handleViewPreBoreLog}
+                                    onDelete={handleDeletePreBoreLog}
+                                    onDownloadPDF={handleDownloadPreBoreLogPDF}
+                                    onEmail={handleEmailPreBoreLog}
+                                    router={router}
+                                />
                             )) : (
                                 <p className="text-[10px] text-slate-400 font-bold text-center py-4">No pre-bore logs</p>
                             )}
