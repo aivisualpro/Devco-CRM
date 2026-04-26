@@ -32,7 +32,10 @@ export async function POST(req: NextRequest) {
                 allVars[`soil_type_${idx}`] = item.soilType || '';
                 allVars[`top_depth_${idx}`] = item.topDepthOfUtility || '';
                 allVars[`bottom_depth_${idx}`] = item.bottomDepthOfUtility || '';
-                allVars[`pin_${idx}`] = item.pin || '';
+                // PIN: use pin field, or fall back to GPS coordinates (matches UI behavior)
+                const pinValue = item.pin || ((item.latitude && item.longitude) ? `${Number(item.latitude).toFixed(6)}, ${Number(item.longitude).toFixed(6)}` : '');
+                allVars[`pin_${idx}`] = pinValue;
+                allVars[`pin_no_${idx}`] = pinValue;
                 allVars[`latitude_${idx}`] = item.latitude ? String(item.latitude) : '';
                 allVars[`longitude_${idx}`] = item.longitude ? String(item.longitude) : '';
 
@@ -53,6 +56,7 @@ export async function POST(req: NextRequest) {
                 allVars[`top_depth_${idx}`] = '';
                 allVars[`bottom_depth_${idx}`] = '';
                 allVars[`pin_${idx}`] = '';
+                allVars[`pin_no_${idx}`] = '';
                 allVars[`latitude_${idx}`] = '';
                 allVars[`longitude_${idx}`] = '';
                 allVars[`photo_${idx}_1`] = '';

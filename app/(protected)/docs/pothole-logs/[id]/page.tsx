@@ -123,15 +123,22 @@ export default function PotholeLogDetailsPage() {
                 // Fetch estimate info - pothole log stores estimate NUMBER (e.g. "25-0638"), not the _id (e.g. "25-0638-V1")
                 // Use getEstimatesByProposal to find all versions, then pick latest
                 if (logData.result.estimate) {
-                    const estRes = await fetch(`/api/estimates/proposal/${logData.result.estimate}`);
-                    const estData = await estRes.json();
-                    if (estData.success && estData.result?.length > 0) {
-                        // Pick the latest version (last item since sorted by createdAt asc)
-                        const latestVersion = estData.result[estData.result.length - 1];
-                        // Now fetch the FULL estimate document by its _id
-                        const fullEstRes = await fetch(`/api/estimates/${latestVersion._id}`);
-                        const fullEstData = await fullEstRes.json();
-                        if (fullEstData.success) setEstimate(fullEstData.result);
+                    const logEst = logData.result.estimate;
+                    if (logEst.includes('-V')) {
+                        // It's a slug (e.g. 26-0185-V1), fetch directly
+                        const estRes = await fetch(`/api/estimates/${logEst}`);
+                        const estData = await estRes.json();
+                        if (estData.success) setEstimate(estData.result);
+                    } else {
+                        // It's a proposal number (e.g. 26-0185), get latest version
+                        const estRes = await fetch(`/api/estimates/proposal/${logEst}`);
+                        const estData = await estRes.json();
+                        if (estData.success && estData.result?.length > 0) {
+                            const latestVersion = estData.result[estData.result.length - 1];
+                            const fullEstRes = await fetch(`/api/estimates/${latestVersion._id}`);
+                            const fullEstData = await fullEstRes.json();
+                            if (fullEstData.success) setEstimate(fullEstData.result);
+                        }
                     }
                 }
             } else {
@@ -288,48 +295,31 @@ export default function PotholeLogDetailsPage() {
         setIsSendingEmail(true);
 
         try {
-            // 1. Generate PDF via dedicated pothole PDF route
-            const payload = buildPdfPayload();
-            if (!payload) throw new Error('No data');
+            // Build the same payload used for PDF download
+            const pdfPayload = buildPdfPayload();
+            if (!pdfPayload) throw new Error('No data');
 
-            const pdfRes = await fetch('/api/generate-pothole-pdf', {
+            // Server generates PDF + emails it — no large blob transfer needed
+            const emailRes = await fetch('/api/email-pothole-log', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify({
+                    emailTo,
+                    subject: `Pothole Log Report - ${estimate?.estimate || log.estimate || 'Report'}`,
+                    emailBody: `Please find attached the Pothole Log Report for estimate ${estimate?.estimate || log.estimate || ''}.`,
+                    potholeLogId: log._id,
+                    pdfPayload,
+                })
             });
 
-            if (!pdfRes.ok) throw new Error('Failed to generate PDF');
-            const blob = await pdfRes.blob();
-
-            // 2. Convert blob to base64
-            const reader = new FileReader();
-            reader.readAsDataURL(blob);
-            reader.onloadend = async () => {
-                const base64data = reader.result as string;
-
-                // 3. Send email with PDF attachment
-                const emailRes = await fetch('/api/email-pothole-log', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        emailTo,
-                        subject: `Pothole Log Report - ${estimate?.estimate || log.estimate || 'Report'}`,
-                        emailBody: `Please find attached the Pothole Log Report for estimate ${estimate?.estimate || log.estimate || ''}.`,
-                        attachment: base64data,
-                        potholeLogId: log._id
-                    })
-                });
-
-                const emailData = await emailRes.json();
-                if (emailData.success) {
-                    toast.success('PDF emailed successfully!');
-                    setIsEmailModalOpen(false);
-                    setEmailTo('');
-                } else {
-                    throw new Error(emailData.error || 'Failed to send email');
-                }
-                setIsSendingEmail(false);
-            };
+            const emailData = await emailRes.json();
+            if (emailData.success) {
+                toast.success('PDF emailed successfully!');
+                setIsEmailModalOpen(false);
+                setEmailTo('');
+            } else {
+                throw new Error(emailData.error || 'Failed to send email');
+            }
         } catch (error: any) {
             console.error('Email Error:', error);
             toast.error(error.message || 'Failed to send email');

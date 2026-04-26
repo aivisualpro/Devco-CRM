@@ -1,43 +1,46 @@
-const fs = require('fs');
+const { google } = require('googleapis');
+const { JWT } = require('google-auth-library');
+require('dotenv').config({ path: '.env.local' });
 
-const routeContent = fs.readFileSync('./app/api/webhook/devcoBackend/route.ts', 'utf8');
-const lines = routeContent.split('\n');
-
-const inventory = [];
-let currentAction = null;
-
-const actionRegex = /^\s*case ['"]([^'"]+)['"]:/;
-
-for (let i = 0; i < lines.length; i++) {
-    const match = lines[i].match(actionRegex);
-    if (match) {
-        currentAction = match[1];
-        
-        let type = 'UNKNOWN';
-        if (currentAction.startsWith('get') || currentAction.startsWith('preview')) type = 'READ';
-        else if (currentAction.startsWith('create') || currentAction.startsWith('add') || currentAction.startsWith('import') || currentAction.startsWith('clone') || currentAction.startsWith('copy') || currentAction.startsWith('upload') || currentAction.startsWith('generate')) type = 'WRITE';
-        else if (currentAction.startsWith('update') || currentAction.startsWith('save') || currentAction.startsWith('sync')) type = 'WRITE';
-        else if (currentAction.startsWith('delete')) type = 'DELETE';
-        
-        let newRoute = '';
-        if (currentAction.includes('Estimate')) newRoute = type === 'READ' ? 'GET /api/estimates' : 'POST/PATCH/DELETE /api/estimates';
-        else if (currentAction.includes('Client')) newRoute = type === 'READ' ? 'GET /api/clients' : 'POST/PATCH/DELETE /api/clients';
-        else if (currentAction.includes('Employee')) newRoute = type === 'READ' ? 'GET /api/employees' : 'POST/PATCH/DELETE /api/employees';
-        else if (currentAction.includes('Catalogue') || currentAction.includes('Constant') || currentAction.includes('LineItem') || currentAction.includes('Template')) newRoute = 'API /api/catalogue';
-        else if (currentAction.includes('Schedule')) newRoute = 'API /api/schedules';
-        else newRoute = 'API /api/misc';
-        
-        let notes = '';
-        if (currentAction === 'getEmployees') notes = 'MUST redact password - see BLOCKER 1';
-
-        inventory.push({
-            action: currentAction,
-            type,
-            newRoute,
-            notes
-        });
+async function run() {
+    let PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY;
+    if (PRIVATE_KEY) {
+        if (PRIVATE_KEY.startsWith('"') && PRIVATE_KEY.endsWith('"')) PRIVATE_KEY = PRIVATE_KEY.slice(1, -1);
+        if (PRIVATE_KEY.includes('\\n')) PRIVATE_KEY = PRIVATE_KEY.replace(/\\n/g, '\n');
     }
+
+    const auth = new JWT({
+        email: process.env.GOOGLE_CLIENT_EMAIL,
+        key: PRIVATE_KEY,
+        scopes: ['https://www.googleapis.com/auth/documents']
+    });
+
+    await auth.authorize();
+    const docs = google.docs({ version: 'v1', auth });
+
+    const doc = await docs.documents.get({ documentId: '1wB2BrBGgkX_tVSJ0YsfFpEMuhKRLf0eQjs5tf9d27zI' });
+    
+    const placeholders = new Set();
+    const scan = (elements) => {
+        for (const el of elements) {
+            if (el.paragraph?.elements) {
+                for (const run of el.paragraph.elements) {
+                    const text = run.textRun?.content || '';
+                    const matches = text.match(/\{\{([^}]+)\}\}/g);
+                    if (matches) matches.forEach(m => placeholders.add(m));
+                }
+            } else if (el.table?.tableRows) {
+                for (const row of el.table.tableRows) {
+                    for (const cell of row.tableCells || []) {
+                        if (cell.content) scan(cell.content);
+                    }
+                }
+            }
+        }
+    };
+
+    scan(doc.data.body?.content || []);
+    console.log(Array.from(placeholders).filter(p => p.toLowerCase().includes('pin')));
 }
 
-fs.writeFileSync('./docs/DEVCOBACKEND_INVENTORY.md', '```json\n' + JSON.stringify(inventory, null, 2) + '\n```\n');
-console.log('Saved to /docs/DEVCOBACKEND_INVENTORY.md');
+run().catch(console.error);

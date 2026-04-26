@@ -122,9 +122,10 @@ export async function POST(request: NextRequest) {
             case 'getSchedulesByEstimate': {
                 const { estimateNumber } = payload || {};
                 if (!estimateNumber) return NextResponse.json({ success: true, result: [] });
-                const results = await Schedule.find({ estimate: estimateNumber })
+                const baseEstimate = String(estimateNumber).includes('-') ? String(estimateNumber).split('-').slice(0, 2).join('-') : String(estimateNumber);
+                const results = await Schedule.find({ estimate: { $regex: new RegExp(`^${baseEstimate}`, 'i') } })
                     .sort({ fromDate: 1, createdAt: 1 })
-                    .select('_id title estimate fromDate toDate customerName jobLocation')
+                    .select('_id title estimate fromDate toDate customerName jobLocation preBore')
                     .lean();
                 return NextResponse.json({ success: true, result: results });
             }

@@ -701,7 +701,7 @@ export default function WIPReportClient({
 
         observer.observe(sentinel);
         return () => observer.disconnect();
-    }, [hasMore, visibleCount]);
+    }, [hasMore, visibleCount, selectedProject?.Id, activeTab]);
 
     return (
         <div className="flex flex-col h-screen overflow-hidden">

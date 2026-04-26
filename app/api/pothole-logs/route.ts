@@ -40,7 +40,10 @@ export async function POST(request: NextRequest) {
             case 'getPotholeLogs': {
                 const { limit = 500, estimate } = payload || {};
                 const filter: any = {};
-                if (estimate) filter.estimate = estimate;
+                if (estimate) {
+                    const baseEstimate = estimate.includes('-') ? estimate.split('-').slice(0, 2).join('-') : estimate;
+                    filter.estimate = { $regex: new RegExp(`^${baseEstimate}`, 'i') };
+                }
                 
                 const logs = await PotholeLog.find(filter)
                     .sort({ date: -1 })

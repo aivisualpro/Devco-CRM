@@ -310,8 +310,29 @@ export async function processGoogleDoc(
         }
 
         // Step 6: Export PDF
-        const pdf = await drive.files.export({ fileId: tempFileId, mimeType: 'application/pdf' }, { responseType: 'arraybuffer' });
-        return Buffer.from(pdf.data as ArrayBuffer);
+        // Google Drive API files.export has a hard 10MB limit and returns 403 for
+        // larger files. Documents with embedded photos often exceed this.
+        // Strategy: try the Google Docs web export URL first (no size limit),
+        // then fall back to the Drive API export.
+        try {
+            // Primary: Google Docs web export — handles files > 10MB
+            const docsExportUrl = `https://docs.google.com/document/d/${tempFileId}/export?format=pdf`;
+            const pdfRes = await auth.request({ url: docsExportUrl, responseType: 'arraybuffer' });
+            return Buffer.from(pdfRes.data as ArrayBuffer);
+        } catch (primaryErr: any) {
+            console.warn('[PDF Export] Docs web export failed, trying Drive API fallback...', primaryErr?.code || primaryErr?.status || primaryErr?.message);
+            // Fallback: standard Drive API export (works for files < 10MB)
+            try {
+                const driveExportUrl = `https://www.googleapis.com/drive/v3/files/${tempFileId}/export?mimeType=${encodeURIComponent('application/pdf')}`;
+                const pdfRes2 = await auth.request({ url: driveExportUrl, responseType: 'arraybuffer' });
+                return Buffer.from(pdfRes2.data as ArrayBuffer);
+            } catch (fallbackErr: any) {
+                console.error('[PDF Export] Both export methods failed.');
+                console.error('[PDF Export] Primary error:', primaryErr?.response?.status, primaryErr?.message);
+                console.error('[PDF Export] Fallback error:', fallbackErr?.response?.status, fallbackErr?.message);
+                throw primaryErr; // Throw the original error
+            }
+        }
 
     } finally {
         // Cleanup in background - don't wait
