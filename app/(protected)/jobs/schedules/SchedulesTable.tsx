@@ -304,7 +304,7 @@ function SchedulesTable({ serverData }: { serverData?: any }) {
             return serverData.initialData;
         }
         if (typeof window !== 'undefined') {
-            const cached = localStorage.getItem('devco_schedules_initial_data');
+            const cached = localStorage.getItem('devco_schedules_initial_data_v2');
             if (cached) {
                 try {
                     return JSON.parse(cached);
@@ -391,7 +391,7 @@ function SchedulesTable({ serverData }: { serverData?: any }) {
                     if (result.initialData) {
                         setInitialData(result.initialData);
                         try {
-                            localStorage.setItem('devco_schedules_initial_data', JSON.stringify(result.initialData));
+                            localStorage.setItem('devco_schedules_initial_data_v2', JSON.stringify(result.initialData));
                         } catch (e) {
                             console.warn('Failed to cache initialData to localStorage', e);
                         }
@@ -4209,6 +4209,7 @@ function SchedulesTable({ serverData }: { serverData?: any }) {
                                             disableBlank={true}
                                             options={initialData.estimates
                                                 .filter(e => !editingItem?.customerId || (e.customerId && e.customerId.toString() === editingItem?.customerId?.toString()))
+                                                .filter((e: any) => e.status?.toLowerCase() === 'won')
                                                 .map(e => ({ label: e.label, value: e.value }))}
                                             value={editingItem?.estimate || ''}
                                             onChange={(val) => {

@@ -219,6 +219,7 @@ export function ScheduleFormModal({ isOpen, onClose, schedule, initialData, onSa
                                         disableBlank={true}
                                         options={initialData.estimates
                                             .filter((e: any) => !editingItem?.customerId || (e.customerId && e.customerId.toString() === editingItem.customerId.toString()))
+                                            .filter((e: any) => e.status?.toLowerCase() === 'won')
                                             .map((e: any) => ({ label: e.label || e.value, value: e.value }))}
                                         value={editingItem?.estimate || ''}
                                         onChange={(val) => {

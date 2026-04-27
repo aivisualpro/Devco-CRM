@@ -432,6 +432,14 @@ function DashboardContent({ initialWeek, initialScope, initialSchedulesData }: {
     });
 
     const initialData = useMemo(() => {
+        // Pre-compute: which estimate IDs have at least one Won version
+        const wonEstimateIds = new Set<string>();
+        (estimatesData?.result || []).forEach((e: any) => {
+            if (e.estimate != null && e.estimate !== '' && e.status?.toLowerCase() === 'won') {
+                wonEstimateIds.add(String(e.estimate).trim());
+            }
+        });
+
         const uniqueEstimatesMap = new Map();
         (estimatesData?.result || []).forEach((e: any) => {
             if (e.estimate != null && e.estimate !== '') {
@@ -441,7 +449,9 @@ function DashboardContent({ initialWeek, initialScope, initialSchedulesData }: {
                         ...e, 
                         estimate: estId,
                         value: estId,
-                        label: `${estId}${e.projectName || e.projectTitle ? ` - ${e.projectName || e.projectTitle}` : ''}`
+                        label: `${estId}${e.projectName || e.projectTitle ? ` - ${e.projectName || e.projectTitle}` : ''}`,
+                        // If ANY version is Won, mark the whole estimate as Won
+                        status: wonEstimateIds.has(estId) ? 'Won' : (e.status || '')
                     });
                 }
             }

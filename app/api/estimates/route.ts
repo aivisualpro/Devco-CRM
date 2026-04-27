@@ -167,7 +167,7 @@ export async function GET(req: NextRequest) {
         if (includeReceipts) selectFields = selectFields.replace('-receiptsAndCosts', '');
         
         if (isLite) {
-            selectFields = 'estimate customerName customerId jobAddress projectName';
+            selectFields = 'estimate customerName customerId jobAddress projectName projectTitle status';
         }
 
         const dataQuery = Estimate.find(query).select(selectFields).sort(mongoSort).skip(skip).limit(limit);

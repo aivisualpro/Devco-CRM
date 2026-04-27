@@ -1390,10 +1390,6 @@ export default function GeneralSettings() {
                                                         return <option key={h} value={String(h)}>{label}</option>;
                                                     })}
                                                 </select>
-                                                <p className="text-[10px] text-slate-400 leading-relaxed">
-                                                    The report runs automatically every day at approximately 6:00 AM Pacific Time. The time selector above is currently inactive.
-                                                </p>
-
                                                 {/* Force Send Button */}
                                                 <button
                                                     onClick={handleForceSend}
