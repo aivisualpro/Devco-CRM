@@ -3607,76 +3607,87 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                     {prelimDocRecords.map((doc: any, docIdx: number) => (
                                                         <div
                                                             key={doc._id || docIdx}
-                                                            className="group/item relative p-3 bg-white/80 backdrop-blur-sm rounded-xl border border-blue-100/60 hover:border-blue-300 hover:shadow-md transition-all duration-300 shadow-sm"
+                                                            className="group/item relative bg-white rounded-2xl border border-slate-200 hover:border-[#0F4C75]/40 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden flex flex-col"
                                                         >
-                                                            {/* Top Row: Name + Meta */}
-                                                            <div className="flex items-start gap-3">
-                                                                <div className="mt-0.5 flex-shrink-0 w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white shadow-sm">
-                                                                    <FileCheck className="w-4.5 h-4.5" />
-                                                                </div>
-                                                                <div className="flex-1 min-w-0">
-                                                                    <p className="text-[11px] font-bold text-slate-700 truncate">{doc.docName || '20 Day Prelim'}</p>
-                                                                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                                                                        {doc.createdByName && (
-                                                                            <span className="text-[9px] text-slate-500 flex items-center gap-1">
-                                                                                <User className="w-2.5 h-2.5" /> {doc.createdByName}
-                                                                            </span>
-                                                                        )}
-                                                                        {doc.position && (
-                                                                            <span className="text-[8px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full font-semibold">{doc.position}</span>
-                                                                        )}
-                                                                        <span className="text-[9px] text-slate-400">
-                                                                            {doc.generatedDate || (doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : '')}
-                                                                        </span>
+                                                            <div className="p-5 flex flex-col gap-4 flex-1">
+                                                                <div className="flex items-center justify-between">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white shadow-sm">
+                                                                            <FileCheck className="w-5 h-5" />
+                                                                        </div>
+                                                                        <p className="text-base font-extrabold text-[#0F4C75] leading-tight line-clamp-1">{doc.docName || '20 Day Prelim'}</p>
                                                                     </div>
                                                                 </div>
                                                             </div>
 
-                                                            {/* Action Buttons Row */}
-                                                            <div className="mt-2.5 flex items-center gap-1.5 flex-wrap">
-                                                                {/* Download Generated PDF */}
-                                                                {(doc.generatedFile?.url || doc.files?.[0]?.url) && (
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            const f = doc.generatedFile || doc.files?.[0];
-                                                                            if (f?.url) handleFileDownload(f.url, f.fileName || '20_Day_Prelim.pdf');
-                                                                        }}
-                                                                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[9px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-all duration-200 border border-blue-100 hover:border-blue-200"
-                                                                    >
-                                                                        <Download className="w-3 h-3" /> Generated PDF
-                                                                    </button>
-                                                                )}
-                                                                {/* Download Uploaded File */}
-                                                                {doc.uploadedFile?.url && (
-                                                                    <button
-                                                                        onClick={() => handleFileDownload(doc.uploadedFile.url, doc.uploadedFile.fileName || 'uploaded_file')}
-                                                                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[9px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all duration-200 border border-indigo-100 hover:border-indigo-200"
-                                                                    >
-                                                                        <Download className="w-3 h-3" /> Uploaded File
-                                                                    </button>
-                                                                )}
-                                                                {/* Upload File (if not yet uploaded) */}
-                                                                {!doc.uploadedFile?.url && (
-                                                                    <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[9px] font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-all duration-200 border border-slate-200 hover:border-blue-200 cursor-pointer">
-                                                                        <input
-                                                                            type="file"
-                                                                            onChange={(e) => handlePrelimRecordUpload(doc._id, e)}
-                                                                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp"
-                                                                            className="hidden"
-                                                                        />
-                                                                        {(isPrelimUploading && prelimUploadingDocId === doc._id)
-                                                                            ? <><Loader2 className="w-3 h-3 animate-spin" /> Uploading...</>
-                                                                            : <><Upload className="w-3 h-3" /> Upload File</>
-                                                                        }
-                                                                    </label>
-                                                                )}
-                                                                {/* Delete */}
-                                                                <div className="ml-auto">
+                                                            {/* Footer - Created By & Actions */}
+                                                            <div className="px-5 py-3.5 border-t border-slate-100 bg-slate-50 flex items-center justify-between mt-auto">
+                                                                <div className="flex items-center gap-2.5 min-w-0">
+                                                                    {(() => {
+                                                                        const creator = normalizedEmployees.find((e: any) => e.value === doc.createdByEmail || e.label === doc.createdByName);
+                                                                        return (
+                                                                            <div className="w-6 h-6 rounded-full bg-slate-200 overflow-hidden shrink-0 shadow-inner flex items-center justify-center text-slate-500">
+                                                                                {creator && creator.image ? (
+                                                                                    <img src={creator.image} className="w-full h-full object-cover" alt={creator.label} />
+                                                                                ) : (
+                                                                                    <User size={12} className="text-slate-400" />
+                                                                                )}
+                                                                            </div>
+                                                                        );
+                                                                    })()}
+                                                                    <span className="text-[12px] font-bold text-slate-600 truncate">{doc.createdByName || 'Unknown'}</span>
+                                                                    <div className="w-1 h-1 rounded-full bg-slate-300 mx-0.5 shrink-0" />
+                                                                    <span className="text-[11px] font-medium text-slate-500 shrink-0">
+                                                                        {doc.generatedDate || (doc.createdAt ? new Date(doc.createdAt).toLocaleDateString('en-US') : 'N/A')}
+                                                                    </span>
+                                                                </div>
+                                                                
+                                                                <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                                                                    {/* Download Generated PDF */}
+                                                                    {(doc.generatedFile?.url || doc.files?.[0]?.url) && (
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                const f = doc.generatedFile || doc.files?.[0];
+                                                                                if (f?.url) handleFileDownload(f.url, f.fileName || '20_Day_Prelim.pdf');
+                                                                            }}
+                                                                            className="p-2 rounded-xl text-slate-400 hover:text-[#0F4C75] hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-200 transition-all"
+                                                                            title="Download Generated PDF"
+                                                                        >
+                                                                            <Download size={14} />
+                                                                        </button>
+                                                                    )}
+                                                                    {/* Download Uploaded File */}
+                                                                    {doc.uploadedFile?.url && (
+                                                                        <button
+                                                                            onClick={() => handleFileDownload(doc.uploadedFile.url, doc.uploadedFile.fileName || 'uploaded_file')}
+                                                                            className="p-2 rounded-xl text-slate-400 hover:text-[#0F4C75] hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-200 transition-all"
+                                                                            title="Download Uploaded File"
+                                                                        >
+                                                                            <Download size={14} />
+                                                                        </button>
+                                                                    )}
+                                                                    {/* Upload File */}
+                                                                    {!doc.uploadedFile?.url && (
+                                                                        <label className="p-2 rounded-xl text-slate-400 hover:text-[#0F4C75] hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-200 transition-all cursor-pointer inline-flex items-center justify-center" title="Upload File">
+                                                                            <input
+                                                                                type="file"
+                                                                                onChange={(e) => handlePrelimRecordUpload(doc._id, e)}
+                                                                                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp"
+                                                                                className="hidden"
+                                                                            />
+                                                                            {(isPrelimUploading && prelimUploadingDocId === doc._id)
+                                                                                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                                                : <Upload size={14} />
+                                                                            }
+                                                                        </label>
+                                                                    )}
+                                                                    {/* Delete */}
                                                                     <button
                                                                         onClick={() => setPrelimDocToDelete(doc._id)}
-                                                                        className="inline-flex items-center gap-1 px-2 py-1.5 text-[9px] font-bold text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
+                                                                        className="p-2 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-white hover:shadow-sm border border-transparent hover:border-rose-100 transition-all"
+                                                                        title="Delete"
                                                                     >
-                                                                        <Trash2 className="w-3 h-3" />
+                                                                        <Trash2 size={14} />
                                                                     </button>
                                                                 </div>
                                                             </div>

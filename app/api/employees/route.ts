@@ -16,23 +16,16 @@ export async function GET(req: NextRequest) {
         const status = searchParams.get('status');
 
         let baseQuery: any = { status: { $ne: 'deleted' } };
-        let useTextSearch = false;
 
         if (q && q.trim() !== '') {
             const trimmed = q.trim();
-            if (trimmed.length >= 3) {
-                // Use $text index for efficient full-text search
-                baseQuery.$text = { $search: trimmed };
-                useTextSearch = true;
-            } else {
-                // Fallback to $regex for very short queries (1-2 chars)
-                const searchRegex = { $regex: trimmed, $options: 'i' };
-                baseQuery.$or = [
-                    { firstName: searchRegex },
-                    { lastName: searchRegex },
-                    { email: searchRegex },
-                ];
-            }
+            const searchRegex = { $regex: trimmed, $options: 'i' };
+            const searchableFields = [
+                'firstName', 'lastName', 'email', 'recordId', 'phone', 'mobile',
+                'appRole', 'companyPosition', 'designation', 'groupNo', 'driverLicense',
+                'ssNumber', 'address', 'city', 'state', 'zip'
+            ];
+            baseQuery.$or = searchableFields.map(field => ({ [field]: searchRegex }));
         }
 
         let query = { ...baseQuery };
@@ -46,18 +39,13 @@ export async function GET(req: NextRequest) {
             }
         }
 
-        const appliedSort: any = useTextSearch
-            ? { score: { $meta: 'textScore' as const }, ...(sort || { firstName: 1, lastName: 1 }) }
-            : (sort || { firstName: 1, lastName: 1 });
+        const appliedSort: any = (sort || { firstName: 1, lastName: 1 });
         // Ensure stable sorting by appending _id if not present
         if (!appliedSort._id) {
             appliedSort._id = 1;
         }
 
         let findQuery = Employee.find(query).select('-password -refreshToken -__v');
-        if (useTextSearch) {
-            findQuery = findQuery.select({ score: { $meta: 'textScore' } });
-        }
 
         const [items, total, totalActive, totalInactive] = await Promise.all([
             findQuery
