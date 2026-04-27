@@ -574,6 +574,15 @@ export default function EstimateViewPage() {
                 const { item, ...rest } = payload;
                 body = item || rest;
             }
+            else if (action === 'createChangeOrder') { url = `/api/estimates/${payload.id}/change-order`; method = 'POST'; body = {}; }
+            else if (action === 'cloneEstimate') { url = `/api/estimates/${payload.id}/clone`; method = 'POST'; body = {}; }
+            else if (action === 'copyEstimate') { url = `/api/estimates/${payload.id}/copy`; method = 'POST'; body = {}; }
+            else if (action === 'deleteEstimate') { url = `/api/estimates/${payload.id}`; method = 'DELETE'; body = {}; }
+            else if (action === 'getConstants') { url = '/api/constants'; method = 'GET'; }
+            else if (action === 'addConstant') { url = '/api/constants'; method = 'POST'; body = { action: 'create', payload: payload.item || payload }; }
+            else if (action === 'addClient') { url = '/api/clients'; method = 'POST'; body = payload.item || payload; }
+            else if (action === 'updateClient') { url = `/api/clients/${payload.id}`; method = 'PATCH'; body = payload.item || payload; }
+            else if (action === 'previewProposal') { url = '/api/misc'; method = 'POST'; body = { action: 'previewProposal', payload }; }
 
             const options: RequestInit = { method, headers: { 'Content-Type': 'application/json' } };
             if (method !== 'GET') options.body = JSON.stringify(body);
