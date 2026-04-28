@@ -58,6 +58,7 @@ import {
     type LaborBreakdown,
     type FringeConstant
 } from '@/lib/estimateCalculations';
+import { QBO_OWNED_FIELDS } from '@/lib/qbo-sync-contract';
 import type { ScheduleItem } from '@/app/(protected)/jobs/schedules/components/ScheduleCard';
 
 const TimeCardContent = dynamic(
@@ -1700,9 +1701,18 @@ export default function EstimateViewPage() {
         if (!targetEstimate || !formData || !catalogsLoaded) return;
         if (!options.silent) setSaving(true);
         try {
+            // Strip QBO-owned fields from formData before sending to the API.
+            // These fields (project, customer, startDate, income, qbCost) are
+            // read-only from the CRM's perspective and the PATCH endpoint will
+            // reject any request that includes them.
+            const qboOwnedSet = new Set(QBO_OWNED_FIELDS as readonly string[]);
+            const safeFormData = Object.fromEntries(
+                Object.entries(formData as any).filter(([k]) => !qboOwnedSet.has(k))
+            );
+
             const payload = {
                 id: targetEstimate._id,
-                ...formData,
+                ...safeFormData,
                 fringe: formData.fringe,
                 bidMarkUp: String(formData.bidMarkUp).includes('%') ? formData.bidMarkUp : `${formData.bidMarkUp}%`,
                 subTotal: targetChartData.subTotal,

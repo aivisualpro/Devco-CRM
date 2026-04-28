@@ -3,7 +3,7 @@
 import { cld } from '@/lib/cld';
 import Image from 'next/image';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { FileText, Shield, ChevronRight, Loader2, Download, Upload, Layout, FileCheck, Receipt, Plus, Trash2, Calendar, DollarSign, Paperclip, X, Image as ImageIcon, Check, Pencil, User, ChevronDown, MessageSquare, Send, Reply, Forward, AlertTriangle, Clipboard, MapPin, HardHat, Eye, ExternalLink } from 'lucide-react';
+import { FileText, Shield, ChevronRight, ChevronLeft, Loader2, Download, Upload, Layout, FileCheck, Receipt, Plus, Trash2, Calendar, DollarSign, Paperclip, X, Image as ImageIcon, Check, Pencil, User, ChevronDown, MessageSquare, Send, Reply, Forward, AlertTriangle, Clipboard, MapPin, HardHat, Eye, ExternalLink } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Modal, Input, Button, ConfirmModal, MyDropDown, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, FileDropZone } from '@/components/ui';
 import type { UploadedFile } from '@/components/ui';
@@ -1918,7 +1918,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             uploads: [],
             titleDescriptions: [{ title: '', description: '' }],
             lumpSum: '',
-            createdBy: Array.isArray(formData?.proposalWriter) ? formData.proposalWriter.join(', ') : (formData?.proposalWriter || '')
+            createdBy: currentUser?.email || currentUser?.userId || (Array.isArray(formData?.proposalWriter) ? formData.proposalWriter.join(', ') : (formData?.proposalWriter || ''))
         });
         setEditingBillingTicketIndex(null);
         setIsBillingTicketModalOpen(true);
@@ -1965,7 +1965,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         if (item.date) {
             const parsed = new Date(item.date);
             if (!isNaN(parsed.getTime())) {
-                safeDate = formatWallDate(parsed);
+                safeDate = format(parsed, 'yyyy-MM-dd');
             }
         }
 
@@ -3719,20 +3719,38 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
                 {/* Column 2: Billing Tickets */}
                 <div className="space-y-4">
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 text-white flex items-center justify-center shadow-md">
-                            <Receipt className="w-4 h-4" />
+                    <div className="flex items-center justify-between gap-1 mb-2 mt-0.5">
+                        <div className="flex items-center gap-2 shrink-0">
+                            <div className="w-7 h-7 rounded-[10px] bg-gradient-to-br from-indigo-500 to-indigo-600 text-white flex items-center justify-center shadow-sm">
+                                <Receipt className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <h4 className="text-sm font-bold text-indigo-700 tracking-tight">Billing Tickets</h4>
+                                <span className="text-[9px] bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full font-black">
+                                    {billingTickets.length}
+                                </span>
+                            </div>
                         </div>
-                        <h4 className="text-sm font-bold text-indigo-700">Billing Tickets</h4>
-                        <span className="text-[10px] bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-bold">
-                            {billingTickets.length}
-                        </span>
-                        <button
-                            onClick={handleAddBillingTicket}
-                            className="ml-auto p-1.5 bg-indigo-100 text-indigo-600 rounded-lg hover:bg-indigo-200 transition-colors"
-                        >
-                            <Plus className="w-4 h-4" />
-                        </button>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                            {(() => {
+                                const total = billingTickets.reduce((sum: number, c: any) => sum + (parseFloat(String(c.lumpSum || c.amount || 0).replace(/[^0-9.-]+/g, "")) || 0), 0);
+                                return (
+                                    <div className="flex items-center gap-2.5 bg-white/90 px-2 py-1 rounded-lg shadow-sm border border-slate-100 shrink-0">
+                                        <div className="text-center pl-0.5 pr-0.5">
+                                            <p className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest mb-[1px]">Total ({billingTickets.length})</p>
+                                            <p className="text-[12px] font-black text-[#0F4C75] leading-none">${total.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                            <button
+                                onClick={handleAddBillingTicket}
+                                className="p-1.5 px-2 bg-indigo-100 text-indigo-600 rounded-[10px] hover:bg-indigo-200 shadow-[inset_0_1px_2px_rgba(255,255,255,0.7)] transition-colors shrink-0 flex items-center justify-center ml-0.5"
+                            >
+                                <Plus className="w-4 h-4" />
+                            </button>
+                        </div>
                     </div>
 
                     <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto">
@@ -3741,7 +3759,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 <div
                                     key={idx}
                                     onClick={(e) => handleEditBillingTicket(idx, e)}
-                                    className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-white/80 hover:shadow-md transition-all duration-300 overflow-hidden"
+                                    className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm relative group cursor-pointer hover:bg-slate-50 hover:shadow-md hover:border-slate-300 transition-all duration-300 flex flex-col gap-3 overflow-hidden"
                                 >
                                     {generatingDoc === 'Billing Ticket' && generatingIndex === idx && (
                                         <div className="absolute bottom-0 left-0 right-0 h-1 bg-slate-100/50">
@@ -3755,114 +3773,160 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                             </div>
                                         </div>
                                     )}
-                                    <div className="flex justify-between items-start mb-2">
-                                        <div className="flex-1 min-w-0 pr-6">
-                                            {(item.billingTerms || item.otherBillingTerms) && (
-                                                <p className="text-[10px] font-bold text-indigo-500">
-                                                    {(!item.billingTerms || item.billingTerms === 'Other') ? (item.otherBillingTerms || item.billingTerms) : item.billingTerms}
-                                                </p>
-                                            )}
+
+                                    {/* Row 1: type, date, amount */}
+                                    <div className="flex justify-between items-center">
+                                        <div className="flex items-center gap-3 max-w-[70%]">
+                                            <span className="w-fit text-xs font-black uppercase tracking-widest px-2.5 py-1 rounded-md shadow-sm bg-indigo-100 text-indigo-700 border border-indigo-200/50">
+                                                {(!item.billingTerms || item.billingTerms === 'Other') ? (item.otherBillingTerms || item.billingTerms || 'BILLING TICKET') : item.billingTerms}
+                                            </span>
                                             {item.date && (
-                                                <p className="text-[10px] font-bold text-slate-500">Date: {safeFormatDate(item.date)}</p>
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="text-[10px] uppercase tracking-widest text-slate-400 font-black">Date:</span>
+                                                    <span className="text-sm font-bold text-slate-600">{safeFormatDate(item.date)}</span>
+                                                </div>
                                             )}
                                         </div>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setBillingTicketToDelete(idx);
-                                            }}
-                                            className="p-1 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 absolute top-2 right-2"
-                                        >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleDocClick('Billing Ticket', idx);
-                                            }}
-                                            className="p-1 text-slate-300 hover:text-blue-500 transition-colors opacity-0 group-hover:opacity-100 absolute top-2 right-12"
-                                            title="Download PDF"
-                                        >
-                                            {generatingDoc === 'Billing Ticket' ? (
-                                                <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />
-                                            ) : (
-                                                <Download className="w-3.5 h-3.5" />
-                                            )}
-                                        </button>
-                                        <button
-                                            onClick={(e) => handleEditBillingTicket(idx, e)}
-                                            className="p-1 text-slate-300 hover:text-indigo-500 transition-colors opacity-0 group-hover:opacity-100 absolute top-2 right-7"
-                                        >
-                                            <Pencil className="w-3.5 h-3.5" />
-                                        </button>
-                                    </div>
-
-                                    {(item.lumpSum || item.amount) && (
-                                        <div className="mt-2 flex items-center gap-2">
-                                            <span className="text-[9px] font-black text-slate-400 uppercase">Lump Sum</span>
-                                            <span className="text-xs font-black text-green-600">
+                                        {(item.lumpSum || item.amount) && (
+                                            <span className="shrink-0 text-2xl font-black text-slate-900 tracking-tight">
                                                 ${parseFloat(String(item.lumpSum || item.amount).replace(/[^0-9.-]+/g, "")).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </span>
-                                        </div>
-                                    )}
+                                        )}
+                                    </div>
 
+                                    {/* Row 2: Title / Description */}
                                     {item.titleDescriptions?.length > 0 && (
-                                        <div className="mt-1.5 flex items-center gap-1.5">
-                                            <FileText className="w-3 h-3 text-slate-300 flex-shrink-0" />
-                                            <span className="text-[9px] text-slate-400 font-semibold">{item.titleDescriptions.length} line item{item.titleDescriptions.length !== 1 ? 's' : ''}</span>
-                                        </div>
-                                    )}
-
-                                    {item.uploads?.length > 0 && (
-                                        <div className="mt-2 space-y-1">
-                                            {item.uploads.map((upload: any, uIdx: number) => (
-                                                <a
-                                                    key={uIdx}
-                                                    href={upload.url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    className="flex items-center gap-1.5 text-[9px] text-violet-600 hover:text-violet-800 hover:bg-violet-50 px-2 py-1 rounded-lg transition-colors group/link"
-                                                >
-                                                    <Paperclip className="w-2.5 h-2.5 flex-shrink-0" />
-                                                    <span className="truncate max-w-[180px] group-hover/link:underline">{upload.name || `File ${uIdx + 1}`}</span>
-                                                    {upload.thumbnailUrl && (
-                                                        <div className="relative w-5 h-5 rounded flex-shrink-0 overflow-hidden"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(upload.thumbnailUrl, { w: 128, q: 'auto' })} alt="" className="rounded object-cover ml-auto flex-shrink-0 w-full h-full" /></div>
-                                                    )}
-                                                </a>
+                                        <div className="text-sm text-slate-700 italic bg-amber-50/50 p-2.5 rounded-lg border border-amber-100/50 line-clamp-3 mt-1">
+                                            {item.titleDescriptions.map((td: any, tIdx: number) => (
+                                                <div key={tIdx} className="mb-1 last:mb-0">
+                                                    <span className="font-semibold">{td.title}</span>
+                                                    {td.title && td.description && <span>: </span>}
+                                                    <span>{td.description}</span>
+                                                </div>
                                             ))}
                                         </div>
                                     )}
 
-                                    {/* Sent Date — isolated click zone */}
-                                    <div className="mt-2.5 pt-2 border-t border-slate-100/60" onClick={(e) => e.stopPropagation()}>
-                                        {item.sentDate ? (
+                                    {/* Row 3: Attachments */}
+                                    {item.uploads?.length > 0 && (
+                                        <div className="flex flex-col gap-2 mt-2 relative group/carousel">
                                             <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-1.5">
-                                                    <div className="w-4 h-4 rounded-full bg-emerald-100 flex items-center justify-center">
-                                                        <Check className="w-2.5 h-2.5 text-emerald-600" />
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 text-left pt-1">
+                                                    Attachments {item.uploads && `(${item.uploads.length})`}
+                                                </span>
+                                                {item.uploads.length > 2 && (
+                                                    <div className="flex items-center gap-1 opacity-0 group-hover/carousel:opacity-100 transition-opacity">
+                                                        <button onClick={(e) => { e.stopPropagation(); const c = e.currentTarget.parentElement?.parentElement?.nextElementSibling as HTMLElement; c?.scrollBy({ left: -200, behavior: 'smooth' }); }} className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-500">
+                                                            <ChevronLeft className="w-3.5 h-3.5" />
+                                                        </button>
+                                                        <button onClick={(e) => { e.stopPropagation(); const c = e.currentTarget.parentElement?.parentElement?.nextElementSibling as HTMLElement; c?.scrollBy({ left: 200, behavior: 'smooth' }); }} className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-500">
+                                                            <ChevronRight className="w-3.5 h-3.5" />
+                                                        </button>
                                                     </div>
-                                                    <span className="text-[9px] font-bold text-emerald-600">
-                                                        Sent {safeFormatDate(item.sentDate, 'MMM dd, yyyy')}
-                                                    </span>
-                                                </div>
-                                                <button
-                                                    onClick={(e) => handleClearBillingTicketSentDate(idx, e)}
-                                                    className="p-0.5 rounded-full text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all"
-                                                    title="Clear sent date"
-                                                >
-                                                    <X className="w-3 h-3" />
-                                                </button>
+                                                )}
                                             </div>
-                                        ) : (
-                                            <button
-                                                onClick={(e) => handleOpenBillingTicketSentDate(idx, e)}
-                                                className="w-full inline-flex items-center justify-center gap-1.5 px-2 py-1 rounded-lg text-[9px] font-semibold text-slate-400 bg-slate-50/70 hover:bg-blue-50 hover:text-blue-600 border border-dashed border-slate-200 hover:border-blue-300 transition-all"
-                                            >
-                                                <Send className="w-2.5 h-2.5" />
-                                                Mark as Sent
+                                            <div className="flex gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-2">
+                                                {item.uploads.map((upload: any, uIdx: number) => {
+                                                    const url = upload.url || '';
+                                                    const name = upload.name || `File ${uIdx + 1}`;
+                                                    const isPdf = url.toLowerCase().endsWith('.pdf') || url.startsWith('data:application/pdf');
+                                                    const isImg = url.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/i) || url.startsWith('data:image/');
+                                                    const thumbUrl = upload.thumbnailUrl || (isImg ? url : null);
+                                                    return (
+                                                        <button
+                                                            key={uIdx}
+                                                            onClick={(e) => { e.stopPropagation(); handleFileDownload(url, name); }}
+                                                            className="snap-start shrink-0 w-[180px] flex flex-col items-center justify-between p-2 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white hover:border-slate-300 transition-all group shadow-sm focus:outline-none relative overflow-hidden"
+                                                        >
+                                                            {thumbUrl ? (
+                                                                <div className="w-full h-24 mb-2 rounded-lg bg-slate-100 overflow-hidden relative border border-slate-200/50">
+                                                                    <Image fill sizes="180px" src={cld(thumbUrl, { w: 300, q: 'auto' })} alt="" className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500" />
+                                                                </div>
+                                                            ) : (
+                                                                <div className="w-full h-24 mb-2 rounded-lg bg-indigo-50/50 border border-indigo-100/50 flex items-center justify-center group-hover:bg-indigo-100/50 transition-colors">
+                                                                    <FileText className="w-8 h-8 text-indigo-300 group-hover:text-indigo-400 transition-colors" />
+                                                                </div>
+                                                            )}
+                                                            <div className="w-full flex items-center justify-between gap-2">
+                                                                <div className="flex items-center gap-1.5 overflow-hidden">
+                                                                    <div className="shrink-0 w-5 h-5 rounded bg-indigo-100/50 flex items-center justify-center">
+                                                                        {isImg ? <ImageIcon className="w-3 h-3 text-indigo-600" /> : <FileText className="w-3 h-3 text-indigo-600" />}
+                                                                    </div>
+                                                                    <span className="text-[10px] font-bold text-slate-700 truncate text-left flex-1" title={name}>
+                                                                        {name}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="shrink-0 w-6 h-6 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 group-hover:text-indigo-600 group-hover:border-indigo-300 group-hover:shadow-md transition-all">
+                                                                    <Download className="w-3 h-3" />
+                                                                </div>
+                                                            </div>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Row 4: createdBy, createdAt, actions */}
+                                    <div className="mt-2 pt-3 border-t border-slate-100 flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <TooltipProvider>
+                                                {(() => {
+                                                    const creator = getEmployeeData(item.createdBy);
+                                                    return (
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <div className="relative w-6 h-6 rounded-full border border-slate-200 bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600 shadow-sm overflow-hidden">
+                                                                    {creator?.image ? <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" alt="" src={cld(creator.image, { w: 128, q: 'auto' })} className="object-cover w-full h-full" /></div> : (item.createdBy?.[0]?.toUpperCase() || 'U')}
+                                                                </div>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent><p>Created By: {creator?.label || item.createdBy}</p></TooltipContent>
+                                                        </Tooltip>
+                                                    );
+                                                })()}
+                                            </TooltipProvider>
+                                            <span className="text-xs font-bold text-slate-500 tracking-wide">{getEmployeeData(item.createdBy)?.label || item.createdBy || 'Unknown'}</span>
+                                            {item.createdAt && (
+                                                <span className="text-[10px] font-bold text-slate-400 tracking-wider ml-1">
+                                                    {safeFormatDate(item.createdAt)}
+                                                </span>
+                                            )}
+                                        </div>
+                                        
+                                        <div className="flex items-center gap-2">
+                                            {/* Inline Sent Status / Mark as Sent Button */}
+                                            {item.sentDate ? (
+                                                <div className="flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100">
+                                                    <Check className="w-3 h-3 text-emerald-600" />
+                                                    <span className="text-[10px] font-bold text-emerald-600">
+                                                        Sent {safeFormatDate(item.sentDate, 'MM/dd')}
+                                                    </span>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); handleClearBillingTicketSentDate(idx, e); }}
+                                                        className="ml-1 p-0.5 rounded-full text-emerald-400 hover:text-red-500 hover:bg-red-50 transition-all"
+                                                        title="Clear sent date"
+                                                    >
+                                                        <X className="w-3 h-3" />
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleOpenBillingTicketSentDate(idx, e); }}
+                                                    className="inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-slate-500 bg-white hover:bg-blue-50 hover:text-blue-600 border border-slate-200 hover:border-blue-300 transition-all shadow-sm"
+                                                    title="Mark as Sent"
+                                                >
+                                                    <Send className="w-3 h-3" />
+                                                    <span>Sent</span>
+                                                </button>
+                                            )}
+
+                                            <button onClick={(e) => handleEditBillingTicket(idx, e)} className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 shadow-sm text-slate-500 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50 transition-all flex items-center justify-center" title="Edit">
+                                                <Pencil className="w-3.5 h-3.5" />
                                             </button>
-                                        )}
+                                            <button onClick={(e) => { e.stopPropagation(); setBillingTicketToDelete(idx); }} className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 shadow-sm text-slate-500 hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition-all flex items-center justify-center" title="Delete">
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             )) : (
