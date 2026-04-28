@@ -359,7 +359,7 @@ export const SignedContractsCard: React.FC<SignedContractsCardProps> = ({
                                             )}
                                         </div>
                                     </div>
-                                    <div className="flex gap-2 transition-opacity duration-300 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+                                    <div className="flex gap-2">
                                         <button
                                             onClick={(e) => handleEditContract(originalIndex, e)}
                                             className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 shadow-sm text-slate-500 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-all flex items-center justify-center"

@@ -208,13 +208,18 @@ export async function POST(req: NextRequest) {
                         const filteredEmails = adminEmails.filter((e: string) => e !== currentUserEmail);
 
                         if (filteredEmails.length > 0) {
-                            await createNotifications({
-                                recipientEmails: filteredEmails,
-                                type: 'general',
-                                title: `New Client Created`,
-                                message: `${(jwtUser as any)?.firstName || 'Someone'} created a new client: ${newClient.name}`,
-                                link: `/clients/${newClient._id}`
-                            });
+                                await createNotifications({
+                                    recipientEmails: filteredEmails,
+                                    type: 'general',
+                                    title: `New Client Created`,
+                                    message: `Created a new client: ${newClient.name}`,
+                                    link: `/clients/${newClient._id}`,
+                                    metadata: {
+                                        creatorName: `${(jwtUser as any)?.firstName || ''} ${(jwtUser as any)?.lastName || ''}`.trim() || 'Someone',
+                                        creatorImage: (jwtUser as any)?.profilePicture || (jwtUser as any)?.image || ''
+                                    },
+                                    createdBy: (jwtUser as any)?.email || ''
+                                });
                         }
                     } catch (err) {
                         console.error('[notif]', err);

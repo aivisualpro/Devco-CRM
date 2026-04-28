@@ -5,6 +5,8 @@ import useSWRInfinite from 'swr/infinite';
 import { useRouter } from 'next/navigation';
 import { Bell, Check, CheckCheck, Trash2, X, Calendar, Clock, FileText, AlertCircle, Sparkles, ChevronRight, Volume2, VolumeX } from 'lucide-react';
 import Pusher from 'pusher-js';
+import { cld } from '@/lib/cld';
+import Image from 'next/image';
 
 interface AppNotification {
     _id: string;
@@ -403,9 +405,15 @@ export default function NotificationBell({ currentUser }: { currentUser?: any })
                                                 <div className="absolute left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-[#0F4C75] shadow-sm" />
                                             )}
 
-                                            {/* Icon */}
-                                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 ${!notif.read ? 'bg-white shadow-sm' : 'bg-slate-100'}`}>
-                                                {icon}
+                                            {/* Icon or Avatar */}
+                                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 relative overflow-hidden ${!notif.read ? 'bg-white shadow-sm border border-slate-100' : 'bg-slate-100'}`}>
+                                                {notif.metadata?.creatorImage ? (
+                                                    <Image fill sizes="32px" src={cld(notif.metadata.creatorImage, { w: 64, q: 'auto' })} alt={notif.metadata.creatorName || ''} className="object-cover w-full h-full" />
+                                                ) : notif.metadata?.creatorName ? (
+                                                    <span className="text-xs font-black text-slate-600 uppercase tracking-widest">{notif.metadata.creatorName[0]}</span>
+                                                ) : (
+                                                    icon
+                                                )}
                                             </div>
 
                                             {/* Content */}
@@ -414,6 +422,9 @@ export default function NotificationBell({ currentUser }: { currentUser?: any })
                                                     {notif.title}
                                                 </p>
                                                 <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2 leading-relaxed">
+                                                    {notif.metadata?.creatorName && (
+                                                        <span className="font-bold text-slate-700 mr-1">{notif.metadata.creatorName}</span>
+                                                    )}
                                                     {notif.message}
                                                 </p>
                                                 <p className="text-[10px] text-slate-400 mt-1 font-medium">

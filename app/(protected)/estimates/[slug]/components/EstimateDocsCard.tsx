@@ -122,6 +122,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     // Aggregated Receipts & Billing Tickets State
     const [aggregatedReceipts, setAggregatedReceipts] = useState<any[]>([]);
     const [aggregatedBillingTickets, setAggregatedBillingTickets] = useState<any[]>([]); // New State
+    const [isBillingAggregated, setIsBillingAggregated] = useState(false);
     const [loadingReceipts, setLoadingReceipts] = useState(false);
     const [billingTicketAssignees, setBillingTicketAssignees] = useState<string[]>(['dt@devco-inc.com', 'rosa@devco-inc.com']);
 
@@ -340,6 +341,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         }
         allB.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
         setAggregatedBillingTickets(allB);
+        setIsBillingAggregated(true);
     }, [aggregatedData, formData?.receiptsAndCosts, formData?.billingTickets, currentUser, getDataScope]);
 
     const { data: jobDocsData, isLoading: jobDocsIsLoading, mutate: refetchJobDocs } = useSWR(
@@ -1848,8 +1850,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     };
 
     // Billing Tickets State
-    // Billing Tickets State
-    const billingTickets = aggregatedBillingTickets.length > 0 ? aggregatedBillingTickets : (formData?.billingTickets || []);
+    const billingTickets = isBillingAggregated ? aggregatedBillingTickets : (formData?.billingTickets || []);
     const [isBillingTicketModalOpen, setIsBillingTicketModalOpen] = useState(false);
     const [isBillingTermsOpen, setIsBillingTermsOpen] = useState(false);
     const [editingBillingTicketIndex, setEditingBillingTicketIndex] = useState<number | null>(null);

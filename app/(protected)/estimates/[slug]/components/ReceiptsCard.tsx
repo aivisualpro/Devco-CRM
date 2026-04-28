@@ -562,7 +562,7 @@ export const ReceiptsCard: React.FC<ReceiptsCardProps> = ({
                                                 <span className="text-[10px] font-bold text-slate-400 tracking-wider">
                                                     {fmtDate(item.createdAt)}
                                                 </span>
-                                                <div className="flex gap-2 transition-opacity duration-300 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+                                                <div className="flex gap-2">
                                                     <button onClick={(e) => handleEditReceipt(originalIdx, e)} className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 shadow-sm text-slate-500 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-all flex items-center justify-center">
                                                         <Pencil className="w-3.5 h-3.5" />
                                                     </button>
