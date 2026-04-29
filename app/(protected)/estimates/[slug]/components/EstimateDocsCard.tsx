@@ -5,7 +5,6 @@ import Image from 'next/image';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { FileText, Shield, ChevronRight, ChevronLeft, Loader2, Download, Upload, Layout, FileCheck, Receipt, Plus, Trash2, Calendar, DollarSign, Paperclip, X, Image as ImageIcon, Check, Pencil, User, ChevronDown, MessageSquare, Send, Reply, Forward, AlertTriangle, Clipboard, MapPin, HardHat, Eye, ExternalLink } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { toast as sonnerToast } from 'sonner';
 import { Modal, Input, Button, ConfirmModal, MyDropDown, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, FileDropZone } from '@/components/ui';
 import type { UploadedFile } from '@/components/ui';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -163,6 +162,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     const [potholeModalOpen, setPotholeModalOpen] = useState(false);
     const [selectedPotholeLog, setSelectedPotholeLog] = useState<any>(null);
     const [potholeLogToDelete, setPotholeLogToDelete] = useState<any>(null);
+    const [preBoreLogToDelete, setPreBoreLogToDelete] = useState<any>(null);
     const [potholeCreateOpen, setPotholeCreateOpen] = useState(false);
     const [potholeEditOpen, setPotholeEditOpen] = useState(false);
     const [editingPotholeLog, setEditingPotholeLog] = useState<any>(null);
@@ -1143,30 +1143,25 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     };
 
     const handleDeletePreBoreLog = (pb: any) => {
-        sonnerToast('Confirm Deletion', {
-            description: 'Are you sure you want to delete this Pre-Bore Log?',
-            action: {
-                label: 'Delete',
-                onClick: async () => {
-                    try {
-                        const res = await fetch('/api/pre-bore-logs', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ action: 'deletePreBoreLog', payload: { id: pb._id } })
-                        });
-                        const data = await res.json();
-                        if (data.success) {
-                            toast.success('Pre-Bore Log deleted');
-                            refetchJobDocs();
-                        } else toast.error(data.error || 'Failed to delete');
-                    } catch (e) { console.error(e); toast.error('Error deleting pre-bore log'); }
-                }
-            },
-            cancel: {
-                label: 'Cancel',
-                onClick: () => {}
-            }
-        });
+        setPreBoreLogToDelete(pb);
+    };
+
+    const confirmDeletePreBoreLog = async () => {
+        if (!preBoreLogToDelete) return;
+        try {
+            const res = await fetch('/api/pre-bore-logs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'deletePreBoreLog', payload: { id: preBoreLogToDelete._id } })
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast.success('Pre-Bore Log deleted');
+                refetchJobDocs();
+            } else toast.error(data.error || 'Failed to delete');
+        } catch (e) { console.error(e); toast.error('Error deleting pre-bore log'); } finally {
+            setPreBoreLogToDelete(null);
+        }
     };
 
     const handleDownloadPreBoreLogPDF = async (pb: any, setDownloading: (b: boolean) => void) => {
@@ -5374,6 +5369,16 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 onConfirm={confirmDeletePotholeLog}
                 title="Delete Pothole Log"
                 message="Are you sure you want to delete this pothole log? This action cannot be undone."
+                confirmText="Delete"
+                variant="danger"
+            />
+
+            <ConfirmModal
+                isOpen={preBoreLogToDelete !== null}
+                onClose={() => setPreBoreLogToDelete(null)}
+                onConfirm={confirmDeletePreBoreLog}
+                title="Delete Pre-Bore Log"
+                message="Are you sure you want to delete this pre-bore log? This action cannot be undone."
                 confirmText="Delete"
                 variant="danger"
             />
