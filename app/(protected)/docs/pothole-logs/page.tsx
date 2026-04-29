@@ -27,6 +27,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
 import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
 import { useAllEmployees } from '@/lib/hooks/api';
+import { PotholeLogFormModal } from '@/components/pothole-logs/PotholeLogFormModal';
 
 // Dropdown options
 const UTILITY_TYPES = [
@@ -89,6 +90,7 @@ interface Estimate {
     estimate?: string;
     projectName?: string;
     jobAddress?: string;
+    customerName?: string;
 }
 
 interface Employee {
@@ -144,6 +146,11 @@ export default function PotholeLogsPage() {
         jobAddress: '',
         potholeItems: [] as PotholeItem[]
     });
+
+    // Customer Selection
+    const [selectedCustomer, setSelectedCustomer] = useState<string>('');
+    const [customerSearch, setCustomerSearch] = useState('');
+    const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
 
     // Estimate Selection
     const [selectedEstimateId, setSelectedEstimateId] = useState<string>('');
@@ -280,7 +287,9 @@ export default function PotholeLogsPage() {
     };
 
     const handleEdit = (log: PotholeLog) => {
-        setEditingLog(log);
+        // Pre-fill customer from linked estimate
+        const linkedEst = estimates.find(e => e._id === log.estimate || e.estimate === log.estimate);
+        setEditingLog({ ...log, customerName: linkedEst?.customerName || '' } as any);
         // Migrate pothole items - convert legacy photo1/photo2 to photos array
         const migratedPotholeItems = (log.potholeItems || []).map(item => {
             const photos = [
@@ -295,6 +304,8 @@ export default function PotholeLogsPage() {
                 longitude: item.longitude?.toString() || ''
             };
         });
+        // Pre-fill customer from linked estimate (reuse linkedEst from above)
+        setSelectedCustomer(linkedEst?.customerName || '');
         setFormData({
             date: log.date ? formatWallDate(log.date) : '',
             estimate: log.estimate || '',
@@ -314,6 +325,9 @@ export default function PotholeLogsPage() {
             potholeItems: []
         });
         setSelectedEstimateId('');
+        setSelectedCustomer('');
+        setCustomerSearch('');
+        setEstimateSearch('');
         setIsModalOpen(true);
     };
 
@@ -542,12 +556,31 @@ export default function PotholeLogsPage() {
         }
     };
 
-    // Filter estimates for dropdown
+    // Unique customers derived from estimates
+    const allCustomers = useMemo(() => {
+        const seen = new Set<string>();
+        const list: string[] = [];
+        estimates.forEach(est => {
+            const name = (est.customerName || '').trim();
+            if (name && !seen.has(name)) { seen.add(name); list.push(name); }
+        });
+        return list.sort((a, b) => a.localeCompare(b));
+    }, [estimates]);
+
+    const filteredCustomers = useMemo(() => {
+        if (!customerSearch) return allCustomers;
+        const s = customerSearch.toLowerCase();
+        return allCustomers.filter(c => c.toLowerCase().includes(s));
+    }, [allCustomers, customerSearch]);
+
+    // Filter estimates for dropdown — cascade from customer
     const filteredEstimates = useMemo(() => {
         const uniqueMap: Record<string, Estimate> = {};
         estimates.forEach(est => {
             const num = est.estimate;
             if (!num) return;
+            // Only show estimates for selected customer (if one is chosen)
+            if (selectedCustomer && (est.customerName || '').trim() !== selectedCustomer) return;
             if (!uniqueMap[num]) uniqueMap[num] = est;
         });
 
@@ -559,7 +592,7 @@ export default function PotholeLogsPage() {
             );
         }
         return res.sort((a, b) => (b.estimate || '').localeCompare(a.estimate || '')).slice(0, 50);
-    }, [estimates, estimateSearch]);
+    }, [estimates, estimateSearch, selectedCustomer]);
 
     const getSelectedEstimateLabel = () => {
         const est = estimates.find(e => e._id === selectedEstimateId || e.estimate === selectedEstimateId);
@@ -672,14 +705,14 @@ export default function PotholeLogsPage() {
                                             <TableHeader className="w-[100px] cursor-pointer hover:bg-slate-100" onClick={() => handleSort('date')}>
                                                 <div className="flex items-center gap-1">Date <ArrowUpDown size={12} className="opacity-50" /></div>
                                             </TableHeader>
-                                            <TableHeader className="w-[120px] cursor-pointer hover:bg-slate-100" onClick={() => handleSort('estimate')}>
+                                            <TableHeader className="min-w-[140px]">Customer</TableHeader>
+                                            <TableHeader className="w-[110px] cursor-pointer hover:bg-slate-100" onClick={() => handleSort('estimate')}>
                                                 <div className="flex items-center gap-1">Estimate <ArrowUpDown size={12} className="opacity-50" /></div>
                                             </TableHeader>
                                             <TableHeader className="min-w-[150px]">Project</TableHeader>
-                                            <TableHeader className="min-w-[150px]">Job Address</TableHeader>
-                                            <TableHeader className="w-[80px] text-center">Items</TableHeader>
-                                            <TableHeader className="w-[100px]">Created By</TableHeader>
-                                            <TableHeader className="w-[80px] text-right">Actions</TableHeader>
+                                            <TableHeader className="min-w-[160px]">Job Address</TableHeader>
+                                            <TableHeader className="w-[70px] text-center">Items</TableHeader>
+                                            <TableHeader className="w-[130px]">Created By</TableHeader>
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
@@ -708,21 +741,24 @@ export default function PotholeLogsPage() {
                                                                 </button>
                                                             )}
                                                         </TableCell>
-                                                        <TableCell className="font-medium text-slate-700 text-xs whitespace-nowrap">
+                                                        <TableCell className="text-sm font-medium text-gray-600 whitespace-nowrap">
                                                             {log.date && !isNaN(new Date(log.date).getTime()) ? formatWallDate(log.date) : '-'}
+                                                        </TableCell>
+                                                        <TableCell className="text-sm text-gray-600 max-w-[160px] truncate">
+                                                            {estInfo?.customerName || '-'}
                                                         </TableCell>
                                                         <TableCell>
                                                             <span
-                                                                className="font-semibold text-[#0F4C75] text-xs cursor-pointer hover:underline"
+                                                                className="text-sm font-semibold text-[#0F4C75] cursor-pointer hover:underline"
                                                                 onMouseEnter={() => router.prefetch(`/estimates/${estInfo?._id || log.estimate}`)} onClick={(e) => { e.stopPropagation(); router.push(`/estimates/${estInfo?._id || log.estimate}`); }}
                                                             >
                                                                 {estInfo?.estimate || log.estimate || 'N/A'}
                                                             </span>
                                                         </TableCell>
-                                                        <TableCell className="text-xs text-slate-600 max-w-[150px] truncate">
+                                                        <TableCell className="text-sm text-gray-600 max-w-[160px] truncate">
                                                             {estInfo?.projectName || '-'}
                                                         </TableCell>
-                                                        <TableCell className="text-xs text-slate-600 max-w-[150px] truncate">
+                                                        <TableCell className="text-sm text-gray-600 max-w-[180px] truncate">
                                                             {log.jobAddress || log.projectionLocation || '-'}
                                                         </TableCell>
                                                         <TableCell className="text-center">
@@ -736,22 +772,8 @@ export default function PotholeLogsPage() {
                                                                 if (emp) {
                                                                     return <UserChip user={emp} size="sm" />;
                                                                 }
-                                                                return <span className="text-xs text-slate-500 truncate">{log.createdBy || '-'}</span>;
+                                                                return <span className="text-sm text-gray-600 truncate">{log.createdBy || '-'}</span>;
                                                             })()}
-                                                        </TableCell>
-                                                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                                                            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                {canEdit && (
-                                                                    <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500 hover:text-blue-600" onClick={() => handleEdit(log)}>
-                                                                        <Pencil size={14} />
-                                                                    </Button>
-                                                                )}
-                                                                {canDelete && (
-                                                                    <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500 hover:text-red-600" onClick={() => { setLogToDelete(log); setIsDeleteOpen(true); }}>
-                                                                        <Trash2 size={14} />
-                                                                    </Button>
-                                                                )}
-                                                            </div>
                                                         </TableCell>
                                                     </TableRow>
                                                     {isExpanded && log.potholeItems?.map((item, idx) => (
@@ -875,312 +897,15 @@ export default function PotholeLogsPage() {
                 </div>
             )}
 
-            {/* Add/Edit Modal */}
-            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle>{editingLog ? 'Edit Pothole Log' : 'New Pothole Log'}</DialogTitle>
-                    </DialogHeader>
-
-                    <div className="grid grid-cols-2 gap-4 py-4">
-                        {/* Estimate Selection */}
-                        <div className="col-span-2">
-                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Linked Estimate *</Label>
-                            <div className="relative mt-1">
-                                <div
-                                    className="w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer bg-white hover:border-slate-400 transition-colors"
-                                    onClick={() => setIsEstimateDropdownOpen(!isEstimateDropdownOpen)}
-                                >
-                                    <span className={`text-sm ${selectedEstimateId ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
-                                        {getSelectedEstimateLabel()}
-                                    </span>
-                                    <ChevronDown size={16} className="text-slate-400" />
-                                </div>
-
-                                {isEstimateDropdownOpen && (
-                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-xl shadow-xl z-50 max-h-60 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
-                                        <div className="p-2 border-b bg-slate-50">
-                                            <Input
-                                                placeholder="Search estimates..."
-                                                autoFocus
-                                                value={estimateSearch}
-                                                onChange={(e) => setEstimateSearch(e.target.value)}
-                                                className="h-8 text-sm"
-                                            />
-                                        </div>
-                                        <div className="overflow-y-auto flex-1 p-1">
-                                            {filteredEstimates.map(est => (
-                                                <div
-                                                    key={est._id}
-                                                    className={cn(
-                                                        "px-3 py-2 text-sm rounded-lg cursor-pointer hover:bg-blue-50 hover:text-blue-700 flex items-center justify-between",
-                                                        selectedEstimateId === est._id ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700"
-                                                    )}
-                                                    onClick={() => {
-                                                        setSelectedEstimateId(est._id);
-                                                        // Auto-fill jobAddress from estimate
-                                                        if (est.jobAddress) {
-                                                            setFormData(prev => ({ ...prev, jobAddress: est.jobAddress || '' }));
-                                                        }
-                                                        setIsEstimateDropdownOpen(false);
-                                                    }}
-                                                >
-                                                    <div className="flex flex-col">
-                                                        <span className="font-bold">{est.estimate || 'No #'}</span>
-                                                        <span className="text-xs opacity-70">{est.projectName}</span>
-                                                    </div>
-                                                    {selectedEstimateId === est._id && <Check size={14} />}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                            {isEstimateDropdownOpen && (
-                                <div className="fixed inset-0 z-40" onClick={() => setIsEstimateDropdownOpen(false)} />
-                            )}
-                        </div>
-
-                        <div>
-                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Date</Label>
-                            <Input
-                                type="date"
-                                value={formData.date}
-                                onChange={e => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                                className="mt-1"
-                            />
-                        </div>
-
-                        <div>
-                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Job Address</Label>
-                            <Input
-                                value={formData.jobAddress}
-                                onChange={e => setFormData(prev => ({ ...prev, jobAddress: e.target.value }))}
-                                className="mt-1"
-                                placeholder="Auto-filled from estimate"
-                            />
-                        </div>
-
-                        {/* Pothole Items Section */}
-                        <div className="col-span-2 mt-4">
-                            <div className="flex items-center justify-between mb-2">
-                                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pothole Items</Label>
-                                <Button type="button" size="sm" variant="outline" onClick={handleAddPotholeItem}>
-                                    <Plus size={14} className="mr-1" /> Add Item
-                                </Button>
-                            </div>
-
-                            {formData.potholeItems.length === 0 ? (
-                                <div className="text-center py-8 text-slate-400 text-sm border border-dashed rounded-xl">
-                                    No pothole items yet. Click &quot;Add Item&quot; to add one.
-                                </div>
-                            ) : (
-                                <div className="space-y-3">
-                                    {formData.potholeItems.map((item, idx) => (
-                                        <div key={idx} className="border rounded-xl p-4 bg-slate-50 relative">
-                                            <button
-                                                onClick={() => handleRemovePotholeItem(idx)}
-                                                className="absolute top-2 right-2 text-slate-400 hover:text-red-500"
-                                            >
-                                                <X size={16} />
-                                            </button>
-                                            <div className="grid grid-cols-3 gap-3">
-                                                <div>
-                                                    <Label className="text-[9px] text-slate-400">Pothole No</Label>
-                                                    <Input
-                                                        value={item.potholeNo}
-                                                        onChange={e => handlePotholeItemChange(idx, 'potholeNo', e.target.value)}
-                                                        className="h-8 text-xs"
-                                                    />
-                                                </div>
-                                                <div className="relative">
-                                                    <Label className="text-[9px] text-slate-400">Type of Utility</Label>
-                                                    <div
-                                                        className="w-full h-8 text-xs border rounded-lg px-2 bg-white flex items-center justify-between cursor-pointer hover:border-slate-400 transition-colors"
-                                                        onClick={() => setUtilityDropdownOpen(prev => ({ ...prev, [idx]: !prev[idx] }))}
-                                                    >
-                                                        <span className={`truncate ${item.typeOfUtility ? 'text-slate-900' : 'text-slate-400'}`}>
-                                                            {item.typeOfUtility || 'Select type...'}
-                                                        </span>
-                                                        <ChevronDown size={12} className="text-slate-400 shrink-0" />
-                                                    </div>
-                                                    <MyDropDown
-                                                        isOpen={!!utilityDropdownOpen[idx]}
-                                                        onClose={() => setUtilityDropdownOpen(prev => ({ ...prev, [idx]: false }))}
-                                                        options={utilityOptions.map(o => ({ id: o, label: o, value: o }))}
-                                                        selectedValues={item.typeOfUtility ? item.typeOfUtility.split(',').map(s => s.trim()).filter(Boolean) : []}
-                                                        onSelect={(val) => {
-                                                            const current = item.typeOfUtility ? item.typeOfUtility.split(',').map(s => s.trim()).filter(Boolean) : [];
-                                                            const exists = current.indexOf(val);
-                                                            let newValues;
-                                                            if (exists >= 0) {
-                                                                newValues = current.filter(c => c !== val);
-                                                            } else {
-                                                                newValues = [...current, val];
-                                                            }
-                                                            handlePotholeItemChange(idx, 'typeOfUtility', newValues.join(', '));
-                                                        }}
-                                                        onAdd={async (val) => {
-                                                            if (!utilityOptions.includes(val)) {
-                                                                setUtilityOptions(prev => [...prev, val]);
-                                                            }
-                                                            const current = item.typeOfUtility ? item.typeOfUtility.split(',').map(s => s.trim()).filter(Boolean) : [];
-                                                            handlePotholeItemChange(idx, 'typeOfUtility', [...current, val].join(', '));
-                                                        }}
-                                                        width="w-full"
-                                                        placeholder="Search utility types..."
-                                                        multiSelect={true}
-                                                    />
-                                                </div>
-                                                <div className="relative">
-                                                    <Label className="text-[9px] text-slate-400">Soil Type</Label>
-                                                    <div
-                                                        className="w-full h-8 text-xs border rounded-lg px-2 bg-white flex items-center justify-between cursor-pointer hover:border-slate-400 transition-colors"
-                                                        onClick={() => setSoilDropdownOpen(prev => ({ ...prev, [idx]: !prev[idx] }))}
-                                                    >
-                                                        <span className={`truncate ${item.soilType ? 'text-slate-900' : 'text-slate-400'}`}>
-                                                            {item.soilType || 'Select soil...'}
-                                                        </span>
-                                                        <ChevronDown size={12} className="text-slate-400 shrink-0" />
-                                                    </div>
-                                                    <MyDropDown
-                                                        isOpen={!!soilDropdownOpen[idx]}
-                                                        onClose={() => setSoilDropdownOpen(prev => ({ ...prev, [idx]: false }))}
-                                                        options={soilOptions.map(o => ({ id: o, label: o, value: o }))}
-                                                        selectedValues={item.soilType ? item.soilType.split(',').map(s => s.trim()).filter(Boolean) : []}
-                                                        onSelect={(val) => {
-                                                            const current = item.soilType ? item.soilType.split(',').map(s => s.trim()).filter(Boolean) : [];
-                                                            const exists = current.indexOf(val);
-                                                            let newValues;
-                                                            if (exists >= 0) {
-                                                                newValues = current.filter(c => c !== val);
-                                                            } else {
-                                                                newValues = [...current, val];
-                                                            }
-                                                            handlePotholeItemChange(idx, 'soilType', newValues.join(', '));
-                                                        }}
-                                                        onAdd={async (val) => {
-                                                            if (!soilOptions.includes(val)) {
-                                                                setSoilOptions(prev => [...prev, val]);
-                                                            }
-                                                            const current = item.soilType ? item.soilType.split(',').map(s => s.trim()).filter(Boolean) : [];
-                                                            handlePotholeItemChange(idx, 'soilType', [...current, val].join(', '));
-                                                        }}
-                                                        width="w-full"
-                                                        placeholder="Search soil types..."
-                                                        multiSelect={true}
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <Label className="text-[9px] text-slate-400">Top Depth</Label>
-                                                    <Input
-                                                        value={item.topDepthOfUtility}
-                                                        onChange={e => handlePotholeItemChange(idx, 'topDepthOfUtility', e.target.value)}
-                                                        className="h-8 text-xs"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <Label className="text-[9px] text-slate-400">Bottom Depth</Label>
-                                                    <Input
-                                                        value={item.bottomDepthOfUtility}
-                                                        onChange={e => handlePotholeItemChange(idx, 'bottomDepthOfUtility', e.target.value)}
-                                                        className="h-8 text-xs"
-                                                    />
-                                                </div>
-
-                                                {/* Geolocation Section */}
-                                                <div className="col-span-3 mt-1">
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <Label className="text-[9px] text-slate-400 flex items-center gap-1">
-                                                            <MapPin size={10} className="text-emerald-500" /> Location
-                                                        </Label>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleDropPin(idx)}
-                                                            disabled={geoLoadingIndex === idx}
-                                                            className="flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full hover:bg-emerald-100 transition-colors disabled:opacity-50"
-                                                        >
-                                                            {geoLoadingIndex === idx ? (
-                                                                <Loader2 size={10} className="animate-spin" />
-                                                            ) : (
-                                                                <LocateFixed size={10} />
-                                                            )}
-                                                            Drop Pin
-                                                        </button>
-                                                        {item.latitude && item.longitude && (
-                                                            <a
-                                                                href={`https://maps.google.com/?q=${item.latitude},${item.longitude}`}
-                                                                target="_blank"
-                                                                rel="noreferrer"
-                                                                className="text-[9px] text-blue-600 hover:underline"
-                                                                onClick={e => e.stopPropagation()}
-                                                            >
-                                                                View on Map ↗
-                                                            </a>
-                                                        )}
-                                                    </div>
-                                                    <div className="grid grid-cols-2 gap-2">
-                                                        <Input
-                                                            value={item.latitude || ''}
-                                                            onChange={e => handlePotholeItemChange(idx, 'latitude', e.target.value)}
-                                                            className="h-7 text-xs"
-                                                            placeholder="Latitude (auto from photo/pin)"
-                                                        />
-                                                        <Input
-                                                            value={item.longitude || ''}
-                                                            onChange={e => handlePotholeItemChange(idx, 'longitude', e.target.value)}
-                                                            className="h-7 text-xs"
-                                                            placeholder="Longitude (auto from photo/pin)"
-                                                        />
-                                                    </div>
-                                                </div>
-
-                                                <div className="col-span-3">
-                                                    <Label className="text-[9px] text-slate-400">Photos</Label>
-                                                    <div className="mt-1 flex flex-wrap gap-2 items-center">
-                                                        {item.photos?.map((photo, pIdx) => (
-                                                            <div key={pIdx} className="relative group">
-                                                                <div className="relative w-16 h-16 rounded-lg overflow-hidden border-2 border-slate-200 hover:border-blue-400 transition-colors">
-                                                                    <div className="relative w-full h-full"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(photo, { w: 128, q: 'auto' })} alt={`Photo ${pIdx + 1}`} className="object-cover w-full h-full" /></div>
-                                                                </div>
-                                                                <button
-                                                                    onClick={() => handleRemovePhoto(idx, pIdx)}
-                                                                    className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                                                >
-                                                                    <X size={12} />
-                                                                </button>
-                                                            </div>
-                                                        ))}
-                                                        <label className="w-16 h-16 rounded-lg border-2 border-dashed border-slate-300 hover:border-blue-400 cursor-pointer flex flex-col items-center justify-center text-slate-400 hover:text-blue-500 transition-colors">
-                                                            <Upload size={16} />
-                                                            <span className="text-[8px] mt-1">Add</span>
-                                                            <input
-                                                                type="file"
-                                                                multiple
-                                                                accept="image/*"
-                                                                className="hidden"
-                                                                onChange={e => handlePhotoUpload(idx, e.target.files)}
-                                                            />
-                                                        </label>
-                                                    </div>
-                                                    <p className="text-[8px] text-slate-400 mt-1">📍 GPS coordinates auto-extracted from photos when available</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-                        <Button onClick={handleSave} disabled={saving} className="bg-[#0F4C75] hover:bg-[#0a3a5c]">
-                            {saving ? 'Saving...' : (editingLog ? 'Update' : 'Create')}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            {/* Add/Edit Modal — shared PotholeLogFormModal component */}
+            <PotholeLogFormModal
+                open={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                editingLog={editingLog}
+                defaultEstimate={null}
+                estimates={estimates}
+                onSaved={() => { fetchData(); }}
+            />
 
             {/* Delete Confirmation */}
             <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>

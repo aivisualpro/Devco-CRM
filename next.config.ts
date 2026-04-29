@@ -33,6 +33,14 @@ const nextConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: '*.r2.dev',
+      },
+      {
+        protocol: 'https',
+        hostname: 'www.appsheet.com',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.appsheet.com',
       }
     ],
   },

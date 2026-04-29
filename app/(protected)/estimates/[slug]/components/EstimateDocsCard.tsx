@@ -21,6 +21,7 @@ import { JHACard } from '@/app/(protected)/docs/jha/components/JHACard';
 import { DJTCard } from '@/app/(protected)/docs/job-tickets/components/DJTCard';
 import { PotholeLogCard } from '@/app/(protected)/docs/pothole-logs/components/PotholeLogCard';
 import { PreBoreLogCard } from '@/app/(protected)/docs/pre-bore-logs/components/PreBoreLogCard';
+import { PotholeLogFormModal } from '@/components/pothole-logs/PotholeLogFormModal';
 import { SignedContractsCard } from './SignedContractsCard';
 import { PlanningCard } from './PlanningCard';
 import { ReceiptsCard } from './ReceiptsCard';
@@ -159,7 +160,10 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     // Pothole Log Modal State
     const [potholeModalOpen, setPotholeModalOpen] = useState(false);
     const [selectedPotholeLog, setSelectedPotholeLog] = useState<any>(null);
+    const [potholeLogToDelete, setPotholeLogToDelete] = useState<any>(null);
     const [potholeCreateOpen, setPotholeCreateOpen] = useState(false);
+    const [potholeEditOpen, setPotholeEditOpen] = useState(false);
+    const [editingPotholeLog, setEditingPotholeLog] = useState<any>(null);
     const [newPotholeLog, setNewPotholeLog] = useState<any>({
         date: format(new Date(), 'yyyy-MM-dd'),
         estimate: '',
@@ -984,13 +988,22 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         router.push(`/docs/pothole-logs/${log._id}`);
     };
 
-    const handleDeletePotholeLog = async (log: any) => {
-        if (!confirm('Are you sure you want to delete this pothole log?')) return;
+    const handleEditPotholeLog = (log: any) => {
+        setEditingPotholeLog(log);
+        setPotholeEditOpen(true);
+    };
+
+    const handleDeletePotholeLog = (log: any) => {
+        setPotholeLogToDelete(log);
+    };
+
+    const confirmDeletePotholeLog = async () => {
+        if (!potholeLogToDelete) return;
         try {
             const res = await fetch('/api/pothole-logs', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'deletePotholeLog', payload: { id: log._id } })
+                body: JSON.stringify({ action: 'deletePotholeLog', payload: { id: potholeLogToDelete._id } })
             });
             const data = await res.json();
             if (data.success) {
@@ -998,6 +1011,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 refetchJobDocs();
             } else toast.error(data.error || 'Failed to delete');
         } catch (e) { console.error(e); toast.error('Error deleting pothole log'); }
+        finally { setPotholeLogToDelete(null); }
     };
 
     const handleDownloadPotholeLogPDF = async (log: any, setDownloading: (b: boolean) => void) => {
@@ -4570,7 +4584,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     canEdit={can(MODULES.JHA, ACTIONS.EDIT)}
                                     canDelete={can(MODULES.JHA, ACTIONS.DELETE)}
                                     onView={handleViewPotholeLog}
-                                    onEdit={handleViewPotholeLog}
+                                    onEdit={handleEditPotholeLog}
                                     onDelete={handleDeletePotholeLog}
                                     onDownloadPDF={handleDownloadPotholeLogPDF}
                                     onEmail={handleEmailPotholeLog}
@@ -4846,45 +4860,60 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 )}
             </Modal>
 
-            {/* Pothole Log Create Modal */}
-            <Modal
-                isOpen={potholeCreateOpen}
+            {/* Pothole Log Create Modal — shared component */}
+            <PotholeLogFormModal
+                open={potholeCreateOpen}
                 onClose={() => setPotholeCreateOpen(false)}
-                title="Add Pothole Log"
-                maxWidth="lg"
-                footer={
-                    <div className="flex gap-3 justify-end w-full">
-                        <Button variant="ghost" onClick={() => setPotholeCreateOpen(false)}>Cancel</Button>
-                        <Button onClick={handleCreatePotholeLog} disabled={!newPotholeLog.date}>Create Pothole Log</Button>
-                    </div>
-                }
-            >
-                <div className="space-y-4 p-2">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="text-xs font-bold text-slate-600 mb-1 block">Date *</label>
-                            <Input
-                                type="date"
-                                value={newPotholeLog.date}
-                                onChange={(e) => setNewPotholeLog((prev: any) => ({ ...prev, date: e.target.value }))}
-                            />
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold text-slate-600 mb-1 block">Projection Location</label>
-                            <Input
-                                value={newPotholeLog.projectionLocation}
-                                onChange={(e) => setNewPotholeLog((prev: any) => ({ ...prev, projectionLocation: e.target.value }))}
-                                placeholder="Enter location"
-                            />
-                        </div>
-                    </div>
-                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                        <p className="text-xs text-slate-500">
-                            <strong>Note:</strong> Pothole items can be added after creating the log.
-                        </p>
-                    </div>
-                </div>
-            </Modal>
+                defaultEstimate={formData ? {
+                    _id: formData.estimate || formData._id || '',
+                    estimate: formData.estimate,
+                    projectName: formData.projectName,
+                    jobAddress: formData.jobAddress,
+                    customerName: formData.customerName || (activeClient as any)?.name || '',
+                } : null}
+                onSaved={() => {
+                    // Refresh pothole log records for this estimate
+                    const est = formData?.estimate;
+                    if (!est) return;
+                    fetch('/api/pothole-logs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getPotholeLogs', payload: { estimate: est } }) })
+                        .then(r => r.json()).then(d => { if (d.success) setPotholeLogRecords(d.result || []); });
+                }}
+            />
+
+            {/* Pothole Log Edit Modal — shared component */}
+            <PotholeLogFormModal
+                open={potholeEditOpen}
+                onClose={() => { setPotholeEditOpen(false); setEditingPotholeLog(null); }}
+                editingLog={editingPotholeLog ? {
+                    _id: editingPotholeLog._id,
+                    date: editingPotholeLog.date,
+                    estimate: editingPotholeLog.estimate,
+                    customerName: editingPotholeLog.customerName || formData?.customerName || (activeClient as any)?.name || '',
+                    jobAddress: editingPotholeLog.jobAddress || editingPotholeLog.projectionLocation || '',
+                    projectionLocation: editingPotholeLog.projectionLocation,
+                    potholeItems: (editingPotholeLog.potholeItems || []).map((it: any) => ({
+                        ...it,
+                        latitude: it.latitude?.toString() || '',
+                        longitude: it.longitude?.toString() || '',
+                    })),
+                    createdBy: editingPotholeLog.createdBy,
+                } : null}
+                defaultEstimate={formData ? {
+                    _id: formData.estimate || formData._id || '',
+                    estimate: formData.estimate,
+                    projectName: formData.projectName,
+                    jobAddress: formData.jobAddress,
+                    customerName: formData.customerName || (activeClient as any)?.name || '',
+                } : null}
+                onSaved={() => {
+                    setPotholeEditOpen(false);
+                    setEditingPotholeLog(null);
+                    const est = formData?.estimate;
+                    if (!est) return;
+                    fetch('/api/pothole-logs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getPotholeLogs', payload: { estimate: est } }) })
+                        .then(r => r.json()).then(d => { if (d.success) setPotholeLogRecords(d.result || []); });
+                }}
+            />
 
             {/* Pre-Bore Log View Modal */}
             <Modal
@@ -5608,7 +5637,15 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 variant="danger"
             />
 
-
+            <ConfirmModal
+                isOpen={potholeLogToDelete !== null}
+                onClose={() => setPotholeLogToDelete(null)}
+                onConfirm={confirmDeletePotholeLog}
+                title="Delete Pothole Log"
+                message="Are you sure you want to delete this pothole log? This action cannot be undone."
+                confirmText="Delete"
+                variant="danger"
+            />
 
             {/* Add/Edit Intent to Lien Modal */}
             <Modal

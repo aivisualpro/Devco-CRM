@@ -22,6 +22,7 @@ import { MODULES, ACTIONS } from '@/lib/permissions/types';
 import { cn } from '@/lib/utils';
 import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
 import { useAllEmployees } from '@/lib/hooks/api';
+import { PotholeLogFormModal } from '@/components/pothole-logs/PotholeLogFormModal';
 
 interface PotholeItem {
     _id?: string;
@@ -90,6 +91,7 @@ export default function PotholeLogDetailsPage() {
     const { getByEmail: getEmployeeByEmail } = useAllEmployees();
     const [isDeleteOpen, setIsDeleteOpen] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [isEditOpen, setIsEditOpen] = useState(false);
 
     // PDF / Email States
     const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
@@ -368,7 +370,7 @@ export default function PotholeLogDetailsPage() {
             <Header showDashboardActions />
 
             <div className="flex-1 overflow-auto p-6">
-                <div className="max-w-6xl mx-auto space-y-6 pb-10">
+                <div className="space-y-6 pb-10">
 
                     <PageHeader
                         title="Pothole Log Details"
@@ -405,7 +407,7 @@ export default function PotholeLogDetailsPage() {
                                         variant="outline"
                                         size="sm"
                                         className="border-slate-300 hover:bg-slate-50"
-                                        onMouseEnter={() => router.prefetch(`/docs/pothole-logs?edit=${log._id}`)} onClick={() => router.push(`/docs/pothole-logs?edit=${log._id}`)}
+                                        onClick={() => setIsEditOpen(true)}
                                     >
                                         <Pencil size={14} className="mr-1.5" /> Edit
                                     </Button>
@@ -499,12 +501,12 @@ export default function PotholeLogDetailsPage() {
                                 <table className="w-full text-sm">
                                     <thead>
                                         <tr className="bg-slate-50 border-b border-slate-200">
-                                            <th className="text-left px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider w-[70px]">Pothole #</th>
-                                            <th className="text-left px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Type of Utility</th>
-                                            <th className="text-left px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider w-[80px]">Soil Type</th>
+                                            <th className="text-left px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider w-[110px]">Pothole #</th>
+                                            <th className="text-left px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider w-[140px]">Type of Utility</th>
+                                            <th className="text-left px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider w-[120px]">Soil Type</th>
                                             <th className="text-left px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Top Depth</th>
                                             <th className="text-left px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Bottom Depth</th>
-                                            <th className="text-left px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Pin</th>
+                                            <th className="text-left px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider w-[220px]">Pin</th>
                                             <th className="text-left px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider w-[100px]">Photo 1</th>
                                             <th className="text-left px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider w-[100px]">Photo 2</th>
                                         </tr>
@@ -595,6 +597,28 @@ export default function PotholeLogDetailsPage() {
 
                 </div>
             </div>
+
+            {/* Edit Modal — shared component, pre-seeded with current log */}
+            {log && (
+                <PotholeLogFormModal
+                    open={isEditOpen}
+                    onClose={() => setIsEditOpen(false)}
+                    editingLog={{
+                        _id: log._id,
+                        date: log.date,
+                        estimate: log.estimate,
+                        customerName: estimate?.customerName || estimate?.customer || estimate?.ocName || '',
+                        jobAddress: log.jobAddress || log.projectionLocation || '',
+                        potholeItems: log.potholeItems.map(it => ({
+                            ...it,
+                            latitude: it.latitude != null ? String(it.latitude) : undefined,
+                            longitude: it.longitude != null ? String(it.longitude) : undefined,
+                        })),
+                        createdBy: log.createdBy,
+                    }}
+                    onSaved={() => fetchData()}
+                />
+            )}
 
             {/* Delete Confirmation */}
             <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>

@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import PotholeLog from '@/lib/models/PotholeLog';
+import { createNotifications } from '@/lib/notifications';
+import { getUserFromRequest } from '@/lib/permissions/middleware';
+import { getEmailsWithModuleAccess } from '@/lib/permissions/service';
+import { MODULES, ACTIONS } from '@/lib/permissions/types';
 
 // Helper to safely parse locationOfPothole
 function parseLocation(loc: any): { lat: number; lng: number } | undefined {
@@ -78,7 +82,42 @@ export async function POST(request: NextRequest) {
                 
                 const newLog = new PotholeLog(item);
                 await newLog.save();
-                
+
+                // Fire permission-gated notification (background, non-blocking)
+                Promise.resolve().then(async () => {
+                    try {
+                        const jwtUser = await getUserFromRequest(request);
+                        const creatorEmail = (jwtUser as any)?.email?.toLowerCase().trim() || '';
+                        const creatorName = `${(jwtUser as any)?.firstName || ''} ${(jwtUser as any)?.lastName || ''}`.trim() || 'Someone';
+
+                        // Only notify users who have POTHOLE VIEW permission
+                        const recipientEmails = await getEmailsWithModuleAccess(
+                            MODULES.POTHOLE,
+                            ACTIONS.VIEW,
+                            [creatorEmail] // exclude the creator
+                        );
+
+                        if (recipientEmails.length > 0) {
+                            await createNotifications({
+                                recipientEmails,
+                                type: 'pothole_log_created',
+                                title: 'New Pothole Log Created',
+                                message: `${creatorName} created a pothole log for estimate ${item.estimate || 'N/A'}${item.jobAddress ? ` — ${item.jobAddress}` : ''}`,
+                                link: `/docs/pothole-logs/${newLog._id}`,
+                                metadata: {
+                                    creatorName,
+                                    creatorImage: (jwtUser as any)?.profilePicture || (jwtUser as any)?.image || '',
+                                    estimate: item.estimate || '',
+                                    jobAddress: item.jobAddress || '',
+                                },
+                                createdBy: creatorEmail,
+                            });
+                        }
+                    } catch (notifErr) {
+                        console.error('[PotholeLog] Notification error:', notifErr);
+                    }
+                });
+
                 return NextResponse.json({ success: true, result: newLog });
             }
 

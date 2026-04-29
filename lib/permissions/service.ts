@@ -472,3 +472,43 @@ export class PermissionDeniedError extends Error {
         this.action = action;
     }
 }
+
+// =====================================
+// GET EMAILS WITH MODULE ACCESS
+// Returns emails of all active employees who have the given
+// module + action permission (including Super Admins).
+// Used server-side to permission-gate notifications.
+// =====================================
+export async function getEmailsWithModuleAccess(
+    module: ModuleKey,
+    action: ActionKey = ACTIONS.VIEW,
+    excludeEmails: string[] = []
+): Promise<string[]> {
+    await connectToDatabase();
+
+    const employees = await Employee.find({ status: 'Active' })
+        .select('_id email appRole')
+        .lean();
+
+    const excludeSet = new Set(excludeEmails.map(e => (e || '').toLowerCase().trim()));
+    const result: string[] = [];
+
+    for (const emp of employees) {
+        const email = ((emp as any).email || '').toLowerCase().trim();
+        if (!email || excludeSet.has(email)) continue;
+
+        // Super Admin always has access
+        if (isSuperAdmin((emp as any).appRole)) {
+            result.push(email);
+            continue;
+        }
+
+        // Load computed permissions for this user
+        const perms = await getUserPermissions(String((emp as any)._id));
+        if (perms && hasPermission(perms, module, action)) {
+            result.push(email);
+        }
+    }
+
+    return result;
+}
