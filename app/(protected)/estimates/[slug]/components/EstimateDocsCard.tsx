@@ -173,9 +173,8 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     });
 
     // Pre-Bore Log Modal State
-    const [preBoreModalOpen, setPreBoreModalOpen] = useState(false);
+    const [preBoreFormOpen, setPreBoreFormOpen] = useState(false);
     const [selectedPreBoreLog, setSelectedPreBoreLog] = useState<any>(null);
-    const [preBoreCreateOpen, setPreBoreCreateOpen] = useState(false);
     const [newPreBoreLog, setNewPreBoreLog] = useState<any>({
         date: format(new Date(), 'yyyy-MM-dd'),
         customerForeman: '',
@@ -1137,29 +1136,35 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     const PRE_BORE_TEMPLATE_ID = '1oz3s9qdfMnMdEivJhr8T4qPS-lwVGsb1A79eB-Djgic';
 
     const handleViewPreBoreLog = (pb: any) => {
-        const pbId = pb._id || '';
-        if (pbId) {
-            router.push(`/docs/pre-bore-logs/${pbId}`);
-        } else {
-            setSelectedPreBoreLog(pb);
-            setPreBoreModalOpen(true);
-        }
+        setSelectedPreBoreLog(pb);
+        setPreBoreFormOpen(true);
     };
 
-    const handleDeletePreBoreLog = async (pb: any) => {
-        if (!confirm('Are you sure you want to delete this pre-bore log?')) return;
-        try {
-            const res = await fetch('/api/pre-bore-logs', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'deletePreBoreLog', payload: { id: pb._id } })
-            });
-            const data = await res.json();
-            if (data.success) {
-                toast.success('Pre-Bore Log deleted');
-                refetchJobDocs();
-            } else toast.error(data.error || 'Failed to delete');
-        } catch (e) { console.error(e); toast.error('Error deleting pre-bore log'); }
+    const handleDeletePreBoreLog = (pb: any) => {
+        toast('Confirm Deletion', {
+            description: 'Are you sure you want to delete this Pre-Bore Log?',
+            action: {
+                label: 'Delete',
+                onClick: async () => {
+                    try {
+                        const res = await fetch('/api/pre-bore-logs', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ action: 'deletePreBoreLog', payload: { id: pb._id } })
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                            toast.success('Pre-Bore Log deleted');
+                            refetchJobDocs();
+                        } else toast.error(data.error || 'Failed to delete');
+                    } catch (e) { console.error(e); toast.error('Error deleting pre-bore log'); }
+                }
+            },
+            cancel: {
+                label: 'Cancel',
+                onClick: () => {}
+            }
+        });
     };
 
     const handleDownloadPreBoreLogPDF = async (pb: any, setDownloading: (b: boolean) => void) => {
@@ -1274,30 +1279,6 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 throw new Error(data.error || 'Failed to send');
             }
         } catch (e: any) { console.error(e); toast.error(e.message || 'Failed to send email', { id: 'prebore-email' }); }
-    };
-
-    const handleCreatePreBoreLog = async () => {
-        if (!selectedScheduleForPreBore) { toast.error('Please select a schedule'); return; }
-        try {
-            const item = {
-                ...newPreBoreLog,
-                createdBy: currentUser?.email || '',
-                legacyId: `PB-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`
-            };
-            const res = await fetch('/api/pre-bore-logs', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'createPreBoreLog', payload: { scheduleId: selectedScheduleForPreBore, item } })
-            });
-            const data = await res.json();
-            if (data.success) {
-                toast.success('Pre-Bore Log created');
-                setPreBoreCreateOpen(false);
-                setNewPreBoreLog({ date: format(new Date(), 'yyyy-MM-dd'), customerForeman: '', customerWorkRequestNumber: '', startTime: '', addressBoreStart: '', addressBoreEnd: '', devcoOperator: '', drillSize: '', pilotBoreSize: '', soilType: '', boreLength: '', pipeSize: '', preBoreLogs: [], createdBy: '' });
-                setSelectedScheduleForPreBore('');
-                refetchJobDocs();
-            } else toast.error(data.error || 'Failed to create');
-        } catch (e) { console.error(e); toast.error('Error creating pre-bore log'); }
     };
 
     // --- Vendor & Subs Handlers ---
@@ -4604,7 +4585,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             {preBoreLogRecords.length}
                         </span>
                         <button
-                            onClick={() => setPreBoreCreateOpen(true)}
+                            onClick={() => setPreBoreFormOpen(true)}
                             className="ml-auto w-6 h-6 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white flex items-center justify-center transition-colors shadow-sm"
                             title="Add Pre-Bore Log"
                         >
@@ -4911,267 +4892,19 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 }}
             />
 
-            {/* Pre-Bore Log View Modal */}
-            <Modal
-                isOpen={preBoreModalOpen}
-                onClose={() => { setPreBoreModalOpen(false); setSelectedPreBoreLog(null); }}
-                title="Pre-Bore Log Details"
-                maxWidth="4xl"
-            >
-                {selectedPreBoreLog && (
-                    <div className="space-y-6 p-2">
-                        {/* Header Info */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Date</p>
-                                <p className="text-sm font-bold text-slate-800">{safeFormatDate(selectedPreBoreLog.date, 'MM/dd/yyyy')}</p>
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Schedule</p>
-                                <p className="text-sm font-bold text-slate-800">{selectedPreBoreLog.scheduleTitle || '-'}</p>
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Operator</p>
-                                <p className="text-sm font-bold text-slate-800">{selectedPreBoreLog.devcoOperator || '-'}</p>
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Customer Foreman</p>
-                                <p className="text-sm font-bold text-slate-800">{selectedPreBoreLog.customerForeman || '-'}</p>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Start Time</p>
-                                <p className="text-sm font-bold text-slate-800">{selectedPreBoreLog.startTime || '-'}</p>
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Address Bore Start</p>
-                                <p className="text-sm font-bold text-slate-800">{selectedPreBoreLog.addressBoreStart || '-'}</p>
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Address Bore End</p>
-                                <p className="text-sm font-bold text-slate-800">{selectedPreBoreLog.addressBoreEnd || '-'}</p>
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Work Request #</p>
-                                <p className="text-sm font-bold text-slate-800">{selectedPreBoreLog.customerWorkRequestNumber || '-'}</p>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Drill Size</p>
-                                <p className="text-sm font-bold text-slate-800">{selectedPreBoreLog.drillSize || '-'}</p>
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Pilot Bore Size</p>
-                                <p className="text-sm font-bold text-slate-800">{selectedPreBoreLog.pilotBoreSize || '-'}</p>
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Soil Type</p>
-                                <p className="text-sm font-bold text-slate-800">{selectedPreBoreLog.soilType || '-'}</p>
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Bore Length</p>
-                                <p className="text-sm font-bold text-slate-800">{selectedPreBoreLog.boreLength || '-'} ft</p>
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Pipe Size</p>
-                                <p className="text-sm font-bold text-slate-800">{selectedPreBoreLog.pipeSize || '-'}</p>
-                            </div>
-                        </div>
-
-                        {/* Pre-Bore Rod Items Table */}
-                        {selectedPreBoreLog.preBoreLogs && selectedPreBoreLog.preBoreLogs.length > 0 && (
-                            <div>
-                                <h4 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
-                                    <HardHat className="w-4 h-4 text-indigo-500" />
-                                    Rod Items ({selectedPreBoreLog.preBoreLogs.length})
-                                </h4>
-                                <div className="overflow-x-auto rounded-xl border border-slate-200">
-                                    <table className="w-full text-xs">
-                                        <thead>
-                                            <tr className="bg-slate-50 border-b border-slate-200">
-                                                <th className="text-left p-2 font-bold text-slate-600">Rod #</th>
-                                                <th className="text-left p-2 font-bold text-slate-600">Distance</th>
-                                                <th className="text-left p-2 font-bold text-slate-600">Top Depth</th>
-                                                <th className="text-left p-2 font-bold text-slate-600">Bottom Depth</th>
-                                                <th className="text-left p-2 font-bold text-slate-600">Over/Under</th>
-                                                <th className="text-left p-2 font-bold text-slate-600">Existing Utilities</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {selectedPreBoreLog.preBoreLogs.map((rod: any, idx: number) => (
-                                                <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50">
-                                                    <td className="p-2 font-bold">{rod.rodNumber || idx + 1}</td>
-                                                    <td className="p-2">{rod.distance || '-'}</td>
-                                                    <td className="p-2">{rod.topDepth || '-'}</td>
-                                                    <td className="p-2">{rod.bottomDepth || '-'}</td>
-                                                    <td className="p-2">{rod.overOrUnder || '-'}</td>
-                                                    <td className="p-2">{rod.existingUtilities || '-'}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Signatures */}
-                        <div className="grid grid-cols-2 gap-4">
-                            {selectedPreBoreLog.foremanSignature && (
-                                <div>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Foreman Signature</p>
-                                    <div className="relative max-h-16 rounded overflow-hidden"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(selectedPreBoreLog.foremanSignature, { w: 128, q: 'auto' })} alt="Foreman Signature" className="rounded border border-slate-200 w-full h-full" /></div>
-                                </div>
-                            )}
-                            {selectedPreBoreLog.customerSignature && (
-                                <div>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Customer Signature</p>
-                                    <div className="relative max-h-16 rounded overflow-hidden"><Image fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(selectedPreBoreLog.customerSignature, { w: 128, q: 'auto' })} alt="Customer Signature" className="rounded border border-slate-200 w-full h-full" /></div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-            </Modal>
-
-            {/* Pre-Bore Log Create Modal */}
-            <Modal
-                isOpen={preBoreCreateOpen}
-                onClose={() => setPreBoreCreateOpen(false)}
-                title="Add Pre-Bore Log"
-                maxWidth="2xl"
-                footer={
-                    <div className="flex gap-3 justify-end w-full">
-                        <Button variant="ghost" onClick={() => setPreBoreCreateOpen(false)}>Cancel</Button>
-                        <Button onClick={handleCreatePreBoreLog} disabled={!selectedScheduleForPreBore || !newPreBoreLog.date}>Create Pre-Bore Log</Button>
-                    </div>
-                }
-            >
-                <div className="space-y-4 p-2">
-                    <div>
-                        <label className="text-xs font-bold text-slate-600 mb-1 block">Schedule *</label>
-                        <select
-                            value={selectedScheduleForPreBore}
-                            onChange={(e) => setSelectedScheduleForPreBore(e.target.value)}
-                            className="w-full h-10 rounded-lg border border-slate-200 px-3 text-sm bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                        >
-                            <option value="">Select a schedule...</option>
-                            {estimateSchedules.map((s: any) => (
-                                <option key={s._id} value={s._id}>{s.title || s.customerName || s._id}</option>
-                            ))}
-                        </select>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="text-xs font-bold text-slate-600 mb-1 block">Date *</label>
-                            <Input
-                                type="date"
-                                value={newPreBoreLog.date}
-                                onChange={(e) => setNewPreBoreLog((prev: any) => ({ ...prev, date: e.target.value }))}
-                            />
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold text-slate-600 mb-1 block">Start Time</label>
-                            <Input
-                                type="time"
-                                value={newPreBoreLog.startTime}
-                                onChange={(e) => setNewPreBoreLog((prev: any) => ({ ...prev, startTime: e.target.value }))}
-                            />
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="text-xs font-bold text-slate-600 mb-1 block">Customer Foreman</label>
-                            <Input
-                                value={newPreBoreLog.customerForeman}
-                                onChange={(e) => setNewPreBoreLog((prev: any) => ({ ...prev, customerForeman: e.target.value }))}
-                                placeholder="Customer foreman name"
-                            />
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold text-slate-600 mb-1 block">Devco Operator</label>
-                            <Input
-                                value={newPreBoreLog.devcoOperator}
-                                onChange={(e) => setNewPreBoreLog((prev: any) => ({ ...prev, devcoOperator: e.target.value }))}
-                                placeholder="Devco operator name"
-                            />
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="text-xs font-bold text-slate-600 mb-1 block">Address Bore Start</label>
-                            <Input
-                                value={newPreBoreLog.addressBoreStart}
-                                onChange={(e) => setNewPreBoreLog((prev: any) => ({ ...prev, addressBoreStart: e.target.value }))}
-                                placeholder="Starting address"
-                            />
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold text-slate-600 mb-1 block">Address Bore End</label>
-                            <Input
-                                value={newPreBoreLog.addressBoreEnd}
-                                onChange={(e) => setNewPreBoreLog((prev: any) => ({ ...prev, addressBoreEnd: e.target.value }))}
-                                placeholder="Ending address"
-                            />
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div>
-                            <label className="text-xs font-bold text-slate-600 mb-1 block">Drill Size</label>
-                            <Input
-                                value={newPreBoreLog.drillSize}
-                                onChange={(e) => setNewPreBoreLog((prev: any) => ({ ...prev, drillSize: e.target.value }))}
-                                placeholder="e.g. 4&quot;"
-                            />
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold text-slate-600 mb-1 block">Pilot Bore Size</label>
-                            <Input
-                                value={newPreBoreLog.pilotBoreSize}
-                                onChange={(e) => setNewPreBoreLog((prev: any) => ({ ...prev, pilotBoreSize: e.target.value }))}
-                                placeholder="e.g. 2&quot;"
-                            />
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold text-slate-600 mb-1 block">Bore Length</label>
-                            <Input
-                                value={newPreBoreLog.boreLength}
-                                onChange={(e) => setNewPreBoreLog((prev: any) => ({ ...prev, boreLength: e.target.value }))}
-                                placeholder="In feet"
-                            />
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold text-slate-600 mb-1 block">Soil Type</label>
-                            <Input
-                                value={newPreBoreLog.soilType}
-                                onChange={(e) => setNewPreBoreLog((prev: any) => ({ ...prev, soilType: e.target.value }))}
-                                placeholder="e.g. Clay"
-                            />
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="text-xs font-bold text-slate-600 mb-1 block">Pipe Size</label>
-                            <Input
-                                value={newPreBoreLog.pipeSize}
-                                onChange={(e) => setNewPreBoreLog((prev: any) => ({ ...prev, pipeSize: e.target.value }))}
-                                placeholder="e.g. 2&quot;"
-                            />
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold text-slate-600 mb-1 block">Work Request #</label>
-                            <Input
-                                value={newPreBoreLog.customerWorkRequestNumber}
-                                onChange={(e) => setNewPreBoreLog((prev: any) => ({ ...prev, customerWorkRequestNumber: e.target.value }))}
-                                placeholder="Customer work request number"
-                            />
-                        </div>
-                    </div>
-                </div>
-            </Modal>
+            {/* Pre-Bore Log Form Modal */}
+            <PreBoreLogFormModal
+                open={preBoreFormOpen}
+                onClose={() => { setPreBoreFormOpen(false); setSelectedPreBoreLog(null); }}
+                editingLog={selectedPreBoreLog}
+                defaultEstimate={{ _id: estimateData?._id || '', estimate: estimateData?.estimate || '', projectName: estimateData?.projectName || '', jobAddress: estimateData?.jobAddress || '', customerName: estimateData?.customerName || estimateData?.contactName || '' }}
+                estimates={[]}
+                clients={[]}
+                onSaved={() => {
+                    refetchJobDocs();
+                    setPreBoreFormOpen(false);
+                }}
+            />
 
             {/* Vendor & Subs Add Modal */}
             <Modal

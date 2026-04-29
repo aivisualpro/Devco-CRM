@@ -155,10 +155,8 @@ export default function PreBoreLogsPage() {
 
     // Modal States
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-    const [editingLog, setEditingLog] = useState<PreBoreLog | null>(null);
-    const [logToDelete, setLogToDelete] = useState<PreBoreLog | null>(null);
-    const [saving, setSaving] = useState(false);
+        const [editingLog, setEditingLog] = useState<PreBoreLog | null>(null);
+        const [saving, setSaving] = useState(false);
 
     // PDF & Email States
     const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
@@ -391,91 +389,11 @@ export default function PreBoreLogsPage() {
 
     const handleEdit = (log: PreBoreLog) => {
         setEditingLog(log);
-
-        // Pre-select cascading dropdowns from the existing log
-        // Customer: resolve via customerId → clients, fall back to name match
-        const matchedClient =
-            (log.customerId && clients.find(c => String(c._id) === String(log.customerId)))
-            || clients.find(c => c.name?.toLowerCase() === (log.scheduleCustomerName || log.customerName || '').toLowerCase());
-        const custId = matchedClient?._id || '';
-        setSelectedCustomerId(custId);
-
-        // Estimate: use the estimate number stored on the log
-        const estNum = log.estimate || '';
-        setSelectedEstimateId(estNum);
-
-
-        // Fetch estimates for this customer so the dropdown is populated
-        if (estNum) fetchSchedulesByEstimate(estNum);
-
-        setOpenDropdownId(null);
-
-        // Build a datetime-local value from stored date + startTime
-        const buildDateTimeLocal = () => {
-            const dateStr = log.date ? formatWallDate(log.date) : format(new Date(), 'yyyy-MM-dd');
-            if (log.startTime && log.startTime.includes('T')) return log.startTime.slice(0, 16);
-            if (log.startTime) {
-                const match = log.startTime.match(/(\d+):(\d+)\s*(AM|PM)?/i);
-                if (match) {
-                    let hours = parseInt(match[1]);
-                    const mins = match[2].padStart(2, '0');
-                    const ampm = match[3]?.toUpperCase();
-                    if (ampm === 'PM' && hours < 12) hours += 12;
-                    if (ampm === 'AM' && hours === 12) hours = 0;
-                    return `${dateStr}T${hours.toString().padStart(2, '0')}:${mins}`;
-                }
-            }
-            return `${dateStr}T00:00`;
-        };
-
-        setFormData({
-            date: log.date ? formatWallDate(log.date) : '',
-            customerForeman: log.customerForeman || '',
-            customerWorkRequestNumber: log.customerWorkRequestNumber || '',
-            startTime: buildDateTimeLocal(),
-            addressBoreStart: log.addressBoreStart || '',
-            addressBoreEnd: log.addressBoreEnd || '',
-            devcoOperator: log.devcoOperator || '',
-            drillSize: log.drillSize || '',
-            pilotBoreSize: log.pilotBoreSize || '',
-            reamers: (log as any).reamers || [log.reamerSize6, log.reamerSize8, log.reamerSize10, log.reamerSize12].filter(Boolean).join(', ') || '',
-            soilType: log.soilType || '',
-            boreLength: log.boreLength || '',
-            pipeSize: log.pipeSize || '',
-            foremanSignature: log.foremanSignature || '',
-            customerName: log.customerName || '',
-            customerSignature: log.customerSignature || '',
-            preBoreLogs: log.preBoreLogs || []
-        });
         setIsModalOpen(true);
     };
 
     const handleAddNew = () => {
         setEditingLog(null);
-        setFormData({
-            date: format(new Date(), 'yyyy-MM-dd'),
-            customerForeman: '',
-            customerWorkRequestNumber: '',
-            startTime: '',
-            addressBoreStart: '',
-            addressBoreEnd: '',
-            devcoOperator: '',
-            drillSize: '',
-            pilotBoreSize: '',
-            reamers: '',
-            soilType: '',
-            boreLength: '',
-            pipeSize: '',
-            foremanSignature: '',
-            customerName: '',
-            customerSignature: '',
-            preBoreLogs: []
-        });
-        setSelectedCustomerId('');
-        setSelectedEstimateId('');
-        setSelectedScheduleId('');
-        setSchedules([]);
-        setOpenDropdownId(null);
         setIsModalOpen(true);
     };
 
@@ -744,7 +662,7 @@ export default function PreBoreLogsPage() {
         }
     };
 
-    const handleDelete = async () => {
+    const handleDelete = async (logToDelete: any) => {
         if (!logToDelete) return;
         setSaving(true);
         try {
@@ -756,7 +674,6 @@ export default function PreBoreLogsPage() {
 
             if (res.ok) {
                 toast.success('Pre-Bore Log deleted');
-                setIsDeleteOpen(false);
                 fetchData();
             } else {
                 toast.error('Failed to delete');
@@ -1053,7 +970,7 @@ export default function PreBoreLogsPage() {
                                         <div
                                             key={log._id}
                                             className="bg-white rounded-2xl border border-slate-100 p-4 active:scale-[0.98] transition-transform shadow-sm"
-                                            onMouseEnter={() => router.prefetch(`/docs/pre-bore-logs/${log._id}`)} onClick={() => router.push(`/docs/pre-bore-logs/${log._id}`)}
+                                             onClick={() => handleEdit(log)}
                                             onTouchStart={() => handleLongPressStart(log)}
                                             onTouchEnd={handleLongPressEnd}
                                             onTouchCancel={handleLongPressEnd}
@@ -1148,7 +1065,7 @@ export default function PreBoreLogsPage() {
                                                 <React.Fragment key={log._id}>
                                                     <TableRow
                                                         className="group hover:bg-slate-50 transition-colors cursor-pointer"
-                                                        onMouseEnter={() => router.prefetch(`/docs/pre-bore-logs/${log._id}`)} onClick={() => router.push(`/docs/pre-bore-logs/${log._id}`)}
+                                                         onClick={() => handleEdit(log)}
                                                     >
                                                         <TableCell onClick={(e) => e.stopPropagation()}>
                                                             {log.preBoreLogs?.length > 0 && (
@@ -1316,7 +1233,17 @@ export default function PreBoreLogsPage() {
                             )}
                             {canDelete && (
                                 <button
-                                    onClick={() => { setLogToDelete(actionSheetItem); setIsDeleteOpen(true); setActionSheetItem(null); }}
+                                    onClick={() => {
+                                        toast('Confirm Deletion', {
+                                            description: `Are you sure you want to delete this log?`,
+                                            action: {
+                                                label: 'Delete',
+                                                onClick: () => handleDelete(actionSheetItem)
+                                            },
+                                            cancel: { label: 'Cancel', onClick: () => {} }
+                                        });
+                                        setActionSheetItem(null);
+                                    }}}
                                     className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50"
                                 >
                                     <Trash2 size={18} /> Delete
@@ -1336,224 +1263,19 @@ export default function PreBoreLogsPage() {
             )}
 
             {/* Add/Edit Modal */}
-            <Dialog open={isModalOpen} onOpenChange={(open) => {
-                setIsModalOpen(open);
-                if (!open && returnTo) router.push(returnTo);
-            }}>
-                <DialogContent className="!max-w-5xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle>{editingLog ? 'Edit Pre-Bore Log' : 'New Pre-Bore Log'}</DialogTitle>
-                    </DialogHeader>
-
-                    <div className="space-y-5 py-4">
-                        {/* Row 1: Customer · Estimate · Job Location */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div>
-                                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Customer *</Label>
-                                <div className="relative mt-1">
-                                    <div className="w-full flex items-center justify-between px-3 py-2.5 border rounded-xl cursor-pointer bg-white hover:border-slate-400 transition-colors" onClick={() => setOpenDropdownId(openDropdownId === 'customer' ? null : 'customer')}>
-                                        <span className={`text-sm truncate ${selectedCustomerId ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>{selectedCustomerId ? (clients.find(c => c._id === selectedCustomerId)?.name || 'Selected') : 'Select Customer...'}</span>
-                                        <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'customer' ? 'rotate-180' : ''}`} />
-                                    </div>
-                                    {openDropdownId === 'customer' && (<MyDropDown isOpen={true} onClose={() => setOpenDropdownId(null)} options={clientOptions} selectedValues={selectedCustomerId ? [selectedCustomerId] : []} onSelect={(val) => { const newVal = val === selectedCustomerId ? '' : val; setSelectedCustomerId(newVal); setSelectedEstimateId(''); setSelectedScheduleId(''); setSchedules([]); const client = clients.find(c => c._id === newVal); if (client) setFormData(prev => ({ ...prev, customerName: client.name })); setOpenDropdownId(null); }} placeholder="Search customers..." width="w-full" modal={false} />)}
-                                </div>
-                            </div>
-                            <div>
-                                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Estimate *</Label>
-                                <div className="relative mt-1">
-                                    <div className={`w-full flex items-center justify-between px-3 py-2.5 border rounded-xl cursor-pointer transition-colors ${!selectedCustomerId ? 'bg-slate-50 cursor-not-allowed' : 'bg-white hover:border-slate-400'}`} onClick={() => { if (!selectedCustomerId) return; setOpenDropdownId(openDropdownId === 'estimate' ? null : 'estimate'); }}>
-                                        <span className={`text-sm truncate ${selectedEstimateId ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>{selectedEstimateId || 'Select Estimate...'}</span>
-                                        <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'estimate' ? 'rotate-180' : ''}`} />
-                                    </div>
-                                    {openDropdownId === 'estimate' && selectedCustomerId && (<MyDropDown isOpen={true} onClose={() => setOpenDropdownId(null)} options={estimateOptions} selectedValues={selectedEstimateId ? [selectedEstimateId] : []} onSelect={(val) => { const newVal = val === selectedEstimateId ? '' : val; setSelectedEstimateId(newVal); setSelectedScheduleId(''); if (newVal) { fetchSchedulesByEstimate(newVal); const est = estimates.find(e => e.estimate === newVal); const custName = est?.customerName || est?.contactName || formData.customerName; const jobLoc = est?.jobAddress || ''; const now = new Date(); const h12 = now.getHours() % 12 || 12; const timeStr = `${h12}:${now.getMinutes().toString().padStart(2, '0')} ${now.getHours() >= 12 ? 'PM' : 'AM'}`; setFormData(prev => ({ ...prev, customerName: custName, startTime: timeStr, customerWorkRequestNumber: jobLoc })); } else { setSchedules([]); } setOpenDropdownId(null); }} placeholder="Search estimates..." width="w-full" modal={false} />)}
-                                </div>
-                            </div>
-                            <div>
-                                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Job Location</Label>
-                                <Input value={formData.customerWorkRequestNumber} onChange={e => setFormData(prev => ({ ...prev, customerWorkRequestNumber: e.target.value }))} className="mt-1" placeholder="Auto-filled from estimate..." />
-                            </div>
-                        </div>
-
-                        {/* Row 2: Start Date & Time · Devco Operator · Customer Foreman */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div>
-                                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Start Date &amp; Time</Label>
-                                <Input type="datetime-local" value={formData.startTime} onChange={e => setFormData(prev => ({ ...prev, startTime: e.target.value, date: e.target.value.split('T')[0] }))} className="mt-1" />
-                            </div>
-                            <div>
-                                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Devco Operator</Label>
-                                <div className="relative mt-1">
-                                    <div className="w-full flex items-center justify-between px-3 py-2.5 border rounded-xl cursor-pointer bg-white hover:border-slate-400 transition-colors" onClick={() => setOpenDropdownId(openDropdownId === 'operator' ? null : 'operator')}>
-                                        <span className={`text-sm truncate ${formData.devcoOperator ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>{formData.devcoOperator || 'Select Operator...'}</span>
-                                        <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'operator' ? 'rotate-180' : ''}`} />
-                                    </div>
-                                    {openDropdownId === 'operator' && (<MyDropDown isOpen={true} onClose={() => setOpenDropdownId(null)} options={employeeOptions} selectedValues={formData.devcoOperator ? [formData.devcoOperator] : []} onSelect={(val) => { setFormData(prev => ({ ...prev, devcoOperator: val === prev.devcoOperator ? '' : val })); setOpenDropdownId(null); }} placeholder="Search employees..." width="w-full" modal={false} />)}
-                                </div>
-                            </div>
-                            <div>
-                                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Customer Foreman</Label>
-                                <Input value={formData.customerForeman} onChange={e => setFormData(prev => ({ ...prev, customerForeman: e.target.value }))} className="mt-1" placeholder="Foreman name..." />
-                            </div>
-                        </div>
-
-                        {/* Row 3: Addresses */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Address Bore Start</Label>
-                                <div className="relative mt-1">
-                                    <Input value={formData.addressBoreStart} onChange={e => setFormData(prev => ({ ...prev, addressBoreStart: e.target.value }))} className="pr-10" placeholder="Enter or pin drop..." />
-                                    <button type="button" onClick={() => handleDropPinAddress('addressBoreStart')} disabled={geoLoadingField === 'start'} className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-[#0F4C75] hover:bg-blue-50 transition-colors disabled:opacity-50" title="Drop pin">
-                                        {geoLoadingField === 'start' ? <Loader2 size={14} className="animate-spin" /> : <MapPin size={14} />}
-                                    </button>
-                                </div>
-                            </div>
-                            <div>
-                                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Address Bore End</Label>
-                                <div className="relative mt-1">
-                                    <Input value={formData.addressBoreEnd} onChange={e => setFormData(prev => ({ ...prev, addressBoreEnd: e.target.value }))} className="pr-10" placeholder="Enter or pin drop..." />
-                                    <button type="button" onClick={() => handleDropPinAddress('addressBoreEnd')} disabled={geoLoadingField === 'end'} className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-[#0F4C75] hover:bg-blue-50 transition-colors disabled:opacity-50" title="Drop pin">
-                                        {geoLoadingField === 'end' ? <Loader2 size={14} className="animate-spin" /> : <MapPin size={14} />}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Bore Specifications */}
-                        <div className="border-t border-slate-100 pt-4">
-                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 mb-3"><Drill size={12} /> Bore Specifications</Label>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                <div><Label className="text-[9px] text-slate-400">Drill Size</Label><Input value={formData.drillSize} onChange={e => setFormData(prev => ({ ...prev, drillSize: e.target.value }))} className="h-9 text-xs mt-0.5" /></div>
-                                <div><Label className="text-[9px] text-slate-400">Pilot Bore Size</Label><Input value={formData.pilotBoreSize} onChange={e => setFormData(prev => ({ ...prev, pilotBoreSize: e.target.value }))} className="h-9 text-xs mt-0.5" /></div>
-                                <div><Label className="text-[9px] text-slate-400">Bore Length</Label><Input value={formData.boreLength} onChange={e => setFormData(prev => ({ ...prev, boreLength: e.target.value }))} className="h-9 text-xs mt-0.5" /></div>
-                                <div><Label className="text-[9px] text-slate-400">Pipe Size</Label><Input value={formData.pipeSize} onChange={e => setFormData(prev => ({ ...prev, pipeSize: e.target.value }))} className="h-9 text-xs mt-0.5" /></div>
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
-                                <div>
-                                    <Label className="text-[9px] text-slate-400">Reamer(s)</Label>
-                                    <div className="relative mt-0.5">
-                                        <div className="w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer bg-white hover:border-slate-400 transition-colors" onClick={() => setOpenDropdownId(openDropdownId === 'reamers' ? null : 'reamers')}>
-                                            <span className={`text-sm truncate ${formData.reamers ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>{formData.reamers ? formData.reamers.split(',').map(s => s.trim()).filter(Boolean).map(s => `${s}"`).join(', ') : 'Select reamer sizes...'}</span>
-                                            <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'reamers' ? 'rotate-180' : ''}`} />
-                                        </div>
-                                        {openDropdownId === 'reamers' && (<MyDropDown isOpen={true} onClose={() => setOpenDropdownId(null)} options={REAMER_OPTIONS} selectedValues={formData.reamers ? formData.reamers.split(',').map(s => s.trim()).filter(Boolean) : []} onSelect={(val) => { const current = formData.reamers ? formData.reamers.split(',').map(s => s.trim()).filter(Boolean) : []; const exists = current.indexOf(val); let newValues; if (exists >= 0) { newValues = current.filter(c => c !== val); } else { newValues = [...current, val]; } setFormData(prev => ({ ...prev, reamers: newValues.join(', ') })); }} placeholder="Search reamer sizes..." width="w-full" modal={false} multiSelect={true} />)}
-                                    </div>
-                                </div>
-                                <div>
-                                    <Label className="text-[9px] text-slate-400">Soil Type</Label>
-                                    <div className="relative mt-0.5">
-                                        <div className="w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer bg-white hover:border-slate-400 transition-colors" onClick={() => setOpenDropdownId(openDropdownId === 'soilType' ? null : 'soilType')}>
-                                            <span className={`text-sm truncate ${formData.soilType ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>{formData.soilType || 'Select soil...'}</span>
-                                            <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'soilType' ? 'rotate-180' : ''}`} />
-                                        </div>
-                                        {openDropdownId === 'soilType' && (<MyDropDown isOpen={true} onClose={() => setOpenDropdownId(null)} options={[...SOIL_TYPES.map(t => ({ id: t, label: t, value: t })), ...customSoilTypes.filter(t => !SOIL_TYPES.includes(t)).map(t => ({ id: t, label: t, value: t }))]} selectedValues={formData.soilType ? formData.soilType.split(',').map(s => s.trim()).filter(Boolean) : []} onSelect={(val) => { const current = formData.soilType ? formData.soilType.split(',').map(s => s.trim()).filter(Boolean) : []; const exists = current.indexOf(val); let newValues; if (exists >= 0) { newValues = current.filter(c => c !== val); } else { newValues = [...current, val]; } setFormData(prev => ({ ...prev, soilType: newValues.join(', ') })); }} onAdd={async (search) => { const trimmed = search.trim(); if (trimmed && !SOIL_TYPES.includes(trimmed) && !customSoilTypes.includes(trimmed)) { setCustomSoilTypes(prev => [...prev, trimmed]); } const current = formData.soilType ? formData.soilType.split(',').map(s => s.trim()).filter(Boolean) : []; setFormData(prev => ({ ...prev, soilType: [...current, trimmed].join(', ') })); }} placeholder="Search or add soil type..." width="w-full" modal={false} multiSelect={true} />)}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Rod Log Items */}
-                        <div className="border-t border-slate-100 pt-4">
-                            <div className="flex items-center justify-between mb-3">
-                                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rod Log Items</Label>
-                                <Button type="button" size="sm" variant="outline" onClick={handleAddBoreItem}><Plus size={14} className="mr-1" /> Add Rod</Button>
-                            </div>
-                            {formData.preBoreLogs.length === 0 ? (
-                                <div className="text-center py-8 text-slate-400 text-sm border border-dashed rounded-xl">No rod log items yet. Click &quot;Add Rod&quot; to add one.</div>
-                            ) : (
-                                <div className="space-y-3">
-                                    {formData.preBoreLogs.map((item, idx) => (
-                                        <div key={idx} className="border rounded-xl p-3 sm:p-4 bg-slate-50 relative">
-                                            <button onClick={() => handleRemoveBoreItem(idx)} className="absolute top-2 right-2 text-slate-400 hover:text-red-500 z-10"><X size={16} /></button>
-                                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                                                <div><Label className="text-[9px] text-slate-400">Rod #</Label><Input value={item.rodNumber} onChange={e => handleBoreItemChange(idx, 'rodNumber', e.target.value)} className="h-8 text-xs" /></div>
-                                                <div><Label className="text-[9px] text-slate-400">Distance</Label><Input value={item.distance} onChange={e => handleBoreItemChange(idx, 'distance', e.target.value)} className="h-8 text-xs" /></div>
-                                                <div><Label className="text-[9px] text-slate-400">Top Depth</Label><Input value={item.topDepth} onChange={e => handleBoreItemChange(idx, 'topDepth', e.target.value)} className="h-8 text-xs" /></div>
-                                                <div><Label className="text-[9px] text-slate-400">Bottom Depth</Label><Input value={item.bottomDepth} onChange={e => handleBoreItemChange(idx, 'bottomDepth', e.target.value)} className="h-8 text-xs" /></div>
-                                                <div><Label className="text-[9px] text-slate-400">Over / Under</Label><Input value={item.overOrUnder} onChange={e => handleBoreItemChange(idx, 'overOrUnder', e.target.value)} className="h-8 text-xs" /></div>
-                                                <div><Label className="text-[9px] text-slate-400">Existing Utilities</Label><Input value={item.existingUtilities} onChange={e => handleBoreItemChange(idx, 'existingUtilities', e.target.value)} className="h-8 text-xs" /></div>
-                                                <div className="col-span-2 sm:col-span-3 lg:col-span-4">
-                                                    <Label className="text-[9px] text-slate-400">Pictures</Label>
-                                                    <div className="mt-1 flex items-center gap-2 flex-wrap">
-                                                        {(() => {
-                                                            const pics = item.picture ? item.picture.split(',').filter(Boolean) : [];
-                                                            return pics.map((pic, pIdx) => (
-                                                                <div key={pIdx} className="relative group animate-in fade-in zoom-in-90 duration-300">
-                                                                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg overflow-hidden border-2 border-slate-200 hover:border-blue-400 transition-colors cursor-pointer" onClick={() => openGallery(pics, pIdx)}>
-                                                                        <img src={pic} alt={`Rod ${idx + 1} pic ${pIdx + 1}`} className="w-full h-full object-cover" />
-                                                                    </div>
-                                                                    <button onClick={() => {
-                                                                        const updated = pics.filter((_, i) => i !== pIdx).join(',');
-                                                                        handleBoreItemChange(idx, 'picture', updated);
-                                                                    }} className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm">
-                                                                        <X size={12} />
-                                                                    </button>
-                                                                </div>
-                                                            ));
-                                                        })()}
-                                                        {/* Upload shimmer placeholders */}
-                                                        {uploadingItems[idx] && Array.from({ length: uploadingItems[idx] }).map((_, i) => (
-                                                            <div key={`loading-${i}`} className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg border-2 border-blue-200 bg-blue-50 flex items-center justify-center animate-pulse">
-                                                                <Loader2 size={16} className="text-blue-400 animate-spin" />
-                                                            </div>
-                                                        ))}
-                                                        <label className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg border-2 border-dashed border-slate-300 hover:border-blue-400 cursor-pointer flex flex-col items-center justify-center text-slate-400 hover:text-blue-500 transition-colors">
-                                                            <Upload size={16} />
-                                                            <span className="text-[8px] mt-1">Add</span>
-                                                            <input type="file" accept="image/*" multiple className="hidden" onChange={e => handlePhotoUpload(idx, e.target.files)} />
-                                                        </label>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Signatures & Customer Name */}
-                        <div className="border-t border-slate-100 pt-4">
-                            <div className="mb-4">
-                                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Customer Name</Label>
-                                <Input value={formData.customerName} onChange={e => setFormData(prev => ({ ...prev, customerName: e.target.value }))} className="mt-1 max-w-md" placeholder="Customer name..." />
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <SignaturePad value={formData.foremanSignature} onChange={(sig) => setFormData(prev => ({ ...prev, foremanSignature: sig }))} label="Foreman Signature" />
-                                <SignaturePad value={formData.customerSignature} onChange={(sig) => setFormData(prev => ({ ...prev, customerSignature: sig }))} label="Customer Signature" />
-                            </div>
-                        </div>
-                    </div>
-
-                    <DialogFooter>
-                        <Button variant="outline" onMouseEnter={() => returnTo && router.prefetch(returnTo)} onClick={() => {
-                            setIsModalOpen(false);
-                            if (returnTo) router.push(returnTo);
-                        }}>Cancel</Button>
-                        <Button onClick={handleSave} disabled={saving} className="bg-[#0F4C75] hover:bg-[#0a3a5c]">
-                            {saving ? 'Saving...' : (editingLog ? 'Update' : 'Create')}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            {/* Delete Confirmation */}
-            <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Delete Pre-Bore Log</DialogTitle>
-                        <DialogDescription>
-                            Are you sure you want to delete this pre-bore log for <strong>{logToDelete?.customerName || logToDelete?.devcoOperator}</strong>?
-                            <br />This will also delete all {logToDelete?.preBoreLogs?.length || 0} rod items.
-                            <br />This action cannot be undone.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>Cancel</Button>
-                        <Button variant="destructive" onClick={handleDelete} disabled={saving}>
-                            {saving ? 'Deleting...' : 'Delete'}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            <PreBoreLogFormModal
+                open={isModalOpen}
+                onClose={() => {
+                    setIsModalOpen(false);
+                    if (returnTo) router.push(returnTo);
+                }}
+                editingLog={editingLog}
+                estimates={estimates}
+                clients={clients}
+                onSaved={() => {
+                    fetchData();
+                }}
+            />
 
             {/* Email PDF Modal */}
             <Dialog open={isEmailModalOpen} onOpenChange={(open) => { setIsEmailModalOpen(open); if (!open) { setEmailTo(''); setPdfTargetLog(null); } }}>
