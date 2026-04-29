@@ -20,6 +20,7 @@ import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
     DialogDescription
 } from '@/components/ui/dialog';
+import { PreBoreLogFormModal } from '@/components/pre-bore-logs/PreBoreLogFormModal';
 import { MyDropDown } from '@/components/ui/MyDropDown';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
@@ -1243,7 +1244,7 @@ export default function PreBoreLogsPage() {
                                             cancel: { label: 'Cancel', onClick: () => {} }
                                         });
                                         setActionSheetItem(null);
-                                    }}}
+                                    }}
                                     className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50"
                                 >
                                     <Trash2 size={18} /> Delete

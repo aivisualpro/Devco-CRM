@@ -5,6 +5,7 @@ import Image from 'next/image';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { FileText, Shield, ChevronRight, ChevronLeft, Loader2, Download, Upload, Layout, FileCheck, Receipt, Plus, Trash2, Calendar, DollarSign, Paperclip, X, Image as ImageIcon, Check, Pencil, User, ChevronDown, MessageSquare, Send, Reply, Forward, AlertTriangle, Clipboard, MapPin, HardHat, Eye, ExternalLink } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { toast as sonnerToast } from 'sonner';
 import { Modal, Input, Button, ConfirmModal, MyDropDown, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, FileDropZone } from '@/components/ui';
 import type { UploadedFile } from '@/components/ui';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -22,6 +23,7 @@ import { DJTCard } from '@/app/(protected)/docs/job-tickets/components/DJTCard';
 import { PotholeLogCard } from '@/app/(protected)/docs/pothole-logs/components/PotholeLogCard';
 import { PreBoreLogCard } from '@/app/(protected)/docs/pre-bore-logs/components/PreBoreLogCard';
 import { PotholeLogFormModal } from '@/components/pothole-logs/PotholeLogFormModal';
+import { PreBoreLogFormModal } from '@/components/pre-bore-logs/PreBoreLogFormModal';
 import { SignedContractsCard } from './SignedContractsCard';
 import { PlanningCard } from './PlanningCard';
 import { ReceiptsCard } from './ReceiptsCard';
@@ -1141,7 +1143,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     };
 
     const handleDeletePreBoreLog = (pb: any) => {
-        toast('Confirm Deletion', {
+        sonnerToast('Confirm Deletion', {
             description: 'Are you sure you want to delete this Pre-Bore Log?',
             action: {
                 label: 'Delete',
@@ -4897,7 +4899,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 open={preBoreFormOpen}
                 onClose={() => { setPreBoreFormOpen(false); setSelectedPreBoreLog(null); }}
                 editingLog={selectedPreBoreLog}
-                defaultEstimate={{ _id: estimateData?._id || '', estimate: estimateData?.estimate || '', projectName: estimateData?.projectName || '', jobAddress: estimateData?.jobAddress || '', customerName: estimateData?.customerName || estimateData?.contactName || '' }}
+                defaultEstimate={{ _id: formData?._id || '', estimate: formData?.estimate || '', projectName: formData?.projectName || '', jobAddress: formData?.jobAddress || '', customerName: formData?.customerName || formData?.contactName || (activeClient as any)?.name || '' }}
                 estimates={[]}
                 clients={[]}
                 onSaved={() => {

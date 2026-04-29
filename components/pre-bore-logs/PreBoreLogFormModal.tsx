@@ -69,7 +69,7 @@ export interface ClientOption {
 interface Props {
     open: boolean;
     onClose: () => void;
-    editingLog?: PreBoreLogData | null;
+    editingLog?: any;
     defaultEstimate?: EstimateOption | null;
     estimates?: EstimateOption[];
     clients?: ClientOption[];

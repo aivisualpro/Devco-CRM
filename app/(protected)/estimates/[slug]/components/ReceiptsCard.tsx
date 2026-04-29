@@ -397,7 +397,7 @@ export const ReceiptsCard: React.FC<ReceiptsCardProps> = ({
                 </div>
 
                 {/* List */}
-                <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto pt-4">
+                <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto overflow-x-hidden pt-4">
                     <div className="grid grid-cols-1 gap-3">
                         {receiptsAndCosts.length > 0 ? [...receiptsAndCosts]
                             .map((item: any, idx: number) => ({ item, originalIdx: idx }))
