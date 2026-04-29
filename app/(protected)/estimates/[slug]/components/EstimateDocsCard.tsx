@@ -3797,7 +3797,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
                                     {/* Row 2: Title / Description */}
                                     {item.titleDescriptions?.length > 0 && (
-                                        <div className="text-sm text-slate-700 italic bg-amber-50/50 p-2.5 rounded-lg border border-amber-100/50 line-clamp-3 mt-1">
+                                        <div className="text-sm text-slate-700 italic bg-amber-50/50 p-2.5 rounded-lg border border-amber-100/50 overflow-y-auto max-h-28 mt-1">
                                             {item.titleDescriptions.map((td: any, tIdx: number) => (
                                                 <div key={tIdx} className="mb-1 last:mb-0">
                                                     <span className="font-semibold">{td.title}</span>
@@ -3921,9 +3921,18 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                 </button>
                                             )}
 
-                                            <button onClick={(e) => handleEditBillingTicket(idx, e)} className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 shadow-sm text-slate-500 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50 transition-all flex items-center justify-center" title="Edit">
-                                                <Pencil className="w-3.5 h-3.5" />
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleDocClick('Billing Ticket', idx); }}
+                                                className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 shadow-sm text-slate-500 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-all flex items-center justify-center"
+                                                title="Download PDF"
+                                                disabled={generatingDoc === 'Billing Ticket' && generatingIndex === idx}
+                                            >
+                                                {generatingDoc === 'Billing Ticket' && generatingIndex === idx
+                                                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                    : <Download className="w-3.5 h-3.5" />
+                                                }
                                             </button>
+
                                             <button onClick={(e) => { e.stopPropagation(); setBillingTicketToDelete(idx); }} className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 shadow-sm text-slate-500 hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition-all flex items-center justify-center" title="Delete">
                                                 <Trash2 className="w-3.5 h-3.5" />
                                             </button>
