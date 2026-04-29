@@ -7,6 +7,8 @@ import { Receipt, Plus, Trash2, Download, Paperclip, X, Loader2, Pencil, Image a
 import toast from 'react-hot-toast';
 import { Modal, Input, Button, ConfirmModal, MyDropDown, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui';
 import { format } from 'date-fns';
+import { usePermissions } from '@/hooks/usePermissions';
+import { MODULES, ACTIONS } from '@/lib/permissions/types';
 
 // ── Shared Utilities ──────────────────────────────────────────────────────────
 
@@ -84,6 +86,8 @@ export const ReceiptsCard: React.FC<ReceiptsCardProps> = ({
     currentUserEmail = ''
 }) => {
     // ── State ─────────────────────────────────────────────────────────────────
+    const { user, can } = usePermissions();
+    const canApprove = can(MODULES.RECEIPTS_COSTS, ACTIONS.APPROVE) || user?.email === 'ns@devco-inc.com';
     const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
     const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
     const [isReceiptUploading, setIsReceiptUploading] = useState(false);
@@ -452,7 +456,16 @@ export const ReceiptsCard: React.FC<ReceiptsCardProps> = ({
 
                                         {/* Row 4: approvalStatus, status */}
                                         <div className="flex flex-wrap items-center gap-2">
-                                            <span className={`text-xs font-bold uppercase tracking-widest px-2.5 py-1 rounded-full border ${item.approvalStatus === 'Approved' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                                            <span 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (canApprove) {
+                                                        const newStatus = item.approvalStatus === 'Approved' ? 'Not Approved' : 'Approved';
+                                                        handleUpdateReceiptStatus(originalIdx, 'approvalStatus', newStatus);
+                                                    }
+                                                }}
+                                                className={`text-xs font-bold uppercase tracking-widest px-2.5 py-1 rounded-full border ${canApprove ? 'cursor-pointer hover:shadow-md transition-all' : ''} ${item.approvalStatus === 'Approved' ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
+                                            >
                                                 {item.approvalStatus || 'Not Approved'}
                                             </span>
                                             <span className={`text-xs font-bold uppercase tracking-widest px-2.5 py-1 rounded-full border ${item.status === 'Devco Paid' || item.status === 'Paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : item.status ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>
