@@ -88,7 +88,13 @@ export async function POST(request: NextRequest) {
                     try {
                         const jwtUser = await getUserFromRequest(request);
                         const creatorEmail = (jwtUser as any)?.email?.toLowerCase().trim() || '';
-                        const creatorName = `${(jwtUser as any)?.firstName || ''} ${(jwtUser as any)?.lastName || ''}`.trim() || 'Someone';
+                        // Look up actual user name from employees collection
+                        let creatorName = 'Someone';
+                        if (creatorEmail) {
+                            const { default: Employee } = await import('@/lib/models/Employee');
+                            const emp = await Employee.findOne({ email: { $regex: new RegExp(`^${creatorEmail}$`, 'i') } }).select('firstName lastName').lean() as any;
+                            if (emp) creatorName = `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || creatorEmail;
+                        }
 
                         // Only notify users who have POTHOLE VIEW permission
                         const recipientEmails = await getEmailsWithModuleAccess(

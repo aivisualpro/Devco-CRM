@@ -66,7 +66,6 @@ interface PreBoreLogItem {
 interface PreBoreLog {
     _id: string;
     legacyId?: string;
-    scheduleId?: string;
     estimate?: string;
     date: string;
     customerForeman: string;
@@ -91,8 +90,8 @@ interface PreBoreLog {
     createdBy: string;
     createdAt: string;
     scheduleCustomerName?: string;
-    scheduleCustomerId?: string;
-    scheduleTitle?: string;
+    customerId?: string;
+    foremanName?: string;
 }
 
 interface Estimate {
@@ -264,14 +263,15 @@ export default function PreBoreLogsPage() {
                     })
                 }),
                 fetch(`/api/estimates?limit=500`),
-                fetch(`/api/clients?limit=500`)
+                fetch(`/api/clients?lite=true&limit=500`)
             ]);
 
             const [logsData, estimatesData, clientsData] = await Promise.all([logsRes.json(), estimatesRes.json(), clientsRes.json()]);
 
             if (logsData.success) setLogs(logsData.result || []);
             if (estimatesData.success) setEstimates(estimatesData.result || []);
-            if (clientsData.success) setClients(clientsData.result || []);
+            // Clients API uses paginated response shape { items: [...] }
+            if (clientsData.items) setClients(clientsData.items || []);
         } catch (err) {
             console.error(err);
             toast.error('Failed to fetch data');
@@ -317,15 +317,21 @@ export default function PreBoreLogsPage() {
         if (!loading && logs.length > 0) {
             const editParam = searchParams.get('edit');
             if (editParam) {
-                // editParam format: "scheduleId_preBoreId"
-                const parts = editParam.split('_');
-                if (parts.length === 2) {
-                    const [sId, pbId] = parts;
-                    const logToEdit = logs.find(l => l.scheduleId === sId && l._id === pbId);
-                    if (logToEdit) {
-                        handleEdit(logToEdit);
-                        // Remove the query param from URL to avoid re-opening on refresh
-                        router.replace('/docs/pre-bore-logs', { scroll: false });
+                // editParam is now the direct document _id
+                const logToEdit = logs.find(l => l._id === editParam);
+                if (logToEdit) {
+                    handleEdit(logToEdit);
+                    router.replace('/docs/pre-bore-logs', { scroll: false });
+                } else {
+                    // Legacy fallback: "scheduleId_preBoreId" format
+                    const parts = editParam.split('_');
+                    if (parts.length === 2) {
+                        const [sId, pbId] = parts;
+                        const legacyLog = logs.find(l => (l._id === pbId || l.legacyId === pbId));
+                        if (legacyLog) {
+                            handleEdit(legacyLog);
+                            router.replace('/docs/pre-bore-logs', { scroll: false });
+                        }
                     }
                 }
             }
@@ -387,10 +393,10 @@ export default function PreBoreLogsPage() {
         setEditingLog(log);
 
         // Pre-select cascading dropdowns from the existing log
-        // Customer: resolve via scheduleCustomerId → clients, or fall back
-        const matchedClient = log.scheduleCustomerId
-            ? clients.find(c => c._id === log.scheduleCustomerId)
-            : clients.find(c => c.name?.toLowerCase() === (log.scheduleCustomerName || '').toLowerCase());
+        // Customer: resolve via customerId → clients, fall back to name match
+        const matchedClient =
+            (log.customerId && clients.find(c => String(c._id) === String(log.customerId)))
+            || clients.find(c => c.name?.toLowerCase() === (log.scheduleCustomerName || log.customerName || '').toLowerCase());
         const custId = matchedClient?._id || '';
         setSelectedCustomerId(custId);
 
@@ -398,10 +404,8 @@ export default function PreBoreLogsPage() {
         const estNum = log.estimate || '';
         setSelectedEstimateId(estNum);
 
-        // Schedule: use scheduleId which is the parent Schedule document _id
-        setSelectedScheduleId(log.scheduleId || log._id);
 
-        // Fetch schedules for this estimate so the dropdown is populated
+        // Fetch estimates for this customer so the dropdown is populated
         if (estNum) fetchSchedulesByEstimate(estNum);
 
         setOpenDropdownId(null);
@@ -539,7 +543,8 @@ export default function PreBoreLogsPage() {
             .map(e => ({
                 id: e.email,
                 label: `${e.firstName || ''} ${e.lastName || ''}`.trim(),
-                value: `${e.firstName || ''} ${e.lastName || ''}`.trim()
+                value: `${e.firstName || ''} ${e.lastName || ''}`.trim(),
+                profilePicture: e.profilePicture || ''
             }));
     }, [employees]);
 
@@ -575,25 +580,45 @@ export default function PreBoreLogsPage() {
         }));
     };
 
+    const [uploadingItems, setUploadingItems] = useState<Record<number, number>>({}); // rodIndex → count of files uploading
+
     const handlePhotoUpload = async (index: number, files: FileList | null) => {
         if (!files || files.length === 0) return;
 
-        const file = files[0];
-        const formDataUpload = new FormData();
-        formDataUpload.append('file', file);
+        const fileArr = Array.from(files);
+        setUploadingItems(prev => ({ ...prev, [index]: (prev[index] || 0) + fileArr.length }));
 
-        try {
-            const res = await fetch('/api/upload', {
-                method: 'POST',
-                body: formDataUpload
-            });
-            const data = await res.json();
-            if (data.success && data.url) {
-                handleBoreItemChange(index, 'picture', data.url);
+        for (const file of fileArr) {
+            const formDataUpload = new FormData();
+            formDataUpload.append('file', file);
+
+            try {
+                const res = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formDataUpload
+                });
+                const data = await res.json();
+                if (data.success && data.url) {
+                    // Append to existing pictures (comma-separated)
+                    setFormData(prev => {
+                        const updated = [...prev.preBoreLogs];
+                        const existing = updated[index].picture || '';
+                        const pics = existing ? existing.split(',').filter(Boolean) : [];
+                        pics.push(data.url);
+                        updated[index] = { ...updated[index], picture: pics.join(',') };
+                        return { ...prev, preBoreLogs: updated };
+                    });
+                }
+            } catch (err) {
+                console.error('Upload error:', err);
+                toast.error(`Failed to upload ${file.name}`);
+            } finally {
+                setUploadingItems(prev => {
+                    const count = (prev[index] || 1) - 1;
+                    if (count <= 0) { const { [index]: _, ...rest } = prev; return rest; }
+                    return { ...prev, [index]: count };
+                });
             }
-        } catch (err) {
-            console.error('Upload error:', err);
-            toast.error(`Failed to upload ${file.name}`);
         }
     };
 
@@ -625,14 +650,48 @@ export default function PreBoreLogsPage() {
     }, [isGalleryOpen, galleryImages.length]);
 
     const handleSave = async () => {
-        if (!editingLog && !selectedScheduleId) {
-            toast.error('Please select a schedule');
+        if (!editingLog && (!selectedCustomerId || !selectedEstimateId)) {
+            toast.error('Please select a customer and estimate');
             return;
         }
 
         setSaving(true);
         try {
+            // Upload base64 signatures to Cloudinary if they are still raw base64
+            let foremanSigUrl = formData.foremanSignature;
+            let customerSigUrl = formData.customerSignature;
+
+            if (foremanSigUrl && foremanSigUrl.startsWith('data:')) {
+                try {
+                    const sigRes = await fetch('/api/upload-signature', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ base64: foremanSigUrl })
+                    });
+                    const sigData = await sigRes.json();
+                    if (sigData.success && sigData.url) foremanSigUrl = sigData.url;
+                } catch (err) {
+                    console.error('Failed to upload foreman signature:', err);
+                }
+            }
+
+            if (customerSigUrl && customerSigUrl.startsWith('data:')) {
+                try {
+                    const sigRes = await fetch('/api/upload-signature', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ base64: customerSigUrl })
+                    });
+                    const sigData = await sigRes.json();
+                    if (sigData.success && sigData.url) customerSigUrl = sigData.url;
+                } catch (err) {
+                    console.error('Failed to upload customer signature:', err);
+                }
+            }
+
             const preBoreData = {
+                estimate: selectedEstimateId || '',
+                customerId: selectedCustomerId || '',
                 date: formData.date ? new Date(formData.date) : new Date(),
                 customerForeman: formData.customerForeman,
                 customerWorkRequestNumber: formData.customerWorkRequestNumber,
@@ -646,9 +705,9 @@ export default function PreBoreLogsPage() {
                 soilType: formData.soilType,
                 boreLength: formData.boreLength,
                 pipeSize: formData.pipeSize,
-                foremanSignature: formData.foremanSignature,
+                foremanSignature: foremanSigUrl,
                 customerName: formData.customerName,
-                customerSignature: formData.customerSignature,
+                customerSignature: customerSigUrl,
                 preBoreLogs: formData.preBoreLogs,
                 createdBy: editingLog?.createdBy || user?.email
             };
@@ -660,8 +719,8 @@ export default function PreBoreLogsPage() {
                 body: JSON.stringify({
                     action,
                     payload: editingLog
-                        ? { id: editingLog.scheduleId || editingLog._id, item: { ...preBoreData, legacyId: editingLog.legacyId } }
-                        : { scheduleId: selectedScheduleId, item: preBoreData }
+                        ? { id: editingLog._id, item: { ...preBoreData, legacyId: editingLog.legacyId } }
+                        : { item: preBoreData }
                 })
             });
 
@@ -692,7 +751,7 @@ export default function PreBoreLogsPage() {
             const res = await fetch('/api/pre-bore-logs', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'deletePreBoreLog', payload: { id: logToDelete.scheduleId || logToDelete._id, legacyId: logToDelete.legacyId } })
+                body: JSON.stringify({ action: 'deletePreBoreLog', payload: { id: logToDelete._id, legacyId: logToDelete.legacyId } })
             });
 
             if (res.ok) {
@@ -853,6 +912,72 @@ export default function PreBoreLogsPage() {
         }
     };
 
+    // ==================== Export / Import ====================
+    const [isExporting, setIsExporting] = useState(false);
+    const [isImporting, setIsImporting] = useState(false);
+    const importFileRef = useRef<HTMLInputElement>(null);
+
+    const handleExport = async () => {
+        setIsExporting(true);
+        try {
+            const res = await fetch('/api/pre-bore-logs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'exportPreBoreLogs', payload: {} })
+            });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || 'Export failed');
+
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `pre-bore-logs-backup-${format(new Date(), 'yyyy-MM-dd-HHmm')}.json`;
+            document.body.appendChild(a);
+            a.click();
+            URL.revokeObjectURL(url);
+            a.remove();
+            toast.success(`Exported ${data.result?.length || 0} schedule records`);
+        } catch (err: any) {
+            console.error('Export error:', err);
+            toast.error(err.message || 'Failed to export');
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setIsImporting(true);
+        try {
+            const text = await file.text();
+            const parsed = JSON.parse(text);
+            const records = parsed.result || parsed;
+            if (!Array.isArray(records)) throw new Error('Invalid format: expected array of schedule records');
+
+            const res = await fetch('/api/pre-bore-logs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'importPreBoreLogsJSON', payload: { records } })
+            });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || 'Import failed');
+            toast.success(data.message);
+            fetchData();
+        } catch (err: any) {
+            console.error('Import error:', err);
+            toast.error(err.message || 'Failed to import');
+        } finally {
+            setIsImporting(false);
+            if (importFileRef.current) importFileRef.current.value = '';
+        }
+    };
+
+
+
+
+
     return (
         <div className="flex flex-col h-full bg-slate-50">
             <Header
@@ -867,16 +992,39 @@ export default function PreBoreLogsPage() {
                                 className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-full text-sm shadow-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                             />
                         </div>
-                        {canCreate && (
-                            <div className="hidden lg:block">
+                        <div className="hidden lg:flex items-center gap-2">
+                            <input
+                                ref={importFileRef}
+                                type="file"
+                                accept=".json"
+                                className="hidden"
+                                onChange={handleImport}
+                            />
+                            <Button
+                                onClick={() => importFileRef.current?.click()}
+                                disabled={isImporting}
+                                className="bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 w-8 h-8 p-0 rounded-full flex items-center justify-center shadow-sm"
+                                title="Import JSON"
+                            >
+                                {isImporting ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                            </Button>
+                            <Button
+                                onClick={handleExport}
+                                disabled={isExporting}
+                                className="bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 w-8 h-8 p-0 rounded-full flex items-center justify-center shadow-sm"
+                                title="Export JSON"
+                            >
+                                {isExporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                            </Button>
+                            {canCreate && (
                                 <Button
                                     onClick={handleAddNew}
                                     className="bg-[#0F4C75] hover:bg-[#0a3a5c] text-white w-8 h-8 p-0 rounded-full flex items-center justify-center"
                                 >
                                     <Plus size={16} />
                                 </Button>
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </div>
                 }
             />
@@ -905,7 +1053,7 @@ export default function PreBoreLogsPage() {
                                         <div
                                             key={log._id}
                                             className="bg-white rounded-2xl border border-slate-100 p-4 active:scale-[0.98] transition-transform shadow-sm"
-                                            onMouseEnter={() => router.prefetch(`/docs/pre-bore-logs/${log.scheduleId}___${log._id}`)} onClick={() => router.push(`/docs/pre-bore-logs/${log.scheduleId}___${log._id}`)}
+                                            onMouseEnter={() => router.prefetch(`/docs/pre-bore-logs/${log._id}`)} onClick={() => router.push(`/docs/pre-bore-logs/${log._id}`)}
                                             onTouchStart={() => handleLongPressStart(log)}
                                             onTouchEnd={handleLongPressEnd}
                                             onTouchCancel={handleLongPressEnd}
@@ -1000,7 +1148,7 @@ export default function PreBoreLogsPage() {
                                                 <React.Fragment key={log._id}>
                                                     <TableRow
                                                         className="group hover:bg-slate-50 transition-colors cursor-pointer"
-                                                        onMouseEnter={() => router.prefetch(`/docs/pre-bore-logs/${log.scheduleId}___${log._id}`)} onClick={() => router.push(`/docs/pre-bore-logs/${log.scheduleId}___${log._id}`)}
+                                                        onMouseEnter={() => router.prefetch(`/docs/pre-bore-logs/${log._id}`)} onClick={() => router.push(`/docs/pre-bore-logs/${log._id}`)}
                                                     >
                                                         <TableCell onClick={(e) => e.stopPropagation()}>
                                                             {log.preBoreLogs?.length > 0 && (
@@ -1017,9 +1165,9 @@ export default function PreBoreLogsPage() {
                                                         </TableCell>
                                                         <TableCell className="text-xs text-slate-700 font-semibold max-w-[130px] truncate">
                                                             {(() => {
-                                                                // Resolve customer name: customerId reference on the schedule → clients list
-                                                                if (log.scheduleCustomerId) {
-                                                                    const client = clients.find(c => c._id === log.scheduleCustomerId);
+                                                                // Resolve customer name: customerId → clients list
+                                                                if (log.customerId) {
+                                                                    const client = clients.find(c => c._id === log.customerId);
                                                                     if (client) return client.name;
                                                                 }
                                                                 return log.scheduleCustomerName || log.customerName || '-';
@@ -1197,478 +1345,161 @@ export default function PreBoreLogsPage() {
                         <DialogTitle>{editingLog ? 'Edit Pre-Bore Log' : 'New Pre-Bore Log'}</DialogTitle>
                     </DialogHeader>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 py-4">
-                        {/* Cascading Selection: Customer -> Estimate -> Schedule */}
-                        <>
-                            {/* Step 1: Customer Selection */}
-                            <div className="sm:col-span-1">
-                                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">1. Customer *</Label>
+                    <div className="space-y-5 py-4">
+                        {/* Row 1: Customer · Estimate · Job Location */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div>
+                                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Customer *</Label>
                                 <div className="relative mt-1">
-                                    <div
-                                        className="w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer bg-white hover:border-slate-400 transition-colors"
-                                        onClick={() => setOpenDropdownId(openDropdownId === 'customer' ? null : 'customer')}
-                                    >
-                                        <span className={`text-sm truncate ${selectedCustomerId ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
-                                            {selectedCustomerId ? (clients.find(c => c._id === selectedCustomerId)?.name || 'Selected') : 'Select Customer...'}
-                                        </span>
+                                    <div className="w-full flex items-center justify-between px-3 py-2.5 border rounded-xl cursor-pointer bg-white hover:border-slate-400 transition-colors" onClick={() => setOpenDropdownId(openDropdownId === 'customer' ? null : 'customer')}>
+                                        <span className={`text-sm truncate ${selectedCustomerId ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>{selectedCustomerId ? (clients.find(c => c._id === selectedCustomerId)?.name || 'Selected') : 'Select Customer...'}</span>
                                         <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'customer' ? 'rotate-180' : ''}`} />
                                     </div>
-                                    {openDropdownId === 'customer' && (
-                                        <MyDropDown
-                                            isOpen={true}
-                                            onClose={() => setOpenDropdownId(null)}
-                                            options={clientOptions}
-                                            selectedValues={selectedCustomerId ? [selectedCustomerId] : []}
-                                            onSelect={(val) => {
-                                                const newVal = val === selectedCustomerId ? '' : val;
-                                                setSelectedCustomerId(newVal);
-                                                setSelectedEstimateId('');
-                                                setSelectedScheduleId('');
-                                                setSchedules([]);
-                                                const client = clients.find(c => c._id === newVal);
-                                                if (client) setFormData(prev => ({ ...prev, customerName: client.name }));
-                                                setOpenDropdownId(null);
-                                            }}
-                                            placeholder="Search customers..."
-                                            width="w-full"
-                                            modal={false}
-                                        />
-                                    )}
+                                    {openDropdownId === 'customer' && (<MyDropDown isOpen={true} onClose={() => setOpenDropdownId(null)} options={clientOptions} selectedValues={selectedCustomerId ? [selectedCustomerId] : []} onSelect={(val) => { const newVal = val === selectedCustomerId ? '' : val; setSelectedCustomerId(newVal); setSelectedEstimateId(''); setSelectedScheduleId(''); setSchedules([]); const client = clients.find(c => c._id === newVal); if (client) setFormData(prev => ({ ...prev, customerName: client.name })); setOpenDropdownId(null); }} placeholder="Search customers..." width="w-full" modal={false} />)}
                                 </div>
                             </div>
-
-                            {/* Step 2: Estimate Selection */}
-                            <div className="sm:col-span-1">
-                                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">2. Estimate *</Label>
+                            <div>
+                                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Estimate *</Label>
                                 <div className="relative mt-1">
-                                    <div
-                                        className={`w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer transition-colors ${!selectedCustomerId ? 'bg-slate-50 cursor-not-allowed' : 'bg-white hover:border-slate-400'}`}
-                                        onClick={() => {
-                                            if (!selectedCustomerId) return;
-                                            setOpenDropdownId(openDropdownId === 'estimate' ? null : 'estimate');
-                                        }}
-                                    >
-                                        <span className={`text-sm truncate ${selectedEstimateId ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
-                                            {selectedEstimateId || 'Select Estimate...'}
-                                        </span>
+                                    <div className={`w-full flex items-center justify-between px-3 py-2.5 border rounded-xl cursor-pointer transition-colors ${!selectedCustomerId ? 'bg-slate-50 cursor-not-allowed' : 'bg-white hover:border-slate-400'}`} onClick={() => { if (!selectedCustomerId) return; setOpenDropdownId(openDropdownId === 'estimate' ? null : 'estimate'); }}>
+                                        <span className={`text-sm truncate ${selectedEstimateId ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>{selectedEstimateId || 'Select Estimate...'}</span>
                                         <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'estimate' ? 'rotate-180' : ''}`} />
                                     </div>
-                                    {openDropdownId === 'estimate' && selectedCustomerId && (
-                                        <MyDropDown
-                                            isOpen={true}
-                                            onClose={() => setOpenDropdownId(null)}
-                                            options={estimateOptions}
-                                            selectedValues={selectedEstimateId ? [selectedEstimateId] : []}
-                                            onSelect={(val) => {
-                                                const newVal = val === selectedEstimateId ? '' : val;
-                                                setSelectedEstimateId(newVal);
-                                                setSelectedScheduleId('');
-                                                if (newVal) {
-                                                    fetchSchedulesByEstimate(newVal);
-                                                    const est = estimates.find(e => e.estimate === newVal);
-                                                    const custName = est?.customerName || est?.contactName || formData.customerName;
-                                                    const now = new Date();
-                                                    const h12 = now.getHours() % 12 || 12;
-                                                    const timeStr = `${h12}:${now.getMinutes().toString().padStart(2, '0')} ${now.getHours() >= 12 ? 'PM' : 'AM'}`;
-                                                    setFormData(prev => ({ ...prev, customerName: custName, startTime: timeStr }));
-                                                } else {
-                                                    setSchedules([]);
-                                                }
-                                                setOpenDropdownId(null);
-                                            }}
-                                            placeholder="Search estimates..."
-                                            width="w-full"
-                                            modal={false}
-                                        />
-                                    )}
+                                    {openDropdownId === 'estimate' && selectedCustomerId && (<MyDropDown isOpen={true} onClose={() => setOpenDropdownId(null)} options={estimateOptions} selectedValues={selectedEstimateId ? [selectedEstimateId] : []} onSelect={(val) => { const newVal = val === selectedEstimateId ? '' : val; setSelectedEstimateId(newVal); setSelectedScheduleId(''); if (newVal) { fetchSchedulesByEstimate(newVal); const est = estimates.find(e => e.estimate === newVal); const custName = est?.customerName || est?.contactName || formData.customerName; const jobLoc = est?.jobAddress || ''; const now = new Date(); const h12 = now.getHours() % 12 || 12; const timeStr = `${h12}:${now.getMinutes().toString().padStart(2, '0')} ${now.getHours() >= 12 ? 'PM' : 'AM'}`; setFormData(prev => ({ ...prev, customerName: custName, startTime: timeStr, customerWorkRequestNumber: jobLoc })); } else { setSchedules([]); } setOpenDropdownId(null); }} placeholder="Search estimates..." width="w-full" modal={false} />)}
                                 </div>
                             </div>
+                            <div>
+                                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Job Location</Label>
+                                <Input value={formData.customerWorkRequestNumber} onChange={e => setFormData(prev => ({ ...prev, customerWorkRequestNumber: e.target.value }))} className="mt-1" placeholder="Auto-filled from estimate..." />
+                            </div>
+                        </div>
 
-                            {/* Step 3: Schedule Selection */}
-                            <div className="sm:col-span-1">
-                                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">3. Schedule *</Label>
+                        {/* Row 2: Start Date & Time · Devco Operator · Customer Foreman */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div>
+                                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Start Date &amp; Time</Label>
+                                <Input type="datetime-local" value={formData.startTime} onChange={e => setFormData(prev => ({ ...prev, startTime: e.target.value, date: e.target.value.split('T')[0] }))} className="mt-1" />
+                            </div>
+                            <div>
+                                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Devco Operator</Label>
                                 <div className="relative mt-1">
-                                    <div
-                                        className={`w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer transition-colors ${!selectedEstimateId ? 'bg-slate-50 cursor-not-allowed' : 'bg-white hover:border-slate-400'}`}
-                                        onClick={() => {
-                                            if (!selectedEstimateId) return;
-                                            setOpenDropdownId(openDropdownId === 'schedule' ? null : 'schedule');
-                                        }}
-                                    >
-                                        <span className={`text-sm truncate ${selectedScheduleId ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
-                                            {selectedScheduleId
-                                                ? (() => {
-                                                    const s = schedules.find(s => s._id === selectedScheduleId);
-                                                    return s?.fromDate ? formatWallDate(s.fromDate) : 'Selected';
-                                                })()
-                                                : (loadingSchedules ? 'Loading...' : 'Select Schedule...')}
-                                        </span>
-                                        <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'schedule' ? 'rotate-180' : ''}`} />
+                                    <div className="w-full flex items-center justify-between px-3 py-2.5 border rounded-xl cursor-pointer bg-white hover:border-slate-400 transition-colors" onClick={() => setOpenDropdownId(openDropdownId === 'operator' ? null : 'operator')}>
+                                        <span className={`text-sm truncate ${formData.devcoOperator ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>{formData.devcoOperator || 'Select Operator...'}</span>
+                                        <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'operator' ? 'rotate-180' : ''}`} />
                                     </div>
-                                    {openDropdownId === 'schedule' && selectedEstimateId && (
-                                        <MyDropDown
-                                            isOpen={true}
-                                            onClose={() => setOpenDropdownId(null)}
-                                            options={scheduleOptions}
-                                            selectedValues={selectedScheduleId ? [selectedScheduleId] : []}
-                                            onSelect={(val) => {
-                                                const newVal = val === selectedScheduleId ? '' : val;
-                                                setSelectedScheduleId(newVal);
-                                                // Auto-fill date & startTime from selected schedule's fromDate
-                                                if (newVal) {
-                                                    const sched = schedules.find(s => s._id === newVal);
-                                                    if (sched?.fromDate) {
-                                                        const d = new Date(sched.fromDate);
-                                                        const dateStr = formatWallDate(d);
-                                                        const timeStr = `${dateStr}T${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-                                                        setFormData(prev => ({ ...prev, date: dateStr, startTime: timeStr }));
-                                                    }
-                                                }
-                                                setOpenDropdownId(null);
-                                            }}
-                                            placeholder="Search schedules..."
-                                            emptyMessage={loadingSchedules ? 'Loading schedules...' : 'No schedules found for this estimate'}
-                                            width="w-full"
-                                            modal={false}
-                                        />
-                                    )}
+                                    {openDropdownId === 'operator' && (<MyDropDown isOpen={true} onClose={() => setOpenDropdownId(null)} options={employeeOptions} selectedValues={formData.devcoOperator ? [formData.devcoOperator] : []} onSelect={(val) => { setFormData(prev => ({ ...prev, devcoOperator: val === prev.devcoOperator ? '' : val })); setOpenDropdownId(null); }} placeholder="Search employees..." width="w-full" modal={false} />)}
                                 </div>
                             </div>
-                        </>
-
-                        <div>
-                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Start Date &amp; Time</Label>
-                            <Input
-                                type="datetime-local"
-                                value={formData.startTime}
-                                onChange={e => setFormData(prev => ({ ...prev, startTime: e.target.value, date: e.target.value.split('T')[0] }))}
-                                className="mt-1"
-                            />
-                        </div>
-
-                        <div>
-                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Customer Foreman</Label>
-                            <Input
-                                value={formData.customerForeman}
-                                onChange={e => setFormData(prev => ({ ...prev, customerForeman: e.target.value }))}
-                                className="mt-1"
-                            />
-                        </div>
-
-                        <div>
-                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Work Request #</Label>
-                            <Input
-                                value={formData.customerWorkRequestNumber}
-                                onChange={e => setFormData(prev => ({ ...prev, customerWorkRequestNumber: e.target.value }))}
-                                className="mt-1"
-                            />
-                        </div>
-
-                        <div>
-                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Devco Operator</Label>
-                            <div className="relative mt-1">
-                                <div
-                                    className="w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer bg-white hover:border-slate-400 transition-colors"
-                                    onClick={() => setOpenDropdownId(openDropdownId === 'operator' ? null : 'operator')}
-                                >
-                                    <span className={`text-sm truncate ${formData.devcoOperator ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
-                                        {formData.devcoOperator || 'Select Operator...'}
-                                    </span>
-                                    <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'operator' ? 'rotate-180' : ''}`} />
-                                </div>
-                                {openDropdownId === 'operator' && (
-                                    <MyDropDown
-                                        isOpen={true}
-                                        onClose={() => setOpenDropdownId(null)}
-                                        options={employeeOptions}
-                                        selectedValues={formData.devcoOperator ? [formData.devcoOperator] : []}
-                                        onSelect={(val) => {
-                                            setFormData(prev => ({ ...prev, devcoOperator: val === prev.devcoOperator ? '' : val }));
-                                            setOpenDropdownId(null);
-                                        }}
-                                        placeholder="Search employees..."
-                                        width="w-full"
-                                        modal={false}
-                                    />
-                                )}
+                            <div>
+                                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Customer Foreman</Label>
+                                <Input value={formData.customerForeman} onChange={e => setFormData(prev => ({ ...prev, customerForeman: e.target.value }))} className="mt-1" placeholder="Foreman name..." />
                             </div>
                         </div>
 
-                        <div className="col-span-2 sm:col-span-3 grid grid-cols-2 gap-4">
+                        {/* Row 3: Addresses */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Address Bore Start</Label>
                                 <div className="relative mt-1">
-                                    <Input
-                                        value={formData.addressBoreStart}
-                                        onChange={e => setFormData(prev => ({ ...prev, addressBoreStart: e.target.value }))}
-                                        className="pr-10"
-                                        placeholder="Enter or pin drop..."
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => handleDropPinAddress('addressBoreStart')}
-                                        disabled={geoLoadingField === 'start'}
-                                        className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-[#0F4C75] hover:bg-blue-50 transition-colors disabled:opacity-50"
-                                        title="Drop pin for current location"
-                                    >
-                                        {geoLoadingField === 'start' ? (
-                                            <Loader2 size={14} className="animate-spin" />
-                                        ) : (
-                                            <MapPin size={14} />
-                                        )}
+                                    <Input value={formData.addressBoreStart} onChange={e => setFormData(prev => ({ ...prev, addressBoreStart: e.target.value }))} className="pr-10" placeholder="Enter or pin drop..." />
+                                    <button type="button" onClick={() => handleDropPinAddress('addressBoreStart')} disabled={geoLoadingField === 'start'} className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-[#0F4C75] hover:bg-blue-50 transition-colors disabled:opacity-50" title="Drop pin">
+                                        {geoLoadingField === 'start' ? <Loader2 size={14} className="animate-spin" /> : <MapPin size={14} />}
                                     </button>
                                 </div>
                             </div>
                             <div>
                                 <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Address Bore End</Label>
                                 <div className="relative mt-1">
-                                    <Input
-                                        value={formData.addressBoreEnd}
-                                        onChange={e => setFormData(prev => ({ ...prev, addressBoreEnd: e.target.value }))}
-                                        className="pr-10"
-                                        placeholder="Enter or pin drop..."
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => handleDropPinAddress('addressBoreEnd')}
-                                        disabled={geoLoadingField === 'end'}
-                                        className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-[#0F4C75] hover:bg-blue-50 transition-colors disabled:opacity-50"
-                                        title="Drop pin for current location"
-                                    >
-                                        {geoLoadingField === 'end' ? (
-                                            <Loader2 size={14} className="animate-spin" />
-                                        ) : (
-                                            <MapPin size={14} />
-                                        )}
+                                    <Input value={formData.addressBoreEnd} onChange={e => setFormData(prev => ({ ...prev, addressBoreEnd: e.target.value }))} className="pr-10" placeholder="Enter or pin drop..." />
+                                    <button type="button" onClick={() => handleDropPinAddress('addressBoreEnd')} disabled={geoLoadingField === 'end'} className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-[#0F4C75] hover:bg-blue-50 transition-colors disabled:opacity-50" title="Drop pin">
+                                        {geoLoadingField === 'end' ? <Loader2 size={14} className="animate-spin" /> : <MapPin size={14} />}
                                     </button>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Drill / Bore Specifications */}
-                        <div className="col-span-2 sm:col-span-3 mt-2">
-                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Bore Specifications</Label>
+                        {/* Bore Specifications */}
+                        <div className="border-t border-slate-100 pt-4">
+                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 mb-3"><Drill size={12} /> Bore Specifications</Label>
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <div><Label className="text-[9px] text-slate-400">Drill Size</Label><Input value={formData.drillSize} onChange={e => setFormData(prev => ({ ...prev, drillSize: e.target.value }))} className="h-9 text-xs mt-0.5" /></div>
+                                <div><Label className="text-[9px] text-slate-400">Pilot Bore Size</Label><Input value={formData.pilotBoreSize} onChange={e => setFormData(prev => ({ ...prev, pilotBoreSize: e.target.value }))} className="h-9 text-xs mt-0.5" /></div>
+                                <div><Label className="text-[9px] text-slate-400">Bore Length</Label><Input value={formData.boreLength} onChange={e => setFormData(prev => ({ ...prev, boreLength: e.target.value }))} className="h-9 text-xs mt-0.5" /></div>
+                                <div><Label className="text-[9px] text-slate-400">Pipe Size</Label><Input value={formData.pipeSize} onChange={e => setFormData(prev => ({ ...prev, pipeSize: e.target.value }))} className="h-9 text-xs mt-0.5" /></div>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
                                 <div>
-                                    <Label className="text-[9px] text-slate-400">Drill Size</Label>
-                                    <Input
-                                        value={formData.drillSize}
-                                        onChange={e => setFormData(prev => ({ ...prev, drillSize: e.target.value }))}
-                                        className="h-8 text-xs"
-                                    />
+                                    <Label className="text-[9px] text-slate-400">Reamer(s)</Label>
+                                    <div className="relative mt-0.5">
+                                        <div className="w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer bg-white hover:border-slate-400 transition-colors" onClick={() => setOpenDropdownId(openDropdownId === 'reamers' ? null : 'reamers')}>
+                                            <span className={`text-sm truncate ${formData.reamers ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>{formData.reamers ? formData.reamers.split(',').map(s => s.trim()).filter(Boolean).map(s => `${s}"`).join(', ') : 'Select reamer sizes...'}</span>
+                                            <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'reamers' ? 'rotate-180' : ''}`} />
+                                        </div>
+                                        {openDropdownId === 'reamers' && (<MyDropDown isOpen={true} onClose={() => setOpenDropdownId(null)} options={REAMER_OPTIONS} selectedValues={formData.reamers ? formData.reamers.split(',').map(s => s.trim()).filter(Boolean) : []} onSelect={(val) => { const current = formData.reamers ? formData.reamers.split(',').map(s => s.trim()).filter(Boolean) : []; const exists = current.indexOf(val); let newValues; if (exists >= 0) { newValues = current.filter(c => c !== val); } else { newValues = [...current, val]; } setFormData(prev => ({ ...prev, reamers: newValues.join(', ') })); }} placeholder="Search reamer sizes..." width="w-full" modal={false} multiSelect={true} />)}
+                                    </div>
                                 </div>
                                 <div>
-                                    <Label className="text-[9px] text-slate-400">Pilot Bore Size</Label>
-                                    <Input
-                                        value={formData.pilotBoreSize}
-                                        onChange={e => setFormData(prev => ({ ...prev, pilotBoreSize: e.target.value }))}
-                                        className="h-8 text-xs"
-                                    />
-                                </div>
-                                <div>
-                                    <Label className="text-[9px] text-slate-400">Bore Length</Label>
-                                    <Input
-                                        value={formData.boreLength}
-                                        onChange={e => setFormData(prev => ({ ...prev, boreLength: e.target.value }))}
-                                        className="h-8 text-xs"
-                                    />
-                                </div>
-                                <div>
-                                    <Label className="text-[9px] text-slate-400">Pipe Size</Label>
-                                    <Input
-                                        value={formData.pipeSize}
-                                        onChange={e => setFormData(prev => ({ ...prev, pipeSize: e.target.value }))}
-                                        className="h-8 text-xs"
-                                    />
+                                    <Label className="text-[9px] text-slate-400">Soil Type</Label>
+                                    <div className="relative mt-0.5">
+                                        <div className="w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer bg-white hover:border-slate-400 transition-colors" onClick={() => setOpenDropdownId(openDropdownId === 'soilType' ? null : 'soilType')}>
+                                            <span className={`text-sm truncate ${formData.soilType ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>{formData.soilType || 'Select soil...'}</span>
+                                            <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'soilType' ? 'rotate-180' : ''}`} />
+                                        </div>
+                                        {openDropdownId === 'soilType' && (<MyDropDown isOpen={true} onClose={() => setOpenDropdownId(null)} options={[...SOIL_TYPES.map(t => ({ id: t, label: t, value: t })), ...customSoilTypes.filter(t => !SOIL_TYPES.includes(t)).map(t => ({ id: t, label: t, value: t }))]} selectedValues={formData.soilType ? formData.soilType.split(',').map(s => s.trim()).filter(Boolean) : []} onSelect={(val) => { const current = formData.soilType ? formData.soilType.split(',').map(s => s.trim()).filter(Boolean) : []; const exists = current.indexOf(val); let newValues; if (exists >= 0) { newValues = current.filter(c => c !== val); } else { newValues = [...current, val]; } setFormData(prev => ({ ...prev, soilType: newValues.join(', ') })); }} onAdd={async (search) => { const trimmed = search.trim(); if (trimmed && !SOIL_TYPES.includes(trimmed) && !customSoilTypes.includes(trimmed)) { setCustomSoilTypes(prev => [...prev, trimmed]); } const current = formData.soilType ? formData.soilType.split(',').map(s => s.trim()).filter(Boolean) : []; setFormData(prev => ({ ...prev, soilType: [...current, trimmed].join(', ') })); }} placeholder="Search or add soil type..." width="w-full" modal={false} multiSelect={true} />)}
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Reamer(s) */}
-                        <div className="col-span-2 sm:col-span-3">
-                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Reamer(s)</Label>
-                            <div className="relative">
-                                <div
-                                    className="w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer bg-white hover:border-slate-400 transition-colors"
-                                    onClick={() => setOpenDropdownId(openDropdownId === 'reamers' ? null : 'reamers')}
-                                >
-                                    <span className={`text-sm truncate ${formData.reamers ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
-                                        {formData.reamers ? formData.reamers.split(',').map(s => s.trim()).filter(Boolean).map(s => `${s}"`).join(', ') : 'Select reamer sizes...'}
-                                    </span>
-                                    <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'reamers' ? 'rotate-180' : ''}`} />
-                                </div>
-                                {openDropdownId === 'reamers' && (
-                                    <MyDropDown
-                                        isOpen={true}
-                                        onClose={() => setOpenDropdownId(null)}
-                                        options={REAMER_OPTIONS}
-                                        selectedValues={formData.reamers ? formData.reamers.split(',').map(s => s.trim()).filter(Boolean) : []}
-                                        onSelect={(val) => {
-                                            const current = formData.reamers ? formData.reamers.split(',').map(s => s.trim()).filter(Boolean) : [];
-                                            const exists = current.indexOf(val);
-                                            let newValues;
-                                            if (exists >= 0) {
-                                                newValues = current.filter(c => c !== val);
-                                            } else {
-                                                newValues = [...current, val];
-                                            }
-                                            setFormData(prev => ({ ...prev, reamers: newValues.join(', ') }));
-                                        }}
-                                        placeholder="Search reamer sizes..."
-                                        width="w-full"
-                                        modal={false}
-                                        multiSelect={true}
-                                    />
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="relative">
-                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Soil Type</Label>
-                            <div className="mt-1">
-                                <div
-                                    className="w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer bg-white hover:border-slate-400 transition-colors"
-                                    onClick={() => setOpenDropdownId(openDropdownId === 'soilType' ? null : 'soilType')}
-                                >
-                                    <span className={`text-sm truncate ${formData.soilType ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
-                                        {formData.soilType || 'Select soil...'}
-                                    </span>
-                                    <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'soilType' ? 'rotate-180' : ''}`} />
-                                </div>
-                                {openDropdownId === 'soilType' && (
-                                    <MyDropDown
-                                        isOpen={true}
-                                        onClose={() => setOpenDropdownId(null)}
-                                        options={[
-                                            ...SOIL_TYPES.map(t => ({ id: t, label: t, value: t })),
-                                            ...customSoilTypes.filter(t => !SOIL_TYPES.includes(t)).map(t => ({ id: t, label: t, value: t }))
-                                        ]}
-                                        selectedValues={formData.soilType ? formData.soilType.split(',').map(s => s.trim()).filter(Boolean) : []}
-                                        onSelect={(val) => {
-                                            const current = formData.soilType ? formData.soilType.split(',').map(s => s.trim()).filter(Boolean) : [];
-                                            const exists = current.indexOf(val);
-                                            let newValues;
-                                            if (exists >= 0) {
-                                                newValues = current.filter(c => c !== val);
-                                            } else {
-                                                newValues = [...current, val];
-                                            }
-                                            setFormData(prev => ({ ...prev, soilType: newValues.join(', ') }));
-                                        }}
-                                        onAdd={async (search) => {
-                                            const trimmed = search.trim();
-                                            if (trimmed && !SOIL_TYPES.includes(trimmed) && !customSoilTypes.includes(trimmed)) {
-                                                setCustomSoilTypes(prev => [...prev, trimmed]);
-                                            }
-                                            const current = formData.soilType ? formData.soilType.split(',').map(s => s.trim()).filter(Boolean) : [];
-                                            setFormData(prev => ({ ...prev, soilType: [...current, trimmed].join(', ') }));
-                                        }}
-                                        placeholder="Search or add soil type..."
-                                        width="w-full"
-                                        modal={false}
-                                        multiSelect={true}
-                                    />
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Pre-Bore Log Items Section */}
-                        <div className="col-span-2 sm:col-span-3 mt-4">
-                            <div className="flex items-center justify-between mb-2">
+                        {/* Rod Log Items */}
+                        <div className="border-t border-slate-100 pt-4">
+                            <div className="flex items-center justify-between mb-3">
                                 <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rod Log Items</Label>
-                                <Button type="button" size="sm" variant="outline" onClick={handleAddBoreItem}>
-                                    <Plus size={14} className="mr-1" /> Add Rod
-                                </Button>
+                                <Button type="button" size="sm" variant="outline" onClick={handleAddBoreItem}><Plus size={14} className="mr-1" /> Add Rod</Button>
                             </div>
-
                             {formData.preBoreLogs.length === 0 ? (
-                                <div className="text-center py-8 text-slate-400 text-sm border border-dashed rounded-xl">
-                                    No rod log items yet. Click &quot;Add Rod&quot; to add one.
-                                </div>
+                                <div className="text-center py-8 text-slate-400 text-sm border border-dashed rounded-xl">No rod log items yet. Click &quot;Add Rod&quot; to add one.</div>
                             ) : (
                                 <div className="space-y-3">
                                     {formData.preBoreLogs.map((item, idx) => (
-                                        <div key={idx} className="border rounded-xl p-4 bg-slate-50 relative">
-                                            <button
-                                                onClick={() => handleRemoveBoreItem(idx)}
-                                                className="absolute top-2 right-2 text-slate-400 hover:text-red-500"
-                                            >
-                                                <X size={16} />
-                                            </button>
-                                            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                                                <div>
-                                                    <Label className="text-[9px] text-slate-400">Rod #</Label>
-                                                    <Input
-                                                        value={item.rodNumber}
-                                                        onChange={e => handleBoreItemChange(idx, 'rodNumber', e.target.value)}
-                                                        className="h-8 text-xs"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <Label className="text-[9px] text-slate-400">Distance</Label>
-                                                    <Input
-                                                        value={item.distance}
-                                                        onChange={e => handleBoreItemChange(idx, 'distance', e.target.value)}
-                                                        className="h-8 text-xs"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <Label className="text-[9px] text-slate-400">Top Depth</Label>
-                                                    <Input
-                                                        value={item.topDepth}
-                                                        onChange={e => handleBoreItemChange(idx, 'topDepth', e.target.value)}
-                                                        className="h-8 text-xs"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <Label className="text-[9px] text-slate-400">Bottom Depth</Label>
-                                                    <Input
-                                                        value={item.bottomDepth}
-                                                        onChange={e => handleBoreItemChange(idx, 'bottomDepth', e.target.value)}
-                                                        className="h-8 text-xs"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <Label className="text-[9px] text-slate-400">Over / Under</Label>
-                                                    <Input
-                                                        value={item.overOrUnder}
-                                                        onChange={e => handleBoreItemChange(idx, 'overOrUnder', e.target.value)}
-                                                        className="h-8 text-xs"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <Label className="text-[9px] text-slate-400">Existing Utilities</Label>
-                                                    <Input
-                                                        value={item.existingUtilities}
-                                                        onChange={e => handleBoreItemChange(idx, 'existingUtilities', e.target.value)}
-                                                        className="h-8 text-xs"
-                                                    />
-                                                </div>
-                                                <div className="col-span-2">
-                                                    <Label className="text-[9px] text-slate-400">Picture</Label>
-                                                    <div className="mt-1 flex items-center gap-2">
-                                                        {item.picture ? (
-                                                            <div className="relative group">
-                                                                <div className="w-16 h-16 rounded-lg overflow-hidden border-2 border-slate-200 hover:border-blue-400 transition-colors">
-                                                                    <img src={item.picture} alt={`Rod ${idx + 1}`} className="w-full h-full object-cover" />
+                                        <div key={idx} className="border rounded-xl p-3 sm:p-4 bg-slate-50 relative">
+                                            <button onClick={() => handleRemoveBoreItem(idx)} className="absolute top-2 right-2 text-slate-400 hover:text-red-500 z-10"><X size={16} /></button>
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                                                <div><Label className="text-[9px] text-slate-400">Rod #</Label><Input value={item.rodNumber} onChange={e => handleBoreItemChange(idx, 'rodNumber', e.target.value)} className="h-8 text-xs" /></div>
+                                                <div><Label className="text-[9px] text-slate-400">Distance</Label><Input value={item.distance} onChange={e => handleBoreItemChange(idx, 'distance', e.target.value)} className="h-8 text-xs" /></div>
+                                                <div><Label className="text-[9px] text-slate-400">Top Depth</Label><Input value={item.topDepth} onChange={e => handleBoreItemChange(idx, 'topDepth', e.target.value)} className="h-8 text-xs" /></div>
+                                                <div><Label className="text-[9px] text-slate-400">Bottom Depth</Label><Input value={item.bottomDepth} onChange={e => handleBoreItemChange(idx, 'bottomDepth', e.target.value)} className="h-8 text-xs" /></div>
+                                                <div><Label className="text-[9px] text-slate-400">Over / Under</Label><Input value={item.overOrUnder} onChange={e => handleBoreItemChange(idx, 'overOrUnder', e.target.value)} className="h-8 text-xs" /></div>
+                                                <div><Label className="text-[9px] text-slate-400">Existing Utilities</Label><Input value={item.existingUtilities} onChange={e => handleBoreItemChange(idx, 'existingUtilities', e.target.value)} className="h-8 text-xs" /></div>
+                                                <div className="col-span-2 sm:col-span-3 lg:col-span-4">
+                                                    <Label className="text-[9px] text-slate-400">Pictures</Label>
+                                                    <div className="mt-1 flex items-center gap-2 flex-wrap">
+                                                        {(() => {
+                                                            const pics = item.picture ? item.picture.split(',').filter(Boolean) : [];
+                                                            return pics.map((pic, pIdx) => (
+                                                                <div key={pIdx} className="relative group animate-in fade-in zoom-in-90 duration-300">
+                                                                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg overflow-hidden border-2 border-slate-200 hover:border-blue-400 transition-colors cursor-pointer" onClick={() => openGallery(pics, pIdx)}>
+                                                                        <img src={pic} alt={`Rod ${idx + 1} pic ${pIdx + 1}`} className="w-full h-full object-cover" />
+                                                                    </div>
+                                                                    <button onClick={() => {
+                                                                        const updated = pics.filter((_, i) => i !== pIdx).join(',');
+                                                                        handleBoreItemChange(idx, 'picture', updated);
+                                                                    }} className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm">
+                                                                        <X size={12} />
+                                                                    </button>
                                                                 </div>
-                                                                <button
-                                                                    onClick={() => handleBoreItemChange(idx, 'picture', '')}
-                                                                    className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                                                >
-                                                                    <X size={12} />
-                                                                </button>
+                                                            ));
+                                                        })()}
+                                                        {/* Upload shimmer placeholders */}
+                                                        {uploadingItems[idx] && Array.from({ length: uploadingItems[idx] }).map((_, i) => (
+                                                            <div key={`loading-${i}`} className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg border-2 border-blue-200 bg-blue-50 flex items-center justify-center animate-pulse">
+                                                                <Loader2 size={16} className="text-blue-400 animate-spin" />
                                                             </div>
-                                                        ) : null}
-                                                        <label className="w-16 h-16 rounded-lg border-2 border-dashed border-slate-300 hover:border-blue-400 cursor-pointer flex flex-col items-center justify-center text-slate-400 hover:text-blue-500 transition-colors">
+                                                        ))}
+                                                        <label className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg border-2 border-dashed border-slate-300 hover:border-blue-400 cursor-pointer flex flex-col items-center justify-center text-slate-400 hover:text-blue-500 transition-colors">
                                                             <Upload size={16} />
                                                             <span className="text-[8px] mt-1">Add</span>
-                                                            <input
-                                                                type="file"
-                                                                accept="image/*"
-                                                                className="hidden"
-                                                                onChange={e => handlePhotoUpload(idx, e.target.files)}
-                                                            />
+                                                            <input type="file" accept="image/*" multiple className="hidden" onChange={e => handlePhotoUpload(idx, e.target.files)} />
                                                         </label>
                                                     </div>
                                                 </div>
@@ -1679,28 +1510,15 @@ export default function PreBoreLogsPage() {
                             )}
                         </div>
 
-                        {/* Signatures & Customer Section */}
-                        <div className="col-span-2 sm:col-span-3 mt-4">
+                        {/* Signatures & Customer Name */}
+                        <div className="border-t border-slate-100 pt-4">
                             <div className="mb-4">
                                 <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Customer Name</Label>
-                                <Input
-                                    value={formData.customerName}
-                                    onChange={e => setFormData(prev => ({ ...prev, customerName: e.target.value }))}
-                                    className="mt-1 max-w-md"
-                                    placeholder="Customer name..."
-                                />
+                                <Input value={formData.customerName} onChange={e => setFormData(prev => ({ ...prev, customerName: e.target.value }))} className="mt-1 max-w-md" placeholder="Customer name..." />
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <SignaturePad
-                                    value={formData.foremanSignature}
-                                    onChange={(sig) => setFormData(prev => ({ ...prev, foremanSignature: sig }))}
-                                    label="Foreman Signature"
-                                />
-                                <SignaturePad
-                                    value={formData.customerSignature}
-                                    onChange={(sig) => setFormData(prev => ({ ...prev, customerSignature: sig }))}
-                                    label="Customer Signature"
-                                />
+                                <SignaturePad value={formData.foremanSignature} onChange={(sig) => setFormData(prev => ({ ...prev, foremanSignature: sig }))} label="Foreman Signature" />
+                                <SignaturePad value={formData.customerSignature} onChange={(sig) => setFormData(prev => ({ ...prev, customerSignature: sig }))} label="Customer Signature" />
                             </div>
                         </div>
                     </div>

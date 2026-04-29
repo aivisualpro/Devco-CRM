@@ -16,7 +16,10 @@ export interface IPreBoreLogItem {
 
 export interface IPreBoreLog extends Document {
     legacyId?: string;
-    scheduleId?: string;
+    estimate?: string;
+    customerId?: string;
+    scheduleCustomerName?: string;
+    foremanName?: string;
     date: Date;
     customerForeman: string;
     customerWorkRequestNumber: string;
@@ -60,8 +63,11 @@ const PreBoreLogItemSchema = new Schema({
 const PreBoreLogSchema: Schema = new Schema({
     _id: { type: String },
     legacyId: { type: String, default: '' },
-    scheduleId: { type: String, default: '' },
-    date: { type: Date, required: true },
+    estimate: { type: String, default: '' },
+    customerId: { type: String, default: '' },
+    scheduleCustomerName: { type: String, default: '' },
+    foremanName: { type: String, default: '' },
+    date: { type: Date },
     customerForeman: { type: String, default: '' },
     customerWorkRequestNumber: { type: String, default: '' },
     startTime: { type: String, default: '' },
@@ -82,11 +88,16 @@ const PreBoreLogSchema: Schema = new Schema({
     customerName: { type: String, default: '' },
     customerSignature: { type: String, default: '' },
     preBoreLogs: [PreBoreLogItemSchema],
-    createdBy: { type: String, required: true }
+    createdBy: { type: String, default: '' }
 }, {
     timestamps: true,
     collection: 'preborelogs'
 });
+
+PreBoreLogSchema.index({ customerId: 1 });
+PreBoreLogSchema.index({ estimate: 1 });
+PreBoreLogSchema.index({ createdAt: -1 });
+PreBoreLogSchema.index({ legacyId: 1 });
 
 const PreBoreLog = mongoose.models.PreBoreLog || mongoose.model('PreBoreLog', PreBoreLogSchema);
 

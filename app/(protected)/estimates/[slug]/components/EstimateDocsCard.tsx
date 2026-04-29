@@ -351,20 +351,21 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     const { data: jobDocsData, isLoading: jobDocsIsLoading, mutate: refetchJobDocs } = useSWR(
         formData?.estimate ? ['/api/job-docs', formData.estimate] : null,
         async ([_, estimate]) => {
-            const [schedRes, initRes, jhaRes, djtRes, phRes, vsRes] = await Promise.all([
+            const [schedRes, initRes, jhaRes, djtRes, phRes, vsRes, pbRes] = await Promise.all([
                 fetch('/api/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getSchedulesByEstimate', payload: { estimateNumber: estimate } }) }),
                 fetch('/api/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getInitialData', payload: {} }) }),
                 fetch('/api/jha', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getJHAs', payload: { page: 1, limit: 500, estimate: estimate } }) }),
                 fetch('/api/djt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getDJTs', payload: { page: 1, limit: 500, estimate: estimate } }) }),
                 fetch('/api/pothole-logs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getPotholeLogs', payload: { estimate: estimate } }) }),
-                fetch('/api/vendor-subs-docs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getVendorSubsDocs', payload: { estimate: estimate } }) })
+                fetch('/api/vendor-subs-docs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getVendorSubsDocs', payload: { estimate: estimate } }) }),
+                fetch('/api/pre-bore-logs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getPreBoreLogs', payload: { estimate: estimate } }) })
             ]);
 
-            const [schedData, initData, jhaData, djtData, phData, vsData] = await Promise.all([
-                schedRes.json(), initRes.json(), jhaRes.json(), djtRes.json(), phRes.json(), vsRes.json()
+            const [schedData, initData, jhaData, djtData, phData, vsData, pbData] = await Promise.all([
+                schedRes.json(), initRes.json(), jhaRes.json(), djtRes.json(), phRes.json(), vsRes.json(), pbRes.json()
             ]);
 
-            return { schedData, initData, jhaData, djtData, phData, vsData };
+            return { schedData, initData, jhaData, djtData, phData, vsData, pbData };
         },
         { revalidateOnFocus: false, dedupingInterval: 60000 }
     );
@@ -373,7 +374,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         setLoadingJobDocs(jobDocsIsLoading);
         if (!jobDocsData) return;
 
-        const { schedData, initData, jhaData, djtData, phData, vsData } = jobDocsData;
+        const { schedData, initData, jhaData, djtData, phData, vsData, pbData } = jobDocsData;
         const filteredSchedules = schedData.success ? (schedData.result || []) : [];
         setEstimateSchedules(filteredSchedules);
         const scheduleIds = filteredSchedules.map((s: any) => String(s._id));
@@ -397,13 +398,10 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             setPotholeLogRecords(phData.result || []);
         }
 
-        const pbLogs: any[] = [];
-        for (const sched of filteredSchedules) {
-            if (sched.preBore && Array.isArray(sched.preBore) && sched.preBore.length > 0) {
-                sched.preBore.forEach((pb: any) => pbLogs.push({ ...pb, scheduleId: sched._id, scheduleTitle: sched.title }));
-            }
+        // Pre-Bore Logs: fetch from standalone preborelogs collection
+        if (pbData.success) {
+            setPreBoreLogRecords(pbData.result || []);
         }
-        setPreBoreLogRecords(pbLogs);
 
         if (vsData.success) setVendorSubsDocs(vsData.result || []);
     }, [jobDocsData, jobDocsIsLoading]);
@@ -1139,11 +1137,9 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     const PRE_BORE_TEMPLATE_ID = '1oz3s9qdfMnMdEivJhr8T4qPS-lwVGsb1A79eB-Djgic';
 
     const handleViewPreBoreLog = (pb: any) => {
-        // Pre-bore logs use composite ID: scheduleId___legacyId
-        const schedId = pb.scheduleId || pb._scheduleId || '';
-        const pbId = pb.legacyId || pb._id || '';
-        if (schedId && pbId) {
-            router.push(`/docs/pre-bore-logs/${schedId}___${pbId}`);
+        const pbId = pb._id || '';
+        if (pbId) {
+            router.push(`/docs/pre-bore-logs/${pbId}`);
         } else {
             setSelectedPreBoreLog(pb);
             setPreBoreModalOpen(true);
@@ -1153,11 +1149,10 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     const handleDeletePreBoreLog = async (pb: any) => {
         if (!confirm('Are you sure you want to delete this pre-bore log?')) return;
         try {
-            const schedId = pb.scheduleId || pb._scheduleId || '';
             const res = await fetch('/api/pre-bore-logs', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'deletePreBoreLog', payload: { id: schedId, legacyId: pb.legacyId } })
+                body: JSON.stringify({ action: 'deletePreBoreLog', payload: { id: pb._id } })
             });
             const data = await res.json();
             if (data.success) {

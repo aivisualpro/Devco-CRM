@@ -35,7 +35,6 @@ interface PreBoreLogItem {
 interface PreBoreLog {
     _id: string;
     legacyId?: string;
-    scheduleId?: string;
     estimate?: string;
     date: string;
     customerForeman: string;
@@ -61,8 +60,8 @@ interface PreBoreLog {
     createdBy: string;
     createdAt: string;
     scheduleCustomerName?: string;
-    scheduleCustomerId?: string;
-    scheduleTitle?: string;
+    customerId?: string;
+    foremanName?: string;
 }
 
 interface Employee {
@@ -80,10 +79,9 @@ export default function PreBoreLogDetailPage() {
     const params = useParams();
     const rawId = params.id as string;
 
-    // Parse the combined id — format: "scheduleId___preBoreId"
+    // Parse the id — supports both new direct _id and legacy "scheduleId___preBoreId" format
     const parts = rawId?.split('___') || [];
-    const scheduleId = parts[0] || '';
-    const preBoreId = parts[1] || '';
+    const docId = parts.length > 1 ? parts[1] : rawId;
 
     const { can } = usePermissions();
     const canEdit = can(MODULES.JHA, ACTIONS.EDIT);
@@ -107,8 +105,8 @@ export default function PreBoreLogDetailPage() {
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
     useEffect(() => {
-        if (scheduleId && preBoreId) fetchData();
-    }, [scheduleId, preBoreId]);
+        if (docId) fetchData();
+    }, [docId]);
 
     const fetchData = async () => {
         setLoading(true);
@@ -116,7 +114,7 @@ export default function PreBoreLogDetailPage() {
             const logRes = await fetch('/api/pre-bore-logs', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'getPreBoreLogDetail', payload: { scheduleId, preBoreId } })
+                body: JSON.stringify({ action: 'getPreBoreLog', payload: { id: docId } })
             });
 
             const logData = await logRes.json();
@@ -180,7 +178,7 @@ export default function PreBoreLogDetailPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     action: 'deletePreBoreLog',
-                    payload: { id: log.scheduleId || scheduleId, legacyId: log.legacyId }
+                    payload: { id: log._id, legacyId: log.legacyId }
                 })
             });
             const data = await res.json();
@@ -424,7 +422,7 @@ export default function PreBoreLogDetailPage() {
                                         variant="outline"
                                         size="sm"
                                         className="border-slate-300 hover:bg-slate-50"
-                                        onMouseEnter={() => router.prefetch(`/docs/pre-bore-logs?edit=${scheduleId}_${preBoreId}&returnTo=${encodeURIComponent(`/docs/pre-bore-logs/${rawId}`)}`)} onClick={() => router.push(`/docs/pre-bore-logs?edit=${scheduleId}_${preBoreId}&returnTo=${encodeURIComponent(`/docs/pre-bore-logs/${rawId}`)}`)}
+                                        onMouseEnter={() => router.prefetch(`/docs/pre-bore-logs?edit=${log._id}&returnTo=${encodeURIComponent(`/docs/pre-bore-logs/${rawId}`)}`)} onClick={() => router.push(`/docs/pre-bore-logs?edit=${log._id}&returnTo=${encodeURIComponent(`/docs/pre-bore-logs/${rawId}`)}`)}
                                     >
                                         <Pencil size={14} className="mr-1.5" /> Edit
                                     </Button>
