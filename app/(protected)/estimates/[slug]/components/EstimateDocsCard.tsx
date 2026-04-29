@@ -399,7 +399,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         }
 
         // Pre-Bore Logs: fetch from standalone preborelogs collection
-        if (pbData.success) {
+        if (pbData?.success) {
             setPreBoreLogRecords(pbData.result || []);
         }
 
