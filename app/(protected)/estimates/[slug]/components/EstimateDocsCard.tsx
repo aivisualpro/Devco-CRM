@@ -4589,6 +4589,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     onDownloadPDF={handleDownloadPotholeLogPDF}
                                     onEmail={handleEmailPotholeLog}
                                     router={router}
+                                    compact
                                 />
                             )) : (
                                 <p className="text-[10px] text-slate-400 font-bold text-center py-4">No pothole logs</p>

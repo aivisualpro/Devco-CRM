@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Edit, Trash2, User, Download, Mail, Loader2, MapPin, Camera } from 'lucide-react';
+import React, { useState, useRef, useMemo } from 'react';
+import { Edit, Trash2, User, Download, Mail, Loader2, MapPin, Camera, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { cld } from '@/lib/cld';
 
 interface PotholeLogCardProps {
     log: any;
@@ -13,6 +14,8 @@ interface PotholeLogCardProps {
     onDownloadPDF?: (log: any, setDownloading: (b: boolean) => void) => void;
     onEmail?: (log: any) => void;
     router: any;
+    /** Hide estimate # and address (when already shown in parent context) */
+    compact?: boolean;
 }
 
 export const PotholeLogCard: React.FC<PotholeLogCardProps> = ({
@@ -26,9 +29,12 @@ export const PotholeLogCard: React.FC<PotholeLogCardProps> = ({
     onDelete,
     onDownloadPDF,
     onEmail,
-    router
+    router,
+    compact = false
 }) => {
     const [isDownloading, setIsDownloading] = useState(false);
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
 
     const dateStr = log.date ? new Date(log.date).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : 'N/A';
     const creator = employees.find(e => e.value === log.createdBy);
@@ -37,34 +43,40 @@ export const PotholeLogCard: React.FC<PotholeLogCardProps> = ({
     const estimateNumber = log.estimate || estimate?.estimate || '';
     const jobAddress = log.jobAddress || log.projectionLocation || estimate?.jobAddress || '';
 
-    // Count items with photos
-    const photoCount = (log.potholeItems || []).reduce((acc: number, item: any) => {
-        const photos = [
-            ...(item.photos || []),
-            ...(item.photo1 ? [item.photo1] : []),
-            ...(item.photo2 ? [item.photo2] : [])
-        ].filter(Boolean);
-        return acc + photos.length;
-    }, 0);
+    // Collect all unique photos (deduplicated)
+    const allPhotos = useMemo(() => {
+        const seen = new Set<string>();
+        const photos: string[] = [];
+        for (const item of (log.potholeItems || [])) {
+            for (const p of [...(item.photos || []), ...(item.photo1 ? [item.photo1] : []), ...(item.photo2 ? [item.photo2] : [])]) {
+                if (p && !seen.has(p)) { seen.add(p); photos.push(p); }
+            }
+        }
+        return photos;
+    }, [log.potholeItems]);
+
+    const photoCount = allPhotos.length;
 
     // Utility types summary
     const utilityTypes = [...new Set<string>((log.potholeItems || []).map((item: any) => item.typeOfUtility).filter(Boolean))];
 
+    const scrollCarousel = (dir: 'left' | 'right') => {
+        if (!scrollRef.current) return;
+        const amount = 180;
+        scrollRef.current.scrollBy({ left: dir === 'left' ? -amount : amount, behavior: 'smooth' });
+    };
+
     return (
         <div
             className="group relative bg-white rounded-2xl border border-slate-200 hover:border-rose-300 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden cursor-pointer flex flex-col"
-            onClick={() => onView(log)}
+            onClick={() => (canEdit && onEdit) ? onEdit(log) : onView(log)}
         >
             <div className="p-5 flex flex-col gap-4 flex-1">
                 {/* Top Section */}
                 <div className="flex flex-col gap-1.5">
                     {/* Row 1: Date + Estimate */}
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-slate-800">
-                            <div className={`w-2 h-2 rounded-full ${itemCount > 0 ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                            <p className="text-sm font-bold">{dateStr}</p>
-                        </div>
-                        {estimateNumber ? (
+                    <div className="flex items-center justify-end">
+                        {!compact && estimateNumber ? (
                             <button
                                 onMouseEnter={() => router.prefetch(`/estimates/${estimateNumber}`)}
                                 onClick={(e) => { e.stopPropagation(); router.push(`/estimates/${estimateNumber}`); }}
@@ -72,27 +84,78 @@ export const PotholeLogCard: React.FC<PotholeLogCardProps> = ({
                             >
                                 {estimateNumber}
                             </button>
-                        ) : (
+                        ) : !compact ? (
                             <span className="bg-slate-100/80 text-slate-500 text-[11px] font-bold px-2.5 py-1 rounded-md border border-slate-200/60">
                                 No Est
                             </span>
+                        ) : null}
+                    </div>
+
+                    {/* Row 2: Job Address (hidden in compact mode) */}
+                    {!compact && (
+                        <div>
+                            <p className="text-base font-extrabold text-rose-700 leading-tight line-clamp-1">
+                                {jobAddress || 'Pothole Log'}
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Row 3: Location subtitle (hidden in compact mode) */}
+                    {!compact && (
+                        <div>
+                            <p className="text-sm font-semibold text-slate-700 line-clamp-1">
+                                {log.projectionLocation || jobAddress || 'No Location'}
+                            </p>
+                        </div>
+                    )}
+                </div>
+
+                {/* Photo Carousel Strip — after address rows */}
+                {allPhotos.length > 0 && (
+                    <div className="relative rounded-xl overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div
+                            ref={scrollRef}
+                            className="flex gap-0.5 overflow-x-auto"
+                            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                        >
+                            {allPhotos.map((photo, i) => (
+                                <div
+                                    key={i}
+                                    className="shrink-0 w-[72px] h-[56px] bg-slate-100 overflow-hidden cursor-pointer"
+                                    onClick={(e) => { e.stopPropagation(); setSelectedPhotoIndex(i); }}
+                                >
+                                    <img
+                                        src={cld(photo, { w: 144, h: 112, q: 'auto' })}
+                                        alt={`Pothole ${i + 1}`}
+                                        loading="lazy"
+                                        className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                        {/* Photo count badge */}
+                        <div className="absolute top-1.5 right-1.5 bg-black/60 backdrop-blur-sm text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1">
+                            <Camera size={9} /> {photoCount}
+                        </div>
+                        {/* Scroll arrows — only when many photos */}
+                        {allPhotos.length > 4 && (
+                            <>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); scrollCarousel('left'); }}
+                                    className="absolute left-1 top-1/2 -translate-y-1/2 w-5 h-5 bg-white/90 backdrop-blur-sm rounded-full shadow flex items-center justify-center text-slate-600 hover:bg-white transition-colors opacity-0 group-hover:opacity-100"
+                                >
+                                    <ChevronLeft size={12} />
+                                </button>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); scrollCarousel('right'); }}
+                                    className="absolute right-1 top-1/2 -translate-y-1/2 w-5 h-5 bg-white/90 backdrop-blur-sm rounded-full shadow flex items-center justify-center text-slate-600 hover:bg-white transition-colors opacity-0 group-hover:opacity-100"
+                                >
+                                    <ChevronRight size={12} />
+                                </button>
+                            </>
                         )}
                     </div>
-
-                    {/* Row 2: Job Address */}
-                    <div>
-                        <p className="text-base font-extrabold text-rose-700 leading-tight line-clamp-1">
-                            {jobAddress || 'Pothole Log'}
-                        </p>
-                    </div>
-
-                    {/* Row 3: Location subtitle */}
-                    <div>
-                        <p className="text-sm font-semibold text-slate-700 line-clamp-1">
-                            {log.projectionLocation || jobAddress || 'No Location'}
-                        </p>
-                    </div>
-                </div>
+                )}
 
                 {/* Row 4: Utility types */}
                 {utilityTypes.length > 0 && (
@@ -114,31 +177,10 @@ export const PotholeLogCard: React.FC<PotholeLogCardProps> = ({
                 )}
 
                 {/* Row 5: Stats Chips */}
-                <div className="grid grid-cols-2 gap-2 mt-auto pt-2 border-t border-slate-100">
+                <div className="mt-auto pt-2 border-t border-slate-100">
                     <div className="bg-slate-50 border border-slate-100 rounded-lg py-1.5 px-2.5 flex items-center justify-between">
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide truncate pr-2">Potholes</span>
                         <span className="bg-white px-2 py-0.5 rounded text-[10px] font-black text-rose-600 shadow-sm shrink-0">{itemCount}</span>
-                    </div>
-                    <div className="bg-slate-50 border border-slate-100 rounded-lg py-1.5 px-2.5 flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide truncate pr-2">Photos</span>
-                        <span className="bg-white px-2 py-0.5 rounded text-[10px] font-black text-slate-700 shadow-sm shrink-0 flex items-center gap-1">
-                            <Camera size={9} className="text-slate-400" />
-                            {photoCount}
-                        </span>
-                    </div>
-                    <div className="bg-slate-50 border border-slate-100 rounded-lg py-1.5 px-2.5 flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide truncate pr-2">GPS</span>
-                        {hasGPS ? (
-                            <span className="bg-emerald-50 px-2 py-0.5 rounded text-[10px] font-black text-emerald-600 shadow-sm shrink-0 flex items-center gap-1">
-                                <MapPin size={9} /> Yes
-                            </span>
-                        ) : (
-                            <span className="bg-white px-2 py-0.5 rounded text-[10px] font-black text-slate-400 shadow-sm shrink-0">No</span>
-                        )}
-                    </div>
-                    <div className="bg-slate-50 border border-slate-100 rounded-lg py-1.5 px-2.5 flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide truncate pr-2">Utilities</span>
-                        <span className="bg-white px-2 py-0.5 rounded text-[10px] font-black text-slate-700 shadow-sm shrink-0">{utilityTypes.length}</span>
                     </div>
                 </div>
             </div>
@@ -169,11 +211,7 @@ export const PotholeLogCard: React.FC<PotholeLogCardProps> = ({
                             {isDownloading ? <Loader2 size={14} className="animate-spin text-rose-600" /> : <Download size={14} />}
                         </button>
                     )}
-                    {canEdit && onEdit && (
-                        <button onClick={() => onEdit(log)} className="p-2 rounded-xl text-slate-400 hover:text-orange-500 hover:bg-white hover:shadow-sm border border-transparent hover:border-orange-100 transition-all" title="Edit">
-                            <Edit size={14} />
-                        </button>
-                    )}
+
                     {canDelete && onDelete && (
                         <button onClick={() => onDelete(log)} className="p-2 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-white hover:shadow-sm border border-transparent hover:border-rose-100 transition-all" title="Delete">
                             <Trash2 size={14} />
@@ -181,6 +219,55 @@ export const PotholeLogCard: React.FC<PotholeLogCardProps> = ({
                     )}
                 </div>
             </div>
+            {/* Image Lightbox */}
+            {selectedPhotoIndex !== null && (
+                <div 
+                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm"
+                    onClick={(e) => { e.stopPropagation(); setSelectedPhotoIndex(null); }}
+                >
+                    <button 
+                        className="absolute top-4 right-4 text-white/70 hover:text-white p-2"
+                        onClick={(e) => { e.stopPropagation(); setSelectedPhotoIndex(null); }}
+                    >
+                        <X size={24} />
+                    </button>
+                    
+                    {allPhotos.length > 1 && (
+                        <button 
+                            className="absolute left-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white p-3 rounded-full hover:bg-white/10 transition-colors"
+                            onClick={(e) => { 
+                                e.stopPropagation(); 
+                                setSelectedPhotoIndex((prev) => prev! === 0 ? allPhotos.length - 1 : prev! - 1); 
+                            }}
+                        >
+                            <ChevronLeft size={32} />
+                        </button>
+                    )}
+                    
+                    <img 
+                        src={cld(allPhotos[selectedPhotoIndex], { w: 1200, h: 1200, q: 'auto' })} 
+                        alt="Pothole Fullscreen"
+                        className="max-w-[90vw] max-h-[90vh] object-contain rounded-xl"
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                    
+                    {allPhotos.length > 1 && (
+                        <button 
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white p-3 rounded-full hover:bg-white/10 transition-colors"
+                            onClick={(e) => { 
+                                e.stopPropagation(); 
+                                setSelectedPhotoIndex((prev) => prev! === allPhotos.length - 1 ? 0 : prev! + 1); 
+                            }}
+                        >
+                            <ChevronRight size={32} />
+                        </button>
+                    )}
+                    
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/70 text-sm font-medium">
+                        {selectedPhotoIndex + 1} / {allPhotos.length}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
