@@ -1886,7 +1886,9 @@ function SchedulesTable({ serverData }: { serverData?: any }) {
                     clockIn: schedule.fromDate || getLocalNowISO(),
                     locationIn: `${latitude},${longitude}`,
                     type: 'Drive Time',
-                    status: 'Pending'
+                    status: 'Pending',
+                    createdBy: employeeEmail,
+                    createdAt: new Date().toISOString()
                 };
 
                 // OPTIMISTIC UPDATE: Update UI immediately
@@ -2021,6 +2023,7 @@ function SchedulesTable({ serverData }: { serverData?: any }) {
                     dumpWashout: type === 'Dump Washout' ? valStr : undefined,
                     shopTime: type === 'Shop Time' ? valStr : undefined,
                     status: 'Pending',
+                    createdBy: employeeEmail,
                     createdAt: now.toISOString()
                 };
                 return { ...s, timesheet: [...timesheets, newTs] };

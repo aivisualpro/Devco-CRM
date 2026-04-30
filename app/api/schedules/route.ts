@@ -1172,6 +1172,7 @@ export async function POST(request: NextRequest) {
                         dumpQty: newDumpQty,
                         shopQty: newShopQty,
                         status: 'Pending',
+                        createdBy: employee,
                         createdAt: new Date().toISOString()
                     };
                     // Embed hourly rate for payroll integrity
@@ -1229,6 +1230,7 @@ export async function POST(request: NextRequest) {
                         locationIn: location,
                         type: 'Drive Time',
                         status: 'Pending',
+                        createdBy: employee,
                         createdAt: getLocalNowISO()
                     };
                     await Schedule.updateOne({ _id: scheduleId }, { $push: { timesheet: newTs } });

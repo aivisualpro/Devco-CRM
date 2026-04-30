@@ -53,6 +53,7 @@ interface TimesheetEntry {
     rawDistanceVal?: number;
     googleDistanceVal?: number;
     projectName?: string;
+    scheduleFromDate?: string;
 }
 
 interface ScheduleDoc {
@@ -606,6 +607,7 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
                     flat.push({
                         ...ts,
                         scheduleId: sched._id,
+                        scheduleFromDate: sched.fromDate,
                         estimate: sched.estimate,
                         projectName: pName,
                         hoursVal: hours,
@@ -2229,16 +2231,19 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
                             <Table containerClassName="flex-1 h-full !min-h-0 border-none rounded-none w-full !bg-transparent custom-scrollbar">
                                 <TableHead className="bg-white/80 backdrop-blur-md shadow-sm">
                                     <TableRow>
-                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 w-[160px] text-left">Employee</TableHeader>
-                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[100px]">Date</TableHeader>
-                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[70px]">Type</TableHeader>
-                                        {!isActuallyEmbedded && <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[110px]">Estimate #</TableHeader>}
-                                        {!isActuallyEmbedded && <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-left w-[240px]">Project</TableHeader>}
-                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[120px]">In</TableHeader>
-                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[120px]">Out</TableHeader>
-                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-left w-[90px]">Dist (Mi)</TableHeader>
-                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-left w-[70px]">Hrs</TableHeader>
-                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-right w-[110px]">Actions</TableHeader>
+                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 w-[140px] text-left">Employee</TableHeader>
+                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[80px]">Date</TableHeader>
+                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[80px]">Sched. Date</TableHeader>
+                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[50px]">Type</TableHeader>
+                                        {!isActuallyEmbedded && <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[90px]">Estimate #</TableHeader>}
+                                        {!isActuallyEmbedded && <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-left w-[200px]">Project</TableHeader>}
+                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[90px]">In</TableHeader>
+                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[90px]">Out</TableHeader>
+                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-left w-[70px]">Dist (Mi)</TableHeader>
+                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-left w-[55px]">Hrs</TableHeader>
+                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-left w-[100px]">Created By</TableHeader>
+                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-left w-[90px]">Schedule</TableHeader>
+                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-right w-[90px]">Actions</TableHeader>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
@@ -2247,6 +2252,7 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
                                             <TableRow key={`skeleton-${i}`}>
                                                 <TableCell><div className="flex items-center gap-2"><Skeleton className="w-6 h-6 rounded-full" /><Skeleton className="h-3 w-24" /></div></TableCell>
                                                 <TableCell><Skeleton className="h-3 w-16 mx-auto" /></TableCell>
+                                                <TableCell><Skeleton className="h-3 w-16 mx-auto" /></TableCell>
                                                 <TableCell><Skeleton className="h-5 w-6 mx-auto rounded-lg" /></TableCell>
                                                 {!isActuallyEmbedded && <TableCell><Skeleton className="h-3 w-16 mx-auto" /></TableCell>}
                                                 {!isActuallyEmbedded && <TableCell><Skeleton className="h-3 w-24" /></TableCell>}
@@ -2254,6 +2260,8 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
                                                 <TableCell><Skeleton className="h-3 w-12 mx-auto" /></TableCell>
                                                 <TableCell><Skeleton className="h-3 w-10 mx-auto" /></TableCell>
                                                 <TableCell><Skeleton className="h-3 w-10 ml-auto" /></TableCell>
+                                                <TableCell><Skeleton className="h-3 w-16" /></TableCell>
+                                                <TableCell><Skeleton className="h-3 w-14" /></TableCell>
                                                 <TableCell><Skeleton className="h-6 w-16 ml-auto" /></TableCell>
                                             </TableRow>
                                         ))
@@ -2281,14 +2289,10 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className="text-center">
-                                                    <div className="flex flex-col items-center">
-                                                        <span className="text-xs font-medium text-slate-500">{formatDateOnly(ts.clockIn)}</span>
-                                                        {ts.createdBy && (
-                                                            <span className="text-[9px] text-slate-300 font-medium truncate max-w-[80px] mt-0.5" title={`Created by: ${ts.createdBy}`}>
-                                                                {ts.createdBy.split('@')[0]}
-                                                            </span>
-                                                        )}
-                                                    </div>
+                                                    <span className="text-xs font-medium text-slate-500">{formatDateOnly(ts.clockIn)}</span>
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    <span className="text-[10px] font-medium text-slate-400">{ts.scheduleFromDate ? formatDateOnly(ts.scheduleFromDate) : '-'}</span>
                                                 </TableCell>
                                                 <TableCell className="text-center">
                                                     <Tooltip>
@@ -2450,6 +2454,30 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
                                                 <TableCell className={`text-left text-xs font-black ${isQuickEditing ? 'text-orange-600 underline decoration-orange-300' : (() => { const manual = ts.manualDistance ? parseFloat(String(ts.manualDistance)) : 0; const actual = (ts.googleDistanceVal || 0) > 0 ? ts.googleDistanceVal! : (ts.rawDistanceVal || 0); return (manual > 0 && actual <= 0) ? 'text-green-600' : 'text-slate-700'; })()}`}>
                                                     {isQuickEditing ? (quickEditLiveStats?.hours || 0).toFixed(2) : (ts.hoursVal || 0).toFixed(2)}
                                                 </TableCell>
+                                                <TableCell className="text-left">
+                                                    {ts.createdBy ? (() => {
+                                                        const creator = employeesMap[ts.createdBy] || employeesMap[String(ts.createdBy).toLowerCase()];
+                                                        return (
+                                                            <div className="flex items-center gap-1.5">
+                                                                <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[8px] font-bold text-slate-500 overflow-hidden shrink-0 border border-white shadow-sm">
+                                                                    {creator?.image ? (
+                                                                        <img src={creator.image} alt="" className="w-full h-full object-cover" />
+                                                                    ) : (
+                                                                        (creator?.initials || ts.createdBy.substring(0, 2)).toUpperCase()
+                                                                    )}
+                                                                </div>
+                                                                <span className="text-[10px] font-medium text-slate-500 truncate max-w-[80px]" title={ts.createdBy}>
+                                                                    {creator?.label || ts.createdBy.split('@')[0]}
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    })() : <span className="text-slate-300">-</span>}
+                                                </TableCell>
+                                                <TableCell className="text-left">
+                                                    <span className="text-[9px] font-mono font-medium text-slate-400 truncate block max-w-[100px]" title={ts.scheduleId}>
+                                                        {ts.scheduleId || '-'}
+                                                    </span>
+                                                </TableCell>
                                                 <TableCell className="text-right">
                                                     {isQuickEditing ? (
                                                         <div className="flex justify-end gap-1">
@@ -2521,7 +2549,7 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
                                         );
                                     }) : (
                                         <TableRow>
-                                            <TableCell colSpan={10} className="p-12 text-center text-slate-400">
+                                            <TableCell colSpan={13} className="p-12 text-center text-slate-400">
                                                 <div className="flex flex-col items-center gap-3">
                                                     <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center">
                                                         <CalendarIcon size={20} className="text-slate-300" />
