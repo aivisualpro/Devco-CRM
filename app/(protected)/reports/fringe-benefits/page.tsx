@@ -6,7 +6,7 @@ import { useEffect, useState, useMemo } from 'react';
 import {
     ChevronRight, ChevronLeft, ChevronDown, User, Calendar as CalendarIcon,
     MapPin, Truck, Trash2, Edit, RotateCcw, FileText, Clock, RefreshCcw, Plus, CheckCircle2,
-    Briefcase, Info, Search, List, Filter, Download, DollarSign, BarChart3
+    Briefcase, Info, Search, List, Filter, Download, DollarSign, BarChart3, X, Loader2, Settings
 } from 'lucide-react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import {
@@ -27,6 +27,15 @@ import {
 } from '@/lib/timeCardUtils';
 
 // startOfWeek, endOfWeek, addWeeks, subWeeks imported from @/lib/timeCardUtils
+
+// --- Fringe Cost Types ---
+interface FringeCostRecord {
+    _id: string;
+    type: string;
+    fromDate: string;
+    toDate: string;
+    cost: number;
+}
 
 // --- Types ---
 interface TimesheetRecord {
@@ -139,13 +148,64 @@ const TableSkeleton = () => (
 );
 
 export default function FringeBenefitsPage() {
-    const { success: toastSuccess, error: toastError } = useToast();
+    const { success: toastSuccess, error: toastError, warning: toastWarning } = useToast();
     const [isInitialLoad, setIsInitialLoad] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [rawSchedules, setRawSchedules] = useState<any[]>([]);
     const [employeesMap, setEmployeesMap] = useState<Record<string, any>>({});
     const [estimatesMap, setEstimatesMap] = useState<Record<string, any>>({});
     const [fringeConstantsMap, setFringeConstantsMap] = useState<Record<string, any>>({});
+
+    // --- Fringe Cost State ---
+    const [fringeCosts, setFringeCosts] = useState<FringeCostRecord[]>([]);
+    const [showFringeCostModal, setShowFringeCostModal] = useState(false);
+    const [fringeCostSaving, setFringeCostSaving] = useState(false);
+    const [fcFormType, setFcFormType] = useState('HDD Private');
+    const [fcFormFrom, setFcFormFrom] = useState('');
+    const [fcFormTo, setFcFormTo] = useState('');
+    const [fcFormCost, setFcFormCost] = useState('');
+
+    // Fetch fringe costs
+    const fetchFringeCosts = async () => {
+        try {
+            const res = await fetch('/api/fringe-costs');
+            const data = await res.json();
+            if (data.success) setFringeCosts(data.result);
+        } catch (err) { console.error('Failed to load fringe costs', err); }
+    };
+
+    useEffect(() => { fetchFringeCosts(); }, []);
+
+    // Get fringe cost for a given type and date
+    const getFringeCostRate = (fringeType: string, dateStr: string): number => {
+        const d = new Date(dateStr);
+        for (const fc of fringeCosts) {
+            const from = new Date(fc.fromDate);
+            const to = new Date(fc.toDate);
+            if (fc.type === fringeType && d >= from && d <= to) return fc.cost;
+        }
+        return 0;
+    };
+
+    const handleCreateFringeCost = async () => {
+        if (!fcFormFrom || !fcFormTo || !fcFormCost) { toastWarning('Please fill in all fields'); return; }
+        if (new Date(fcFormFrom) >= new Date(fcFormTo)) { toastWarning('From date must be before To date'); return; }
+        setFringeCostSaving(true);
+        try {
+            const res = await fetch('/api/fringe-costs', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'create', payload: { type: fcFormType, fromDate: fcFormFrom, toDate: fcFormTo, cost: fcFormCost } })
+            });
+            const data = await res.json();
+            if (data.success) {
+                toastSuccess('Fringe cost added');
+                setFringeCosts(prev => [data.result, ...prev]);
+                setShowFringeCostModal(false); setFcFormType('HDD Private'); setFcFormFrom(''); setFcFormTo(''); setFcFormCost('');
+            } else if (data.overlap) {
+                toastWarning('Date range already selected', data.error);
+            } else { toastError(data.error || 'Failed to add'); }
+        } catch { toastError('Error creating fringe cost'); } finally { setFringeCostSaving(false); }
+    };
 
     const params = useSearchParams();
     const router = useRouter();
@@ -593,15 +653,20 @@ export default function FringeBenefitsPage() {
         : tableData;
 
     const downloadCSV = () => {
-        const headers = ["Employee", "Date", "Title", "Estimate", "Fringe", "Hours"];
-        const rows = tableData.map(r => [
-            employeesMap[r.employee]?.label || r.employee,
-            r.dateLabel,
-            r.title,
-            r.estimateRef,
-            r.fringe,
-            r.hoursVal.toFixed(2)
-        ]);
+        const headers = ["Employee", "Date", "Title", "Estimate", "Fringe", "Hours", "Total Cost"];
+        const rows = tableData.map(r => {
+            const rate = getFringeCostRate(r.fringe, r.clockIn);
+            const totalCost = rate * r.hoursVal;
+            return [
+                employeesMap[r.employee]?.label || r.employee,
+                r.dateLabel,
+                r.title,
+                r.estimateRef,
+                r.fringe,
+                r.hoursVal.toFixed(2),
+                totalCost > 0 ? totalCost.toFixed(2) : '0.00'
+            ];
+        });
 
         const content = [headers, ...rows].map(row => row.join(',')).join('\n');
         const blob = new Blob([content], { type: 'text/csv' });
@@ -612,8 +677,7 @@ export default function FringeBenefitsPage() {
         link.click();
     };
 
-    // Only show full-page loading on initial load
-    if (isInitialLoad && !rawSchedules.length) return <Loading />;
+    const showSkeleton = isInitialLoad && !rawSchedules.length;
 
     return (
         <div className="flex flex-col h-full bg-[#f4f7fa]">
@@ -621,6 +685,23 @@ export default function FringeBenefitsPage() {
                 hideLogo={false}
                 rightContent={
                     <div className="flex items-center gap-3">
+                        <div className="flex items-center bg-gradient-to-r from-[#0F4C75] to-[#3282B8] rounded-xl shadow-lg shadow-blue-900/15 hover:shadow-xl transition-all overflow-hidden">
+                            <button
+                                onClick={() => setShowFringeCostModal(true)}
+                                className="flex items-center gap-2 px-4 py-2 text-white text-xs font-bold hover:brightness-110 transition-all active:scale-95"
+                            >
+                                <Plus size={16} />
+                                Add Fringe Cost
+                            </button>
+                            <div className="w-px h-5 bg-white/25" />
+                            <button
+                                onClick={() => router.push('/settings/fringe-costs')}
+                                className="flex items-center px-2.5 py-2 text-white/80 hover:text-white hover:bg-white/10 transition-all active:scale-95"
+                                title="View Fringe Costs"
+                            >
+                                <Info size={15} />
+                            </button>
+                        </div>
                         <button
                             onClick={downloadCSV}
                             className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-sm transition-all active:scale-95"
@@ -878,6 +959,7 @@ export default function FringeBenefitsPage() {
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-24">OT Hrs</TableHeader>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-24">DT Hrs</TableHeader>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-24">Total Hrs</TableHeader>
+                                                <TableHeader className="px-4 py-3 text-[9px] font-bold text-emerald-500 uppercase tracking-[0.15em] text-right w-24">Total Cost</TableHeader>
                                             </>
                                         ) : (
                                             <>
@@ -890,12 +972,27 @@ export default function FringeBenefitsPage() {
                                                 <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-12">OT</TableHeader>
                                                 <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-12">DT</TableHeader>
                                                 <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-12">Total</TableHeader>
+                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-emerald-500 uppercase tracking-[0.15em] text-right w-16">Cost</TableHeader>
                                             </>
                                         )}
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
-                                    {!expandedEmp ? (
+                                    {showSkeleton ? (
+                                        [...Array(8)].map((_, i) => (
+                                            <TableRow key={i} className="border-b border-slate-50">
+                                                <TableCell className="px-4 py-3"><div className="w-6 h-3 bg-slate-100 rounded animate-pulse" /></TableCell>
+                                                <TableCell className="px-4 py-3"><div className="flex items-center gap-2"><div className="w-7 h-7 rounded-full bg-slate-100 animate-pulse" /><div className="w-24 h-3 bg-slate-100 rounded animate-pulse" /></div></TableCell>
+                                                {groupingMode === 'estimate' && (<><TableCell className="px-4 py-3"><div className="w-16 h-3 bg-slate-100 rounded animate-pulse" /></TableCell><TableCell className="px-4 py-3"><div className="w-12 h-3 bg-slate-100 rounded animate-pulse" /></TableCell></>)}
+                                                <TableCell className="px-4 py-3"><div className="w-16 h-3 bg-slate-100 rounded animate-pulse" /></TableCell>
+                                                <TableCell className="px-4 py-3 text-right"><div className="w-12 h-3 bg-slate-100 rounded animate-pulse ml-auto" /></TableCell>
+                                                <TableCell className="px-4 py-3 text-right"><div className="w-10 h-3 bg-slate-100 rounded animate-pulse ml-auto" /></TableCell>
+                                                <TableCell className="px-4 py-3 text-right"><div className="w-10 h-3 bg-slate-100 rounded animate-pulse ml-auto" /></TableCell>
+                                                <TableCell className="px-4 py-3 text-right"><div className="w-12 h-3 bg-slate-100 rounded animate-pulse ml-auto" /></TableCell>
+                                                <TableCell className="px-4 py-3 text-right"><div className="w-14 h-3 bg-emerald-50 rounded animate-pulse ml-auto" /></TableCell>
+                                            </TableRow>
+                                        ))
+                                    ) : !expandedEmp ? (
                                         <>
                                             {employeeSummary.length > 0 && (
                                                 <TableRow
@@ -928,6 +1025,9 @@ export default function FringeBenefitsPage() {
                                                     </TableCell>
                                                     <TableCell className="px-4 py-3 text-right text-[11px] text-blue-600 tabular-nums">
                                                         {employeeSummary.reduce((a, b) => a + (b.totalHours || 0), 0).toFixed(2)}
+                                                    </TableCell>
+                                                    <TableCell className="px-4 py-3 text-right text-[11px] font-black text-emerald-600 tabular-nums">
+                                                        ${tableData.reduce((acc, r) => acc + getFringeCostRate(r.fringe, r.clockIn) * r.hoursVal, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                     </TableCell>
                                                 </TableRow>
                                             )}
@@ -974,6 +1074,13 @@ export default function FringeBenefitsPage() {
                                                         <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-orange-500/80 tabular-nums">{emp.ot > 0 ? emp.ot.toFixed(2) : '-'}</TableCell>
                                                         <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-red-500/80 tabular-nums">{emp.dt > 0 ? emp.dt.toFixed(2) : '-'}</TableCell>
                                                         <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-blue-500/80 tabular-nums">{(emp.totalHours || 0).toFixed(2)}</TableCell>
+                                                        <TableCell className="px-4 py-3 text-right text-[11px] font-bold text-emerald-600 tabular-nums">
+                                                            {(() => {
+                                                                const empRecords = tableData.filter(r => r.employee === emp.employee);
+                                                                const cost = empRecords.reduce((acc, r) => acc + getFringeCostRate(r.fringe, r.clockIn) * r.hoursVal, 0);
+                                                                return cost > 0 ? `$${cost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-';
+                                                            })()}
+                                                        </TableCell>
                                                     </TableRow>
                                                 ))
                                             ) : (
@@ -1020,6 +1127,13 @@ export default function FringeBenefitsPage() {
                                                         <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-orange-500/80 tabular-nums">{item.ot > 0 ? item.ot.toFixed(2) : '-'}</TableCell>
                                                         <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-red-500/80 tabular-nums">{item.dt > 0 ? item.dt.toFixed(2) : '-'}</TableCell>
                                                         <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-gray-500 tabular-nums">{(item.totalHours || 0).toFixed(2)}</TableCell>
+                                                        <TableCell className="px-4 py-3 text-right text-[11px] font-bold text-emerald-600 tabular-nums">
+                                                            {(() => {
+                                                                const estRecords = tableData.filter(r => r.estimateRef === item.id);
+                                                                const cost = estRecords.reduce((acc, r) => acc + getFringeCostRate(r.fringe, r.clockIn) * r.hoursVal, 0);
+                                                                return cost > 0 ? `$${cost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-';
+                                                            })()}
+                                                        </TableCell>
                                                         <TableCell className="px-4 py-3 text-right">
                                                             <ChevronRight size={12} className="text-slate-300 group-hover:text-[#0F4C75] transition-colors inline-block" />
                                                         </TableCell>
@@ -1100,10 +1214,17 @@ export default function FringeBenefitsPage() {
                                                     <TableCell className="px-3 py-2 text-right font-semibold text-blue-600 tabular-nums">
                                                         {record.hoursVal.toFixed(2)}
                                                     </TableCell>
+                                                    <TableCell className="px-3 py-2 text-right font-bold text-emerald-600 tabular-nums">
+                                                        {(() => {
+                                                            const rate = getFringeCostRate(record.fringe, record.clockIn);
+                                                            const cost = rate * record.hoursVal;
+                                                            return cost > 0 ? `$${cost.toFixed(2)}` : '-';
+                                                        })()}
+                                                    </TableCell>
                                                 </TableRow>
                                             )) : (
                                                 <TableRow>
-                                                    <TableCell colSpan={groupingMode === 'estimate' ? 10 : 8} className="py-20 text-center">
+                                                    <TableCell colSpan={groupingMode === 'estimate' ? 11 : 9} className="py-20 text-center">
                                                         <div className="flex flex-col items-center gap-3">
                                                             <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center">
                                                                 <FileText size={20} className="text-slate-200" />
@@ -1116,7 +1237,7 @@ export default function FringeBenefitsPage() {
 
                                             {displayData.length > visibleRows && (
                                                 <TableRow className="hover:bg-transparent">
-                                                    <TableCell colSpan={groupingMode === 'estimate' ? 10 : 8} className="py-6 text-center">
+                                                    <TableCell colSpan={groupingMode === 'estimate' ? 11 : 9} className="py-6 text-center">
                                                         <button
                                                             onClick={() => setVisibleRows(prev => prev + 50)}
                                                             className="px-6 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-bold text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition-all shadow-sm active:scale-95"
@@ -1134,6 +1255,69 @@ export default function FringeBenefitsPage() {
                     </div>
                 </div>
             </main>
+
+            {/* Add Fringe Cost Modal */}
+            {showFringeCostModal && (
+                <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-center justify-center" onClick={() => setShowFringeCostModal(false)}>
+                    <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 fade-in duration-200" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-xl bg-gradient-to-br from-[#0F4C75] to-[#3282B8] text-white shadow-sm"><DollarSign size={18} /></div>
+                                <div>
+                                    <h3 className="text-sm font-black text-slate-800">Add Fringe Cost</h3>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Define new cost rate</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setShowFringeCostModal(false)} className="p-2 hover:bg-slate-100 rounded-lg transition-colors"><X size={18} className="text-slate-400" /></button>
+                        </div>
+                        <div className="p-6 space-y-5">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Date From</label>
+                                    <div className="relative">
+                                        <CalendarIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                        <input type="date" value={fcFormFrom} onChange={(e) => setFcFormFrom(e.target.value)} className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75] focus:bg-white transition-all" />
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Date To</label>
+                                    <div className="relative">
+                                        <CalendarIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                        <input type="date" value={fcFormTo} onChange={(e) => setFcFormTo(e.target.value)} className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75] focus:bg-white transition-all" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">HDD Private</label>
+                                    <div className="relative">
+                                        <DollarSign size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-violet-400" />
+                                        <input type="number" step="0.01" placeholder="0.00" value={fcFormType === 'HDD Private' ? fcFormCost : ''} onChange={(e) => { setFcFormType('HDD Private'); setFcFormCost(e.target.value); }} onFocus={() => { if (fcFormType !== 'HDD Private') { setFcFormType('HDD Private'); setFcFormCost(''); } }} className={`w-full pl-9 pr-3 py-2.5 border rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-violet-200 focus:border-violet-400 transition-all ${fcFormType === 'HDD Private' ? 'bg-violet-50 border-violet-200 text-violet-800' : 'bg-slate-50 border-slate-200 text-slate-800'}`} />
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">HDD Public</label>
+                                    <div className="relative">
+                                        <DollarSign size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-400" />
+                                        <input type="number" step="0.01" placeholder="0.00" value={fcFormType === 'HDD Public' ? fcFormCost : ''} onChange={(e) => { setFcFormType('HDD Public'); setFcFormCost(e.target.value); }} onFocus={() => { if (fcFormType !== 'HDD Public') { setFcFormType('HDD Public'); setFcFormCost(''); } }} className={`w-full pl-9 pr-3 py-2.5 border rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-cyan-200 focus:border-cyan-400 transition-all ${fcFormType === 'HDD Public' ? 'bg-cyan-50 border-cyan-200 text-cyan-800' : 'bg-slate-50 border-slate-200 text-slate-800'}`} />
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-xl border border-slate-100">
+                                <div className={`w-2 h-2 rounded-full ${fcFormType === 'HDD Private' ? 'bg-violet-500' : 'bg-cyan-500'}`} />
+                                <span className="text-xs font-bold text-slate-500">Selected: <span className={fcFormType === 'HDD Private' ? 'text-violet-600' : 'text-cyan-600'}>{fcFormType}</span>{fcFormCost && <span className="ml-2 text-emerald-600">(${parseFloat(fcFormCost || '0').toFixed(2)} / hr)</span>}</span>
+                            </div>
+                        </div>
+                        <div className="flex items-center justify-end gap-3 px-6 py-4 bg-slate-50/50 border-t border-slate-100">
+                            <button onClick={() => setShowFringeCostModal(false)} className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700 transition-colors">Cancel</button>
+                            <button onClick={handleCreateFringeCost} disabled={fringeCostSaving || !fcFormFrom || !fcFormTo || !fcFormCost} className="flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-[#0F4C75] to-[#3282B8] text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-900/15 hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95">
+                                {fringeCostSaving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                                Save Cost
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

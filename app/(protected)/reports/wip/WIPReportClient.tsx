@@ -905,7 +905,13 @@ export default function WIPReportClient({
                                                             </thead>
                                                             <tbody className="divide-y divide-slate-50">
                                                                 {loadingTransactions ? (
-                                                                    <tr><td colSpan={3} className="p-8 text-center text-slate-400 text-sm">Loading...</td></tr>
+                                                                    [...Array(5)].map((_, i) => (
+                                                                        <tr key={i}>
+                                                                            <td className="p-4"><div className="w-16 h-3 bg-slate-100 rounded animate-pulse" /></td>
+                                                                            <td className="p-4"><div className="w-20 h-3 bg-slate-100 rounded animate-pulse" /></td>
+                                                                            <td className="p-4 text-right"><div className="w-14 h-3 bg-slate-100 rounded animate-pulse ml-auto" /></td>
+                                                                        </tr>
+                                                                    ))
                                                                 ) : transactions.length > 0 ? (
                                                                     transactions.map((tx: any) => (
                                                                         <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
@@ -947,7 +953,14 @@ export default function WIPReportClient({
                                                             </thead>
                                                             <tbody className="divide-y divide-slate-50">
                                                                 {loadingProfitability ? (
-                                                                    <tr><td colSpan={4} className="p-8 text-center text-slate-400 text-sm">Loading...</td></tr>
+                                                                    [...Array(5)].map((_, i) => (
+                                                                        <tr key={i}>
+                                                                            <td className="p-4"><div className="w-16 h-3 bg-slate-100 rounded animate-pulse" /></td>
+                                                                            <td className="p-4"><div className="w-14 h-3 bg-slate-100 rounded animate-pulse" /></td>
+                                                                            <td className="p-4"><div className="w-14 h-3 bg-slate-100 rounded animate-pulse" /></td>
+                                                                            <td className="p-4 text-right"><div className="w-16 h-3 bg-slate-100 rounded animate-pulse ml-auto" /></td>
+                                                                        </tr>
+                                                                    ))
                                                                 ) : selectedProject.jobTickets && selectedProject.jobTickets.length > 0 ? (
                                                                     selectedProject.jobTickets.map((ticket, idx) => (
                                                                         <tr 

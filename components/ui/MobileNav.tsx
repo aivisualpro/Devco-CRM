@@ -70,16 +70,7 @@ const MobileNav = () => {
 
     if (!isMounted || isKeyboardOpen) return null;
 
-    const menuItems = [
-        {
-            label: 'Knowledgebase',
-            href: '/settings/knowledgebase',
-            icon: BookOpen,
-            colorClass: 'text-blue-500',
-            bgClass: 'bg-blue-50',
-            description: 'Help articles & guides'
-        },
-    ];
+    const menuItems: { label: string; href: string; icon: any; colorClass: string; bgClass: string; description: string }[] = [];
 
     return (
         <>

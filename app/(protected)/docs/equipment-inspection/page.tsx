@@ -638,12 +638,61 @@ export default function EquipmentInspectionPage() {
 
             <div className="flex-1 p-4 lg:p-6 overflow-auto flex flex-col min-h-0">
                 {loading || returnTo ? (
-                    <div className="flex-1 flex items-center justify-center">
-                        <div className="flex flex-col items-center gap-2">
-                            <Loader2 className="animate-spin text-[#0F4C75]" />
-                            <span className="text-sm text-slate-500">{returnTo ? 'Loading editor...' : 'Loading inspections...'}</span>
+                    <>
+                        {/* Mobile Skeleton */}
+                        <div className="lg:hidden space-y-3">
+                            {[...Array(6)].map((_, i) => (
+                                <div key={i} className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm space-y-3">
+                                    <div className="flex items-start justify-between">
+                                        <div className="space-y-2">
+                                            <div className="w-20 h-3 bg-slate-100 rounded animate-pulse" />
+                                            <div className="w-28 h-2.5 bg-slate-100 rounded animate-pulse" />
+                                        </div>
+                                        <div className="w-24 h-5 bg-slate-100 rounded-full animate-pulse" />
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-16 h-2.5 bg-slate-100 rounded animate-pulse" />
+                                        <div className="w-8 h-5 bg-emerald-50 rounded animate-pulse" />
+                                    </div>
+                                </div>
+                            ))}
                         </div>
-                    </div>
+                        {/* Desktop Skeleton */}
+                        <div className="hidden lg:flex flex-col flex-1 min-h-0">
+                            <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex-1 flex flex-col min-h-0 overflow-hidden">
+                                <Table containerClassName="flex-1 overflow-auto">
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableHeader className="w-[100px]">Date</TableHeader>
+                                            <TableHeader className="w-[150px]">Type</TableHeader>
+                                            <TableHeader className="w-[100px]">Frequency</TableHeader>
+                                            <TableHeader className="w-[100px]">Estimate</TableHeader>
+                                            <TableHeader className="min-w-[140px]">Equipment</TableHeader>
+                                            <TableHeader className="w-[80px] text-center">OK</TableHeader>
+                                            <TableHeader className="w-[80px] text-center">⚠</TableHeader>
+                                            <TableHeader className="w-[100px]">Created By</TableHeader>
+                                            <TableHeader className="w-[120px] text-right">Actions</TableHeader>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {[...Array(10)].map((_, i) => (
+                                            <TableRow key={i} className="border-b border-slate-50">
+                                                <TableCell><div className="w-16 h-3 bg-slate-100 rounded animate-pulse" /></TableCell>
+                                                <TableCell><div className="w-24 h-5 bg-slate-100 rounded-full animate-pulse" /></TableCell>
+                                                <TableCell><div className="w-14 h-3 bg-slate-100 rounded animate-pulse" /></TableCell>
+                                                <TableCell><div className="w-12 h-3 bg-slate-100 rounded animate-pulse" /></TableCell>
+                                                <TableCell><div className="w-28 h-3 bg-slate-100 rounded animate-pulse" /></TableCell>
+                                                <TableCell className="text-center"><div className="w-7 h-7 bg-emerald-50 rounded-lg animate-pulse mx-auto" /></TableCell>
+                                                <TableCell className="text-center"><div className="w-7 h-7 bg-slate-50 rounded-lg animate-pulse mx-auto" /></TableCell>
+                                                <TableCell><div className="flex items-center gap-2"><div className="w-6 h-6 rounded-full bg-slate-100 animate-pulse" /><div className="w-14 h-3 bg-slate-100 rounded animate-pulse" /></div></TableCell>
+                                                <TableCell><div className="w-16 h-3 bg-slate-100 rounded animate-pulse ml-auto" /></TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </div>
+                    </>
                 ) : (
                     <>
                         {/* Mobile Card View */}

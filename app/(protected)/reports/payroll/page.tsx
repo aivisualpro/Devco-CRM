@@ -1134,9 +1134,33 @@ function PayrollReportContent() {
 
             <main className="flex-1 overflow-auto w-full max-w-[2400px] mx-auto p-2 pb-32 bg-[#F4F7FA]">
                 {loading ? (
-                    <div className="h-[70vh] flex flex-col items-center justify-center gap-4">
-                        <Loading />
-                        <p className="text-slate-400 font-bold text-sm animate-pulse">Loading Payroll Data...</p>
+                    <div className="neu-outset rounded-[32px] p-4 bg-[#F4F7FA]">
+                        <div className="space-y-3">
+                            {[...Array(4)].map((_, empIdx) => (
+                                <div key={empIdx} className="border-t-[10px] border-transparent">
+                                    <div className="flex items-center gap-3 p-4">
+                                        <div className="w-8 h-8 rounded-full bg-slate-200/60 animate-pulse" />
+                                        <div className="space-y-2">
+                                            <div className="w-28 h-3 bg-slate-200/60 rounded animate-pulse" />
+                                            <div className="w-20 h-2 bg-slate-100 rounded animate-pulse" />
+                                        </div>
+                                    </div>
+                                    {[...Array(7)].map((_, rowIdx) => (
+                                        <div key={rowIdx} className="flex items-center gap-2 px-4 py-2.5 border-b border-white/40">
+                                            <div className="w-16 h-2.5 bg-slate-100 rounded animate-pulse shrink-0" />
+                                            {[...Array(7)].map((_, colIdx) => (
+                                                <div key={colIdx} className="flex-1 flex justify-center">
+                                                    <div className={`w-10 h-3 rounded animate-pulse ${rowIdx === 6 ? 'bg-slate-200/60' : 'bg-slate-100'}`} />
+                                                </div>
+                                            ))}
+                                            <div className="w-12 h-3 bg-slate-100 rounded animate-pulse" />
+                                            <div className="w-10 h-3 bg-slate-100 rounded animate-pulse" />
+                                            <div className="w-14 h-3 bg-slate-200/60 rounded animate-pulse" />
+                                        </div>
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 ) : (
                     <>

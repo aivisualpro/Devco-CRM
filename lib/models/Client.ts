@@ -39,6 +39,7 @@ export interface IClient {
     createdAt?: Date;
     updatedAt?: Date;
     primaryContact?: any;
+    createdBy?: string;
 }
 
 const ClientDocumentSchema = new Schema({
@@ -78,7 +79,8 @@ const ClientSchema: Schema = new Schema({
     documents: {
         type: [ClientDocumentSchema],
         default: []
-    }
+    },
+    createdBy: { type: String }
 }, { timestamps: true });
 
 ClientSchema.virtual('primaryContact').get(function(this: any) {

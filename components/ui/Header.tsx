@@ -24,7 +24,7 @@ interface MenuItem {
     href?: string;
 }
 
-const IMPLEMENTED_ROUTES = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/contacts', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/reports/workers-comp', '/reports/fringe-benefits', '/reports/wip', '/reports/daily-activities', '/roles', '/constants', '/dashboard', '/docs/jha', '/docs/job-tickets', '/settings/imports', '/settings/knowledgebase', '/settings/general', '/docs/receipts-costs', '/docs/billing-tickets', '/docs/company-docs', '/docs/vehicle-equipment', '/docs/pothole-logs', '/docs/pre-bore-logs', '/docs/usa-811-tickets', '/docs/equipment-inspection', '/trainings'];
+const IMPLEMENTED_ROUTES = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/contacts', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/reports/workers-comp', '/reports/fringe-benefits', '/reports/wip', '/roles', '/constants', '/dashboard', '/docs/jha', '/docs/job-tickets', '/settings/imports', '/settings/general', '/settings/fringe-costs', '/docs/receipts-costs', '/docs/billing-tickets', '/docs/company-docs', '/docs/vehicle-equipment', '/docs/pothole-logs', '/docs/pre-bore-logs', '/docs/usa-811-tickets', '/docs/equipment-inspection', '/trainings'];
 
 const menuStructure: MenuItem[] = [
     {
@@ -67,7 +67,7 @@ const menuStructure: MenuItem[] = [
             { label: 'Fringe Benefits', href: '/reports/fringe-benefits', icon: <DollarSign className="w-5 h-5" />, description: 'Benefits analysis', colorClass: 'text-purple-600' },
             { label: 'Workers Comp', href: '/reports/workers-comp', icon: <FileCheck className="w-5 h-5" />, description: 'Insurance and compensation', colorClass: 'text-blue-700' },
             { label: 'Work in Progress', href: '/reports/wip', icon: <BarChart className="w-5 h-5" />, description: 'Live QuickBooks project financials', colorClass: 'text-emerald-500' },
-            { label: 'Daily Activity', href: '/reports/daily-activities', icon: <Activity className="w-5 h-5" />, description: 'Track daily team activities', colorClass: 'text-orange-500' },
+
         ]
     },
     {
@@ -77,7 +77,8 @@ const menuStructure: MenuItem[] = [
             { label: 'Constants', href: '/constants', icon: <Sliders className="w-5 h-5" />, description: 'System-wide configuration settings', colorClass: 'text-fuchsia-500' },
             { label: 'Roles & Permissions', href: '/roles', icon: <Settings className="w-5 h-5" />, description: 'Manage access control and permissions', colorClass: 'text-red-500' },
             { label: 'Imports', href: '/settings/imports', icon: <Import className="w-5 h-5" />, description: 'Bulk import data from CSV files', colorClass: 'text-blue-500' },
-            { label: 'Knowledgebase', href: '/settings/knowledgebase', icon: <BookOpen className="w-5 h-5" />, description: 'System documentation and changelog', colorClass: 'text-amber-500' },
+
+            { label: 'Fringe Costs', href: '/settings/fringe-costs', icon: <DollarSign className="w-5 h-5" />, description: 'Manage HDD fringe cost rates', colorClass: 'text-purple-500' },
         ]
     },
 ];
@@ -406,17 +407,8 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                         </button>
                                     )}
 
-                                    {/* Version Badge - Only on Homepage/Dashboard */}
-                                    {(pathname === '/' || pathname === '/dashboard') && (
-                                        <PrefetchLink
-                                            href="/settings/knowledgebase"
-                                            className="flex items-center gap-2 px-3 py-2 text-white rounded-full text-xs font-bold transition-all shadow-lg group hover:-translate-y-0.5 whitespace-nowrap"
-                                            style={{ background: 'linear-gradient(to right, #0F4C75, #3282B8)', boxShadow: '0 10px 15px -3px rgba(15, 76, 117, 0.2)' }}
-                                        >
-                                            <BookOpen size={18} className="shrink-0 group-hover:rotate-12 transition-transform" />
-                                            <span className="hidden xs:inline">{CURRENT_VERSION}</span>
-                                        </PrefetchLink>
-                                    )}
+
+
                                 </>
                             )}
 

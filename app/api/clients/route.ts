@@ -195,12 +195,28 @@ export async function POST(req: NextRequest) {
                 delete (clientData as any).email;
                 delete (clientData as any).phone;
 
+                // Get current user for createdBy
+                const jwtUser = await getUserFromRequest(req);
+                if (jwtUser?.email) {
+                    clientData.createdBy = jwtUser.email;
+                }
+
                 const newClient = await Client.create(clientData) as any;
 
                 // --- Notifications ---
                 Promise.resolve().then(async () => {
                     try {
-                        const jwtUser = await getUserFromRequest(req);
+                        // Look up the creator's Employee record to get the real name
+                        let creatorName = 'Someone';
+                        let creatorImage = '';
+                        if (jwtUser?.email) {
+                            const creatorDoc = await Employee.findOne({ email: { $regex: new RegExp(`^${jwtUser.email}$`, 'i') } }).select('firstName lastName profilePicture image').lean() as any;
+                            if (creatorDoc) {
+                                creatorName = `${creatorDoc.firstName || ''} ${creatorDoc.lastName || ''}`.trim() || 'Someone';
+                                creatorImage = creatorDoc.profilePicture || creatorDoc.image || '';
+                            }
+                        }
+
                         const adminDocs = await Employee.find({ appRole: { $regex: /^(super admin|admin)$/i }, status: 'Active' }).select('email').lean();
                         const adminEmails = adminDocs.map((e: any) => e.email?.toLowerCase().trim()).filter(Boolean);
                         
@@ -215,10 +231,10 @@ export async function POST(req: NextRequest) {
                                     message: `Created a new client: ${newClient.name}`,
                                     link: `/clients/${newClient._id}`,
                                     metadata: {
-                                        creatorName: `${(jwtUser as any)?.firstName || ''} ${(jwtUser as any)?.lastName || ''}`.trim() || 'Someone',
-                                        creatorImage: (jwtUser as any)?.profilePicture || (jwtUser as any)?.image || ''
+                                        creatorName,
+                                        creatorImage
                                     },
-                                    createdBy: (jwtUser as any)?.email || ''
+                                    createdBy: jwtUser?.email || ''
                                 });
                         }
                     } catch (err) {

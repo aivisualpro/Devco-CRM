@@ -424,4 +424,5 @@ export const URL_TO_MODULE: Record<string, ModuleKey> = {
     '/reports/fringe-benefits': MODULES.REPORTS_FRINGE,
     '/reports/sales': MODULES.REPORTS_SALES,
     '/reports/daily-activities': MODULES.REPORTS_DAILY_ACTIVITY,
+    '/settings/fringe-costs': MODULES.CONSTANTS,
 };

@@ -677,8 +677,7 @@ export default function WorkersCompPage() {
         link.click();
     };
 
-    // Only show full-page loading on initial load
-    if (isInitialLoad && !rawSchedules.length) return <Loading />;
+    const showSkeleton = isInitialLoad && !rawSchedules.length;
 
     return (
         <div className="flex flex-col h-full bg-[#f4f7fa]">
@@ -933,7 +932,21 @@ export default function WorkersCompPage() {
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
-                                    {!expandedEmp ? (
+                                    {showSkeleton ? (
+                                        [...Array(8)].map((_, i) => (
+                                            <TableRow key={i} className="border-b border-slate-50">
+                                                <TableCell className="px-4 py-3"><div className="w-6 h-3 bg-slate-100 rounded animate-pulse" /></TableCell>
+                                                <TableCell className="px-4 py-3"><div className="flex items-center gap-2"><div className="w-7 h-7 rounded-full bg-slate-100 animate-pulse" /><div className="w-24 h-3 bg-slate-100 rounded animate-pulse" /></div></TableCell>
+                                                <TableCell className="px-4 py-3"><div className="w-16 h-3 bg-slate-100 rounded animate-pulse" /></TableCell>
+                                                <TableCell className="px-4 py-3 text-right"><div className="w-12 h-3 bg-slate-100 rounded animate-pulse ml-auto" /></TableCell>
+                                                <TableCell className="px-4 py-3 text-right"><div className="w-10 h-3 bg-slate-100 rounded animate-pulse ml-auto" /></TableCell>
+                                                <TableCell className="px-4 py-3 text-right"><div className="w-10 h-3 bg-slate-100 rounded animate-pulse ml-auto" /></TableCell>
+                                                <TableCell className="px-4 py-3 text-right"><div className="w-12 h-3 bg-slate-100 rounded animate-pulse ml-auto" /></TableCell>
+                                                <TableCell className="px-4 py-3 text-right"><div className="w-14 h-3 bg-slate-100 rounded animate-pulse ml-auto" /></TableCell>
+                                                <TableCell className="px-4 py-3 text-right"><div className="w-16 h-3 bg-emerald-50 rounded animate-pulse ml-auto" /></TableCell>
+                                            </TableRow>
+                                        ))
+                                    ) : !expandedEmp ? (
                                         <>
                                             {/* Summary "All" Row */}
                                             {employeeSummary.length > 0 && (
