@@ -613,6 +613,24 @@ export const PlanningCard: React.FC<PlanningCardProps> = ({
                             </div>
                         </div>
 
+                        {/* Document Name / Description */}
+                        {selectedViewItem.documentName && (
+                            <div className="space-y-2 px-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-1 block">Document Name / Description</label>
+                                <p className="text-sm font-semibold text-slate-700 leading-relaxed whitespace-pre-wrap bg-white/60 border border-slate-100 rounded-2xl px-5 py-4 shadow-sm">
+                                    {selectedViewItem.documentName}
+                                </p>
+                            </div>
+                        )}
+
+                        {/* USA Ticket No */}
+                        {selectedViewItem.usaTicketNo && (
+                            <div className="space-y-1 px-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-1 block">USA Ticket No</label>
+                                <p className="text-sm font-bold text-slate-700 px-1">{selectedViewItem.usaTicketNo}</p>
+                            </div>
+                        )}
+
                         <div className="space-y-4">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-2 block">Files & Documents</label>
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">

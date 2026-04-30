@@ -82,7 +82,7 @@ const menuStructure: MenuItem[] = [
     },
 ];
 
-const CURRENT_VERSION = 'V.0.78';
+const CURRENT_VERSION = 'v1.29.1';
 
 interface HeaderProps {
     rightContent?: React.ReactNode;
@@ -492,6 +492,9 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                                 </div>
                                                 Logout
                                             </button>
+                                        </div>
+                                        <div className="px-4 py-2.5 border-t border-slate-100 bg-slate-50/30">
+                                            <p className="text-[10px] font-bold text-slate-400 text-center tracking-wider uppercase">Devco CRM — v1.29.1</p>
                                         </div>
                                     </div>
                                 )}
