@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import {
     ChevronRight, ChevronLeft, ChevronDown, User, Calendar as CalendarIcon,
-    MapPin, Truck, Trash2, Edit, RotateCcw, FileText, Clock, RefreshCcw, Plus, CheckCircle2, X, Search, HardHat, Loader2
+    MapPin, Truck, Trash2, Edit, RotateCcw, FileText, Clock, RefreshCcw, Plus, CheckCircle2, X, Search, HardHat, Loader2, Eye
 } from 'lucide-react';
 import PrefetchLink from "@/components/PrefetchLink";
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -20,6 +20,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
 import { toast } from 'sonner';
 import { useCurrentUser } from '@/lib/context/AppContext';
+import { ScheduleDetailsPopup, SchedulePopupData } from '@/components/ui/ScheduleDetailsPopup';
 
 // --- Types ---
 
@@ -431,6 +432,39 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
     // Key: "lat1,lon1|lat2,lon2" → value: distance in miles from Google Maps API
     const [googleDistances, setGoogleDistances] = useState<Map<string, number>>(new Map());
     const [fetchingGoogleDist, setFetchingGoogleDist] = useState<Set<string>>(new Set());
+
+    // Schedule Preview Popup
+    const [schedulePreview, setSchedulePreview] = useState<any>(null);
+    const [schedulePreviewLoading, setSchedulePreviewLoading] = useState(false);
+
+    const handleSchedulePreview = useCallback(async (scheduleId: string) => {
+        if (!scheduleId) return;
+        // First try local rawSchedules for instant display
+        const local = rawSchedules.find(s => s._id === scheduleId);
+        if (local) {
+            setSchedulePreview(local);
+        } else {
+            setSchedulePreviewLoading(true);
+            setSchedulePreview(null);
+        }
+        // Then fetch full enriched data (aerial, siteLayout, jobPlanningDocs etc.) like dashboard
+        try {
+            const res = await fetch(`/api/schedules/${scheduleId}`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success && data.schedule) {
+                    setSchedulePreview((prev: any) => prev ? ({ ...prev, ...data.schedule }) : data.schedule);
+                }
+            }
+        } catch {
+            // If we already have local data, keep showing it; otherwise show not-found
+            if (!local) {
+                setSchedulePreview({ _id: scheduleId, _notFound: true });
+            }
+        } finally {
+            setSchedulePreviewLoading(false);
+        }
+    }, [rawSchedules]);
 
     // Fetch Grouping Stats (Tree Data) via SWR
     const { data: statsData, isLoading: isStatsLoadingSWR, mutate: fetchStats } = useSWR(
@@ -2242,7 +2276,7 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
                                         <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-left w-[70px]">Dist (Mi)</TableHeader>
                                         <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-left w-[55px]">Hrs</TableHeader>
                                         <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-left w-[100px]">Created By</TableHeader>
-                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-left w-[90px]">Schedule</TableHeader>
+                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[40px]">Sched</TableHeader>
                                         <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-right w-[90px]">Actions</TableHeader>
                                     </TableRow>
                                 </TableHead>
@@ -2292,7 +2326,12 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
                                                     <span className="text-xs font-medium text-slate-500">{formatDateOnly(ts.clockIn)}</span>
                                                 </TableCell>
                                                 <TableCell className="text-center">
-                                                    <span className="text-[10px] font-medium text-slate-400">{ts.scheduleFromDate ? formatDateOnly(ts.scheduleFromDate) : '-'}</span>
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <span className="text-[10px] font-medium text-slate-400">{ts.scheduleFromDate ? formatDateOnly(ts.scheduleFromDate) : '-'}</span>
+                                                        {ts.scheduleFromDate && ts.clockIn && formatDateOnly(ts.scheduleFromDate) !== formatDateOnly(ts.clockIn) && (
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" title="Date mismatch" />
+                                                        )}
+                                                    </div>
                                                 </TableCell>
                                                 <TableCell className="text-center">
                                                     <Tooltip>
@@ -2473,10 +2512,20 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
                                                         );
                                                     })() : <span className="text-slate-300">-</span>}
                                                 </TableCell>
-                                                <TableCell className="text-left">
-                                                    <span className="text-[9px] font-mono font-medium text-slate-400 truncate block max-w-[100px]" title={ts.scheduleId}>
-                                                        {ts.scheduleId || '-'}
-                                                    </span>
+                                                <TableCell className="text-center">
+                                                    {ts.scheduleId ? (
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <button
+                                                                    onClick={(e) => { e.stopPropagation(); handleSchedulePreview(ts.scheduleId); }}
+                                                                    className="p-1.5 rounded-lg bg-slate-50 hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-all cursor-pointer mx-auto"
+                                                                >
+                                                                    <Eye size={12} />
+                                                                </button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent><p>View Schedule</p></TooltipContent>
+                                                        </Tooltip>
+                                                    ) : <span className="text-slate-300">-</span>}
                                                 </TableCell>
                                                 <TableCell className="text-right">
                                                     {isQuickEditing ? (
@@ -3225,6 +3274,38 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
                     </div>
                 </div>
             </Modal>
+
+            {/* Schedule Preview Modal — reuses the shared dashboard component */}
+            <ScheduleDetailsPopup
+                isOpen={!!schedulePreview || schedulePreviewLoading}
+                onClose={() => { setSchedulePreview(null); setSchedulePreviewLoading(false); }}
+                schedule={schedulePreview && !schedulePreview._notFound ? {
+                    _id: schedulePreview._id,
+                    title: schedulePreview.title || 'Untitled Schedule',
+                    fromDate: schedulePreview.fromDate,
+                    toDate: schedulePreview.toDate,
+                    customerName: schedulePreview.customerName,
+                    customerId: schedulePreview.customerId,
+                    estimate: schedulePreview.estimate,
+                    jobLocation: schedulePreview.jobLocation,
+                    projectManager: schedulePreview.projectManager,
+                    foremanName: schedulePreview.foremanName,
+                    assignees: schedulePreview.assignees,
+                    description: schedulePreview.description,
+                    service: schedulePreview.service,
+                    item: schedulePreview.item,
+                    notifyAssignees: schedulePreview.notifyAssignees,
+                    perDiem: schedulePreview.perDiem,
+                    certifiedPayroll: schedulePreview.certifiedPayroll,
+                    fringe: schedulePreview.fringe,
+                    aerialImage: schedulePreview.aerialImage,
+                    siteLayout: schedulePreview.siteLayout,
+                    timesheet: schedulePreview.timesheet,
+                    todayObjectives: schedulePreview.todayObjectives,
+                } as SchedulePopupData : null}
+                employees={employeesOptions}
+                currentUserEmail={currentUser?.email}
+            />
 
             <ConfirmModal
                 isOpen={isDeleteModalOpen}
