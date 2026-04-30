@@ -966,6 +966,48 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
         return root;
     }, [groupingStats, employeesMap, includeDriveTime, includeSiteTime, sidebarEmployeeFilter, allRecords, weekRange]);
 
+    // Auto-expand current year + auto-select current week on first load
+    const treeInitialized = useRef(false);
+    useEffect(() => {
+        if (treeInitialized.current) return;
+        if (!treeData?.years || Object.keys(treeData.years).length === 0) return;
+
+        const now = new Date();
+        const currentYear = getISOWeekYear(now);
+        const currentWeek = getWeekNumber(now);
+        const yearId = `Y-${currentYear}`;
+        const weekId = `W-${currentYear}-${currentWeek}`;
+
+        // Only initialize if the year exists in tree
+        if (treeData.years[currentYear]) {
+            treeInitialized.current = true;
+            // Expand current year
+            setExpandedNodes(prev => {
+                const next = new Set(prev);
+                next.add(yearId);
+                return next;
+            });
+            // Select current week and switch week picker to match
+            const weekKey = `${currentYear}-${currentWeek}`;
+            if (treeData.years[currentYear].weeks[weekKey]) {
+                setSelectedNode({ type: 'WEEK', value: weekId });
+                setSelectedEmployeeEmail('');
+
+                // Replicate the week-switching logic from selectNode
+                const d = new Date(Date.UTC(currentYear, 0, 4));
+                const day = d.getUTCDay() || 7;
+                const mondayOfWeek1 = new Date(d);
+                mondayOfWeek1.setUTCDate(d.getUTCDate() - day + 1);
+                const targetMonday = new Date(mondayOfWeek1);
+                targetMonday.setUTCDate(mondayOfWeek1.getUTCDate() + (currentWeek - 1) * 7);
+
+                if (targetMonday.getTime() !== weekRange.start.getTime()) {
+                    setCurrentWeekDate(targetMonday);
+                }
+            }
+        }
+    }, [treeData]);
+
     // 3. Filter Table based on Tree Selection
     const tableData = useMemo(() => {
         if (selectedNode.type === 'ROOT') return filteredRecords;
