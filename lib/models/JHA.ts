@@ -3,6 +3,8 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IJHA extends Document {
     schedule_id: string;
+    estimate?: string;
+    fromDate?: Date;
     date: Date;
     jhaTime: string;
     usaNo: string;
@@ -53,6 +55,14 @@ export interface IJHA extends Document {
     closestHospitalDiscussed: boolean;
     nameOfHospital?: string;
     addressOfHospital?: string;
+    signatures?: {
+        _id: string;
+        employee: string;
+        signature: string;
+        createdBy: string;
+        location?: string;
+        createdAt?: Date;
+    }[];
     createdBy: string;
     clientEmail?: string;
     emailCounter?: number;
@@ -64,6 +74,8 @@ export interface IJHA extends Document {
 const JHASchema: Schema = new Schema({
     _id: { type: String },
     schedule_id: { type: String, ref: 'Schedule', required: true },
+    estimate: { type: String, default: '' },
+    fromDate: { type: Date },
     date: { type: Date, required: true },
     jhaTime: { type: String, required: true },
     usaNo: { type: String, default: '' },
@@ -120,12 +132,21 @@ const JHASchema: Schema = new Schema({
     jhaEmails: [{
         emailto: { type: String, required: true },
         createdAt: { type: Date, default: Date.now }
+    }],
+    signatures: [{
+        _id: { type: String },
+        employee: { type: String },
+        signature: { type: String },
+        createdBy: { type: String },
+        location: { type: String },
+        createdAt: { type: Date, default: Date.now }
     }]
 }, {
     timestamps: true
 });
 
 JHASchema.index({ schedule_id: 1 });
+JHASchema.index({ estimate: 1 });
 JHASchema.index({ date: -1 });
 JHASchema.index({ createdAt: -1 });
 

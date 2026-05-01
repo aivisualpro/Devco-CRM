@@ -1587,7 +1587,7 @@ export async function POST(request: NextRequest) {
                                         changeOfScope: 1,
                                         createdAt: 1, updatedAt: 1,
                                         hasTimesheet: { $gt: [{ $size: { $ifNull: ['$timesheet', []] } }, 0] },
-                                        hasJHA: { $and: [{ $ifNull: ['$jha', false] }, { $ne: ['$jha', {}] }] },
+                                        hasJHA: { $ifNull: ['$hasJHA', false] },
                                         hasDJT: { $and: [{ $ifNull: ['$djt', false] }, { $ne: ['$djt', {}] }] }
                                     }
                                 }
@@ -1648,7 +1648,7 @@ export async function POST(request: NextRequest) {
                     return {
                         ...s,
                         timesheet: filteredTimesheet,
-                        hasJHA: !!s.jha && Object.keys(s.jha).length > 0,
+                        hasJHA: !!s.hasJHA,
                         hasDJT: !!s.djt && Object.keys(s.djt).length > 0
                     };
                 });

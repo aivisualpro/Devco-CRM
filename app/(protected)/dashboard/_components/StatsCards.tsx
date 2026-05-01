@@ -150,7 +150,7 @@ export function StatsCards({
     const { jhaCount, djtCount } = useMemo(() => {
         let jCount = 0, dCount = 0;
         jobs.forEach((sc: any) => {
-            if (sc.hasJHA || sc.jha || (sc.JHASignatures && sc.JHASignatures.length > 0)) jCount++;
+            if (sc.hasJHA) jCount++;
             if (sc.hasDJT || sc.djt || (sc.DJTSignatures && sc.DJTSignatures.length > 0)) dCount++;
         });
         return { jhaCount: jCount, djtCount: dCount };

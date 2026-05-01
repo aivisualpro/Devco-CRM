@@ -378,16 +378,16 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <div 
-                                        className={`relative z-10 flex items-center justify-center w-10 h-10 sm:w-7 sm:h-7 rounded-full transition-colors border-2 border-white shadow-sm cursor-pointer ${(item.hasJHA || (item.jha && Object.keys(item.jha).length > 0)) ? 'bg-orange-100 text-orange-600 hover:bg-orange-200' : 'bg-slate-100 text-slate-400 hover:bg-orange-100 hover:text-orange-600'}`} 
+                                        className={`relative z-10 flex items-center justify-center w-10 h-10 sm:w-7 sm:h-7 rounded-full transition-colors border-2 border-white shadow-sm cursor-pointer ${item.hasJHA ? 'bg-orange-100 text-orange-600 hover:bg-orange-200' : 'bg-slate-100 text-slate-400 hover:bg-orange-100 hover:text-orange-600'}`} 
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            (item.hasJHA || (item.jha && Object.keys(item.jha).length > 0)) ? onViewJHA?.(item, e) : onCreateJHA?.(item, e);
+                                            item.hasJHA ? onViewJHA?.(item, e) : onCreateJHA?.(item, e);
                                         }}
                                     >
-                                        {(item.hasJHA || (item.jha && Object.keys(item.jha).length > 0)) ? <ShieldCheck className="w-5 h-5 sm:w-3 sm:h-3" strokeWidth={2.5} /> : <Shield className="w-5 h-5 sm:w-3 sm:h-3" strokeWidth={2.5} />}
+                                        {item.hasJHA ? <ShieldCheck className="w-5 h-5 sm:w-3 sm:h-3" strokeWidth={2.5} /> : <Shield className="w-5 h-5 sm:w-3 sm:h-3" strokeWidth={2.5} />}
                                     </div>
                                 </TooltipTrigger>
-                                <TooltipContent><p>{(item.hasJHA || (item.jha && Object.keys(item.jha).length > 0)) ? 'View JHA' : 'Create JHA'}</p></TooltipContent>
+                                <TooltipContent><p>{item.hasJHA ? 'View JHA' : 'Create JHA'}</p></TooltipContent>
                             </Tooltip>
 
                             {/* DJT */}

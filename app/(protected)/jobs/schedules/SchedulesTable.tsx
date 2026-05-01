@@ -709,7 +709,7 @@ function SchedulesTable({ serverData }: { serverData?: any }) {
                 jobs++;
             }
 
-            if (s.hasJHA || (s.jha && Object.keys(s.jha).length > 0)) jhas++;
+            if (s.hasJHA) jhas++;
             if (s.hasDJT || (s.djt && Object.keys(s.djt).length > 0)) djts++;
             
             if (s.timesheet && Array.isArray(s.timesheet)) {
@@ -1162,9 +1162,17 @@ function SchedulesTable({ serverData }: { serverData?: any }) {
             const data = await res.json();
             if (data.success) {
                 success('JHA Saved Successfully');
-                // Refresh schedules to update JHA status
-                fetchPageData();
+                // Immediately update local state so the icon changes
+                const scheduleId = payload.schedule_id;
+                setSchedules(prev => prev.map(s => 
+                    s._id === scheduleId ? { ...s, hasJHA: true } : s
+                ));
+                if (data.result) {
+                    setSelectedJHA((prev: any) => ({ ...prev, ...data.result }));
+                }
                 setIsJhaEditMode(false);
+                // Also refetch to ensure consistency
+                fetchPageData();
             } else {
                 toastError(data.error || 'Failed to save JHA');
             }

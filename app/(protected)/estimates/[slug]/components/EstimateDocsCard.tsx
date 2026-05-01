@@ -163,6 +163,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     const [selectedPotholeLog, setSelectedPotholeLog] = useState<any>(null);
     const [potholeLogToDelete, setPotholeLogToDelete] = useState<any>(null);
     const [preBoreLogToDelete, setPreBoreLogToDelete] = useState<any>(null);
+    const [jhaToDelete, setJhaToDelete] = useState<any>(null);
     const [potholeCreateOpen, setPotholeCreateOpen] = useState(false);
     const [potholeEditOpen, setPotholeEditOpen] = useState(false);
     const [editingPotholeLog, setEditingPotholeLog] = useState<any>(null);
@@ -1000,6 +1001,27 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
     const handleDeletePotholeLog = (log: any) => {
         setPotholeLogToDelete(log);
+    };
+
+    const handleDeleteJHA = (jha: any) => {
+        setJhaToDelete(jha);
+    };
+
+    const confirmDeleteJHA = async () => {
+        if (!jhaToDelete) return;
+        try {
+            const res = await fetch('/api/jha', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'deleteJHA', payload: { id: jhaToDelete._id, schedule_id: jhaToDelete.schedule_id } })
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast.success('JHA deleted');
+                refetchJobDocs();
+            } else toast.error(data.error || 'Failed to delete JHA');
+        } catch (e) { console.error(e); toast.error('Error deleting JHA'); }
+        finally { setJhaToDelete(null); }
     };
 
     const confirmDeletePotholeLog = async () => {
@@ -4470,7 +4492,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                         canDelete={can(MODULES.JHA, ACTIONS.DELETE)}
                                         onView={handleViewJHA}
                                         onEdit={handleViewJHA}
-                                        onDelete={() => {}} // No delete handler currently passed in estimate view
+                                        onDelete={handleDeleteJHA}
                                         onDownloadPDF={handleDownloadJHAPDF}
                                         onEmail={handleEmailJHA}
                                         router={router}
@@ -5375,6 +5397,16 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 onConfirm={confirmDeletePotholeLog}
                 title="Delete Pothole Log"
                 message="Are you sure you want to delete this pothole log? This action cannot be undone."
+                confirmText="Delete"
+                variant="danger"
+            />
+
+            <ConfirmModal
+                isOpen={jhaToDelete !== null}
+                onClose={() => setJhaToDelete(null)}
+                onConfirm={confirmDeleteJHA}
+                title="Delete JHA"
+                message="Are you sure you want to delete this JHA? This action cannot be undone."
                 confirmText="Delete"
                 variant="danger"
             />

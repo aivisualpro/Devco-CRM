@@ -399,9 +399,17 @@ export const EstimateScheduleCard: React.FC<EstimateScheduleCardProps> = ({
                                 setChangeOfScopeModalOpen(true);
                             }}
                             // Functionality Handlers
-                            onViewJHA={(item) => {
-                                const jhaWithSigs = { ...(item.jha || {}), signatures: item.JHASignatures || [] };
-                                setSelectedJHA(jhaWithSigs);
+                            onViewJHA={async (item) => {
+                                try {
+                                    const res = await fetch('/api/jha', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getJHA', payload: { schedule_id: item._id } }) });
+                                    const data = await res.json();
+                                    if (data.success && data.jha) {
+                                        setSelectedJHA(data.jha);
+                                    } else {
+                                        // Fallback: create from embedded data
+                                        setSelectedJHA({ ...(item.jha || {}), signatures: item.JHASignatures || [], schedule_id: item._id });
+                                    }
+                                } catch { setSelectedJHA({ ...(item.jha || {}), signatures: item.JHASignatures || [], schedule_id: item._id }); }
                                 setIsJhaEditMode(false);
                                 setJhaModalOpen(true);
                             }}
@@ -533,7 +541,6 @@ export const EstimateScheduleCard: React.FC<EstimateScheduleCardProps> = ({
                                     return {
                                         ...s,
                                         hasJHA: true,
-                                        jha: data.result || payload
                                     };
                                 }
                                 return s;

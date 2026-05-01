@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
-import { JHA, Schedule, JHASignature, Activity, Notification } from '@/lib/models';
+import { JHA, Schedule, JHASignature, Activity, Notification, Employee } from '@/lib/models';
 import { v2 as cloudinary } from 'cloudinary';
 import { Resend } from 'resend';
 import mongoose from 'mongoose';
@@ -23,7 +23,9 @@ export async function POST(request: NextRequest) {
 
         switch (action) {
             case 'saveJHASignature': {
-                const { schedule_id, employee, signature, createdBy, location } = payload;
+                const { schedule_id, employee, signature, createdBy, location: rawLocation } = payload;
+                // Sanitize: frontend sometimes passes window.location object instead of string
+                const location = typeof rawLocation === 'object' && rawLocation?.href ? rawLocation.href : (rawLocation || '');
                 
                 if (!schedule_id || !signature) {
                     return NextResponse.json({ success: false, error: 'Missing required signature fields' });
@@ -39,40 +41,24 @@ export async function POST(request: NextRequest) {
                     signatureUrl = uploadRes.secure_url;
                 }
 
-                // 2. Create JHASignature Record
-                // Generate ID explicitly because schema defines _id as String without default
+                // 2. Create JHASignature Record (dual-write backup)
                 const newId = new mongoose.Types.ObjectId().toString();
-                
-                const newSig = await JHASignature.create({
+                const sigDoc = {
                     _id: newId,
                     schedule_id,
-                    employee, // Email
+                    employee,
                     signature: signatureUrl,
                     createdBy,
                     location,
                     createdAt: new Date()
-                });
-
-                // 3. Update Schedule with embedded signature object
-                // We fetch the schedule first to ensure we aren't overwriting blindly? 
-                // Currently Schedule.JHASignatures is an array of objects (from import logic).
-                // We should push this new signature to that array.
+                };
                 
-                await Schedule.findOneAndUpdate(
-                    { _id: schedule_id }, 
-                    { 
-                        $push: { 
-                            JHASignatures: {
-                                _id: newSig._id,
-                                schedule_id,
-                                employee,
-                                signature: signatureUrl,
-                                createdBy,
-                                location,
-                                createdAt: new Date()
-                            }
-                        } 
-                    }
+                const newSig = await JHASignature.create(sigDoc);
+
+                // 3. Push signature into JHA record (SINGLE SOURCE OF TRUTH)
+                await JHA.findOneAndUpdate(
+                    { schedule_id },
+                    { $push: { signatures: sigDoc } }
                 );
 
                 // 4. Log Activity
@@ -92,29 +78,34 @@ export async function POST(request: NextRequest) {
                     revalidateTag(`dashboard-${getWeekIdFromDate(newSig.createdAt)}`, undefined as any);
                 }
 
-                return NextResponse.json({ success: true, result: newSig });
+                return NextResponse.json({ success: true, result: sigDoc });
             }
 
             case 'saveJHA': {
                 const jhaData = payload;
                 if (!jhaData.schedule_id) return NextResponse.json({ success: false, error: 'Missing schedule_id' });
 
-                // Remove _id from update payload (MongoDB immutable field)
+                // Remove _id and non-schema fields from update payload
                 const { _id, signatures, scheduleRef, ...updateData } = jhaData;
 
-                // Update or Insert JHA
-                // Using upsert based on schedule_id
+                // Populate estimate + fromDate from schedule (source of truth)
+                const schedRef = await Schedule.findOne({ _id: String(jhaData.schedule_id) }).select('estimate fromDate title').lean();
+                if (schedRef) {
+                    if ((schedRef as any).estimate) updateData.estimate = (schedRef as any).estimate;
+                    if ((schedRef as any).fromDate) updateData.fromDate = (schedRef as any).fromDate;
+                }
+
+                // Upsert JHA (single source of truth)
                 const result = await JHA.findOneAndUpdate(
                     { schedule_id: jhaData.schedule_id },
                     { $set: { ...updateData, jhaTime: updateData.jhaTime || new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) } },
                     { upsert: true, new: true, setDefaultsOnInsert: true }
                 );
                 
-                // Also update the Schedule to point to this JHA and set hasJHA = true (implicit via having jha object)
-                // We store the full JHA object on the schedule for quick access if that's the pattern
+                // Only set hasJHA flag on schedule (lightweight — no full JHA copy)
                 await Schedule.findOneAndUpdate(
                     { _id: jhaData.schedule_id },
-                    { $set: { jha: result } }
+                    { $set: { hasJHA: true } }
                 );
 
                 // Log Activity
@@ -135,21 +126,30 @@ export async function POST(request: NextRequest) {
                 }
 
                 // ── Background Notification & Email ──
+                const scheduleTitle = (schedRef as any)?.title || 'Unknown Project';
                 Promise.resolve().then(async () => {
                     if (jhaData.createdBy) {
                         try {
                             const recipientEmail = jhaData.createdBy;
-                            const scheduleDoc = await Schedule.findById(jhaData.schedule_id).lean();
-                            const scheduleTitle = (scheduleDoc as any)?.title || 'Unknown Project';
+
+                            // Look up creator's name and image from Employee
+                            let creatorName = 'Someone';
+                            let creatorImage = '';
+                            const creatorDoc = await Employee.findOne({ email: { $regex: new RegExp(`^${recipientEmail}$`, 'i') } }).select('firstName lastName profilePicture image').lean() as any;
+                            if (creatorDoc) {
+                                creatorName = `${creatorDoc.firstName || ''} ${creatorDoc.lastName || ''}`.trim() || 'Someone';
+                                creatorImage = creatorDoc.profilePicture || creatorDoc.image || '';
+                            }
                             
                             // 1. Bell Notification
                             await Notification.create({
                                 recipientEmail,
                                 type: 'jha_created',
                                 title: 'JHA Created',
-                                message: `A Job Hazard Analysis was successfully submitted for ${scheduleTitle}.`,
+                                message: `${creatorName} submitted a Job Hazard Analysis for ${scheduleTitle}.`,
                                 link: `/jobs/schedules?schedule=${jhaData.schedule_id}`,
-                                createdBy: 'system',
+                                metadata: { creatorName, creatorImage },
+                                createdBy: recipientEmail,
                                 createdAt: new Date()
                             });
 
@@ -287,12 +287,19 @@ export async function POST(request: NextRequest) {
                     : await JHA.findOne({ schedule_id }).lean();
                 if (!jha) return NextResponse.json({ success: false, error: 'Not Found' });
 
-                const signatures = await JHASignature.find({ schedule_id: (jha as any).schedule_id });
+                // Signatures are now embedded in the JHA record (single source of truth)
+                // Fallback to JHASignature collection for legacy records without embedded signatures
+                let signatures = (jha as any).signatures || [];
+                if (signatures.length === 0) {
+                    signatures = await JHASignature.find({ schedule_id: (jha as any).schedule_id }).lean();
+                }
                 
                 // Also fetch the schedule for context
                 let scheduleDoc = null;
                 if ((jha as any).schedule_id) {
-                    scheduleDoc = await Schedule.findById((jha as any).schedule_id).lean();
+                    scheduleDoc = await Schedule.findById((jha as any).schedule_id)
+                        .select('_id title estimate customerId customerName fromDate toDate foremanName projectManager assignees jobLocation')
+                        .lean();
                 }
                 
                 return NextResponse.json({ success: true, jha: { ...(jha as any), signatures, scheduleRef: scheduleDoc } });
@@ -371,21 +378,39 @@ export async function POST(request: NextRequest) {
             }
             
             case 'deleteJHA': {
-                const { id, userId } = payload || {};
+                const { id, schedule_id: payloadScheduleId, userId } = payload || {};
                 if (!id) return NextResponse.json({ success: false, error: 'Missing ID' });
                 
-                // 1. Get JHA to find schedule_id
-                const jha = await JHA.findById(id);
-                if (!jha) return NextResponse.json({ success: false, error: 'JHA not found' });
+                // 1. Use raw driver — _id is ObjectId in DB but arrives as string
+                const db = mongoose.connection.db!;
+                const jhasCol = db.collection('jhas');
+                const { ObjectId } = require('mongodb');
+                
+                // Build the _id query: try ObjectId first, fallback to string
+                let idQuery: any;
+                try { idQuery = new ObjectId(id); } catch { idQuery = id; }
+                
+                // Get the JHA first to extract schedule_id
+                const jha = await jhasCol.findOne({ _id: idQuery });
+                const schedId = jha?.schedule_id || payloadScheduleId;
                 
                 // 2. Delete JHA
-                await JHA.findByIdAndDelete(id);
+                const delResult = await jhasCol.deleteOne({ _id: idQuery });
+                // Fallback: try the other type if nothing was deleted
+                if (delResult.deletedCount === 0) {
+                    await jhasCol.deleteOne({ _id: id as any });
+                }
                 
-                // 3. Remove from Schedule
-                if (jha.schedule_id) {
-                    await Schedule.findByIdAndUpdate(jha.schedule_id, { 
-                        $unset: { jha: 1 } 
-                    });
+                // 3. Set hasJHA: false on Schedule using raw driver (same type issue)
+                if (schedId) {
+                    const schedsCol = db.collection('devcoschedules');
+                    let schedQuery: any;
+                    try { schedQuery = new ObjectId(String(schedId)); } catch { schedQuery = String(schedId); }
+                    const flagResult = await schedsCol.updateOne({ _id: schedQuery }, { $set: { hasJHA: false } });
+                    // Fallback: try string if ObjectId didn't match
+                    if (flagResult.modifiedCount === 0) {
+                        await schedsCol.updateOne({ _id: String(schedId) as any }, { $set: { hasJHA: false } });
+                    }
                 }
                 
                 // 4. Log Activity
@@ -472,7 +497,7 @@ export async function POST(request: NextRequest) {
                     commentsOnPinchPoints: 1, commentsOnSharpObjects: 1, commentsOnTrippingHazards: 1,
                     commentsOnOther: 1, anySpecificNotes: 1, nameOfHospital: 1, addressOfHospital: 1,
                     clientEmail: 1, emailCounter: 1,
-                    signatures: { $ifNull: ['$scheduleDocs.JHASignatures', '$signatures', []] },
+                    signatures: { $ifNull: ['$signatures', []] },
                     scheduleRef: {
                         $mergeObjects: [
                             '$scheduleDocs',

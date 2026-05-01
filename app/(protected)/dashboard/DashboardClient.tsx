@@ -915,7 +915,7 @@ function DashboardContent({ initialWeek, initialScope, initialSchedulesData }: {
                     setSelectedJHA((prev: any) => ({ ...prev, ...data.result }));
                     setSchedules((prevSchedules) => prevSchedules.map(s => {
                         if (s._id === (selectedJHA.schedule_id || selectedJHA._id)) {
-                            return { ...s, hasJHA: true, jha: data.result };
+                            return { ...s, hasJHA: true };
                         }
                         return s;
                     }));
@@ -1734,23 +1734,19 @@ function DashboardContent({ initialWeek, initialScope, initialSchedulesData }: {
                                 }}
                                 onViewJHA={(item) => {
                                     const loadingId = toast.loading('Loading JHA details...');
-                                    fetch('/api/schedules', {
+                                    fetch('/api/jha', {
                                         method: 'POST',
                                         headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ action: 'getScheduleById', payload: { id: item._id } })
+                                        body: JSON.stringify({ action: 'getJHA', payload: { schedule_id: item._id } })
                                     })
                                     .then(r => r.json())
                                     .then(data => {
                                         toast.dismiss(loadingId);
-                                        if (data.success && data.result) {
-                                            const fullSchedule = data.result;
-                                            const jhaWithSigs = { 
-                                                ...fullSchedule.jha, 
-                                                signatures: fullSchedule.JHASignatures || fullSchedule.jha?.signatures || [] 
-                                            };
-                                            if (!jhaWithSigs.schedule_id) jhaWithSigs.schedule_id = fullSchedule._id;
+                                        if (data.success && data.jha) {
+                                            const jhaData = data.jha;
+                                            if (!jhaData.schedule_id) jhaData.schedule_id = item._id;
                                             
-                                            setSelectedJHA(jhaWithSigs);
+                                            setSelectedJHA(jhaData);
                                             setIsJhaEditMode(false);
                                             setJhaModalOpen(true);
                                         } else {

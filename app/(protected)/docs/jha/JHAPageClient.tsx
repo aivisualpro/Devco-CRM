@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { 
     Header, Pagination, Button,
-    Modal, SearchableSelect
+    Modal, SearchableSelect, ConfirmModal
 } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/useToast';
@@ -106,6 +106,10 @@ export default function JHAPageClient({ initialJhas = [], initialTotal = 0 }: { 
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [selectedScheduleId, setSelectedScheduleId] = useState('');
 
+    // Delete confirm modal
+    const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+    const [jhaToDelete, setJhaToDelete] = useState<JHA | null>(null);
+
     // Mobile action sheet
     const [actionSheetItem, setActionSheetItem] = useState<JHA | null>(null);
     const longPressTimer = useRef<NodeJS.Timeout | null>(null);
@@ -149,10 +153,11 @@ export default function JHAPageClient({ initialJhas = [], initialTotal = 0 }: { 
     const fetchSupportingData = async () => {
         if (supportLoaded) return;
         try {
+            const safeJson = async (r: Response) => { if (!r.ok) return {}; try { return await r.json(); } catch { return {}; } };
             const [schedRes, estRes, clientRes] = await Promise.all([
-                fetch(`/api/schedules?from=${new Date(new Date().setMonth(new Date().getMonth() - 2)).toISOString().split('T')[0]}&limit=500`).then(r => r.json()),
-                fetch(`/api/estimates?limit=100`).then(r => r.json()),
-                fetch(`/api/clients?limit=200`).then(r => r.json()),
+                fetch(`/api/schedules?from=${new Date(new Date().setMonth(new Date().getMonth() - 2)).toISOString().split('T')[0]}&limit=500`).then(safeJson),
+                fetch(`/api/estimates?limit=100`).then(safeJson),
+                fetch(`/api/clients?limit=200`).then(safeJson),
             ]);
 
             if (schedRes?.success) setSchedules(schedRes.result?.schedules || schedRes.result || []);
@@ -269,26 +274,32 @@ export default function JHAPageClient({ initialJhas = [], initialTotal = 0 }: { 
         setIsJHAModalOpen(true);
     };
 
-    const handleDelete = async (jha: any) => {
-        if (!confirm('Are you sure you want to delete this JHA?')) return;
+    const handleDeleteClick = (jha: any) => {
+        setJhaToDelete(jha);
+        setIsDeleteConfirmOpen(true);
+    };
 
+    const handleDeleteConfirm = async () => {
+        if (!jhaToDelete) return;
+        setIsDeleteConfirmOpen(false);
         try {
             const res = await fetch('/api/jha', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'deleteJHA', payload: { id: jha._id } })
+                body: JSON.stringify({ action: 'deleteJHA', payload: { id: jhaToDelete._id, schedule_id: jhaToDelete.schedule_id } })
             });
-
             const data = await res.json();
             if (data.success) {
                 success('JHA deleted successfully');
                 fetchJHAs();
             } else {
-                error('Failed to delete JHA');
+                error(data.error || 'Failed to delete JHA');
             }
         } catch (err) {
             console.error(err);
             error('An error occurred');
+        } finally {
+            setJhaToDelete(null);
         }
     };
 
@@ -638,7 +649,7 @@ export default function JHAPageClient({ initialJhas = [], initialTotal = 0 }: { 
                                         canDelete={canDelete}
                                         onView={handleViewOpen}
                                         onEdit={handleEditOpen}
-                                        onDelete={handleDelete}
+                                        onDelete={handleDeleteClick}
                                         onDownloadPDF={handleDownloadPDF}
                                         onEmail={handleEmailJHA}
                                         router={router}
@@ -700,7 +711,7 @@ export default function JHAPageClient({ initialJhas = [], initialTotal = 0 }: { 
                             )}
                             {canDelete && (
                                 <button
-                                    onClick={() => { handleDelete(actionSheetItem); setActionSheetItem(null); }}
+                                    onClick={() => { handleDeleteClick(actionSheetItem); setActionSheetItem(null); }}
                                     className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50"
                                 >
                                     <Trash2 size={18} /> Delete
@@ -781,6 +792,18 @@ export default function JHAPageClient({ initialJhas = [], initialTotal = 0 }: { 
                 handleEmailConfirm={handleConfirmEmail}
                 isSending={isSendingEmail}
                 title="Email JHA Document"
+            />
+
+            {/* Delete Confirm Modal */}
+            <ConfirmModal
+                isOpen={isDeleteConfirmOpen}
+                onClose={() => { setIsDeleteConfirmOpen(false); setJhaToDelete(null); }}
+                onConfirm={handleDeleteConfirm}
+                title="Delete JHA"
+                message="Are you sure you want to delete this JHA? This action cannot be undone."
+                confirmText="Delete"
+                cancelText="Cancel"
+                variant="danger"
             />
         </div>
     );
