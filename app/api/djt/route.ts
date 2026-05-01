@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
                     // OPTIMIZED PATH: No Search - fast find + manual join
                     const totalPromise = DailyJobTicket.countDocuments(baseQuery);
                     const djts = await DailyJobTicket.find(baseQuery)
-                        .sort({ date: -1, createdAt: -1 })
+                        .sort({ fromDate: -1, createdAt: -1 })
                         .skip(skip)
                         .limit(limit)
                         .lean();
@@ -244,7 +244,7 @@ export async function POST(request: NextRequest) {
                                 ]
                             }
                         },
-                        { $sort: { date: -1, createdAt: -1 } },
+                        { $sort: { fromDate: -1, createdAt: -1 } },
                         {
                             $facet: {
                                 metadata: [{ $count: "total" }],

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Check, Edit, Trash2, User, Download, Mail, Loader2 } from 'lucide-react';
-import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
+import React, { useState, useRef, useMemo } from 'react';
+import { Check, Edit, Trash2, User, Download, Mail, Loader2, Camera, ChevronLeft, ChevronRight, X, DollarSign, Calendar } from 'lucide-react';
+import { formatWallDate } from '@/lib/format/date';
+import { cld } from '@/lib/cld';
 
 interface DJTCardProps {
     djt: any;
@@ -36,96 +37,178 @@ export const DJTCard: React.FC<DJTCardProps> = ({
     router
 }) => {
     const [isDownloading, setIsDownloading] = useState(false);
-    
-    // date
-    const dateStr = (djt.date || schedule?.fromDate) ? formatWallDate(djt.date || schedule?.fromDate) : 'N/A';
+    const sigScrollRef = useRef<HTMLDivElement>(null);
+    const imgScrollRef = useRef<HTMLDivElement>(null);
+    const [selectedSigIndex, setSelectedSigIndex] = useState<number | null>(null);
+    const [selectedImgIndex, setSelectedImgIndex] = useState<number | null>(null);
+
+    // Data
+    const dateStr = (djt.fromDate || djt.date || schedule?.fromDate) ? formatWallDate(djt.fromDate || djt.date || schedule?.fromDate) : 'N/A';
     const creator = employees.find(e => e.value === djt.createdBy);
     const hasCustSig = !!djt.customerSignature;
     const eqCount = (djt.equipmentUsed || []).length;
+    const emailCount = djt.emailCounter || (djt.djtEmails || []).length || 0;
+    const djtCost = djt.djtCost || 0;
+    const signatures = djt.signatures || [];
+    const djtImages = djt.djtimages || [];
+    const scheduleTitle = schedule?.title || djt.scheduleRef?.title || 'No Title';
+
+    const scrollCarousel = (ref: React.RefObject<HTMLDivElement | null>, dir: 'left' | 'right') => {
+        if (!ref.current) return;
+        ref.current.scrollBy({ left: dir === 'left' ? -180 : 180, behavior: 'smooth' });
+    };
 
     return (
         <div
-            className="group relative bg-white rounded-2xl border border-slate-200 hover:border-[#0F4C75]/40 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden cursor-pointer flex flex-col"
+            className="group relative bg-white rounded-2xl border border-slate-200 hover:border-cyan-400/50 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden cursor-pointer flex flex-col"
             onClick={() => onView(djt)}
         >
-            <div className="p-5 flex flex-col gap-4 flex-1">
-                {/* Top Section */}
-                <div className="flex flex-col gap-1.5">
-                    {/* Row 1: Date & Time + Estimate */}
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-slate-800">
-                            <p className="text-sm font-bold">{dateStr} <span className="text-slate-400 font-medium ml-1">at {djt.djtTime || '--:--'}</span></p>
-                        </div>
-                        {canViewEstimates && schedule?.estimate ? (
-                            <button 
-                                onMouseEnter={() => router.prefetch(`/estimates/${schedule.estimate}`)} onClick={(e) => { e.stopPropagation(); router.push(`/estimates/${schedule.estimate}`); }}
-                                className="bg-[#0F4C75]/10 text-[#0F4C75] hover:bg-[#0F4C75]/20 text-[11px] font-bold px-2.5 py-1 rounded-md transition-colors"
-                            >
-                                {schedule.estimate}
-                            </button>
-                        ) : (
-                            <span className="bg-slate-100/80 text-slate-500 text-[11px] font-bold px-2.5 py-1 rounded-md border border-slate-200/60">
-                                {schedule?.estimate || 'No Est'}
+            <div className="p-4 flex flex-col gap-3 flex-1">
+                {/* Row 1: fromDate + Chips (emailCounter, djtCost) */}
+                <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                        <Calendar size={12} className="text-slate-400" />
+                        <span className="text-sm font-bold text-slate-800">{dateStr}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                        {emailCount > 0 && (
+                            <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100">
+                                <Mail size={9} /> {emailCount}
                             </span>
                         )}
-                    </div>
-
-                    {/* Row 2: Customer Name */}
-                    <div>
-                        <p className="text-base font-extrabold text-[#0F4C75] leading-tight line-clamp-1">{clientName}</p>
-                    </div>
-
-                    {/* Row 3: Schedule Title */}
-                    <div>
-                        <p className="text-sm font-semibold text-slate-700 line-clamp-1">{schedule?.title || 'No Title'}</p>
+                        <span className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${djtCost > 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-400 border-slate-100'}`}>
+                            <DollarSign size={9} /> {djtCost > 0 ? `$${djtCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '$0'}
+                        </span>
                     </div>
                 </div>
 
-                {/* Row 4: Assignees */}
-                {schedule && schedule.assignees && schedule.assignees.length > 0 && (
+                {/* Row 2: Schedule Title */}
+                <div>
+                    <p className="text-sm font-extrabold text-[#0F4C75] leading-tight line-clamp-2">{scheduleTitle}</p>
+                </div>
+
+                {/* Row 3: dailyJobDescription (scrollable box like Billing Tickets) */}
+                {djt.dailyJobDescription && (
+                    <div className="text-[12px] text-slate-600 leading-relaxed bg-cyan-50/40 p-2.5 rounded-lg border border-cyan-100/50 overflow-y-auto max-h-20" onClick={e => e.stopPropagation()}>
+                        {djt.dailyJobDescription}
+                    </div>
+                )}
+
+                {/* Row 4: Signatures Carousel */}
+                {signatures.length > 0 && (
                     <div className="flex flex-col pt-2 border-t border-slate-100">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Assignees</p>
-                        <div className="grid grid-cols-2 gap-2">
-                            {schedule.assignees.map((assigneeEmail: string, i: number) => {
-                                const emp = employees.find(e => e.value === assigneeEmail);
-                                const hasSigned = (djt.signatures || []).some((s: any) => s.employee === assigneeEmail);
-                                return (
-                                    <div key={i} className="flex items-center justify-between bg-slate-50 rounded-lg p-2 border border-slate-100 min-w-0">
-                                        <div className="flex items-center gap-2 min-w-0">
-                                            <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center shrink-0 overflow-hidden shadow-sm">
-                                                {emp?.image ? <img src={emp.image} className="w-full h-full object-cover" alt={emp?.label} /> : <User size={12} className="text-slate-500" />}
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Signatures ({signatures.length})</p>
+                        <div className="relative rounded-xl overflow-hidden" onClick={e => e.stopPropagation()}>
+                            <div
+                                ref={sigScrollRef}
+                                className="flex gap-0.5 overflow-x-auto"
+                                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                            >
+                                {signatures.map((sig: any, i: number) => {
+                                    const emp = employees.find(e => e.value === sig.employee);
+                                    return (
+                                        <div
+                                            key={i}
+                                            className="shrink-0 w-[80px] h-[52px] bg-slate-50 border border-slate-100 rounded-lg overflow-hidden cursor-pointer relative group/sig"
+                                            onClick={() => setSelectedSigIndex(i)}
+                                        >
+                                            {sig.signature ? (
+                                                <img
+                                                    src={sig.signature}
+                                                    alt={emp?.label || sig.employee}
+                                                    className="w-full h-full object-contain p-1"
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-[8px] text-slate-400 font-bold">No Sig</div>
+                                            )}
+                                            {/* Name overlay */}
+                                            <div className="absolute bottom-0 inset-x-0 bg-black/50 text-white text-[7px] font-bold text-center py-0.5 truncate px-1">
+                                                {emp?.label || sig.employee?.split('@')[0] || 'Unknown'}
                                             </div>
-                                            <span className="text-[11px] font-medium text-slate-700 truncate">{emp?.label || assigneeEmail}</span>
                                         </div>
-                                        {hasSigned && (
-                                            <div className="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center shadow-sm shrink-0">
-                                                <Check size={8} className="text-white font-bold" />
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
+                                    );
+                                })}
+                            </div>
+                            {signatures.length > 3 && (
+                                <>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); scrollCarousel(sigScrollRef, 'left'); }}
+                                        className="absolute left-1 top-1/2 -translate-y-1/2 w-5 h-5 bg-white/90 backdrop-blur-sm rounded-full shadow flex items-center justify-center text-slate-600 hover:bg-white transition-colors opacity-0 group-hover:opacity-100"
+                                    ><ChevronLeft size={12} /></button>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); scrollCarousel(sigScrollRef, 'right'); }}
+                                        className="absolute right-1 top-1/2 -translate-y-1/2 w-5 h-5 bg-white/90 backdrop-blur-sm rounded-full shadow flex items-center justify-center text-slate-600 hover:bg-white transition-colors opacity-0 group-hover:opacity-100"
+                                    ><ChevronRight size={12} /></button>
+                                </>
+                            )}
                         </div>
                     </div>
                 )}
 
-                {/* Row 5: Customer Signature Name and Checkmark */}
+                {/* Row 5: Customer Print Name & Customer Signature */}
                 <div className="flex flex-col pt-2 border-t border-slate-100">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Customer Signature</p>
-                    <div className="flex items-center justify-between bg-slate-50 rounded-lg p-2 border border-slate-100 min-w-0">
-                        <div className="flex items-center gap-2 min-w-0">
-                            <span className="text-[11px] font-medium text-slate-700 truncate">{djt.customerPrintName || clientName || 'Customer'}</span>
-                        </div>
-                        {hasCustSig && (
-                            <div className="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center shadow-sm shrink-0">
-                                <Check size={8} className="text-white font-bold" />
-                            </div>
+                    <div className="flex items-center gap-3 bg-slate-50 rounded-lg p-2 border border-slate-100">
+                        <span className="text-[11px] font-medium text-slate-700 truncate flex-1">{djt.customerPrintName || clientName || 'Customer'}</span>
+                        {hasCustSig ? (
+                            <img
+                                src={djt.customerSignature}
+                                alt="Customer Signature"
+                                className="h-8 max-w-[80px] object-contain bg-white rounded border border-slate-200 p-0.5"
+                            />
+                        ) : (
+                            <span className="text-[9px] text-slate-400 italic">Not signed</span>
                         )}
                     </div>
                 </div>
 
-                {/* Row 6: Equipment Used */}
-                <div className="flex flex-col pt-2 border-t border-slate-100 mb-2">
+                {/* Row 6: DJT Images Carousel */}
+                {djtImages.length > 0 && (
+                    <div className="flex flex-col pt-2 border-t border-slate-100">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Photos ({djtImages.length})</p>
+                        <div className="relative rounded-xl overflow-hidden" onClick={e => e.stopPropagation()}>
+                            <div
+                                ref={imgScrollRef}
+                                className="flex gap-0.5 overflow-x-auto"
+                                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                            >
+                                {djtImages.map((photo: string, i: number) => (
+                                    <div
+                                        key={i}
+                                        className="shrink-0 w-[72px] h-[56px] bg-slate-100 overflow-hidden cursor-pointer rounded-md"
+                                        onClick={() => setSelectedImgIndex(i)}
+                                    >
+                                        <img
+                                            src={cld(photo, { w: 144, h: 112, q: 'auto' })}
+                                            alt={`DJT Photo ${i + 1}`}
+                                            loading="lazy"
+                                            className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                            {/* Photo count badge */}
+                            <div className="absolute top-1.5 right-1.5 bg-black/60 backdrop-blur-sm text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1">
+                                <Camera size={9} /> {djtImages.length}
+                            </div>
+                            {djtImages.length > 4 && (
+                                <>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); scrollCarousel(imgScrollRef, 'left'); }}
+                                        className="absolute left-1 top-1/2 -translate-y-1/2 w-5 h-5 bg-white/90 backdrop-blur-sm rounded-full shadow flex items-center justify-center text-slate-600 hover:bg-white transition-colors opacity-0 group-hover:opacity-100"
+                                    ><ChevronLeft size={12} /></button>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); scrollCarousel(imgScrollRef, 'right'); }}
+                                        className="absolute right-1 top-1/2 -translate-y-1/2 w-5 h-5 bg-white/90 backdrop-blur-sm rounded-full shadow flex items-center justify-center text-slate-600 hover:bg-white transition-colors opacity-0 group-hover:opacity-100"
+                                    ><ChevronRight size={12} /></button>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Row 7: Equipment Used (table — same as before) */}
+                <div className="flex flex-col pt-2 border-t border-slate-100">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Equipment Used</p>
                     {eqCount > 0 ? (
                         <div className="w-full border border-slate-200 rounded-lg overflow-hidden bg-white">
@@ -163,9 +246,9 @@ export const DJTCard: React.FC<DJTCardProps> = ({
                 </div>
             </div>
 
-            {/* Row 7: Footer - Created By & Actions */}
-            <div className="px-5 py-3.5 border-t border-slate-100 bg-slate-50 flex items-center justify-between mt-auto">
-                <div className="flex items-center gap-2.5 min-w-0">
+            {/* Footer - Created By, createdAt & Actions */}
+            <div className="px-4 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between mt-auto">
+                <div className="flex items-center gap-2 min-w-0">
                     {creator ? (
                         <div className="w-6 h-6 rounded-full bg-slate-200 overflow-hidden shrink-0 shadow-inner">
                             {creator.image ? <img src={creator.image} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-slate-500">{creator.label?.[0]}</div>}
@@ -205,6 +288,117 @@ export const DJTCard: React.FC<DJTCardProps> = ({
                     )}
                 </div>
             </div>
+
+            {/* Signature Lightbox */}
+            {selectedSigIndex !== null && (
+                <div 
+                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm"
+                    onClick={(e) => { e.stopPropagation(); setSelectedSigIndex(null); }}
+                >
+                    <button 
+                        className="absolute top-4 right-4 text-white/70 hover:text-white p-2"
+                        onClick={(e) => { e.stopPropagation(); setSelectedSigIndex(null); }}
+                    >
+                        <X size={24} />
+                    </button>
+                    
+                    {signatures.length > 1 && (
+                        <button 
+                            className="absolute left-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white p-3 rounded-full hover:bg-white/10 transition-colors"
+                            onClick={(e) => { 
+                                e.stopPropagation(); 
+                                setSelectedSigIndex((prev) => prev! === 0 ? signatures.length - 1 : prev! - 1); 
+                            }}
+                        >
+                            <ChevronLeft size={32} />
+                        </button>
+                    )}
+                    
+                    <div className="flex flex-col items-center gap-4">
+                        <div className="bg-white rounded-2xl p-6 max-w-[90vw] max-h-[70vh]">
+                            <img 
+                                src={signatures[selectedSigIndex]?.signature} 
+                                alt="Signature"
+                                className="max-w-[500px] max-h-[300px] object-contain"
+                                onClick={(e) => e.stopPropagation()}
+                            />
+                        </div>
+                        <div className="text-white text-sm font-bold">
+                            {(() => {
+                                const sig = signatures[selectedSigIndex];
+                                const emp = employees.find(e => e.value === sig?.employee);
+                                return emp?.label || sig?.employee || 'Unknown';
+                            })()}
+                        </div>
+                    </div>
+                    
+                    {signatures.length > 1 && (
+                        <button 
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white p-3 rounded-full hover:bg-white/10 transition-colors"
+                            onClick={(e) => { 
+                                e.stopPropagation(); 
+                                setSelectedSigIndex((prev) => prev! === signatures.length - 1 ? 0 : prev! + 1); 
+                            }}
+                        >
+                            <ChevronRight size={32} />
+                        </button>
+                    )}
+                    
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/70 text-sm font-medium">
+                        {selectedSigIndex + 1} / {signatures.length}
+                    </div>
+                </div>
+            )}
+
+            {/* Image Lightbox */}
+            {selectedImgIndex !== null && (
+                <div 
+                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm"
+                    onClick={(e) => { e.stopPropagation(); setSelectedImgIndex(null); }}
+                >
+                    <button 
+                        className="absolute top-4 right-4 text-white/70 hover:text-white p-2"
+                        onClick={(e) => { e.stopPropagation(); setSelectedImgIndex(null); }}
+                    >
+                        <X size={24} />
+                    </button>
+                    
+                    {djtImages.length > 1 && (
+                        <button 
+                            className="absolute left-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white p-3 rounded-full hover:bg-white/10 transition-colors"
+                            onClick={(e) => { 
+                                e.stopPropagation(); 
+                                setSelectedImgIndex((prev) => prev! === 0 ? djtImages.length - 1 : prev! - 1); 
+                            }}
+                        >
+                            <ChevronLeft size={32} />
+                        </button>
+                    )}
+                    
+                    <img 
+                        src={cld(djtImages[selectedImgIndex], { w: 1200, h: 1200, q: 'auto' })} 
+                        alt="DJT Photo Fullscreen"
+                        className="max-w-[90vw] max-h-[90vh] object-contain rounded-xl"
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                    
+                    {djtImages.length > 1 && (
+                        <button 
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white p-3 rounded-full hover:bg-white/10 transition-colors"
+                            onClick={(e) => { 
+                                e.stopPropagation(); 
+                                setSelectedImgIndex((prev) => prev! === djtImages.length - 1 ? 0 : prev! + 1); 
+                            }}
+                        >
+                            <ChevronRight size={32} />
+                        </button>
+                    )}
+                    
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/70 text-sm font-medium">
+                        {selectedImgIndex + 1} / {djtImages.length}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

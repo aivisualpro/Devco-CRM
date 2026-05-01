@@ -392,6 +392,12 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         if (djtData.success && djtData.result?.djts) {
             const filtered = djtData.result.djts.filter((d: any) => scheduleIds.includes(String(d.schedule_id || '')));
             const uniqueDjts = Array.from(new Map(filtered.map((d: any) => [String(d.schedule_id), d])).values());
+            // Sort by fromDate descending (newest first)
+            uniqueDjts.sort((a: any, b: any) => {
+                const dateA = new Date(a.fromDate || a.date || a.createdAt || 0).getTime();
+                const dateB = new Date(b.fromDate || b.date || b.createdAt || 0).getTime();
+                return dateB - dateA;
+            });
             setJobTicketRecords(uniqueDjts);
         }
 
