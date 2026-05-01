@@ -3,6 +3,7 @@
 import { cld } from '@/lib/cld';
 import Image from 'next/image';
 import React, { useState, useMemo } from 'react';
+import useSWR from 'swr';
 import { CalendarClock } from 'lucide-react';
 import { ScheduleCard, ScheduleItem } from '@/app/(protected)/jobs/schedules/components/ScheduleCard';
 import { ScheduleFormModal } from '@/app/(protected)/jobs/schedules/components/ScheduleFormModal';
@@ -242,6 +243,22 @@ export const EstimateScheduleCard: React.FC<EstimateScheduleCardProps> = ({
     };
 
     // Calculate Costs
+    // Fetch DJTs from dailyjobtickets collection (single source of truth)
+    const scheduleIds = useMemo(() => schedules.map(s => String(s._id)), [schedules]);
+    const { data: djtData } = useSWR(
+        scheduleIds.length > 0 ? ['/api/djt', 'stats', ...scheduleIds] : null,
+        async () => {
+            const res = await fetch('/api/djt', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'getDJTs', payload: { scheduleIds, page: 1, limit: 500 } })
+            });
+            const data = await res.json();
+            return data.success ? (data.result?.djts || []) : [];
+        },
+        { revalidateOnFocus: false, dedupingInterval: 60000 }
+    );
+
     const { equipmentTotal, overheadTotal, djtCount } = useMemo(() => {
         let eqTotal = 0;
         let ovCounts = 0;
@@ -258,20 +275,18 @@ export const EstimateScheduleCard: React.FC<EstimateScheduleCardProps> = ({
         const riskFactor = getRate('Risk Factor');
         const dailyOverheadRate = devcoOverhead + riskFactor;
 
-        schedules.forEach(schedule => {
+        // Use DJTs from dailyjobtickets collection (source of truth)
+        const djts = djtData || [];
+        djts.forEach((djt: any) => {
             // Equipment Cost (Owned only)
-            if (schedule.djt?.equipmentUsed && Array.isArray(schedule.djt.equipmentUsed)) {
-                schedule.djt.equipmentUsed.forEach((eq: any) => {
+            if (djt.equipmentUsed && Array.isArray(djt.equipmentUsed)) {
+                djt.equipmentUsed.forEach((eq: any) => {
                     if (eq.type?.toLowerCase() === 'owned') {
                         eqTotal += (Number(eq.qty) || 0) * (Number(eq.cost) || 0);
                     }
                 });
             }
-
-            // Overhead Count (Schedules with DJT)
-            if (schedule.hasDJT) {
-                ovCounts++;
-            }
+            ovCounts++;
         });
 
         return { 
@@ -279,7 +294,7 @@ export const EstimateScheduleCard: React.FC<EstimateScheduleCardProps> = ({
             overheadTotal: ovCounts * dailyOverheadRate,
             djtCount: ovCounts
         };
-    }, [schedules, allConstants, overheadCatalog]);
+    }, [djtData, allConstants, overheadCatalog]);
 
     const totalCost = equipmentTotal + overheadTotal;
     const formatCurrency = (val: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);

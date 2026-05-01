@@ -5,7 +5,7 @@ import {
     Plus, Search, FileText, Edit, Trash2, Loader2, Check
 } from 'lucide-react';
 import { 
-    Header, Pagination, Button,
+    Header, Button,
     Modal, SearchableSelect
 } from '@/components/ui';
 import { cn } from '@/lib/utils';
@@ -90,6 +90,9 @@ export default function JobTicketPageClient({ initialDjts = [], initialTotal = 0
     const [clients, setClients] = useState<any[]>([]); 
     const [equipmentItems, setEquipmentItems] = useState<any[]>([]); 
     const [loading, setLoading] = useState(initialDjts.length === 0);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [hasMore, setHasMore] = useState(initialTotal > initialDjts.length);
+    const sentinelRef = useRef<HTMLDivElement>(null);
 
     // UI State
     const [search, setSearch] = useState('');
@@ -127,27 +130,31 @@ export default function JobTicketPageClient({ initialDjts = [], initialTotal = 0
     };
 
     // ── Phase 1: DJT records (fast — renders cards immediately) ──
-    const fetchDJTs = async () => {
-        setLoading(true);
+    const fetchDJTs = async (page: number = 1, append: boolean = false) => {
+        if (page === 1) setLoading(true);
+        else setLoadingMore(true);
         try {
             const res = await fetch('/api/djt', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     action: 'getDJTs',
-                    payload: { page: currentPage, limit: itemsPerPage, search }
+                    payload: { page, limit: itemsPerPage, search }
                 })
             });
             const data = await res.json();
             if (data?.success) {
-                setDjts(data.result.djts);
+                const newDjts = data.result.djts || [];
+                setDjts(prev => append ? [...prev, ...newDjts] : newDjts);
                 setTotalDJTs(data.result.total);
+                setHasMore((append ? djts.length + newDjts.length : newDjts.length) < data.result.total);
             }
         } catch (err) {
             console.error('Error fetching DJTs:', err);
             error('Failed to load Job Tickets');
         }
         setLoading(false);
+        setLoadingMore(false);
     };
 
     // ── Phase 2: Supporting data (lazy — only loads when create/edit modal needs it) ──
@@ -156,9 +163,9 @@ export default function JobTicketPageClient({ initialDjts = [], initialTotal = 0
         if (supportLoaded) return;
         try {
             const [schedRes, estRes, clientRes, eqRes] = await Promise.all([
-                fetch(`/api/schedules?from=${new Date(new Date().setMonth(new Date().getMonth() - 6)).toISOString().split('T')[0]}&limit=500`).then(r => r.json()),
-                fetch(`/api/estimates?limit=100`).then(r => r.json()),
-                fetch(`/api/clients?limit=200`).then(r => r.json()),
+                fetch(`/api/schedules?from=${new Date(new Date().setMonth(new Date().getMonth() - 6)).toISOString().split('T')[0]}&limit=500`).then(r => r.json()).catch(() => ({ success: false })),
+                fetch(`/api/estimates?limit=100`).then(r => r.json()).catch(() => ({ success: false })),
+                fetch(`/api/clients?limit=200`).then(r => r.json()).catch(() => ({ success: false })),
                 fetch('/api/catalogue?type=equipment').then(r => r.json()).catch(() => ({ success: false })),
             ]);
 
@@ -175,22 +182,33 @@ export default function JobTicketPageClient({ initialDjts = [], initialTotal = 0
     useEffect(() => {
         // Skip initial fetch if we have server-provided data and it's page 1 with no search
         if (initialDjts.length > 0 && currentPage === 1 && !search) return;
-        fetchDJTs();
+        fetchDJTs(currentPage, currentPage > 1);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentPage]);
 
-    // Search Debounce
     useEffect(() => {
         const timer = setTimeout(() => {
-            if (currentPage !== 1) {
-                setCurrentPage(1);
-            } else {
-                fetchDJTs();
-            }
+            setCurrentPage(1);
+            fetchDJTs(1, false);
         }, 500);
         return () => clearTimeout(timer);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [search]);
+
+    // Infinite scroll: auto-load when sentinel is visible
+    useEffect(() => {
+        if (!sentinelRef.current || !hasMore || loadingMore || loading) return;
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
+                    setCurrentPage(p => p + 1);
+                }
+            },
+            { rootMargin: '200px' }
+        );
+        observer.observe(sentinelRef.current);
+        return () => observer.disconnect();
+    }, [hasMore, loadingMore, loading, djts.length]);
 
     // Helper to get client name (Updated to use robust helper similar to JHA)
     const getClientName = (schedule: Schedule | undefined) => {
@@ -225,8 +243,7 @@ export default function JobTicketPageClient({ initialDjts = [], initialTotal = 0
             }));
     }, [schedules]);
 
-    const paginatedDJTs = djts; // Server paginated
-    const totalPages = Math.ceil(totalDJTs / itemsPerPage);
+    const paginatedDJTs = djts; // Accumulated via infinite scroll
 
     // Handlers
     const handleCreateOpen = () => {
@@ -626,7 +643,7 @@ export default function JobTicketPageClient({ initialDjts = [], initialTotal = 0
                         </div>
 
                         {/* Card Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-5">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 lg:gap-5">
                             {paginatedDJTs.map((djt: any, idx: number) => (
                                 <DJTCard
                                     key={djt._id || idx}
@@ -648,10 +665,27 @@ export default function JobTicketPageClient({ initialDjts = [], initialTotal = 0
                             ))}
                         </div>
 
-                        {/* Pagination */}
-                        {totalPages > 1 && (
-                            <div className="pt-6 pb-2">
-                                <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+                        {/* Infinite scroll sentinel */}
+                        {hasMore && (
+                            <div ref={sentinelRef} className="flex items-center justify-center py-8">
+                                {loadingMore ? (
+                                    <div className="flex items-center gap-2">
+                                        <Loader2 className="w-5 h-5 text-[#0F4C75] animate-spin" />
+                                        <span className="text-sm text-slate-500 font-medium">Loading more...</span>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={() => setCurrentPage(p => p + 1)}
+                                        className="px-6 py-2.5 text-sm font-bold text-[#0F4C75] bg-white border border-slate-200 rounded-full hover:bg-[#0F4C75]/5 hover:border-[#0F4C75]/30 transition-all shadow-sm"
+                                    >
+                                        Load More ({djts.length} of {totalDJTs})
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                        {!hasMore && djts.length > 0 && (
+                            <div className="text-center py-6">
+                                <span className="text-xs text-slate-400 font-medium">All {totalDJTs} tickets loaded</span>
                             </div>
                         )}
                     </>

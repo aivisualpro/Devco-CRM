@@ -62,20 +62,34 @@ export async function POST(request: NextRequest) {
 
                 const { _id, ...rest } = djtData;
 
-                // Auto-populate estimate and fromDate from schedule if not already set
-                if (djtData.schedule_id && (!rest.estimate || !rest.fromDate)) {
-                    const schedRef = await Schedule.findById(String(djtData.schedule_id)).select('estimate fromDate').lean();
+                // Always populate estimate and fromDate from the schedule (source of truth)
+                if (djtData.schedule_id) {
+                    console.log('[DJT SAVE] schedule_id:', djtData.schedule_id);
+                    const schedRef = await Schedule.findOne({ _id: String(djtData.schedule_id) }).select('estimate fromDate').lean();
+                    console.log('[DJT SAVE] schedRef found:', JSON.stringify(schedRef));
                     if (schedRef) {
-                        if (!rest.estimate && (schedRef as any).estimate) rest.estimate = (schedRef as any).estimate;
-                        if (!rest.fromDate && (schedRef as any).fromDate) rest.fromDate = (schedRef as any).fromDate;
+                        if ((schedRef as any).estimate) rest.estimate = (schedRef as any).estimate;
+                        if ((schedRef as any).fromDate) rest.fromDate = (schedRef as any).fromDate;
+                    } else {
+                        console.log('[DJT SAVE] WARNING: Schedule NOT found for id:', djtData.schedule_id);
                     }
+                    console.log('[DJT SAVE] rest.estimate after lookup:', rest.estimate);
+                    console.log('[DJT SAVE] rest.fromDate after lookup:', rest.fromDate);
+                } else {
+                    console.log('[DJT SAVE] No schedule_id in payload');
                 }
 
                 // 1. Upsert DailyJobTicket
+                // Clean out non-schema fields to prevent Mongoose strict-mode silently stripping estimate
+                delete rest.scheduleRef;
+                delete rest.scheduleTitle;
+                
+                console.log('[DJT SAVE] Final $set estimate:', rest.estimate, 'fromDate:', rest.fromDate);
+
                 const updatedDJT = await DailyJobTicket.findOneAndUpdate(
                     { _id: idToUse },
                     {
-                        $set: { ...rest },
+                        $set: { ...rest, estimate: rest.estimate || '', fromDate: rest.fromDate || null },
                         $setOnInsert: { createdAt: new Date() }
                     },
                     { upsert: true, new: true }

@@ -111,15 +111,26 @@ export const calculateTimesheetData = (ts: any, scheduleDate?: string) => {
                 const startStr = robustNormalizeISO(ts.clockIn);
                 const endStr = robustNormalizeISO(ts.clockOut);
 
-                const start = new Date(startStr).getTime();
-                const end = new Date(endStr).getTime();
-                let durationMs = end - start;
+                // Anchor both timestamps to the same base date so only time-of-day matters.
+                // clockIn and clockOut can be stored with different dates (e.g. clockOut from
+                // the day the entry was created vs clockIn from the schedule's fromDate).
+                const extractTime = (iso: string) => {
+                    const m = iso.match(/T(\d{2}:\d{2}:\d{2})/);
+                    return m ? m[1] : '00:00:00';
+                };
+                const baseDate = scheduleDate
+                    ? robustNormalizeISO(scheduleDate).split('T')[0]
+                    : startStr.split('T')[0];
+                const anchoredStart = new Date(`${baseDate}T${extractTime(startStr)}.000Z`).getTime();
+                const anchoredEnd = new Date(`${baseDate}T${extractTime(endStr)}.000Z`).getTime();
+
+                let durationMs = anchoredEnd - anchoredStart;
 
                 if (ts.lunchStart && ts.lunchEnd) {
                     const lStartStr = robustNormalizeISO(ts.lunchStart);
                     const lEndStr = robustNormalizeISO(ts.lunchEnd);
-                    const lStart = new Date(lStartStr).getTime();
-                    const lEnd = new Date(lEndStr).getTime();
+                    const lStart = new Date(`${baseDate}T${extractTime(lStartStr)}.000Z`).getTime();
+                    const lEnd = new Date(`${baseDate}T${extractTime(lEndStr)}.000Z`).getTime();
                     if (lEnd > lStart) durationMs -= (lEnd - lStart);
                 }
                 if (durationMs <= 0) return 0;
