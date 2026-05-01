@@ -191,7 +191,7 @@ export async function POST(req: Request) {
         let devcoCostMap = new Map<string, number>();
         try {
             const { default: OverheadItem } = await import('@/lib/models/OverheadItem');
-            const { Schedule } = await import('@/lib/models');
+            const { Schedule, DailyJobTicket } = await import('@/lib/models');
             const overheads = await OverheadItem.find({}).lean();
             const getOverheadCost = (name: string) => {
                 const item = (overheads as any[]).find(c => (c.overhead || '').trim().toLowerCase() === name.toLowerCase());
@@ -199,15 +199,24 @@ export async function POST(req: Request) {
             };
             const overheadRate = getOverheadCost('Devco Overhead') + getOverheadCost('Risk Factor');
 
+            // Source of truth: dailyjobtickets collection
             const schedules = await (Schedule as any).find(
                 { estimate: { $in: allProposalNumbers } },
-                { estimate: 1, djt: 1 }
+                { estimate: 1, _id: 1 }
             ).lean();
+
+            const scheduleIds = schedules.map((s: any) => String(s._id));
+            const djts = await DailyJobTicket.find(
+                { schedule_id: { $in: scheduleIds } },
+                { schedule_id: 1, djtCost: 1 }
+            ).lean();
+            const djtByScheduleId = new Map(djts.map((d: any) => [String(d.schedule_id), d]));
 
             schedules.forEach((s: any) => {
                 if (!s.estimate) return;
-                const equipmentCost = s.djt?.djtCost || 0;
-                const hasDjt = !!s.djt;
+                const djt = djtByScheduleId.get(String(s._id));
+                const equipmentCost = djt ? (Number(djt.djtCost) || 0) : 0;
+                const hasDjt = !!djt;
                 const ticketCost = hasDjt ? equipmentCost + overheadRate : 0;
                 devcoCostMap.set(s.estimate, (devcoCostMap.get(s.estimate) || 0) + ticketCost);
             });

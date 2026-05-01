@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { connectToDatabase } from '@/lib/db';
-import { Schedule, Employee, Constant } from '@/lib/models';
+import { Schedule, Employee, Constant, DailyJobTicket } from '@/lib/models';
 import { calculateTimesheetData, robustNormalizeISO } from '@/lib/timeCardUtils';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -40,7 +40,7 @@ async function generateDailySummaryHTML(dateStr: string): Promise<{ html: string
     // Fetch all schedules for today
     const schedules = await Schedule.find({
         fromDate: { $gte: dayStart, $lte: dayEnd }
-    }).select('title jobLocation assignees service item fromDate timesheet jha djt customerName estimate').lean();
+    }).select('title jobLocation assignees service item fromDate timesheet jha customerName estimate').lean();
 
     // ── 1. Today's Schedules ──
     const scheduleRows = (schedules as any[]).map(s => {
@@ -67,15 +67,23 @@ async function generateDailySummaryHTML(dateStr: string): Promise<{ html: string
             </tr>`;
     });
 
-    // ── 3. Today's Job Tickets (DJTs) ──
-    const djtSchedules = (schedules as any[]).filter(s => s.djt && s.djt._id);
+    // ── 3. Today's Job Tickets (DJTs) — from dailyjobtickets collection ──
+    const scheduleIds = (schedules as any[]).map(s => String(s._id));
+    const djtsForToday = await DailyJobTicket.find(
+        { schedule_id: { $in: scheduleIds } },
+        { schedule_id: 1, createdBy: 1 }
+    ).lean();
+    const djtByScheduleId = new Map(djtsForToday.map((d: any) => [String(d.schedule_id), d]));
+
+    const djtSchedules = (schedules as any[]).filter(s => djtByScheduleId.has(String(s._id)));
     const djtRows = djtSchedules.map(s => {
+        const djt = djtByScheduleId.get(String(s._id));
         return `
             <tr>
                 <td style="padding:10px 14px;border:1px solid #e2e8f0;font-size:13px;color:#334155;">${s.customerName || '--'}</td>
                 <td style="padding:10px 14px;border:1px solid #e2e8f0;font-size:13px;color:#334155;">${s.estimate || '--'}</td>
                 <td style="padding:10px 14px;border:1px solid #e2e8f0;font-size:13px;color:#334155;">${s.jobLocation || '--'}</td>
-                <td style="padding:10px 14px;border:1px solid #e2e8f0;font-size:13px;color:#334155;">${s.djt?.createdBy ? (empMap.get(s.djt.createdBy.toLowerCase()) || s.djt.createdBy) : '--'}</td>
+                <td style="padding:10px 14px;border:1px solid #e2e8f0;font-size:13px;color:#334155;">${djt?.createdBy ? (empMap.get(djt.createdBy.toLowerCase()) || djt.createdBy) : '--'}</td>
             </tr>`;
     });
 

@@ -68,7 +68,7 @@ export async function GET(
             standaloneDjts.forEach(d => djtMap.set(String(d.schedule_id), d));
 
             jobTickets = schedules.map(s => {
-                const djt = (s as any).djt || djtMap.get(String(s._id));
+                const djt = djtMap.get(String(s._id));
                 if (!djt) return null;
 
                 const equipmentUsed = djt.equipmentUsed || [];

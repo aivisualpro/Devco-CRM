@@ -3,6 +3,8 @@ import { IEquipmentUsed } from './Schedule';
 
 export interface IDailyJobTicket extends Document {
     schedule_id: string;
+    estimate?: string;
+    fromDate?: Date;
     dailyJobDescription: string;
     customerPrintName: string;
     customerSignature: string;
@@ -30,6 +32,8 @@ export interface IDailyJobTicket extends Document {
 const DailyJobTicketSchema: Schema = new Schema({
     _id: { type: String },
     schedule_id: { type: String, ref: 'Schedule', required: true },
+    estimate: { type: String, default: '' },
+    fromDate: { type: Date },
     dailyJobDescription: { type: String, default: '' },
     customerPrintName: { type: String, default: '' },
     customerSignature: { type: String, default: '' },
@@ -63,6 +67,7 @@ const DailyJobTicketSchema: Schema = new Schema({
 });
 
 DailyJobTicketSchema.index({ schedule_id: 1 });
+DailyJobTicketSchema.index({ estimate: 1 });
 DailyJobTicketSchema.index({ createdAt: -1 });
 DailyJobTicketSchema.index({ createdBy: 1, createdAt: -1 });
 

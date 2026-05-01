@@ -62,6 +62,15 @@ export async function POST(request: NextRequest) {
 
                 const { _id, ...rest } = djtData;
 
+                // Auto-populate estimate and fromDate from schedule if not already set
+                if (djtData.schedule_id && (!rest.estimate || !rest.fromDate)) {
+                    const schedRef = await Schedule.findById(String(djtData.schedule_id)).select('estimate fromDate').lean();
+                    if (schedRef) {
+                        if (!rest.estimate && (schedRef as any).estimate) rest.estimate = (schedRef as any).estimate;
+                        if (!rest.fromDate && (schedRef as any).fromDate) rest.fromDate = (schedRef as any).fromDate;
+                    }
+                }
+
                 // 1. Upsert DailyJobTicket
                 const updatedDJT = await DailyJobTicket.findOneAndUpdate(
                     { _id: idToUse },
@@ -72,19 +81,15 @@ export async function POST(request: NextRequest) {
                     { upsert: true, new: true }
                 );
 
-                // 2. Sync to Schedule
-                // Note: The frontend might be sending schedule_id or we rely on the one in djtData
-                // If it's a new DJT, we need to make sure we link it to the schedule
+                // 2. Set hasDJT flag on Schedule (lightweight — no full DJT copy)
                 if (djtData.schedule_id) {
                     try {
                         await Schedule.updateOne(
                             { _id: String(djtData.schedule_id) },
-                            { $set: { djt: updatedDJT.toObject() } }
+                            { $set: { hasDJT: true } }
                         );
                     } catch (syncError: any) {
-                        console.error('Error syncing DJT to Schedule:', syncError);
-                        // We still return true if the main DJT was saved, 
-                        // as the sync is secondary, or we can choose to fail.
+                        console.error('Error setting hasDJT flag on Schedule:', syncError);
                     }
 
                     // Log Activity
@@ -121,18 +126,26 @@ export async function POST(request: NextRequest) {
                 const djt = await DailyJobTicket.findOne(query).lean();
                 if (!djt) return NextResponse.json({ success: false, error: 'DJT not found' });
 
-                // Also fetch the schedule for context
+                // Fetch the schedule for context (lightweight — only metadata)
                 const scheduleId = (djt as any).schedule_id || schedule_id;
                 let scheduleDoc = null;
                 if (scheduleId) {
-                    scheduleDoc = await Schedule.findById(scheduleId).lean();
+                    scheduleDoc = await Schedule.findById(scheduleId)
+                        .select('_id title estimate customerId customerName fromDate toDate foremanName projectManager assignees jobLocation DJTSignatures')
+                        .lean();
                 }
+
+                // Source of truth: dailyjobtickets.signatures
+                // Fallback to Schedule.DJTSignatures only for legacy records
+                const signatures = (djt as any).signatures?.length > 0
+                    ? (djt as any).signatures
+                    : (scheduleDoc as any)?.DJTSignatures || [];
 
                 return NextResponse.json({
                     success: true,
                     result: {
                         ...djt,
-                        signatures: (scheduleDoc as any)?.DJTSignatures || (djt as any).signatures || [],
+                        signatures,
                         scheduleRef: scheduleDoc
                     }
                 });
@@ -272,11 +285,11 @@ export async function POST(request: NextRequest) {
                 // 1. Delete DJT
                 await DailyJobTicket.deleteOne({ _id: id });
 
-                // 2. Unlink from Schedule
+                // 2. Clear DJT flag on Schedule
                 if (djtToDelete.schedule_id) {
                     await Schedule.updateOne(
                         { _id: djtToDelete.schedule_id },
-                        { $unset: { djt: 1 } }
+                        { $set: { hasDJT: false }, $unset: { djt: 1 } }
                     );
                 }
 
@@ -315,9 +328,13 @@ export async function POST(request: NextRequest) {
 
                 if (!djt) {
                     // Automatically create a new DJT on the fly if it doesn't exist yet
+                    // Fetch estimate and fromDate from schedule
+                    const schedForEst = await Schedule.findById(schedule_id).select('estimate fromDate').lean();
                     djt = new DailyJobTicket({
                         _id: new mongoose.Types.ObjectId().toString(),
                         schedule_id: schedule_id,
+                        estimate: (schedForEst as any)?.estimate || '',
+                        fromDate: (schedForEst as any)?.fromDate || null,
                         createdBy: createdBy || employee || 'system',
                         createdAt: new Date(),
                         signatures: []
@@ -421,9 +438,7 @@ export async function POST(request: NextRequest) {
                         updateObj[`timesheet.${existingIndex}.updatedAt`] = clockOutISO;
                         
                         updateObj['DJTSignatures'] = updatedSignatures;
-                        if (schedule?.djt) {
-                            updateObj['djt.signatures'] = updatedSignatures;
-                        }
+                        updateObj['hasDJT'] = true;
 
                         await Schedule.updateOne(
                             { _id: djt.schedule_id },
@@ -431,10 +446,7 @@ export async function POST(request: NextRequest) {
                         );
                     } else {
                         // Push new timesheet record
-                        const setObj: any = { 'DJTSignatures': updatedSignatures };
-                        if (schedule?.djt) {
-                            setObj['djt.signatures'] = updatedSignatures;
-                        }
+                        const setObj: any = { 'DJTSignatures': updatedSignatures, 'hasDJT': true };
 
                         await Schedule.updateOne(
                             { _id: djt.schedule_id },
