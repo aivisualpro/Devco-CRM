@@ -13,6 +13,13 @@ const withSerwist = withSerwistInit({
 });
 
 const nextConfig: NextConfig = {
+  generateBuildId: async () => {
+    // Use the Vercel commit SHA or fall back to a timestamp-based ID
+    return process.env.VERCEL_GIT_COMMIT_SHA || `build-${Date.now()}`;
+  },
+  env: {
+    NEXT_BUILD_ID: process.env.VERCEL_GIT_COMMIT_SHA || `dev-${Date.now()}`,
+  },
   productionBrowserSourceMaps: false,
   compress: true,
   poweredByHeader: false,

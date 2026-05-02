@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
-import { JHA, Schedule, JHASignature, Activity, Notification, Employee } from '@/lib/models';
+import { JHA, Schedule, Activity, Notification, Employee } from '@/lib/models';
 import { v2 as cloudinary } from 'cloudinary';
 import { Resend } from 'resend';
 import mongoose from 'mongoose';
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
                     signatureUrl = uploadRes.secure_url;
                 }
 
-                // 2. Create JHASignature Record (dual-write backup)
+                // 2. Build signature document
                 const newId = new mongoose.Types.ObjectId().toString();
                 const sigDoc = {
                     _id: newId,
@@ -52,8 +52,6 @@ export async function POST(request: NextRequest) {
                     location,
                     createdAt: new Date()
                 };
-                
-                const newSig = await JHASignature.create(sigDoc);
 
                 // 3. Push signature into JHA record (SINGLE SOURCE OF TRUTH)
                 await JHA.findOneAndUpdate(
@@ -74,8 +72,8 @@ export async function POST(request: NextRequest) {
                     createdAt: new Date()
                 });
 
-                if (newSig?.createdAt) {
-                    revalidateTag(`dashboard-${getWeekIdFromDate(newSig.createdAt)}`, undefined as any);
+                if (sigDoc.createdAt) {
+                    revalidateTag(`dashboard-${getWeekIdFromDate(sigDoc.createdAt)}`, undefined as any);
                 }
 
                 return NextResponse.json({ success: true, result: sigDoc });
@@ -287,12 +285,8 @@ export async function POST(request: NextRequest) {
                     : await JHA.findOne({ schedule_id }).lean();
                 if (!jha) return NextResponse.json({ success: false, error: 'Not Found' });
 
-                // Signatures are now embedded in the JHA record (single source of truth)
-                // Fallback to JHASignature collection for legacy records without embedded signatures
-                let signatures = (jha as any).signatures || [];
-                if (signatures.length === 0) {
-                    signatures = await JHASignature.find({ schedule_id: (jha as any).schedule_id }).lean();
-                }
+                // Signatures are embedded in the JHA record (single source of truth)
+                const signatures = (jha as any).signatures || [];
                 
                 // Also fetch the schedule for context
                 let scheduleDoc = null;
@@ -305,77 +299,7 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ success: true, jha: { ...(jha as any), signatures, scheduleRef: scheduleDoc } });
             }
 
-            case 'importJHASignatures': {
-                const { records } = payload || {};
-                if (!Array.isArray(records)) return NextResponse.json({ success: false, error: 'Invalid JHA Signature records array' });
 
-                // 1. Pre-process records to ensure IDs and types are correct
-                const processedRecords = records.map((item: any) => {
-                     const { recordId, _id, ...rest } = item;
-                     // Ensure we have an ID to use
-                     const idToUse = recordId || _id || new mongoose.Types.ObjectId().toString();
-                     
-                     // Ensure dates are dates
-                     if (rest.createdAt) rest.createdAt = new Date(rest.createdAt);
-
-                     return {
-                        _id: idToUse,
-                        ...rest
-                     };
-                });
-
-                // 2. Bulk Upsert into JHASignature collection
-                const signatureOps = processedRecords.map((item: any) => {
-                     return {
-                        updateOne: {
-                            filter: { _id: item._id },
-                            update: {
-                                $set: item,
-                                $setOnInsert: { createdAt: new Date() }
-                            },
-                            upsert: true
-                        }
-                    };
-                });
-                
-                await JHASignature.bulkWrite(signatureOps);
-
-                // 3. Sync to Schedule: Embed into JHASignatures array
-                // Strategy: Pull existing signature by ID (to remove old version if exists) then Push new version
-                
-                const schedulePullOps = processedRecords.map((item: any) => {
-                     if (!item.schedule_id) return null;
-                     
-                     return {
-                        updateOne: {
-                            filter: { _id: item.schedule_id },
-                            update: {
-                                $pull: { JHASignatures: { _id: item._id } }
-                            }
-                        }
-                     };
-                }).filter(Boolean);
-
-                const schedulePushOps = processedRecords.map((item: any) => {
-                     if (!item.schedule_id) return null;
-                     
-                     return {
-                        updateOne: {
-                            filter: { _id: item.schedule_id },
-                            update: {
-                                $push: { JHASignatures: item }
-                            }
-                        }
-                     };
-                }).filter(Boolean);
-
-                if (schedulePullOps.length > 0) {
-                     await Schedule.bulkWrite(schedulePullOps as any);
-                     await Schedule.bulkWrite(schedulePushOps as any);
-                }
-
-                return NextResponse.json({ success: true, count: records.length });
-            }
             
             case 'deleteJHA': {
                 const { id, schedule_id: payloadScheduleId, userId } = payload || {};
@@ -448,7 +372,7 @@ export async function POST(request: NextRequest) {
                                 { $project: { 
                                     _id: 1, title: 1, estimate: 1, customerId: 1, customerName: 1,
                                     fromDate: 1, toDate: 1, foremanName: 1, projectManager: 1,
-                                    assignees: 1, jobLocation: 1, JHASignatures: 1
+                                    assignees: 1, jobLocation: 1
                                 }}
                             ],
                             as: 'scheduleDocs'

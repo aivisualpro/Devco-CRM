@@ -5,6 +5,7 @@ import { ToasterProvider } from "@/components/ui/ToasterProvider";
 import OrientationLock from "@/components/OrientationLock";
 import DbMigrator from "@/components/DbMigrator";
 import { WebVitals } from "@/components/WebVitals";
+import PWAUpdatePrompt from "@/components/PWAUpdatePrompt";
 
 
 export const metadata: Metadata = {
@@ -68,6 +69,7 @@ export default function RootLayout({
         {children}
         <ToasterProvider />
         <OrientationLock />
+        <PWAUpdatePrompt />
       </body>
     </html>
   );

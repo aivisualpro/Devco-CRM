@@ -32,9 +32,9 @@ export default function ImportsPage() {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const timesheetInputRef = useRef<HTMLInputElement>(null);
     const jhaInputRef = useRef<HTMLInputElement>(null);
-    const jhaSignatureInputRef = useRef<HTMLInputElement>(null);
+
     const djtInputRef = useRef<HTMLInputElement>(null);
-    const djtSignatureInputRef = useRef<HTMLInputElement>(null);
+
     const logoInputRef = useRef<HTMLInputElement>(null);
     const footerInputRef = useRef<HTMLInputElement>(null);
     const coverFrameInputRef = useRef<HTMLInputElement>(null);
@@ -319,40 +319,7 @@ export default function ImportsPage() {
         reader.readAsText(file);
     };
 
-    const handleImportJHASignatures = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
 
-        setIsImporting(true);
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            try {
-                const text = event.target?.result as string;
-                const Papa = (await import('papaparse')).default;
-                const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
-                
-                const res = await fetch('/api/jha', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'importJHASignatures', payload: { records: data } })
-                });
-
-                const resData = await res.json();
-                if (resData.success) {
-                    success(`Successfully imported ${data.length} signature records`);
-                } else {
-                    toastError(resData.error || 'Signature import failed');
-                }
-            } catch (err: any) {
-                console.error(err);
-                toastError(err.message || 'Error parsing CSV');
-            } finally {
-                setIsImporting(false);
-                if (jhaSignatureInputRef.current) jhaSignatureInputRef.current.value = '';
-            }
-        };
-        reader.readAsText(file);
-    };
 
     const handleImportDJT = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -407,59 +374,7 @@ export default function ImportsPage() {
         reader.readAsText(file);
     };
 
-    const handleImportDJTSignatures = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
 
-        setIsImporting(true);
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            try {
-                const text = event.target?.result as string;
-                const parsedRows = parseCSV(text);
-
-                if (parsedRows.length < 2) throw new Error("File must contain at least a header and one data row.");
-
-                const headers = parsedRows[0].map(h => h.replace(/^"|"$/g, '').trim());
-
-                const data = parsedRows.slice(1).map(values => {
-                    const obj: any = {};
-                    headers.forEach((h, i) => {
-                        if (values[i] !== undefined) {
-                            let val = values[i].replace(/^"|"$/g, '').trim();
-                            obj[h] = val;
-                        }
-                    });
-
-                    if ((obj as any).recordId) {
-                        (obj as any)._id = (obj as any).recordId;
-                        delete (obj as any).recordId;
-                    }
-                    return obj;
-                });
-
-                const res = await fetch('/api/djt', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'importDJTSignatures', payload: { records: data } })
-                });
-                const resData = await res.json();
-                if (resData.success) {
-                    success(`Successfully imported ${data.length} DJT signatures`);
-                } else {
-                    toastError(resData.error || 'DJT signatures import failed');
-                }
-            } catch (err: any) {
-                console.error(err);
-                toastError(err.message || 'Error parsing CSV');
-            } finally {
-                setIsImporting(false);
-                if (djtSignatureInputRef.current) djtSignatureInputRef.current.value = '';
-            }
-        };
-
-        reader.readAsText(file);
-    };
 
     const handleUploadLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -987,9 +902,9 @@ export default function ImportsPage() {
         { title: 'Import Drug Testing Records', icon: FlaskConical, color: 'bg-rose-600', description: 'Bulk import drug testing records for employees', category: 'Core Data', onClick: () => drugTestingInputRef.current?.click() },
         { title: 'Import Employee Documents', icon: FileText, color: 'bg-indigo-500', description: 'Bulk import employee documents from CSV', category: 'Core Data', onClick: () => employeeDocsInputRef.current?.click() },
         { title: 'Import JHA', icon: Import, color: 'bg-rose-500', description: 'Import Job Hazard Analysis safety records', category: 'Documents & Signatures', onClick: () => jhaInputRef.current?.click() },
-        { title: 'Import JHA Signatures', icon: ClipboardList, color: 'bg-rose-600', description: 'Restore signatures for JHA safety forms', category: 'Documents & Signatures', onClick: () => jhaSignatureInputRef.current?.click() },
+
         { title: 'Import DJT', icon: FileSpreadsheet, color: 'bg-violet-500', description: 'Upload Daily Job Ticket execution data', category: 'Documents & Signatures', onClick: () => djtInputRef.current?.click() },
-        { title: 'Import DJT Signatures', icon: FileText, color: 'bg-violet-600', description: 'Restore signatures for Daily Job Tickets', category: 'Documents & Signatures', onClick: () => djtSignatureInputRef.current?.click() },
+
         { title: 'Import Receipts & Costs', icon: DollarSign, color: 'bg-emerald-600', description: 'Bulk import project receipts and vendor costs', category: 'Financial', onClick: () => receiptsAndCostsInputRef.current?.click() },
         { title: 'Import Billing Tickets', icon: Receipt, color: 'bg-indigo-600', description: 'Bulk import billing tickets for estimates', category: 'Financial', onClick: () => billingTicketsInputRef.current?.click() },
         { title: 'Import Pothole Logs', icon: MapPin, color: 'bg-amber-600', description: 'Bulk import pothole log data from CSV', category: 'Field Logs', onClick: () => potholeLogsInputRef.current?.click() },
@@ -1056,9 +971,9 @@ export default function ImportsPage() {
             <input type="file" ref={employeeDocsInputRef} onChange={handleImportEmployeeDocs} className="hidden" accept=".csv" />
             <input type="file" ref={timesheetInputRef} onChange={handleImportTimesheets} className="hidden" accept=".csv" />
             <input type="file" ref={jhaInputRef} onChange={handleImportJHA} className="hidden" accept=".csv" />
-            <input type="file" ref={jhaSignatureInputRef} onChange={handleImportJHASignatures} className="hidden" accept=".csv" />
+
             <input type="file" ref={djtInputRef} onChange={handleImportDJT} className="hidden" accept=".csv" />
-            <input type="file" ref={djtSignatureInputRef} onChange={handleImportDJTSignatures} className="hidden" accept=".csv" />
+
             <input type="file" ref={receiptsAndCostsInputRef} onChange={handleImportReceiptsAndCosts} className="hidden" accept=".csv" />
             <input type="file" ref={planningDocsInputRef} onChange={handleImportPlanningDocs} className="hidden" accept=".csv" />
             <input type="file" ref={billingTicketsInputRef} onChange={handleImportBillingTickets} className="hidden" accept=".csv" />

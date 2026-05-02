@@ -339,49 +339,72 @@ export const JHAModal = ({
                                 </button>
                             </div>
                         </h4>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div><p className="text-[10px] font-bold text-slate-400 uppercase">Date</p><p className="text-sm font-bold text-slate-700">{formatWallDate(selectedJHA.date)}</p></div>
-                            <div><p className="text-[10px] font-bold text-slate-400 uppercase">Time</p><p className="text-sm font-bold text-slate-700">{selectedJHA.createdAt ? new Date(selectedJHA.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : selectedJHA.jhaTime}</p></div>
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase">Created By</p>
-                                {(() => {
-                                    const creator = initialData.employees.find((e: any) => e.value === selectedJHA.createdBy);
-                                    if (creator) {
-                                        return (
-                                            <div className="flex items-center gap-2 mt-1">
-                                                <div className="w-5 h-5 rounded-full bg-slate-200 overflow-hidden shrink-0">
-                                                    {creator.image ? <img src={creator.image} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[9px] font-bold text-slate-500">{creator.label?.[0]}</div>}
-                                                </div>
-                                                <p className="text-sm font-bold text-slate-700 truncate">{creator.label}</p>
-                                            </div>
-                                        );
-                                    }
-                                    return <p className="text-sm font-bold text-slate-700 truncate">{selectedJHA.createdBy || 'Unknown'}</p>;
-                                })()}
-                            </div>
-                            <div><p className="text-[10px] font-bold text-slate-400 uppercase">USA No.</p><p className="text-sm font-bold text-slate-700">{selectedJHA.usaNo || '-'}</p></div>
-                            <div><p className="text-[10px] font-bold text-slate-400 uppercase">Subcontractor USA</p><p className="text-sm font-bold text-slate-700">{selectedJHA.subcontractorUSANo || '-'}</p></div>
-                            <div><p className="text-[10px] font-bold text-slate-400 uppercase">Client Email</p><p className="text-sm font-bold text-slate-700">{selectedJHA.clientEmail || '-'}</p></div>
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase">Emailed</p>
-                                <div className="flex items-center gap-2 mt-0.5 group relative">
-                                    <p className="text-sm font-bold text-slate-700">{selectedJHA.emailCounter || 0} times</p>
-                                    {selectedJHA.emailCounter > 0 && selectedJHA.jhaEmails && (
-                                        <div className="hidden group-hover:block absolute top-full left-0 mt-2 z-50 w-64 bg-slate-800 text-white p-3 rounded-xl shadow-xl text-xs">
-                                            <p className="font-bold border-b border-slate-700 pb-1 mb-2">Email History</p>
-                                            <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
-                                                {selectedJHA.jhaEmails.slice().reverse().map((email: any, idx: number) => (
-                                                    <div key={idx} className="flex justify-between items-start gap-2">
-                                                        <span className="truncate flex-1 text-slate-300">{email.emailto}</span>
-                                                        <span className="text-[10px] text-slate-500 shrink-0">{new Date(email.createdAt).toLocaleDateString()}</span>
+                        <table className="w-full text-left border-separate" style={{ borderSpacing: 0 }}>
+                            <tbody>
+                                <tr>
+                                    <td className="py-2 pr-4 border-b border-slate-100 w-1/2">
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase">Created By</p>
+                                        {(() => {
+                                            const creator = initialData.employees.find((e: any) => e.value === selectedJHA.createdBy);
+                                            if (creator) {
+                                                return (
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <div className="w-5 h-5 rounded-full bg-slate-200 overflow-hidden shrink-0">
+                                                            {creator.image ? <img src={creator.image} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[9px] font-bold text-slate-500">{creator.label?.[0]}</div>}
+                                                        </div>
+                                                        <p className="text-sm font-bold text-slate-700 truncate">{creator.label}</p>
                                                     </div>
-                                                ))}
-                                            </div>
+                                                );
+                                            }
+                                            return <p className="text-sm font-bold text-slate-700 truncate mt-1">{selectedJHA.createdBy || 'Unknown'}</p>;
+                                        })()}
+                                    </td>
+                                    <td className="py-2 pl-4 border-b border-slate-100 w-1/2">
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase">Subcontractor USA</p>
+                                        <p className="text-sm font-bold text-slate-700 mt-1">{selectedJHA.subcontractorUSANo || '-'}</p>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td className="py-2 pr-4 border-b border-slate-100">
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase">Date & Time</p>
+                                        <p className="text-sm font-bold text-slate-700 mt-1">
+                                            {formatWallDate(selectedJHA.date)}{' '}
+                                            <span className="text-slate-400 font-medium">at</span>{' '}
+                                            {selectedJHA.createdAt ? new Date(selectedJHA.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : selectedJHA.jhaTime || '-'}
+                                        </p>
+                                    </td>
+                                    <td className="py-2 pl-4 border-b border-slate-100">
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase">Client Email</p>
+                                        <p className="text-sm font-bold text-slate-700 mt-1">{selectedJHA.clientEmail || '-'}</p>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td className="py-2 pr-4">
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase">USA No.</p>
+                                        <p className="text-sm font-bold text-slate-700 mt-1">{selectedJHA.usaNo || '-'}</p>
+                                    </td>
+                                    <td className="py-2 pl-4">
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase">Emailed</p>
+                                        <div className="flex items-center gap-2 mt-1 group relative">
+                                            <p className="text-sm font-bold text-slate-700">{selectedJHA.emailCounter || 0} times</p>
+                                            {selectedJHA.emailCounter > 0 && selectedJHA.jhaEmails && (
+                                                <div className="hidden group-hover:block absolute top-full left-0 mt-2 z-50 w-64 bg-slate-800 text-white p-3 rounded-xl shadow-xl text-xs">
+                                                    <p className="font-bold border-b border-slate-700 pb-1 mb-2">Email History</p>
+                                                    <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
+                                                        {selectedJHA.jhaEmails.slice().reverse().map((email: any, idx: number) => (
+                                                            <div key={idx} className="flex justify-between items-start gap-2">
+                                                                <span className="truncate flex-1 text-slate-300">{email.emailto}</span>
+                                                                <span className="text-[10px] text-slate-500 shrink-0">{new Date(email.createdAt).toLocaleDateString()}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
 
                     {/* Section 2: Daily Work */}

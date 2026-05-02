@@ -1530,7 +1530,8 @@ function SchedulesTable({ serverData }: { serverData?: any }) {
                         emailBody: 'Please find attached JHA document',
                         attachment: base64data,
                         jhaId: selectedJHA._id,
-                        scheduleId: selectedJHA.schedule_id || selectedJHA.scheduleRef?._id
+                        scheduleId: selectedJHA.schedule_id || selectedJHA.scheduleRef?._id,
+                        createdBy: currentUser?.email || ''
                     })
                 });
 

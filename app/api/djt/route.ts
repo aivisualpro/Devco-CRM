@@ -1,7 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
-import { DailyJobTicket, Schedule, Activity, DJTSignature, Constant, OverheadItem, EquipmentItem } from '@/lib/models';
+import { DailyJobTicket, Schedule, Activity, Constant, OverheadItem, EquipmentItem } from '@/lib/models';
 import mongoose from 'mongoose';
 import { robustNormalizeISO } from '@/lib/timeCardUtils';
 import { getWeekIdFromDate } from '@/lib/scheduleUtils';
@@ -135,15 +135,12 @@ export async function POST(request: NextRequest) {
                 let scheduleDoc = null;
                 if (scheduleId) {
                     scheduleDoc = await Schedule.findById(scheduleId)
-                        .select('_id title estimate customerId customerName fromDate toDate foremanName projectManager assignees jobLocation DJTSignatures')
+                        .select('_id title estimate customerId customerName fromDate toDate foremanName projectManager assignees jobLocation')
                         .lean();
                 }
 
-                // Source of truth: dailyjobtickets.signatures
-                // Fallback to Schedule.DJTSignatures only for legacy records
-                const signatures = (djt as any).signatures?.length > 0
-                    ? (djt as any).signatures
-                    : (scheduleDoc as any)?.DJTSignatures || [];
+                // Signatures are embedded in the DJT record (single source of truth)
+                const signatures = (djt as any).signatures || [];
 
                 return NextResponse.json({
                     success: true,
@@ -187,7 +184,7 @@ export async function POST(request: NextRequest) {
 
                     const scheduleIds = djts.map((d: any) => d.schedule_id).filter(Boolean);
                     const schedules = await Schedule.find({ _id: { $in: scheduleIds } })
-                        .select('_id title estimate customerId customerName fromDate toDate foremanName projectManager assignees jobLocation DJTSignatures')
+                        .select('_id title estimate customerId customerName fromDate toDate foremanName projectManager assignees jobLocation')
                         .lean();
 
                     const djtsWithSchedule = djts.map((d: any) => {
@@ -210,7 +207,7 @@ export async function POST(request: NextRequest) {
                                     { $project: {
                                         _id: 1, title: 1, estimate: 1, customerId: 1, customerName: 1,
                                         fromDate: 1, toDate: 1, foremanName: 1, projectManager: 1,
-                                        assignees: 1, jobLocation: 1, DJTSignatures: 1
+                                        assignees: 1, jobLocation: 1
                                     }}
                                 ],
                                 as: 'scheduleDocs'
@@ -441,7 +438,7 @@ export async function POST(request: NextRequest) {
                         if (lunchEndDateTime) updateObj[`timesheet.${existingIndex}.lunchEnd`] = lunchEndDateTime;
                         updateObj[`timesheet.${existingIndex}.updatedAt`] = clockOutISO;
                         
-                        updateObj['DJTSignatures'] = updatedSignatures;
+
                         updateObj['hasDJT'] = true;
 
                         await Schedule.updateOne(
@@ -450,7 +447,7 @@ export async function POST(request: NextRequest) {
                         );
                     } else {
                         // Push new timesheet record
-                        const setObj: any = { 'DJTSignatures': updatedSignatures, 'hasDJT': true };
+                        const setObj: any = { 'hasDJT': true };
 
                         await Schedule.updateOne(
                             { _id: djt.schedule_id },
@@ -460,17 +457,8 @@ export async function POST(request: NextRequest) {
                             }
                         );
                     }
-                } else {
-                    // No schedule found, just sync signatures
-                    if (djt.schedule_id) {
-                        // Use a find operation to check if djt is null before updating, or just set DJTSignatures
-                        // Since we don't have the schedule object here, it's safer to just set DJTSignatures
-                        // to avoid the {djt: null} error on an unknown schedule.
-                        await Schedule.updateOne(
-                            { _id: djt.schedule_id },
-                            { $set: { 'DJTSignatures': updatedSignatures } }
-                        );
-                    }
+                    // No schedule found — signatures are already saved in the DJT collection
+                    // No additional action needed
                 }
 
                 // Return the updated DJT with signatures

@@ -2,14 +2,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { connectToDatabase } from '@/lib/db';
-import { JHA, Schedule } from '@/lib/models';
+import mongoose from 'mongoose';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { emailTo, subject, emailBody, attachment, jhaId, scheduleId } = body;
+        const { emailTo, subject, emailBody, attachment, jhaId, scheduleId, createdBy } = body;
 
         if (!emailTo || !attachment || !jhaId) {
             console.error('Missing fields:', { hasEmailTo: !!emailTo, hasAttachment: !!attachment, hasJhaId: !!jhaId });
@@ -44,32 +44,47 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ success: false, error: error.message }, { status: 500 });
         }
 
-        // 3. Update Database
+        // 2. Update JHA document using RAW MongoDB driver
+        //    Bypass Mongoose to avoid _id type mismatch (String schema vs ObjectId in DB)
         await connectToDatabase();
-        
-        const updatePayload = {
-            $inc: { emailCounter: 1 },
-            $push: { 
-                jhaEmails: {
-                    emailto: emailTo,
-                    createdAt: new Date()
-                }
-            }
-        };
+        const db = mongoose.connection.db!;
+        const jhasCol = db.collection('jhas');
 
-        const updatedJHA = await JHA.findByIdAndUpdate(jhaId, updatePayload, { new: true });
-        
-        if (scheduleId) {
-             await Schedule.findOneAndUpdate(
-                { _id: scheduleId },
-                { 
-                    $inc: { 'jha.emailCounter': 1 },
-                    $push: { 'jha.jhaEmails': { emailto: emailTo, createdAt: new Date() } }
-                }
-             );
+        const emailRecord = { emailto: emailTo, createdBy: createdBy || '', createdAt: new Date() };
+
+        // Try multiple _id formats + schedule_id fallback
+        const idVariants: any[] = [
+            { schedule_id: scheduleId || jhaId },  // Most reliable — schedule_id is always a clean string
+            { _id: jhaId },                         // String match
+        ];
+
+        // Try ObjectId match if it's a valid hex string
+        if (/^[a-f\d]{24}$/i.test(jhaId)) {
+            idVariants.push({ _id: new mongoose.Types.ObjectId(jhaId) });
         }
 
-        return NextResponse.json({ success: true, jha: updatedJHA, emailId: data?.id });
+        let updateResult = null;
+        for (const query of idVariants) {
+            const result = await jhasCol.findOneAndUpdate(
+                query,
+                {
+                    $inc: { emailCounter: 1 },
+                    $push: { jhaEmails: emailRecord } as any
+                },
+                { returnDocument: 'after' }
+            );
+            if (result) {
+                updateResult = result;
+                console.log(`[email-jha] Updated via query ${JSON.stringify(query)}, emailCounter=${result.emailCounter}`);
+                break;
+            }
+        }
+
+        if (!updateResult) {
+            console.error(`[email-jha] FAILED to find JHA. jhaId=${jhaId}, scheduleId=${scheduleId}`);
+        }
+
+        return NextResponse.json({ success: true, jha: updateResult, emailId: data?.id });
     } catch (error: any) {
         console.error('Email JHA Error:', error);
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });

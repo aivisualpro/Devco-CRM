@@ -312,6 +312,8 @@ const ScheduleSchema = new Schema({
     },
 
     isDayOffApproved: { type: Boolean, default: false },
+    hasJHA: { type: Boolean, default: false },
+    hasDJT: { type: Boolean, default: false },
     historyLog: {
         type: [{
             updatedBy: { type: String },

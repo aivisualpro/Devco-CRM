@@ -496,6 +496,22 @@ thead.sticky {
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* PWA Update Prompt Slide Up */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
