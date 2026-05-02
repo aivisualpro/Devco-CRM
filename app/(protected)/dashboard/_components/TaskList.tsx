@@ -28,6 +28,8 @@ interface TodoItem {
     createdAt?: string;
     lastUpdatedBy?: string;
     lastUpdatedAt?: string;
+    remindersCount?: number;
+    lastReminderAt?: string;
 }
 
 interface Employee { value: string; label: string; image?: string; }
@@ -121,6 +123,18 @@ function TodoCard({
                         >
                             {item.estimate}
                         </span>
+                    )}
+                    {(item.remindersCount ?? 0) > 0 && (
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <span className="ml-1.5 inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-200 whitespace-nowrap">
+                                        🔔 {item.remindersCount}
+                                    </span>
+                                </TooltipTrigger>
+                                <TooltipContent><p className="text-[10px]">{item.remindersCount} reminder{(item.remindersCount ?? 0) > 1 ? 's' : ''} sent</p></TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
                     )}
                 </div>
                 <div className="flex items-center gap-1">

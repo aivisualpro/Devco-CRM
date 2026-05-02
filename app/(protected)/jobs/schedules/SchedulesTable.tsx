@@ -4219,16 +4219,10 @@ function SchedulesTable({ serverData }: { serverData?: any }) {
                                             label="Proposal #"
                                             placeholder="Select proposal"
                                             disableBlank={true}
-                                            options={(() => {
-                                                const all = initialData.estimates;
-                                                const filtered = all
-                                                    .filter(e => !editingItem?.customerId || (e.customerId && e.customerId.toString() === editingItem?.customerId?.toString()))
-                                                    .filter((e: any) => e.status?.toLowerCase() === 'won');
-                                                console.log('[Proposal Debug] Total estimates:', all.length, 'Won estimates:', filtered.length);
-                                                console.log('[Proposal Debug] All statuses:', [...new Set(all.map(e => e.status))]);
-                                                console.log('[Proposal Debug] Sample:', all.slice(0, 5).map(e => ({ value: e.value, status: e.status })));
-                                                return filtered.map(e => ({ label: e.label, value: e.value }));
-                                            })()}
+                                            options={initialData.estimates
+                                                .filter(e => !editingItem?.customerId || (e.customerId && e.customerId.toString() === editingItem?.customerId?.toString()))
+                                                .filter((e: any) => e.status?.toLowerCase() === 'won')
+                                                .map(e => ({ label: e.label, value: e.value }))}
                                             value={editingItem?.estimate || ''}
                                             onChange={(val) => {
                                                 const est = initialData.estimates.find(e => e.value === val);

@@ -10,11 +10,19 @@
     "app/api/cron/daily-summary/route.ts": {
       "memory": 1024,
       "maxDuration": 300
+    },
+    "app/api/cron/task-reminders/route.ts": {
+      "memory": 1024,
+      "maxDuration": 120
     }
   },
   "crons": [
     {
       "path": "/api/cron/daily-summary",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/task-reminders",
       "schedule": "0 * * * *"
     }
   ]

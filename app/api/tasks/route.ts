@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
         }
         
         const appliedSort = sort || { createdAt: -1 };
-        const selectedFields = '_id task dueDate assignees status customerId customerName estimate jobAddress createdBy createdAt lastUpdatedBy lastUpdatedAt';
+        const selectedFields = '_id task dueDate assignees status customerId customerName estimate jobAddress createdBy createdAt lastUpdatedBy lastUpdatedAt remindersCount lastReminderAt';
         
         const [tasks, total] = await Promise.all([
             DevcoTask.find(query)
