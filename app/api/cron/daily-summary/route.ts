@@ -309,6 +309,14 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ success: true, message: 'Bot is inactive, skipped' });
         }
 
+        // Check if current hour in PST matches the configured time
+        const currentHourPST = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', hourCycle: 'h23' }).format(new Date()));
+        const configuredTime = Number(config.time || '23'); // Default to 11 PM if undefined
+        if (currentHourPST !== configuredTime) {
+            console.log(`[Cron] Not the scheduled time. Current PST hour: ${currentHourPST}, Configured: ${configuredTime}`);
+            return NextResponse.json({ success: true, skipped: true, reason: 'Not the configured schedule time' });
+        }
+
         // Idempotency: don't send twice the same PT day
         const todayPT = getTodayPT();
         const lastSentDayPT = config.lastSent ? new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date(config.lastSent)) : null;

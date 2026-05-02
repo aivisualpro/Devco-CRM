@@ -1609,7 +1609,7 @@ export async function POST(request: NextRequest) {
                     !skipInitialData ? Employee.find({ status: { $ne: 'Inactive' } }).select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive address ssNumber').lean() : Promise.resolve([]),
                     !skipInitialData ? Constant.find().select('type description color value image').lean() : Promise.resolve([]),
                     !skipInitialData ? Estimate.find({ status: { $ne: 'deleted' } })
-                        .select('estimate _id updatedAt createdAt customer customerName customerId projectTitle projectName projectId jobAddress contactName contactPhone contactEmail contact phone fringe certifiedPayroll status')
+                        .select('estimate _id updatedAt createdAt versionNumber customer customerName customerId projectTitle projectName projectId jobAddress contactName contactPhone contactEmail contact phone fringe certifiedPayroll status')
                         .sort({ updatedAt: -1 })
                         .limit(5000)
                         .lean() : Promise.resolve([]),
@@ -1663,18 +1663,11 @@ export async function POST(request: NextRequest) {
                 };
 
                 if (!skipInitialData) {
-                    // Pre-compute: for each estimate number, check if ANY version has status 'Won'
-                    const wonEstimateIds = new Set<string>();
-                    (estimates || []).forEach((e: any) => {
-                        if (e.estimate && e.status?.toLowerCase() === 'won') {
-                            wonEstimateIds.add(String(e.estimate));
-                        }
-                    });
-
                     // Process estimates to keep unique estimate numbers (Latest first)
+                    // Status comes from the LATEST version only
                     const uniqueEstimates = new Map();
                     estimates
-                        ?.sort((a: any, b: any) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())
+                        ?.sort((a: any, b: any) => (b.versionNumber || 0) - (a.versionNumber || 0))
                         .forEach((e: any) => {
                             if (e.estimate && !uniqueEstimates.has(e.estimate)) {
                                 const pName = e.projectTitle || e.projectName || '';
@@ -1693,8 +1686,8 @@ export async function POST(request: NextRequest) {
                                     contactName: e.contactName || e.contact,
                                     contactPhone: e.contactPhone || e.phone,
                                     contactEmail: e.contactEmail,
-                                    // If ANY version of this estimate is Won, treat the whole estimate as Won
-                                    status: wonEstimateIds.has(String(e.estimate)) ? 'Won' : (e.status || ''),
+                                    // Use the latest version's status directly
+                                    status: e.status || '',
                                     // New fields
                                     scopeOfWork: (() => {
                                         if (e.projectDescription) return e.projectDescription;
@@ -1808,7 +1801,7 @@ export async function POST(request: NextRequest) {
                     Employee.find({ status: { $ne: 'Inactive' } }).select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive address ssNumber').lean(),
                     Constant.find().select('type description color value image').lean(),
                     Estimate.find({ status: { $ne: 'deleted' } })
-                        .select('estimate _id updatedAt createdAt customer customerName customerId projectTitle projectName projectId jobAddress contactName contactPhone contactEmail contact phone')
+                        .select('estimate _id updatedAt createdAt versionNumber customer customerName customerId projectTitle projectName projectId jobAddress contactName contactPhone contactEmail contact phone fringe certifiedPayroll status services scopeOfWork aerialImage siteLayout')
                         .sort({ updatedAt: -1 })
                         .limit(5000)
                         .lean(),
@@ -1817,9 +1810,10 @@ export async function POST(request: NextRequest) {
                 ]);
 
                 // Process estimates to keep unique estimate numbers but preserve customerId (from latest version)
+                // Status comes from the LATEST version only
                 const uniqueEstimates = new Map();
                 estimates
-                    .sort((a: any, b: any) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())
+                    .sort((a: any, b: any) => (b.versionNumber || 0) - (a.versionNumber || 0))
                     .forEach((e: any) => {
                         if (e.estimate && !uniqueEstimates.has(e.estimate)) {
                             const pName = e.projectTitle || e.projectName || '';
@@ -1838,6 +1832,11 @@ export async function POST(request: NextRequest) {
                                 contactName: e.contactName || e.contact,
                                 contactPhone: e.contactPhone || e.phone,
                                 contactEmail: e.contactEmail,
+                                // Use the latest version's status directly
+                                status: e.status || '',
+                                services: e.services || [],
+                                fringe: e.fringe || 'No',
+                                certifiedPayroll: e.certifiedPayroll || 'No',
                                 aerialImage: e.aerialImage || '',
                                 siteLayout: e.siteLayout || ''
                             });

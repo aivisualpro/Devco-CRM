@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
-import { Estimate, DevcoQuickBooks, Activity } from '@/lib/models';
+import { Estimate, DevcoQuickBooks, Activity, Constant } from '@/lib/models';
 import { serializeEstimate } from '@/lib/serializers/estimate';
 import { QBO_OWNED_FIELDS, DEVCO_OWNED_FIELDS } from '@/lib/qbo-sync-contract';
 
@@ -139,6 +139,59 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             { ...estimateUpdates, updatedAt: new Date() },
             { new: true }
         );
+
+        // === TRIGGER ESTIMATE NOTIFICATIONS ===
+        if (updated && estimateUpdates.status && estimateUpdates.status !== currentEst.status) {
+            console.log(`[Estimate Bot] Status changed: ${currentEst.status} -> ${updated.status}`);
+            try {
+                const setting = await Constant.findOne({ type: 'AppSettings', value: 'emailBot_estimateAlert' });
+                console.log(`[Estimate Bot] Config found:`, setting ? JSON.stringify(setting.data) : 'NULL');
+                if (setting && setting.data) {
+                    const config = setting.data;
+                    const isEnabled = config.enabled ?? true;
+                    const statuses = config.statuses || [];
+                    const recipients = config.recipients || [];
+
+                    console.log(`[Estimate Bot] enabled=${isEnabled}, statuses=${JSON.stringify(statuses)}, recipients=${JSON.stringify(recipients)}, hasResendKey=${!!process.env.RESEND_API_KEY}`);
+                    console.log(`[Estimate Bot] Status "${updated.status}" in list: ${statuses.includes(updated.status)}`);
+
+                    if (isEnabled && statuses.includes(updated.status) && recipients.length > 0 && process.env.RESEND_API_KEY) {
+                        const { Resend } = require('resend');
+                        const resend = new Resend(process.env.RESEND_API_KEY);
+                        
+                        const fromName = config.fromName || 'DEVCO CRM';
+                        const subject = `Estimate Status Changed: #${updated.estimate} is now ${updated.status}`;
+                        
+                        const htmlContent = `
+                            <div style="font-family: sans-serif; padding: 20px;">
+                                <h2>Estimate Status Update</h2>
+                                <p><strong>Estimate:</strong> #${updated.estimate}</p>
+                                <p><strong>Project:</strong> ${updated.projectName || 'N/A'}</p>
+                                <p><strong>Customer:</strong> ${updated.customerName || 'N/A'}</p>
+                                <p><strong>New Status:</strong> <span style="font-weight: bold; color: ${updated.status === 'Won' ? '#10b981' : updated.status === 'Lost' ? '#ef4444' : '#3b82f6'};">${updated.status}</span></p>
+                                <p><strong>Previous Status:</strong> ${currentEst.status}</p>
+                                <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;" />
+                                <p style="font-size: 12px; color: #888;">This is an automated notification from DEVCO CRM.</p>
+                            </div>
+                        `;
+
+                        const emailResult = await resend.emails.send({
+                            from: `${fromName} <info@devco.email>`,
+                            to: recipients,
+                            subject: subject,
+                            html: htmlContent
+                        });
+                        console.log(`[Estimate Bot] Email sent! Result:`, JSON.stringify(emailResult));
+                    } else {
+                        console.log(`[Estimate Bot] Skipped — one or more conditions not met`);
+                    }
+                }
+            } catch (err) {
+                console.error('[Estimate Bot] Failed to send estimate notification:', err);
+            }
+        } else {
+            console.log(`[Estimate Bot] No status change detected. updated=${!!updated}, estimateUpdates.status=${estimateUpdates.status}, currentEst.status=${currentEst.status}`);
+        }
 
         // Log Activity
         if (updated) {
