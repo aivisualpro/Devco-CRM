@@ -110,6 +110,7 @@ export async function createNotifications(params: CreateNotificationParams): Pro
                 link: doc.link || undefined,
                 type: doc.type,
                 notificationId,
+                metadata: doc.metadata || undefined,
             });
         });
 

@@ -14,6 +14,7 @@ export async function pushNotification(recipientEmail: string, payload: {
   link?: string;
   type: string;
   notificationId: string;
+  metadata?: Record<string, any>;
 }) {
   if (!process.env.PUSHER_APP_ID || process.env.PUSHER_APP_ID === 'dummy' || !process.env.PUSHER_KEY || process.env.PUSHER_KEY === 'dummy') return; // Skip if not configured
   

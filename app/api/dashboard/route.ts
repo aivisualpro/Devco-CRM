@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
 
             // Optional fetching based on section
             const schedulesPromise = (section === 'all' || section === 'schedules') 
-                ? Schedule.find(scheduleQuery).lean({ virtuals: true }).select('_id title fromDate toDate customerName jobAddress status service item assignees assigneeCount foremanName projectManager estimate description jha djt changeOfScope timesheet timesheetSummary fringe certifiedPayroll perDiem notifyAssignees todayObjectives aerialImage siteLayout')
+                ? Schedule.find(scheduleQuery).lean({ virtuals: true }).select('_id title fromDate toDate customerName jobAddress status service item assignees assigneeCount foremanName projectManager estimate description jha djt hasJHA hasDJT changeOfScope timesheet timesheetSummary fringe certifiedPayroll perDiem notifyAssignees todayObjectives aerialImage siteLayout')
                 : Promise.resolve([]);
 
             // 1b. Timecard Schedules

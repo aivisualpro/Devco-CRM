@@ -7,6 +7,7 @@ import { Bell, Check, CheckCheck, Trash2, X, Calendar, Clock, FileText, AlertCir
 import Pusher from 'pusher-js';
 import { cld } from '@/lib/cld';
 import Image from 'next/image';
+import { toast } from 'sonner';
 
 interface AppNotification {
     _id: string;
@@ -134,6 +135,127 @@ export default function NotificationBell({ currentUser }: { currentUser?: any })
         setTimeout(() => notif.close(), 8000);
     }, [desktopNotificationsEnabled, router]);
 
+    // Premium in-app toast notification
+    const showInAppToast = useCallback((payload: any) => {
+        const creatorName = payload.metadata?.creatorName || '';
+        const creatorImage = payload.metadata?.creatorImage || '';
+        const initials = creatorName ? creatorName.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2) : '?';
+
+        toast.custom((id) => (
+            <div
+                onClick={() => {
+                    if (payload.link) router.push(payload.link);
+                    toast.dismiss(id);
+                }}
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    width: '380px',
+                    padding: '14px 18px',
+                    background: 'linear-gradient(135deg, rgba(255,255,255,0.97) 0%, rgba(248,250,252,0.97) 100%)',
+                    backdropFilter: 'blur(20px)',
+                    borderRadius: '16px',
+                    border: '1px solid rgba(15, 76, 117, 0.12)',
+                    boxShadow: '0 20px 60px -15px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.02), 0 0 40px rgba(15, 76, 117, 0.06)',
+                    cursor: payload.link ? 'pointer' : 'default',
+                    animation: 'slideInRight 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+                    position: 'relative',
+                    overflow: 'hidden',
+                }}
+            >
+                {/* Accent line */}
+                <div style={{
+                    position: 'absolute',
+                    left: 0, top: 0, bottom: 0,
+                    width: '3px',
+                    background: 'linear-gradient(180deg, #0F4C75, #3282B8)',
+                    borderRadius: '16px 0 0 16px',
+                }} />
+
+                {/* Creator Avatar */}
+                <div style={{
+                    width: '40px', height: '40px',
+                    borderRadius: '12px',
+                    overflow: 'hidden',
+                    flexShrink: 0,
+                    background: creatorImage ? 'transparent' : 'linear-gradient(135deg, #0F4C75, #3282B8)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 2px 8px rgba(15, 76, 117, 0.15)',
+                }}>
+                    {creatorImage ? (
+                        <img
+                            src={cld(creatorImage, { w: 80, q: 'auto' })}
+                            alt={creatorName}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                    ) : (
+                        <span style={{ color: '#fff', fontSize: '13px', fontWeight: 900, letterSpacing: '0.5px' }}>{initials}</span>
+                    )}
+                </div>
+
+                {/* Content */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{
+                        margin: 0,
+                        fontSize: '13px',
+                        fontWeight: 800,
+                        color: '#0f172a',
+                        lineHeight: '1.3',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                    }}>{payload.title}</p>
+                    <p style={{
+                        margin: '3px 0 0 0',
+                        fontSize: '11.5px',
+                        color: '#64748b',
+                        lineHeight: '1.4',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                    }}>
+                        {payload.message}{creatorName ? ` ${creatorName}` : ''}
+                    </p>
+                </div>
+
+                {/* Dismiss button */}
+                <button
+                    onClick={(e) => { e.stopPropagation(); toast.dismiss(id); }}
+                    style={{
+                        width: '24px', height: '24px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: 'transparent',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        color: '#94a3b8',
+                        flexShrink: 0,
+                        transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.background = '#f1f5f9';
+                        e.currentTarget.style.color = '#475569';
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent';
+                        e.currentTarget.style.color = '#94a3b8';
+                    }}
+                >
+                    <X size={12} />
+                </button>
+            </div>
+        ), {
+            duration: 6000,
+            position: 'top-right',
+            style: { padding: 0, background: 'transparent', border: 'none', boxShadow: 'none' },
+        });
+    }, [router]);
+
     // Pusher Subscribe
     useEffect(() => {
         if (!currentUser?.email) return;
@@ -153,6 +275,7 @@ export default function NotificationBell({ currentUser }: { currentUser?: any })
             mutate(); // refresh SWR cache
             if (!payload.silent) {
                 showDesktopNotification(payload.title, payload.message, payload.link, payload.notificationId);
+                showInAppToast(payload);
                 playNotificationSound();
                 setAnimateBell(true);
                 setTimeout(() => setAnimateBell(false), 1000);
@@ -164,7 +287,7 @@ export default function NotificationBell({ currentUser }: { currentUser?: any })
             pusher.unsubscribe(channelName);
             pusher.disconnect();
         };
-    }, [currentUser?.email, mutate, showDesktopNotification, playNotificationSound]);
+    }, [currentUser?.email, mutate, showDesktopNotification, showInAppToast, playNotificationSound]);
 
     // Check notification permission on mount
     useEffect(() => {
@@ -312,7 +435,7 @@ export default function NotificationBell({ currentUser }: { currentUser?: any })
             {isOpen && (
                 <div
                     ref={panelRef}
-                    className="absolute right-0 top-full mt-2 w-[calc(100vw-2rem)] sm:w-[380px] max-h-[520px] bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-[200] animate-scale-in origin-top-right"
+                    className="fixed left-4 right-4 top-[60px] sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[380px] max-h-[520px] bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-[200] animate-scale-in sm:origin-top-right"
                     style={{ boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.03)' }}
                 >
                     {/* Header */}
@@ -493,6 +616,20 @@ export default function NotificationBell({ currentUser }: { currentUser?: any })
                 .animate-notification-ring {
                     animation: notification-ring 0.6s ease-in-out;
                     transform-origin: top center;
+                }
+            `}</style>
+
+            {/* Global keyframes for toast animation */}
+            <style jsx global>{`
+                @keyframes slideInRight {
+                    from {
+                        opacity: 0;
+                        transform: translateX(100%) scale(0.95);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateX(0) scale(1);
+                    }
                 }
             `}</style>
         </div>
