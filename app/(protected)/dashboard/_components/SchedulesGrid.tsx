@@ -45,6 +45,16 @@ export default function SchedulesGrid({
 }: SchedulesGridProps) {
     const { canField } = usePermissions();
 
+    // Sort schedules: primary by fromDate ascending, secondary by updatedAt/createdAt ascending
+    const sortedSchedules = [...schedules].sort((a, b) => {
+        const dateA = new Date(a.fromDate || a.date || 0).getTime();
+        const dateB = new Date(b.fromDate || b.date || 0).getTime();
+        if (dateA !== dateB) return dateA - dateB;
+        const timeA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+        const timeB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+        return timeA - timeB;
+    });
+
     return (
         <div className={`${searchParamsView ? 'hidden lg:block' : 'block'} bg-transparent lg:bg-white lg:rounded-2xl lg:border lg:border-slate-200 lg:shadow-sm overflow-hidden`}>
             <div className="sticky top-0 z-30 bg-slate-50/95 backdrop-blur-md flex items-center justify-between px-4 py-2 border-b border-slate-200 lg:static lg:bg-white lg:px-4 lg:py-3 lg:border-slate-100 shrink-0">
@@ -120,7 +130,7 @@ export default function SchedulesGrid({
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-20 lg:pb-0">
-                        {schedules.map((schedule: any) => (
+                        {sortedSchedules.map((schedule: any) => (
                             <ScheduleCard
                                 key={schedule._id}
                                 item={schedule}

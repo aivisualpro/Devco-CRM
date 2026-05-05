@@ -7,7 +7,7 @@ import { useCurrentUser } from '@/lib/context/AppContext';
 import { getPusherClient } from '@/lib/realtime/pusher-client';
 import { Badge, Modal, Button, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, MyDropDown, SearchableSelect } from '@/components/ui';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { CheckCircle2, Plus, GripVertical, Edit, Copy, Trash2, Activity as ActivityIcon, ChevronDown, Search, X } from 'lucide-react';
+import { CheckCircle2, Plus, GripVertical, Edit, Copy, Trash2, Activity as ActivityIcon, ChevronDown, Search, X, Archive } from 'lucide-react';
 import { toast } from 'sonner';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
 import Image from 'next/image';
@@ -31,6 +31,7 @@ interface TodoItem {
     lastUpdatedAt?: string;
     remindersCount?: number;
     lastReminderAt?: string;
+    archived?: boolean;
 }
 
 interface Employee { value: string; label: string; image?: string; }
@@ -49,6 +50,7 @@ function TodoCard({
     onCopy,
     onStatusChange,
     onDelete,
+    onArchive,
 }: {
     item: TodoItem;
     employees: Employee[];
@@ -59,6 +61,7 @@ function TodoCard({
     onCopy: (item: TodoItem, e: React.MouseEvent) => void;
     onStatusChange: (item: TodoItem, status: TodoItem['status']) => void;
     onDelete: (id: string, e: React.MouseEvent) => void;
+    onArchive?: (id: string, archived: boolean, e: React.MouseEvent) => void;
 }) {
     const isOwner = item.createdBy?.toLowerCase().trim() === currentUserEmail?.toLowerCase().trim();
     const canManage = isOwner || isSuperAdmin;
@@ -186,6 +189,19 @@ function TodoCard({
                                     </TooltipTrigger>
                                     <TooltipContent><p className="text-[10px]">Delete</p></TooltipContent>
                                 </Tooltip>
+                                {item.status === 'done' && onArchive && (
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <button 
+                                                onClick={e => onArchive(item._id, !item.archived, e)} 
+                                                className={`p-1.5 rounded-lg transition-colors ${item.archived ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'hover:bg-amber-50 text-slate-300 hover:text-amber-600'}`}
+                                            >
+                                                <Archive size={12} />
+                                            </button>
+                                        </TooltipTrigger>
+                                        <TooltipContent><p className="text-[10px]">{item.archived ? 'Unarchive' : 'Archive'}</p></TooltipContent>
+                                    </Tooltip>
+                                )}
                             </>
                         )}
                     </TooltipProvider>
@@ -198,7 +214,8 @@ function TodoCard({
 // ── KanbanColumn ─────────────────────────────────────────────────────────────────
 function KanbanColumn({
     title, items, status, color, employees, currentUserEmail, isSuperAdmin, canViewEstimates,
-    onDragOver, onDrop, onEdit, onCopy, onStatusChange, onDelete, onColumnScroll,
+    onDragOver, onDrop, onEdit, onCopy, onStatusChange, onDelete, onColumnScroll, onArchive,
+    showArchived, onToggleArchived, serverCount,
 }: {
     title: string; items: TodoItem[]; status: string; color: string;
     employees: Employee[]; currentUserEmail: string; isSuperAdmin: boolean; canViewEstimates?: boolean;
@@ -209,13 +226,35 @@ function KanbanColumn({
     onStatusChange: (item: TodoItem, s: TodoItem['status']) => void;
     onDelete: (id: string, e: React.MouseEvent) => void;
     onColumnScroll?: (e: React.UIEvent<HTMLDivElement>) => void;
+    onArchive?: (id: string, archived: boolean, e: React.MouseEvent) => void;
+    showArchived?: boolean;
+    onToggleArchived?: () => void;
+    serverCount?: number;
 }) {
+    // For Done column: use serverCount if available, else items.length
+    const displayCount = serverCount !== undefined ? serverCount : items.length;
+
     return (
         <div className="flex-1 min-w-[200px] bg-slate-100 rounded-xl p-3" onDragOver={onDragOver} onDrop={e => onDrop(e, status)}>
             <div className="flex items-center gap-2 mb-3 px-1">
                 <div className={`w-2 h-2 rounded-full ${color}`} />
                 <span className="font-bold text-xs uppercase tracking-wider text-slate-600">{title}</span>
-                <Badge variant="default" className="ml-auto text-[10px] font-bold">{items.length}</Badge>
+                {status === 'done' && onToggleArchived && (
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    onClick={onToggleArchived}
+                                    className={`ml-1 p-1 rounded-md transition-all ${showArchived ? 'bg-amber-100 text-amber-600' : 'bg-slate-200/60 text-slate-400 hover:text-slate-600'}`}
+                                >
+                                    <Archive size={11} />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent><p className="text-[10px]">{showArchived ? 'Hide Archived' : 'Show Archived'}</p></TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                )}
+                <Badge variant="default" className="ml-auto text-[10px] font-bold">{displayCount}</Badge>
             </div>
             <div className="space-y-2 overflow-y-auto pr-1 max-h-[350px] scrollbar-thin scrollbar-thumb-slate-200" onScroll={onColumnScroll}>
                 {items.map(item => (
@@ -230,6 +269,7 @@ function KanbanColumn({
                         onCopy={onCopy}
                         onStatusChange={onStatusChange}
                         onDelete={onDelete}
+                        onArchive={onArchive}
                     />
                 ))}
             </div>
@@ -454,6 +494,7 @@ export function TaskList({
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     const LIMIT = 50;
     const debounceRef = useRef<NodeJS.Timeout | null>(null);
+    const mobileScrollSentinel = useRef<HTMLDivElement | null>(null);
 
     // Debounce search
     useEffect(() => {
@@ -485,9 +526,11 @@ export function TaskList({
     const [todos, setTodos] = useState<TodoItem[]>([]);
     const [hasMore, setHasMore] = useState(false);
     const [totalTasks, setTotalTasks] = useState(0);
+    const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTask, setEditingTask] = useState<TodoItem | null>(null);
     const [taskView, setTaskView] = useState<'self' | 'all'>('all');
+    const [showArchived, setShowArchived] = useState(false);
 
     // Sync SWR page-1 data → local state
     useEffect(() => {
@@ -497,7 +540,10 @@ export function TaskList({
             setTotalTasks(tasksData.total ?? 0);
             setPage(1);
         }
-    }, [tasksData?.items]);
+        if (tasksData?.statusCounts) {
+            setStatusCounts(tasksData.statusCounts);
+        }
+    }, [tasksData?.items, tasksData?.statusCounts]);
 
     // ── Load More (append next page) ──
     const loadMore = useCallback(async () => {
@@ -522,6 +568,22 @@ export function TaskList({
             setIsLoadingMore(false);
         }
     }, [isLoadingMore, hasMore, page, searchQuery]);
+
+    // ── Mobile IntersectionObserver for auto-loading ──
+    useEffect(() => {
+        const el = mobileScrollSentinel.current;
+        if (!el) return;
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0]?.isIntersecting) {
+                    loadMore();
+                }
+            },
+            { threshold: 0.1 }
+        );
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [loadMore]);
 
     // ── Pusher real-time subscription ──
     useEffect(() => {
@@ -564,12 +626,13 @@ export function TaskList({
 
     const todosByStatus = useMemo(() => {
         const filtered = taskView === 'self' ? todos.filter(t => t.assignees?.includes(userEmail) || t.createdBy === userEmail) : todos;
+        const doneTasks = filtered.filter(t => t.status === 'done');
         return {
             todo: filtered.filter(t => t.status === 'todo'),
             'in progress': filtered.filter(t => t.status === 'in progress'),
-            done: filtered.filter(t => t.status === 'done'),
+            done: showArchived ? doneTasks : doneTasks.filter(t => !t.archived),
         };
-    }, [todos, taskView, userEmail]);
+    }, [todos, taskView, userEmail, showArchived]);
 
     const handleDragOver = (e: React.DragEvent) => e.preventDefault();
 
@@ -658,6 +721,25 @@ export function TaskList({
 
     const columnProps = { employees: mappedEmployees, currentUserEmail: userEmail, isSuperAdmin: !!isSuperAdmin, canViewEstimates, onDragOver: handleDragOver, onDrop: handleDrop, onEdit: handleOpenModal, onCopy: handleCopyTask, onStatusChange: handleStatusChange, onDelete: handleDeleteTask };
 
+    // ── Archive Handler ──
+    const handleArchiveTask = useCallback(async (id: string, archived: boolean, e: React.MouseEvent) => {
+        e.stopPropagation();
+        // Optimistic update
+        setTodos(prev => prev.map(t => t._id === id ? { ...t, archived } : t));
+        try {
+            await fetch('/api/tasks', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, archived, lastUpdatedBy: userEmail })
+            });
+            toast.success(archived ? 'Task archived' : 'Task unarchived');
+        } catch {
+            // Revert on error
+            setTodos(prev => prev.map(t => t._id === id ? { ...t, archived: !archived } : t));
+            toast.error('Failed to update task');
+        }
+    }, [userEmail]);
+
     // ── Infinite Scroll Handler for Kanban columns ──
     const handleColumnScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
         const el = e.currentTarget;
@@ -711,35 +793,38 @@ export function TaskList({
             <div className="hidden lg:flex gap-4 overflow-x-auto">
                 <KanbanColumn title="To Do" items={todosByStatus.todo} status="todo" color="bg-slate-400" {...columnProps} onColumnScroll={handleColumnScroll} />
                 <KanbanColumn title="In Progress" items={todosByStatus['in progress']} status="in progress" color="bg-blue-500" {...columnProps} onColumnScroll={handleColumnScroll} />
-                <KanbanColumn title="Done" items={todosByStatus.done} status="done" color="bg-emerald-500" {...columnProps} onColumnScroll={handleColumnScroll} />
+                <KanbanColumn 
+                    title="Done" 
+                    items={todosByStatus.done} 
+                    status="done" 
+                    color="bg-emerald-500" 
+                    {...columnProps} 
+                    onColumnScroll={handleColumnScroll}
+                    onArchive={handleArchiveTask}
+                    showArchived={showArchived}
+                    onToggleArchived={() => setShowArchived(prev => !prev)}
+                    serverCount={statusCounts['done'] ?? todosByStatus.done.length}
+                />
             </div>
 
-            {/* Load More Button */}
-            {hasMore && (
-                <div className="flex justify-center mt-3">
-                    <button
-                        onClick={loadMore}
-                        disabled={isLoadingMore}
-                        className="px-4 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors disabled:opacity-50"
-                    >
-                        {isLoadingMore ? 'Loading...' : `Load More Tasks`}
-                    </button>
+            {/* Loading indicator */}
+            {isLoadingMore && (
+                <div className="flex justify-center mt-2">
+                    <div className="text-[10px] font-bold text-slate-400 animate-pulse">Loading more tasks...</div>
                 </div>
             )}
 
             {/* Mobile list */}
             <div className="lg:hidden space-y-2">
-                {todos.slice(0, 10).map(item => (
+                {todos.map(item => (
                     <TodoCard key={item._id} item={item} {...columnProps} />
                 ))}
-                {hasMore && (
-                    <button
-                        onClick={loadMore}
-                        disabled={isLoadingMore}
-                        className="w-full py-2 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors disabled:opacity-50"
-                    >
-                        {isLoadingMore ? 'Loading...' : 'Load More'}
-                    </button>
+                {/* Sentinel for auto-loading on mobile scroll */}
+                {hasMore && <div ref={mobileScrollSentinel} className="h-1" />}
+                {isLoadingMore && (
+                    <div className="flex justify-center py-2">
+                        <div className="text-[10px] font-bold text-slate-400 animate-pulse">Loading more tasks...</div>
+                    </div>
                 )}
             </div>
 

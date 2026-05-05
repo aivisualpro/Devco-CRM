@@ -30,6 +30,10 @@ export function ChatWidget({ initialData, userEmail, canViewEstimates, searchPar
     const [editingMsgText, setEditingMsgText] = useState('');
     const [replyingTo, setReplyingTo] = useState<any>(null);
     const [longPressMsgId, setLongPressMsgId] = useState<string | null>(null);
+    const [chatScope, setChatScope] = useState<'self' | 'all'>('self');
+    const [canViewAllChats, setCanViewAllChats] = useState(false);
+    const [chatHasMore, setChatHasMore] = useState(false);
+    const [isLoadingOlder, setIsLoadingOlder] = useState(false);
     
     const chatScrollRef = useRef<HTMLDivElement>(null);
     const chatInputRef = useRef<HTMLInputElement>(null);
@@ -39,7 +43,7 @@ export function ChatWidget({ initialData, userEmail, canViewEstimates, searchPar
     const chatInitialLoad = useRef(true);
 
     const chatUrl = useMemo(() => {
-        let url = '/api/chat?limit=50';
+        let url = `/api/chat?limit=50&scope=${chatScope}`;
         if (chatFilterValue) {
             url += `&filter=${encodeURIComponent(chatFilterValue)}`;
         }
@@ -50,7 +54,7 @@ export function ChatWidget({ initialData, userEmail, canViewEstimates, searchPar
              }
         }
         return url;
-    }, [chatFilterValue, tagFilters]);
+    }, [chatFilterValue, tagFilters, chatScope]);
 
     const { data: chatData, mutate: mutateChatMessages } = useSWR(
         chatUrl,
@@ -59,6 +63,8 @@ export function ChatWidget({ initialData, userEmail, canViewEstimates, searchPar
             revalidateOnFocus: true,
             onSuccess: (data) => {
                 if (data?.success) {
+                    if (data.canViewAll !== undefined) setCanViewAllChats(data.canViewAll);
+                    setChatHasMore(data.hasMore ?? false);
                     if (chatInitialLoad.current || !chatUserScrolledUp.current) {
                         setTimeout(() => {
                             if (chatScrollRef.current) {
@@ -72,6 +78,46 @@ export function ChatWidget({ initialData, userEmail, canViewEstimates, searchPar
         }
     );
     const messages: any[] = chatData?.messages || [];
+
+    // ── Load Older Messages (scroll up) ──
+    const loadOlderMessages = useCallback(async () => {
+        if (isLoadingOlder || !chatHasMore || messages.length === 0) return;
+        setIsLoadingOlder(true);
+        const oldestId = messages[0]?._id;
+        const scrollEl = chatScrollRef.current;
+        const prevScrollHeight = scrollEl?.scrollHeight ?? 0;
+        try {
+            let url = `/api/chat?limit=50&scope=${chatScope}&before=${oldestId}`;
+            if (chatFilterValue) url += `&filter=${encodeURIComponent(chatFilterValue)}`;
+            const res = await fetch(url);
+            const data = await res.json();
+            if (data?.success && data.messages?.length > 0) {
+                mutateChatMessages((current: any) => {
+                    if (!current) return current;
+                    const existingIds = new Set((current.messages || []).map((m: any) => m._id));
+                    const newMsgs = data.messages.filter((m: any) => !existingIds.has(m._id));
+                    return {
+                        ...current,
+                        messages: [...newMsgs, ...(current.messages || [])],
+                        hasMore: data.hasMore,
+                    };
+                }, false);
+                setChatHasMore(data.hasMore ?? false);
+                // Preserve scroll position after prepending
+                requestAnimationFrame(() => {
+                    if (scrollEl) {
+                        scrollEl.scrollTop = scrollEl.scrollHeight - prevScrollHeight;
+                    }
+                });
+            } else {
+                setChatHasMore(false);
+            }
+        } catch (err) {
+            console.error('Failed to load older messages', err);
+        } finally {
+            setIsLoadingOlder(false);
+        }
+    }, [isLoadingOlder, chatHasMore, messages, chatScope, chatFilterValue, mutateChatMessages]);
 
     // ── Pusher real-time subscription ──
     useEffect(() => {
@@ -370,8 +416,24 @@ export function ChatWidget({ initialData, userEmail, canViewEstimates, searchPar
                                         <MessageSquare className="w-4 h-4 text-[#0F4C75]" />
                                         <h2 className="font-bold text-slate-900 text-sm">Chat</h2>
                                     </div>
-                                    <div className="flex items-center gap-2 flex-1 lg:flex-initial lg:max-w-[200px] justify-center lg:justify-end">
-                                        <div className="relative w-full">
+                                    <div className="flex items-center gap-2 flex-1 lg:flex-initial justify-center lg:justify-end">
+                                        {canViewAllChats && (
+                                            <div className="flex bg-slate-100 p-0.5 rounded-lg shrink-0">
+                                                <button 
+                                                    onClick={() => { setChatScope('self'); chatInitialLoad.current = true; }}
+                                                    className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition-colors ${chatScope === 'self' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                                >
+                                                    Self
+                                                </button>
+                                                <button 
+                                                    onClick={() => { setChatScope('all'); chatInitialLoad.current = true; }}
+                                                    className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition-colors ${chatScope === 'all' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                                >
+                                                    All
+                                                </button>
+                                            </div>
+                                        )}
+                                        <div className="relative w-full max-w-[180px]">
                                             <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400" />
                                             <input 
                                                 type="text" 
@@ -401,9 +463,18 @@ export function ChatWidget({ initialData, userEmail, canViewEstimates, searchPar
                                             const { scrollTop, scrollHeight, clientHeight } = chatScrollRef.current;
                                             // Consider "near bottom" if within 80px of the bottom
                                             chatUserScrolledUp.current = scrollHeight - scrollTop - clientHeight > 80;
+                                            // Load older messages when scrolled near top
+                                            if (scrollTop < 80 && chatHasMore && !isLoadingOlder) {
+                                                loadOlderMessages();
+                                            }
                                         }
                                     }}
                                 >
+                                    {isLoadingOlder && (
+                                        <div className="flex justify-center py-2">
+                                            <div className="text-[10px] font-bold text-slate-400 animate-pulse">Loading older messages...</div>
+                                        </div>
+                                    )}
                                     {(chatFilterValue ? messages.filter(msg => {
                                         const query = chatFilterValue.toLowerCase().trim();
                                         if (!query) return true;

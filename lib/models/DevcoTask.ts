@@ -35,7 +35,8 @@ const DevcoTaskSchema = new Schema({
     lastUpdatedBy: { type: String },
     lastUpdatedAt: { type: Date, default: Date.now },
     remindersCount: { type: Number, default: 0 },
-    lastReminderAt: { type: Date }
+    lastReminderAt: { type: Date },
+    archived: { type: Boolean, default: false }
 }, {
     collection: 'devcoTasks'
 });

@@ -33,15 +33,20 @@ export async function GET(request: NextRequest) {
         
         const { searchParams } = new URL(request.url);
         const limit = parseInt(searchParams.get('limit') || '50', 10);
+        const before = searchParams.get('before'); // cursor: load messages older than this ID
+        const scopeParam = searchParams.get('scope'); // 'self' or 'all'
         
         let query: any = {};
         const andConditions: any[] = [];
         
         // Scope Check: Use Dashboard's widget_chat field data scope for proper widget-level permissions
-        // This checks if the role has "View All" enabled for the Chat widget under Dashboard Data Scope
         const chatScope = checker.getFieldScope(MODULES.DASHBOARD, 'widget_chat');
+        const canViewAll = chatScope === DATA_SCOPE.ALL;
         
-        if (chatScope !== DATA_SCOPE.ALL) {
+        // Apply scope filter: if user explicitly requested 'self' OR doesn't have 'all' permission
+        const applySelfFilter = scopeParam === 'self' || !canViewAll;
+
+        if (applySelfFilter) {
             const escapedEmail = user.email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const emailRegex = new RegExp(`^${escapedEmail}$`, 'i');
             
@@ -49,7 +54,7 @@ export async function GET(request: NextRequest) {
             andConditions.push({
                  $or: [
                      { sender: emailRegex },
-                     { assignees: emailRegex }, // Matches if any element in array matches regex
+                     { assignees: emailRegex },
                      { 'assignees.email': emailRegex },
                      { 'assignees.value': emailRegex },
                      { 'assignees.id': emailRegex }, 
@@ -78,23 +83,42 @@ export async function GET(request: NextRequest) {
                     { message: { $regex: filterStr, $options: 'i' } },
                     { estimate: { $regex: filterStr, $options: 'i' } },
                     { sender: { $regex: filterStr, $options: 'i' } },
-                    { assignees: { $regex: filterStr, $options: 'i' } }, // Searches string assignees
-                    { 'assignees.name': { $regex: filterStr, $options: 'i' } }, // Searches object assignee names
-                    { 'assignees.email': { $regex: filterStr, $options: 'i' } } // Searches object assignee emails
+                    { assignees: { $regex: filterStr, $options: 'i' } },
+                    { 'assignees.name': { $regex: filterStr, $options: 'i' } },
+                    { 'assignees.email': { $regex: filterStr, $options: 'i' } }
                 ]
             });
+        }
+
+        // Cursor-based pagination: load messages older than 'before' ID
+        if (before) {
+            try {
+                const { Types } = await import('mongoose');
+                if (Types.ObjectId.isValid(before)) {
+                    query._id = { $lt: new Types.ObjectId(before) };
+                }
+            } catch {}
         }
 
         if (andConditions.length > 0) {
             query.$and = andConditions;
         }
 
+        // Fetch limit+1 to determine if there are more older messages
         const messages = await Chat.find(query)
-            .sort({ createdAt: -1 }) // Newest first
-            .limit(limit)
+            .sort({ createdAt: -1 })
+            .limit(limit + 1)
             .lean();
 
-        return NextResponse.json({ success: true, messages: messages.reverse() }); // Return oldest first for chat flow
+        const hasMore = messages.length > limit;
+        if (hasMore) messages.pop(); // Remove the extra one
+
+        return NextResponse.json({ 
+            success: true, 
+            messages: messages.reverse(), // Return oldest first for chat flow
+            hasMore,
+            canViewAll, // Tell client if they have 'all' permission
+        });
     } catch (error) {
         console.error('Chat GET Error:', error instanceof Error ? error.message : error);
         return NextResponse.json({ success: false, error: 'Failed to fetch messages' }, { status: 500 });

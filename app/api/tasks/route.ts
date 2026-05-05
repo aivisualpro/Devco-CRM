@@ -23,10 +23,16 @@ export async function GET(req: NextRequest) {
         
         const { searchParams } = new URL(req.url);
         const assignee = searchParams.get('assignee');
+        const includeArchived = searchParams.get('archived') === 'true';
         
         let query: any = {};
         if (assignee) {
             query.assignees = assignee;
+        }
+
+        // By default, exclude archived tasks
+        if (!includeArchived) {
+            query.archived = { $ne: true };
         }
         
         if (q) {
@@ -39,20 +45,34 @@ export async function GET(req: NextRequest) {
         }
         
         const appliedSort = sort || { createdAt: -1 };
-        const selectedFields = '_id task dueDate assignees status customerId customerName estimate jobAddress createdBy createdAt lastUpdatedBy lastUpdatedAt remindersCount lastReminderAt';
+        const selectedFields = '_id task dueDate assignees status customerId customerName estimate jobAddress createdBy createdAt lastUpdatedBy lastUpdatedAt remindersCount lastReminderAt archived';
         
-        const [tasks, total] = await Promise.all([
+        // Fetch tasks + total + per-status counts in parallel
+        const baseFilter: any = {};
+        if (assignee) baseFilter.assignees = assignee;
+        if (q) baseFilter.$or = query.$or;
+
+        const [tasks, total, statusCounts] = await Promise.all([
             DevcoTask.find(query)
                 .select(selectedFields)
                 .lean()
                 .sort(appliedSort as any)
                 .skip(skip)
                 .limit(limit),
-            DevcoTask.countDocuments(query)
+            DevcoTask.countDocuments(query),
+            DevcoTask.aggregate([
+                { $match: { ...baseFilter, archived: { $ne: true } } },
+                { $group: { _id: '$status', count: { $sum: 1 } } }
+            ])
         ]);
+
+        // Build counts object { todo: N, 'in progress': N, done: N }
+        const counts: Record<string, number> = {};
+        statusCounts.forEach((s: any) => { counts[s._id] = s.count; });
 
         return NextResponse.json({ 
             success: true, 
+            statusCounts: counts,
             ...buildPaginationResponse(tasks, total, page, limit) 
         });
     } catch (error: any) {
@@ -183,7 +203,7 @@ export async function PATCH(req: NextRequest) {
 
         // Check if this is a status-only update
         const isStatusOnlyUpdate = Object.keys(updates).every(key => 
-            ['status', 'lastUpdatedBy', 'lastUpdatedAt'].includes(key)
+            ['status', 'lastUpdatedBy', 'lastUpdatedAt', 'archived'].includes(key)
         );
 
         // Ownership Check: Only creator or Super Admin can do full edits
