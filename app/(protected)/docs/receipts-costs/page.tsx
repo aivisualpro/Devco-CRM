@@ -195,13 +195,25 @@ export default function ReceiptsCostsPage() {
 
         if (search) {
             const s = search.toLowerCase();
-            result = result.filter(r =>
-                String(r.vendor || '').toLowerCase().includes(s) ||
-                String(r.remarks || '').toLowerCase().includes(s) ||
-                String(r.estimateNumber || '').toLowerCase().includes(s) ||
-                String(r.projectName || '').toLowerCase().includes(s) ||
-                String(r.amount || '').includes(s)
-            );
+            // Pre-build O(1) lookup map for creator names
+            const empNameMap = new Map<string, string>();
+            for (const e of employees) {
+                const name = `${e.firstName || ''} ${e.lastName || ''}`.trim().toLowerCase();
+                if (e.email) empNameMap.set(e.email.toLowerCase(), name);
+                if (e._id) empNameMap.set(String(e._id), name);
+            }
+            result = result.filter(r => {
+                const creatorKey = r.createdBy?.toLowerCase() || '';
+                return (
+                    String(r.vendor || '').toLowerCase().includes(s) ||
+                    String(r.remarks || '').toLowerCase().includes(s) ||
+                    String(r.estimateNumber || '').toLowerCase().includes(s) ||
+                    String(r.projectName || '').toLowerCase().includes(s) ||
+                    String(r.amount || '').includes(s) ||
+                    creatorKey.includes(s) ||
+                    (empNameMap.get(creatorKey) || '').includes(s)
+                );
+            });
         }
 
         // Approval filter
@@ -237,7 +249,7 @@ export default function ReceiptsCostsPage() {
         });
 
         return result;
-    }, [allReceipts, search, sortConfig, approvalFilter, paymentFilter]);
+    }, [allReceipts, search, sortConfig, approvalFilter, paymentFilter, employees]);
 
     // Counts for filter badges
     const approvalCounts = useMemo(() => {
