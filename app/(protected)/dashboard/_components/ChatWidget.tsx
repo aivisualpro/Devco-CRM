@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import useSWR, { mutate } from 'swr';
 import { MessageSquare, Search, X, Reply, Forward, Edit, Trash2, Send } from 'lucide-react';
+import { getPusherClient } from '@/lib/realtime/pusher-client';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui';
 import { MyDropDown } from '@/components/ui/MyDropDown';
@@ -71,6 +72,72 @@ export function ChatWidget({ initialData, userEmail, canViewEstimates, searchPar
         }
     );
     const messages: any[] = chatData?.messages || [];
+
+    // ── Pusher real-time subscription ──
+    useEffect(() => {
+        const pusher = getPusherClient();
+        if (!pusher) return;
+
+        const channel = pusher.subscribe('private-org-chat');
+
+        channel.bind('chat-created', (payload: any) => {
+            if (payload.actor === userEmail) return; // already applied via optimistic update
+            const newMsg = payload.message;
+            if (newMsg) {
+                mutateChatMessages((currentData: any) => {
+                    if (!currentData) return { success: true, messages: [newMsg] };
+                    // Prevent duplicates
+                    if (currentData.messages?.some((m: any) => m._id === newMsg._id)) return currentData;
+                    return {
+                        ...currentData,
+                        messages: [...(currentData.messages || []), newMsg]
+                    };
+                }, false);
+                // Auto-scroll to bottom for incoming messages
+                if (!chatUserScrolledUp.current) {
+                    setTimeout(() => {
+                        if (chatScrollRef.current) {
+                            chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+                        }
+                    }, 100);
+                }
+            }
+        });
+
+        channel.bind('chat-updated', (payload: any) => {
+            if (payload.actor === userEmail) return;
+            const updated = payload.message;
+            if (updated) {
+                mutateChatMessages((currentData: any) => {
+                    if (!currentData) return currentData;
+                    return {
+                        ...currentData,
+                        messages: (currentData.messages || []).map((m: any) =>
+                            m._id === updated._id ? updated : m
+                        )
+                    };
+                }, false);
+            }
+        });
+
+        channel.bind('chat-deleted', (payload: any) => {
+            if (payload.actor === userEmail) return;
+            if (payload.messageId) {
+                mutateChatMessages((currentData: any) => {
+                    if (!currentData) return currentData;
+                    return {
+                        ...currentData,
+                        messages: (currentData.messages || []).filter((m: any) => m._id !== payload.messageId)
+                    };
+                }, false);
+            }
+        });
+
+        return () => {
+            channel.unbind_all();
+            pusher.unsubscribe('private-org-chat');
+        };
+    }, [userEmail, mutateChatMessages]);
 
     const handleChatInput = (e: React.ChangeEvent<any>) => {
         const val = e.target.value;

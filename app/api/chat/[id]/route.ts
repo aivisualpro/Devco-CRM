@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import Chat from '@/lib/models/Chat';
 import { getUserFromRequest } from '@/lib/permissions/middleware';
+import { broadcast } from '@/lib/realtime/pusher-server';
 
 export async function PATCH(
     request: NextRequest,
@@ -30,6 +31,9 @@ export async function PATCH(
 
         chat.message = message;
         await chat.save();
+
+        // Real-time broadcast to all connected clients
+        broadcast('private-org-chat', 'chat-updated', { message: JSON.parse(JSON.stringify(chat)), actor: user.email });
 
         return NextResponse.json({ success: true, message: chat });
     } catch (error) {
@@ -63,6 +67,9 @@ export async function DELETE(
         }
 
         await Chat.findByIdAndDelete(id);
+
+        // Real-time broadcast to all connected clients
+        broadcast('private-org-chat', 'chat-deleted', { messageId: id, actor: user.email });
 
         return NextResponse.json({ success: true });
     } catch (error) {

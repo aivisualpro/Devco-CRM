@@ -6,6 +6,7 @@ import Employee from '@/lib/models/Employee';
 import { Resend } from 'resend';
 import { getUserFromRequest } from '@/lib/permissions/middleware';
 import { formatWallDate, formatWallTime, formatWallDateTime } from '@/lib/format/date';
+import { broadcast } from '@/lib/realtime/pusher-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -122,6 +123,9 @@ export async function POST(request: NextRequest) {
             assignees: assignees || [],
             replyTo: replyTo || undefined,
         });
+
+        // Real-time broadcast to all connected clients
+        broadcast('private-org-chat', 'chat-created', { message: JSON.parse(JSON.stringify(newChat)), actor: user.email });
 
         // ── Chat Alert Email (Background) ──
         if (Array.isArray(assignees) && assignees.length > 0) {

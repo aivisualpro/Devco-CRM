@@ -19,10 +19,13 @@ export async function POST(req: NextRequest) {
   const channel = formData.get('channel_name') as string;
 
   // Allow access to org-wide and per-user channels.
-  const orgChannel = 'private-org-tasks';
-  const userChannel = `private-notifications-${user.email.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+  const allowedChannels = new Set([
+    'private-org-tasks',
+    'private-org-chat',
+    `private-notifications-${user.email.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+  ]);
 
-  if (channel !== orgChannel && channel !== userChannel) {
+  if (!allowedChannels.has(channel)) {
     return new NextResponse('Forbidden', { status: 403 });
   }
 
