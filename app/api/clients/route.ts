@@ -227,8 +227,8 @@ export async function POST(req: NextRequest) {
                                 await createNotifications({
                                     recipientEmails: filteredEmails,
                                     type: 'general',
-                                    title: `New Client Created`,
-                                    message: `Created a new client: ${newClient.name}`,
+                                    title: newClient.name,
+                                    message: `A new client has been created by ${creatorName}`,
                                     link: `/clients/${newClient._id}`,
                                     metadata: {
                                         creatorName,
