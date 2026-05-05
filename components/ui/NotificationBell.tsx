@@ -492,15 +492,85 @@ export default function NotificationBell({ currentUser }: { currentUser?: any })
 
                                             {/* Content */}
                                             <div className="flex-1 min-w-0">
-                                                <p className={`text-[12px] leading-snug ${!notif.read ? 'font-bold text-slate-900' : 'font-medium text-slate-600'}`}>
-                                                    {notif.title}
-                                                </p>
-                                                <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2 leading-relaxed">
-                                                    {notif.message}
-                                                </p>
-                                                <p className="text-[10px] text-slate-400 mt-1 font-medium">
-                                                    {timeAgo(notif.createdAt)}
-                                                </p>
+                                                {notif.type === 'schedule_assigned' && notif.metadata?.assignees ? (
+                                                    <>
+                                                        {/* Row 1: Title + Estimate */}
+                                                        <div className="flex items-center gap-1.5">
+                                                            <p className={`text-[12px] leading-snug truncate ${!notif.read ? 'font-bold text-slate-900' : 'font-medium text-slate-600'}`}>
+                                                                {notif.title}
+                                                            </p>
+                                                            {notif.metadata.estimate && (
+                                                                <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold bg-teal-100 text-teal-700 tracking-wide">
+                                                                    {notif.metadata.estimate}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        {/* Row 2: Location + Date */}
+                                                        <div className="flex items-center gap-1 mt-0.5">
+                                                            {notif.metadata.location && (
+                                                                <p className="text-[10px] text-slate-500 truncate flex items-center gap-0.5">
+                                                                    <span className="text-[9px]">📍</span> {notif.metadata.location}
+                                                                </p>
+                                                            )}
+                                                            {notif.metadata.dateRange && (
+                                                                <p className="text-[10px] text-slate-400 flex-shrink-0">
+                                                                    · {notif.metadata.dateRange}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                        {/* Row 3: People Avatars */}
+                                                        <div className="flex items-center gap-1 mt-1.5">
+                                                            <div className="flex -space-x-1.5">
+                                                                {[
+                                                                    ...(notif.metadata.assignees || []).map((a: any) => ({ ...a, role: 'crew' })),
+                                                                    ...(notif.metadata.foreman ? [{ ...notif.metadata.foreman, role: 'foreman' }] : []),
+                                                                    ...(notif.metadata.pm ? [{ ...notif.metadata.pm, role: 'pm' }] : []),
+                                                                ].slice(0, 6).map((person: any, pi: number) => (
+                                                                    <div key={pi} className={`w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center text-[7px] font-bold overflow-hidden relative ${
+                                                                        person.role === 'foreman' ? 'border-amber-400 ring-1 ring-amber-200' :
+                                                                        person.role === 'pm' ? 'border-blue-400 ring-1 ring-blue-200' :
+                                                                        'border-white'
+                                                                    }`} title={`${person.name}${person.role === 'foreman' ? ' (Foreman)' : person.role === 'pm' ? ' (PM)' : ''}`} style={{ zIndex: 10 - pi }}>
+                                                                        {person.image ? (
+                                                                            <Image fill sizes="20px" src={cld(person.image, { w: 40, q: 'auto' })} alt={person.name} className="object-cover" />
+                                                                        ) : (
+                                                                            <span className="w-full h-full bg-slate-200 text-slate-600 flex items-center justify-center">
+                                                                                {person.name?.[0]?.toUpperCase() || '?'}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                ))}
+                                                                {(() => {
+                                                                    const total = (notif.metadata.assignees?.length || 0) + (notif.metadata.foreman ? 1 : 0) + (notif.metadata.pm ? 1 : 0);
+                                                                    return total > 6 ? (
+                                                                        <div className="w-5 h-5 rounded-full bg-slate-100 border-[1.5px] border-white flex items-center justify-center text-[7px] font-bold text-slate-500" style={{ zIndex: 4 }}>
+                                                                            +{total - 6}
+                                                                        </div>
+                                                                    ) : null;
+                                                                })()}
+                                                            </div>
+                                                            {notif.metadata.foreman && (
+                                                                <span className="text-[8px] font-bold text-amber-600 bg-amber-50 px-1 py-0.5 rounded">F</span>
+                                                            )}
+                                                            {notif.metadata.pm && (
+                                                                <span className="text-[8px] font-bold text-blue-600 bg-blue-50 px-1 py-0.5 rounded">PM</span>
+                                                            )}
+                                                            <span className="text-[9px] text-slate-400 ml-auto">{timeAgo(notif.createdAt)}</span>
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <p className={`text-[12px] leading-snug ${!notif.read ? 'font-bold text-slate-900' : 'font-medium text-slate-600'}`}>
+                                                            {notif.title}
+                                                        </p>
+                                                        <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2 leading-relaxed">
+                                                            {notif.message}
+                                                        </p>
+                                                        <p className="text-[10px] text-slate-400 mt-1 font-medium">
+                                                            {timeAgo(notif.createdAt)}
+                                                        </p>
+                                                    </>
+                                                )}
                                             </div>
 
                                             {/* Actions */}

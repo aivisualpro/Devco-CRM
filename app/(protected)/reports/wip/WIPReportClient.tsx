@@ -973,7 +973,7 @@ export default function WIPReportClient({
                             <div className="flex-1 flex flex-col min-h-0 space-y-4 animate-fade-in">
                                 {selectedProject ? (
                                     /* Project Detail View (Page Mode) */
-                                    <div className="bg-white rounded-none shadow-sm overflow-hidden flex flex-col h-full animate-in slide-in-from-right-8 duration-300">
+                                    <div className="bg-white rounded-none shadow-sm overflow-hidden flex flex-col h-full lg:h-full animate-in slide-in-from-right-8 duration-300">
                                         {/* Header Navigation */}
                                         <div className="flex flex-col xl:flex-row items-stretch xl:items-center gap-3 xl:gap-4 px-3 xl:px-6 py-3 xl:py-4 bg-white border-b border-slate-100 shrink-0">
                                             {/* Mobile Top Row: Back, Search & Sync */}
@@ -1095,7 +1095,7 @@ export default function WIPReportClient({
                                             </div>
                                         </div>
 
-                                        <div className="flex-1 flex flex-col min-h-0 p-4 bg-slate-50/50">
+                                        <div className="flex-1 flex flex-col min-h-0 p-4 bg-slate-50/50 overflow-y-auto lg:overflow-visible">
                                             {/* Financial Cards — single row of 7 */}
                                             {(() => {
                                                 const fmt = (v: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v);
@@ -1445,9 +1445,9 @@ export default function WIPReportClient({
                                             })()}
 
                                             {/* 2 Boxes: Transactions & Daily Job Tickets */}
-                                            <div className="grid grid-cols-1 lg:grid-cols-[3fr_1fr] gap-3 flex-1 min-h-0 overflow-hidden">
+                                            <div className="grid grid-cols-1 lg:grid-cols-[3fr_1fr] gap-3 flex-1 min-h-[600px] lg:min-h-0 lg:overflow-hidden">
                                                 {/* Transactions Box */}
-                                                <Card className="flex flex-col h-full border border-slate-200 shadow-none overflow-hidden bg-white">
+                                                <Card className="flex flex-col min-h-[400px] lg:h-full border border-slate-200 shadow-none overflow-hidden bg-white">
                                                     <div className="px-3 h-12 border-b border-slate-100 bg-white shrink-0 flex items-center">
                                                         {/* Row 1: Title + Search + Filters + Counter */}
                                                         <div className="flex items-center gap-2 w-full">
@@ -1626,7 +1626,7 @@ export default function WIPReportClient({
                                                 </Card>
 
                                                 {/* DJT Box */}
-                                                <Card className="flex flex-col h-full border border-slate-200 shadow-none overflow-hidden bg-white">
+                                                <Card className="flex flex-col min-h-[300px] lg:h-full border border-slate-200 shadow-none overflow-hidden bg-white">
                                                     <div className="px-3 h-12 border-b border-slate-100 bg-white shrink-0 flex items-center justify-between">
                                                         <div className="flex items-center gap-3">
                                                             <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2 shrink-0">
