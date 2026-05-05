@@ -98,8 +98,8 @@ export async function POST(req: NextRequest) {
         void createNotifications({
             recipientEmails: filteredEmails,
             type: 'task_assigned',
-            title: `New Task: ${task.task}`,
-            message: `You have been assigned to a new task${task.customerName ? ` for ${task.customerName}` : ''} by`,
+            title: `New Task by ${creatorName}`,
+            message: task.task || 'No description',
             link: `/dashboard`,
             metadata: { taskId: task._id.toString(), creatorName, creatorImage }
         }).catch(err => console.error('[notif]', err));

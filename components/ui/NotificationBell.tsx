@@ -217,7 +217,7 @@ export default function NotificationBell({ currentUser }: { currentUser?: any })
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
                     }}>
-                        {payload.message}{creatorName ? ` ${creatorName}` : ''}
+                        {payload.message}
                     </p>
                 </div>
 
@@ -251,7 +251,7 @@ export default function NotificationBell({ currentUser }: { currentUser?: any })
             </div>
         ), {
             duration: 6000,
-            position: 'top-right',
+            position: 'bottom-right',
             style: { padding: 0, background: 'transparent', border: 'none', boxShadow: 'none' },
         });
     }, [router]);
@@ -545,9 +545,6 @@ export default function NotificationBell({ currentUser }: { currentUser?: any })
                                                     {notif.title}
                                                 </p>
                                                 <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2 leading-relaxed">
-                                                    {notif.metadata?.creatorName && (
-                                                        <span className="font-bold text-slate-700 mr-1">{notif.metadata.creatorName}</span>
-                                                    )}
                                                     {notif.message}
                                                 </p>
                                                 <p className="text-[10px] text-slate-400 mt-1 font-medium">
