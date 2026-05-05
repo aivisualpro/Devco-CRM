@@ -396,15 +396,17 @@ export function ChatWidget({ initialData, userEmail, canViewEstimates, searchPar
 
     const estimateOptions = useMemo(() => {
         if (!initialData.estimates) return [];
-        return initialData.estimates
-            .filter((est: any) => (est.estimate && est.estimate.toLowerCase().includes(referenceQuery.toLowerCase())) || 
-                                (est.projectName && est.projectName.toLowerCase().includes(referenceQuery.toLowerCase())))
-            .slice(0, 10)
-            .map((est: any) => ({
-                id: est.estimate,
-                value: est.estimate,
-                label: `${est.estimate}${est.projectName ? ` - ${est.projectName}` : ''}`
-            }));
+        const filtered = referenceQuery
+            ? initialData.estimates.filter((est: any) => 
+                (est.estimate && est.estimate.toLowerCase().includes(referenceQuery.toLowerCase())) || 
+                (est.projectName && est.projectName.toLowerCase().includes(referenceQuery.toLowerCase()))
+            )
+            : initialData.estimates;
+        return filtered.map((est: any) => ({
+            id: est.estimate,
+            value: est.estimate,
+            label: `${est.estimate}${est.projectName ? ` - ${est.projectName}` : ''}`
+        }));
     }, [initialData.estimates, referenceQuery]);
 
     // The entire rendering of the Chat Widget

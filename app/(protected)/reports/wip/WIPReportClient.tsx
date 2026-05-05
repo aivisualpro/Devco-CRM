@@ -11,7 +11,7 @@ import {
     DollarSign, LayoutDashboard, Briefcase, RefreshCw, ExternalLink, 
     Calendar, User, Users, Search, Filter, Star, MoreVertical, 
     Settings, Printer, Share2, ChevronDown, Clock, Rocket, X,
-    FileText, Target, TrendingUp, Zap, HelpCircle, PieChart as PieChartIcon, Info 
+    FileText, Target, TrendingUp, Zap, HelpCircle, PieChart as PieChartIcon, Info, ArrowLeft, FolderOpen
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
@@ -103,7 +103,29 @@ export default function WIPReportClient({
     const [editingValue, setEditingValue] = useState('');
 
     const [transactions, setTransactions] = useState<any[]>([]);
+    const [txSearch, setTxSearch] = useState('');
+    const [txTypeFilter, setTxTypeFilter] = useState<string[]>([]);
+    const [txStatusFilter, setTxStatusFilter] = useState<string[]>([]);
+    const [txTypeDropdownOpen, setTxTypeDropdownOpen] = useState(false);
+    const [txStatusDropdownOpen, setTxStatusDropdownOpen] = useState(false);
+    const [txCardFilter, setTxCardFilter] = useState<string | null>(null);
     const [isExporting, setIsExporting] = useState(false);
+    const [highlightedProject, setHighlightedProject] = useState<string | null>(null);
+
+    const handleBackClick = () => {
+        const projectId = selectedProject?.Id;
+        setSelectedProject(null);
+        if (projectId) {
+            setHighlightedProject(projectId);
+            setTimeout(() => {
+                const row = document.getElementById(`project-row-${projectId}`);
+                if (row) {
+                    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setTimeout(() => setHighlightedProject(null), 2000);
+                }
+            }, 100);
+        }
+    };
 
     const handleSaveManualValue = async (projectId: string, field: 'originalContract' | 'changeOrders', value: string) => {
         try {
@@ -708,7 +730,7 @@ export default function WIPReportClient({
             <TooltipProvider>
             <Header 
                 showDashboardActions={true} 
-                wipReportFilters={{
+                wipReportFilters={!selectedProject ? {
                     activeTab,
                     setActiveTab,
                     searchQuery,
@@ -721,11 +743,11 @@ export default function WIPReportClient({
                     isExporting,
                     onRefresh: () => fetchProjects(true),
                     isRefreshing: refreshing
-                }}
+                } : undefined}
             />
             
-            <main className="flex-1 flex flex-col min-h-0 p-4 bg-[#f8fafc]">
-                <div className="flex-1 flex flex-col min-h-0 space-y-6">
+            <main className={`flex-1 flex flex-col min-h-0 ${!selectedProject ? 'p-4' : ''} bg-[#f8fafc]`}>
+                <div className={`flex-1 flex flex-col min-h-0 ${!selectedProject ? 'space-y-6' : ''}`}>
                     {/* Project Detail Header removed per user request */}
 
                     {/* Tab Content */}
@@ -804,151 +826,484 @@ export default function WIPReportClient({
                         {activeTab === 'wip' && (
                             <div className="flex-1 flex flex-col min-h-0 space-y-4 animate-fade-in">
                                 {selectedProject ? (
-                                    /* Project Detail View */
-                                    <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col h-[calc(100vh-140px)]">
+                                    /* Project Detail View (Page Mode) */
+                                    <div className="bg-white rounded-none shadow-sm overflow-hidden flex flex-col h-full animate-in slide-in-from-right-8 duration-300">
                                         {/* Header Navigation */}
-                                        <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-100 shrink-0">
-                                            <div className="flex items-center gap-6">
+                                        <div className="flex flex-col xl:flex-row items-stretch xl:items-center gap-3 xl:gap-4 px-3 xl:px-6 py-3 xl:py-4 bg-white border-b border-slate-100 shrink-0">
+                                            {/* Mobile Top Row: Back, Search & Sync */}
+                                            <div className="flex items-center justify-between gap-2 shrink-0 w-full xl:w-auto">
                                                 <button 
-                                                    onClick={() => setSelectedProject(null)}
-                                                    className="p-2 bg-slate-50 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-900 transition-all group"
+                                                    onClick={handleBackClick}
+                                                    className="flex items-center justify-center gap-2 px-3 xl:px-4 py-2 bg-slate-50 hover:bg-slate-100 rounded-xl text-slate-600 hover:text-slate-900 transition-all border border-slate-200 shadow-sm shrink-0 h-10 xl:h-14 group"
                                                 >
-                                                    <X className="w-5 h-5 transition-transform group-hover:rotate-90" />
+                                                    <ArrowLeft className="w-4 xl:w-5 h-4 xl:h-5 transition-transform group-hover:-translate-x-1" />
+                                                    <span className="text-[11px] xl:text-sm font-bold pr-1">Back</span>
                                                 </button>
-                                                <div className="h-8 w-px bg-slate-200"></div>
-                                                <div className="flex items-center gap-8">
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Client</span>
-                                                        <span className="text-sm font-black text-slate-800 flex items-center gap-2">
-                                                            <Briefcase size={14} className="text-[#0F4C75]" />
-                                                            {selectedProject.CompanyName || selectedProject.DisplayName.split(':')?.[0] || '---'}
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Proposal ID</span>
-                                                        <span className="text-sm font-black text-[#0F4C75] flex items-center gap-2">
-                                                            <FileText size={14} />
-                                                            {selectedProject.proposalNumber || '---'}
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Proposal Writer</span>
-                                                        <span className="text-sm font-black text-slate-700 flex items-center gap-2">
-                                                            <Users size={14} className="text-emerald-500" />
-                                                            {(selectedProject.proposalWriters || []).join(', ') || '---'}
-                                                        </span>
+                                                
+                                                {/* Mobile Search Input */}
+                                                <div className="relative flex-1 block xl:hidden">
+                                                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Search transactions..."
+                                                        value={txSearch}
+                                                        onChange={(e) => setTxSearch(e.target.value)}
+                                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75] shadow-sm hover:bg-white transition-all h-10"
+                                                    />
+                                                </div>
+
+                                                <button
+                                                    onClick={() => fetchProjectTransactions(selectedProject.Id)}
+                                                    disabled={loadingTransactions}
+                                                    className="flex xl:hidden items-center justify-center gap-2 px-3 py-2 bg-[#0F4C75] hover:bg-[#3282B8] text-white rounded-xl font-bold transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed h-10 shrink-0"
+                                                >
+                                                    <RefreshCw className={`w-3.5 h-3.5 ${loadingTransactions ? 'animate-spin' : ''}`} />
+                                                    <span className="text-[11px]">Sync</span>
+                                                </button>
+                                            </div>
+
+                                            <div className="h-10 w-px bg-slate-200 shrink-0 mx-2 hidden xl:block"></div>
+
+                                            {/* Info Boxes */}
+                                            <div className="flex-1 flex flex-col xl:flex-row items-start xl:items-stretch gap-1 xl:gap-3 min-w-0 pb-1 xl:pb-0">
+                                                {/* Client Name (40%) */}
+                                                <div className="w-full xl:w-[40%] shrink-0 flex flex-row xl:flex-col items-center xl:items-start gap-1.5 xl:gap-0 xl:bg-slate-50 xl:border xl:border-slate-100 xl:rounded-xl xl:p-3 justify-start xl:justify-center">
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest xl:mb-1 w-20 xl:w-auto shrink-0">
+                                                        <span className="xl:hidden">Client:</span>
+                                                        <span className="hidden xl:inline">Client Name</span>
+                                                    </span>
+                                                    <span className="text-[11px] xl:text-sm font-black text-slate-800 flex items-center gap-1.5 xl:gap-2 truncate">
+                                                        <Briefcase size={14} className="text-[#0F4C75] shrink-0 hidden xl:block" />
+                                                        <span className="truncate">{selectedProject.CompanyName || selectedProject.DisplayName.split(':')?.[0] || '---'}</span>
+                                                    </span>
+                                                </div>
+
+                                                {/* Proposal Name (40%) */}
+                                                <div className="w-full xl:w-[40%] shrink-0 flex flex-row xl:flex-col items-center xl:items-start gap-1.5 xl:gap-0 xl:bg-slate-50 xl:border xl:border-slate-100 xl:rounded-xl xl:p-3 justify-start xl:justify-center">
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest xl:mb-1 w-20 xl:w-auto shrink-0">Proposal<span className="xl:hidden">:</span></span>
+                                                    <span className="text-[11px] xl:text-sm font-black text-slate-800 flex items-center gap-1.5 xl:gap-2 truncate">
+                                                        <FolderOpen size={14} className="text-purple-600 shrink-0 hidden xl:block" />
+                                                        <span className="truncate">{selectedProject.DisplayName || '---'}</span>
+                                                    </span>
+                                                </div>
+
+                                                {/* Proposal Writer (20%) */}
+                                                <div className="w-full xl:w-[20%] shrink-0 flex flex-row xl:flex-col items-center xl:items-start gap-1.5 xl:gap-0 xl:bg-slate-50 xl:border xl:border-slate-100 xl:rounded-xl xl:p-3 justify-start xl:justify-center">
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest xl:mb-1 w-20 xl:w-auto shrink-0">Writer<span className="xl:hidden">:</span></span>
+                                                    <div className="flex items-center gap-2 truncate">
+                                                        {(selectedProject.proposalWriters || []).length > 0 ? (
+                                                            <div className="flex items-center gap-2 min-w-0">
+                                                                {(selectedProject.proposalWriters || []).map((w: string, idx: number) => {
+                                                                    const emp = employees.find(e => 
+                                                                        `${e.firstName} ${e.lastName}`.toLowerCase() === w.toLowerCase() ||
+                                                                        e.email?.toLowerCase() === w.toLowerCase() ||
+                                                                        e._id?.toLowerCase() === w.toLowerCase()
+                                                                    );
+                                                                    const displayName = emp ? `${emp.firstName} ${emp.lastName}`.trim() : w;
+                                                                    const profilePic = emp?.profilePicture;
+                                                                    return (
+                                                                        <div key={idx} className="flex items-center gap-1.5 shrink-0 min-w-0">
+                                                                            <div className="w-4 h-4 xl:w-5 xl:h-5 rounded-full bg-[#0F4C75] border border-white flex items-center justify-center text-[8px] text-white font-black shadow-sm overflow-hidden shrink-0 hidden xl:flex">
+                                                                                {profilePic ? (
+                                                                                    <img src={profilePic} alt={displayName} className="w-full h-full object-cover" />
+                                                                                ) : (
+                                                                                    displayName.substring(0, 1).toUpperCase()
+                                                                                )}
+                                                                            </div>
+                                                                            <span className="text-[11px] xl:text-sm font-black text-slate-700 truncate">{displayName}</span>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-[11px] xl:text-sm font-black text-slate-400 truncate">---</span>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-4">
-                                                <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg border border-emerald-100">
-                                                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                                                    <span className="text-[10px] font-black uppercase tracking-wider">{selectedProject.status || 'Active'}</span>
+
+                                            <div className="h-10 w-px bg-slate-200 shrink-0 mx-2 hidden xl:block"></div>
+
+                                            {/* Search and Sync Actions Desktop */}
+                                            <div className="hidden xl:flex items-center gap-3 shrink-0">
+                                                {/* Desktop Search Input */}
+                                                <div className="relative w-[220px]">
+                                                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Search transactions..."
+                                                        value={txSearch}
+                                                        onChange={(e) => setTxSearch(e.target.value)}
+                                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75] shadow-sm hover:bg-white transition-all h-14"
+                                                    />
                                                 </div>
+
+                                                <button
+                                                    onClick={() => fetchProjectTransactions(selectedProject.Id)}
+                                                    disabled={loadingTransactions}
+                                                    className="flex items-center justify-center gap-2 px-5 py-2 bg-[#0F4C75] hover:bg-[#3282B8] text-white rounded-xl font-bold transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed h-14 shrink-0"
+                                                >
+                                                    <RefreshCw className={`w-4 h-4 ${loadingTransactions ? 'animate-spin' : ''}`} />
+                                                    <span className="text-sm">Sync</span>
+                                                </button>
                                             </div>
                                         </div>
 
-                                        <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50">
-                                            {/* KPI Row */}
-                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                                                {/* Income */}
-                                                <Card className="p-6 border-l-4 border-l-emerald-500 shadow-sm hover:shadow-md transition-shadow bg-white">
-                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Income</span>
-                                                    <div className="text-3xl font-black text-slate-800 mt-2 tracking-tight">
-                                                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(selectedProject.income || 0)}
+                                        <div className="flex-1 flex flex-col min-h-0 p-4 bg-slate-50/50">
+                                            {/* Financial Cards — single row of 7 */}
+                                            {(() => {
+                                                const fmt = (v: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v);
+                                                const costTypes = ['Expense', 'Check', 'Payroll Check', 'Bill'];
+                                                const income = transactions.filter((tx: any) => tx.type === 'Invoice').reduce((s: number, tx: any) => s + (tx.amount || 0), 0);
+                                                const qbCost = transactions.filter((tx: any) => costTypes.includes(tx.type)).reduce((s: number, tx: any) => s + (tx.amount || 0), 0);
+                                                const tickets = selectedProject.jobTickets || [];
+                                                const jobTicketCost = tickets.reduce((s: number, t: any) => s + (t.totalCost || 0), 0);
+                                                const profit = income - qbCost - jobTicketCost;
+                                                const profitPct = income > 0 ? ((profit / income) * 100).toFixed(0) : '0';
+                                                const payment = transactions.filter((tx: any) => tx.type === 'Payment').reduce((s: number, tx: any) => s + (tx.amount || 0), 0);
+                                                const ar = income - payment;
+                                                const payables = transactions.filter((tx: any) => costTypes.includes(tx.type) && (tx.status === 'Open' || tx.status === 'Overdue')).reduce((s: number, tx: any) => s + (tx.amount || 0), 0);
+
+                                                const handleCardClick = (card: string) => {
+                                                    if (txCardFilter === card) {
+                                                        setTxCardFilter(null);
+                                                        setTxTypeFilter([]);
+                                                        setTxStatusFilter([]);
+                                                        return;
+                                                    }
+                                                    setTxCardFilter(card);
+                                                    setTxSearch('');
+                                                    switch (card) {
+                                                        case 'income': setTxTypeFilter(['Invoice']); setTxStatusFilter([]); break;
+                                                        case 'qbCost': setTxTypeFilter(costTypes); setTxStatusFilter([]); break;
+                                                        case 'profit': setTxTypeFilter([]); setTxStatusFilter([]); break;
+                                                        case 'payment': setTxTypeFilter(['Payment']); setTxStatusFilter([]); break;
+                                                        case 'ar': setTxTypeFilter(['Invoice']); setTxStatusFilter([]); break;
+                                                        case 'payables': setTxTypeFilter(costTypes); setTxStatusFilter(['Open', 'Overdue']); break;
+                                                        default: setTxTypeFilter([]); setTxStatusFilter([]);
+                                                    }
+                                                };
+
+                                                const ring = (card: string) => txCardFilter === card ? 'ring-2 ring-slate-800 ring-offset-2 scale-[1.02] shadow-md z-10' : 'hover:scale-[1.01] hover:shadow-sm opacity-95 hover:opacity-100 transition-opacity';
+
+                                                return (
+                                                    <div className="shrink-0 mb-3">
+                                                        <div className="grid grid-cols-6 xl:flex gap-2 items-stretch">
+                                                            {/* Income */}
+                                                            <div onClick={() => handleCardClick('income')} className={`col-span-3 order-1 xl:order-1 flex-1 relative rounded-xl shadow-sm cursor-pointer transition-all duration-200 ${ring('income')}`}>
+                                                                <div className="absolute inset-0 overflow-hidden rounded-xl bg-emerald-50 border border-emerald-200" />
+                                                                <div className="relative p-3 pointer-events-none flex justify-between items-center h-full">
+                                                                    <div className="flex flex-col justify-center">
+                                                                        <p className="text-xs font-black text-emerald-600 uppercase tracking-wider mb-1">Income</p>
+                                                                        {loadingTransactions ? <Skeleton className="h-6 w-24 rounded-md" /> : <p className="text-xl font-black text-emerald-950 tracking-tight leading-none">{fmt(income)}</p>}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            {/* QB Cost */}
+                                                            <div onClick={() => handleCardClick('qbCost')} className={`col-span-2 order-3 xl:order-2 flex-1 relative rounded-xl shadow-sm cursor-pointer transition-all duration-200 ${ring('qbCost')}`}>
+                                                                <div className="absolute inset-0 overflow-hidden rounded-xl bg-blue-50 border border-blue-200" />
+                                                                <div className="relative p-3 pointer-events-none flex justify-between items-center h-full">
+                                                                    <div className="flex flex-col justify-center">
+                                                                        <p className="text-xs font-black text-blue-600 uppercase tracking-wider mb-1">QB Cost</p>
+                                                                        {loadingTransactions ? <Skeleton className="h-6 w-24 rounded-md" /> : <p className="text-xl font-black text-blue-950 tracking-tight leading-none">{fmt(qbCost)}</p>}
+                                                                    </div>
+                                                                    {loadingTransactions ? <Skeleton className="h-5 w-8 xl:h-7 xl:w-12 rounded-md ml-1.5 xl:ml-2 shrink-0" /> : (
+                                                                        <div className="bg-blue-100 rounded-md px-1.5 py-0.5 xl:px-2 xl:py-1 flex items-center justify-center shrink-0 ml-1.5 xl:ml-2">
+                                                                            <span className="text-[10px] xl:text-sm font-bold text-blue-700">{income > 0 ? ((qbCost / income) * 100).toFixed(0) : 0}%</span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                            {/* Job Ticket */}
+                                                            <div className={`col-span-2 order-4 xl:order-3 flex-1 relative rounded-xl shadow-sm opacity-90`}>
+                                                                <div className="absolute inset-0 overflow-hidden rounded-xl bg-amber-50 border border-amber-200" />
+                                                                <div className="relative p-3 pointer-events-none flex justify-between items-center h-full">
+                                                                    <div className="flex flex-col justify-center">
+                                                                        <p className="text-xs font-black text-amber-600 uppercase tracking-wider mb-1">Job Ticket</p>
+                                                                        {loadingTransactions ? <Skeleton className="h-6 w-24 rounded-md" /> : <p className="text-xl font-black text-amber-950 tracking-tight leading-none">{fmt(jobTicketCost)}</p>}
+                                                                    </div>
+                                                                    {loadingTransactions ? <Skeleton className="h-5 w-8 xl:h-7 xl:w-12 rounded-md ml-1.5 xl:ml-2 shrink-0" /> : (
+                                                                        <div className="bg-amber-100 rounded-md px-1.5 py-0.5 xl:px-2 xl:py-1 flex items-center justify-center shrink-0 ml-1.5 xl:ml-2">
+                                                                            <span className="text-[10px] xl:text-sm font-bold text-amber-700">{income > 0 ? ((jobTicketCost / income) * 100).toFixed(0) : 0}%</span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                            {/* Profit */}
+                                                            <div onClick={() => handleCardClick('profit')} className={`col-span-3 order-2 xl:order-4 flex-1 relative rounded-xl shadow-sm cursor-pointer transition-all duration-200 ${ring('profit')}`}>
+                                                                <div className="absolute inset-0 overflow-hidden rounded-xl bg-slate-50 border border-slate-200" />
+                                                                <div className="relative p-3 pointer-events-none flex justify-between items-center h-full">
+                                                                    <div className="flex flex-col justify-center">
+                                                                        <p className="text-xs font-black text-slate-500 uppercase tracking-wider mb-1">Profit</p>
+                                                                        {loadingTransactions ? <Skeleton className="h-6 w-24 rounded-md" /> : <p className={`text-xl font-black tracking-tight leading-none ${profit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{fmt(profit)}</p>}
+                                                                    </div>
+                                                                    {loadingTransactions ? <Skeleton className="h-5 w-8 xl:h-7 xl:w-12 rounded-md ml-1.5 xl:ml-2 shrink-0" /> : (
+                                                                        <div className={`rounded-md px-1.5 py-0.5 xl:px-2 xl:py-1 flex items-center justify-center shrink-0 ml-1.5 xl:ml-2 ${profit >= 0 ? 'bg-emerald-100' : 'bg-rose-100'}`}>
+                                                                            <span className={`text-[10px] xl:text-sm font-bold ${profit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{profitPct}%</span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Separator */}
+                                                            <div className="hidden xl:block xl:order-5 w-px bg-slate-200 self-stretch mx-0.5 shrink-0" />
+
+                                                            {/* Payment */}
+                                                            <div onClick={() => handleCardClick('payment')} className={`col-span-2 order-5 xl:order-6 flex-1 relative rounded-xl shadow-sm cursor-pointer transition-all duration-200 ${ring('payment')}`}>
+                                                                <div className="absolute inset-0 overflow-hidden rounded-xl bg-teal-50 border border-teal-200" />
+                                                                <div className="relative p-3 pointer-events-none flex justify-between items-center h-full">
+                                                                    <div className="flex flex-col justify-center">
+                                                                        <p className="text-xs font-black text-teal-600 uppercase tracking-wider mb-1">Payment</p>
+                                                                        {loadingTransactions ? <Skeleton className="h-6 w-24 rounded-md" /> : <p className="text-xl font-black text-teal-950 tracking-tight leading-none">{fmt(payment)}</p>}
+                                                                    </div>
+                                                                    {loadingTransactions ? <Skeleton className="h-5 w-8 xl:h-7 xl:w-12 rounded-md ml-1.5 xl:ml-2 shrink-0" /> : (
+                                                                        <div className="bg-teal-100 rounded-md px-1.5 py-0.5 xl:px-2 xl:py-1 flex items-center justify-center shrink-0 ml-1.5 xl:ml-2">
+                                                                            <span className="text-[10px] xl:text-sm font-bold text-teal-700">{income > 0 ? ((payment / income) * 100).toFixed(0) : 0}%</span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                            {/* A/R */}
+                                                            <div onClick={() => handleCardClick('ar')} className={`col-span-3 order-6 xl:order-7 flex-1 relative rounded-xl shadow-sm cursor-pointer transition-all duration-200 ${ring('ar')}`}>
+                                                                <div className="absolute inset-0 overflow-hidden rounded-xl bg-rose-50 border border-rose-200" />
+                                                                <div className="relative p-3 pointer-events-none flex justify-between items-center h-full">
+                                                                    <div className="flex flex-col justify-center">
+                                                                        <p className="text-xs font-black text-rose-600 uppercase tracking-wider mb-1">A/R</p>
+                                                                        {loadingTransactions ? <Skeleton className="h-6 w-24 rounded-md" /> : <p className="text-xl font-black text-rose-950 tracking-tight leading-none">{fmt(ar)}</p>}
+                                                                    </div>
+                                                                    {loadingTransactions ? <Skeleton className="h-5 w-8 xl:h-7 xl:w-12 rounded-md ml-1.5 xl:ml-2 shrink-0" /> : (
+                                                                        <div className="bg-rose-100 rounded-md px-1.5 py-0.5 xl:px-2 xl:py-1 flex items-center justify-center shrink-0 ml-1.5 xl:ml-2">
+                                                                            <span className="text-[10px] xl:text-sm font-bold text-rose-700">{income > 0 ? ((ar / income) * 100).toFixed(0) : 0}%</span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                            {/* Payables */}
+                                                            <div onClick={() => handleCardClick('payables')} className={`col-span-3 order-7 xl:order-8 flex-1 relative rounded-xl shadow-sm cursor-pointer transition-all duration-200 ${ring('payables')}`}>
+                                                                <div className="absolute inset-0 overflow-hidden rounded-xl bg-orange-50 border border-orange-200" />
+                                                                <div className="relative p-3 pointer-events-none flex justify-between items-center h-full">
+                                                                    <div className="flex flex-col justify-center">
+                                                                        <p className="text-xs font-black text-orange-600 uppercase tracking-wider mb-1">Payables</p>
+                                                                        {loadingTransactions ? <Skeleton className="h-6 w-24 rounded-md" /> : <p className="text-xl font-black text-orange-950 tracking-tight leading-none">{fmt(payables)}</p>}
+                                                                    </div>
+                                                                    {loadingTransactions ? <Skeleton className="h-5 w-8 xl:h-7 xl:w-12 rounded-md ml-1.5 xl:ml-2 shrink-0" /> : (
+                                                                        <div className="bg-orange-100 rounded-md px-1.5 py-0.5 xl:px-2 xl:py-1 flex items-center justify-center shrink-0 ml-1.5 xl:ml-2">
+                                                                            <span className="text-[10px] xl:text-sm font-bold text-orange-700">{income > 0 ? ((payables / income) * 100).toFixed(0) : 0}%</span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                </Card>
-                                                {/* Cost (QB Costs) */}
-                                                <Card className="p-6 border-l-4 border-l-teal-500 shadow-sm hover:shadow-md transition-shadow bg-white">
-                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cost</span>
-                                                    <div className="text-3xl font-black text-slate-800 mt-2 tracking-tight">
-                                                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(selectedProject.qbCost || 0)}
-                                                    </div>
-                                                </Card>
-                                                {/* Overhead (Devco Costs) */}
-                                                <Card className="p-6 border-l-4 border-l-amber-500 shadow-sm hover:shadow-md transition-shadow bg-white">
-                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Overhead</span>
-                                                    <div className="text-3xl font-black text-slate-800 mt-2 tracking-tight">
-                                                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(selectedProject.devcoCost || 0)}
-                                                    </div>
-                                                </Card>
-                                                {/* Profit */}
-                                                <Card className="p-6 border-l-4 border-l-[#0F4C75] shadow-sm hover:shadow-md transition-shadow bg-white relative">
-                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Profit</span>
-                                                    <div className="text-3xl font-black text-[#0F4C75] mt-2 tracking-tight">
-                                                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format((selectedProject.income || 0) - (selectedProject.cost || 0))}
-                                                    </div>
-                                                    <div className="absolute top-6 right-6 px-2 py-1 bg-blue-50 text-[#0F4C75] rounded text-xs font-black">
-                                                        {selectedProject.profitMargin}%
-                                                    </div>
-                                                </Card>
-                                            </div>
+                                                );
+                                            })()}
 
                                             {/* 2 Boxes: Transactions & Daily Job Tickets */}
-                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[500px] min-h-[500px]">
+                                            <div className="grid grid-cols-1 lg:grid-cols-[3fr_1fr] gap-3 flex-1 min-h-0 overflow-hidden">
                                                 {/* Transactions Box */}
-                                                <Card className="flex flex-col h-full border border-slate-200 shadow-sm overflow-hidden bg-white">
-                                                    <div className="px-5 py-4 border-b border-slate-100 bg-white flex justify-between items-center shrink-0">
-                                                        <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                                                            <Briefcase size={16} className="text-[#0F4C75]" /> Transactions
-                                                        </h3>
-                                                        <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md">{transactions.length} Records</span>
+                                                <Card className="flex flex-col h-full border border-slate-200 shadow-none overflow-hidden bg-white">
+                                                    <div className="px-3 py-2 border-b border-slate-100 bg-white shrink-0 space-y-1.5">
+                                                        {/* Row 1: Title + Search + Filters + Counter */}
+                                                        <div className="flex items-center gap-2">
+                                                            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2 shrink-0">
+                                                                <Briefcase size={16} className="text-[#0F4C75]" /> Transactions
+                                                            </h3>
+
+                                                            {/* Type multi-select filter */}
+                                                            {(() => {
+                                                                const types = [...new Set(transactions.map((tx: any) => tx.type).filter(Boolean))] as string[];
+                                                                return (
+                                                                    <div className="relative shrink-0 hidden xl:block">
+                                                                        <button onClick={() => { setTxTypeDropdownOpen(!txTypeDropdownOpen); setTxStatusDropdownOpen(false); }} className={`flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-md border transition-all ${
+                                                                            txTypeFilter.length > 0 ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'
+                                                                        }`}>
+                                                                            Type {txTypeFilter.length > 0 && <span className="bg-blue-200 text-blue-800 rounded-full w-3.5 h-3.5 flex items-center justify-center text-[8px]">{txTypeFilter.length}</span>}
+                                                                        </button>
+                                                                        {txTypeDropdownOpen && (
+                                                                            <>
+                                                                                <div className="fixed inset-0 z-20" onClick={() => setTxTypeDropdownOpen(false)} />
+                                                                                <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-30 min-w-[160px] py-1">
+                                                                                    {txTypeFilter.length > 0 && (
+                                                                                        <button onClick={() => setTxTypeFilter([])} className="w-full text-left px-3 py-1.5 text-[10px] font-bold text-rose-500 hover:bg-rose-50 border-b border-slate-100">Clear All</button>
+                                                                                    )}
+                                                                                    {types.sort().map(t => (
+                                                                                        <label key={t} className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-slate-50 cursor-pointer">
+                                                                                            <input type="checkbox" checked={txTypeFilter.includes(t)} onChange={() => setTxTypeFilter(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])} className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 cursor-pointer" />
+                                                                                            <span className="text-[11px] font-medium text-slate-700">{t}</span>
+                                                                                        </label>
+                                                                                    ))}
+                                                                                </div>
+                                                                            </>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })()}
+                                                            {/* Status multi-select filter */}
+                                                            {(() => {
+                                                                const statuses = [...new Set(transactions.map((tx: any) => tx.status).filter(Boolean))] as string[];
+                                                                return (
+                                                                    <div className="relative shrink-0 hidden xl:block">
+                                                                        <button onClick={() => { setTxStatusDropdownOpen(!txStatusDropdownOpen); setTxTypeDropdownOpen(false); }} className={`flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-md border transition-all ${
+                                                                            txStatusFilter.length > 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'
+                                                                        }`}>
+                                                                            Status {txStatusFilter.length > 0 && <span className="bg-emerald-200 text-emerald-800 rounded-full w-3.5 h-3.5 flex items-center justify-center text-[8px]">{txStatusFilter.length}</span>}
+                                                                        </button>
+                                                                        {txStatusDropdownOpen && (
+                                                                            <>
+                                                                                <div className="fixed inset-0 z-20" onClick={() => setTxStatusDropdownOpen(false)} />
+                                                                                <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-30 min-w-[130px] py-1">
+                                                                                    {txStatusFilter.length > 0 && (
+                                                                                        <button onClick={() => setTxStatusFilter([])} className="w-full text-left px-3 py-1.5 text-[10px] font-bold text-rose-500 hover:bg-rose-50 border-b border-slate-100">Clear All</button>
+                                                                                    )}
+                                                                                    {statuses.sort().map(s => (
+                                                                                        <label key={s} className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-slate-50 cursor-pointer">
+                                                                                            <input type="checkbox" checked={txStatusFilter.includes(s)} onChange={() => setTxStatusFilter(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])} className="w-3.5 h-3.5 rounded border-slate-300 text-emerald-600 cursor-pointer" />
+                                                                                            <span className="text-[11px] font-medium text-slate-700">{s}</span>
+                                                                                        </label>
+                                                                                    ))}
+                                                                                </div>
+                                                                            </>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })()}
+                                                            <div className="flex-1" />
+                                                            {/* Records counter + total */}
+                                                            {(() => {
+                                                                const q = txSearch.toLowerCase().trim();
+                                                                let filtered = transactions as any[];
+                                                                if (txTypeFilter.length > 0) filtered = filtered.filter((tx: any) => txTypeFilter.includes(tx.type));
+                                                                if (txStatusFilter.length > 0) filtered = filtered.filter((tx: any) => txStatusFilter.includes(tx.status));
+                                                                if (q) filtered = filtered.filter((tx: any) => 
+                                                                    (tx.date && formatDateOnly(tx.date)?.toLowerCase().includes(q)) ||
+                                                                    (tx.type && tx.type.toLowerCase().includes(q)) ||
+                                                                    (tx.no && String(tx.no).toLowerCase().includes(q)) ||
+                                                                    (tx.from && tx.from.toLowerCase().includes(q)) ||
+                                                                    (tx.memo && tx.memo.toLowerCase().includes(q)) ||
+                                                                    (tx.status && tx.status.toLowerCase().includes(q)) ||
+                                                                    (tx.amount && String(tx.amount).includes(q))
+                                                                );
+                                                                const total = filtered.reduce((sum: number, tx: any) => sum + (tx.amount || 0), 0);
+                                                                const hasFilter = txSearch || txTypeFilter.length > 0 || txStatusFilter.length > 0;
+                                                                return (
+                                                                    <div className="flex items-center gap-2 shrink-0">
+                                                                        <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                                                                            {filtered.length}{hasFilter ? `/${transactions.length}` : ''} Records
+                                                                        </span>
+                                                                    </div>
+                                                                );
+                                                            })()}
+                                                        </div>
                                                     </div>
                                                     <div className="flex-1 overflow-auto bg-slate-50/30">
-                                                        <table className="w-full text-left">
+                                                        <table className="w-full min-w-[1000px] text-left table-fixed">
                                                             <thead className="sticky top-0 bg-white/90 backdrop-blur-sm z-10 shadow-sm border-b border-slate-100">
                                                                 <tr>
-                                                                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Date</th>
-                                                                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Type</th>
-                                                                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-right">Amount</th>
+                                                                    <th className="px-1.5 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider w-[10%]">Date</th>
+                                                                    <th className="px-1.5 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider w-[14%]">Type</th>
+                                                                    <th className="px-1.5 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider w-[8%]">No.</th>
+                                                                    <th className="px-1.5 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider w-[20%]">From/To</th>
+                                                                    <th className="px-1.5 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center w-[8%]">Status</th>
+                                                                    <th className="px-1.5 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider text-right w-[10%]">Amount</th>
+                                                                    <th className="px-1.5 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider w-[30%]">Memo</th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody className="divide-y divide-slate-50">
                                                                 {loadingTransactions ? (
                                                                     [...Array(5)].map((_, i) => (
                                                                         <tr key={i}>
-                                                                            <td className="p-4"><div className="w-16 h-3 bg-slate-100 rounded animate-pulse" /></td>
-                                                                            <td className="p-4"><div className="w-20 h-3 bg-slate-100 rounded animate-pulse" /></td>
-                                                                            <td className="p-4 text-right"><div className="w-14 h-3 bg-slate-100 rounded animate-pulse ml-auto" /></td>
+                                                                            <td className="px-1.5 py-2"><div className="w-14 h-3 bg-slate-100 rounded animate-pulse" /></td>
+                                                                            <td className="px-1.5 py-2"><div className="w-16 h-3 bg-slate-100 rounded animate-pulse" /></td>
+                                                                            <td className="px-1.5 py-2"><div className="w-8 h-3 bg-slate-100 rounded animate-pulse" /></td>
+                                                                            <td className="px-1.5 py-2"><div className="w-20 h-3 bg-slate-100 rounded animate-pulse" /></td>
+                                                                            <td className="px-1.5 py-2"><div className="w-10 h-3 bg-slate-100 rounded animate-pulse mx-auto" /></td>
+                                                                            <td className="px-1.5 py-2 text-right"><div className="w-12 h-3 bg-slate-100 rounded animate-pulse ml-auto" /></td>
+                                                                            <td className="px-1.5 py-2"><div className="w-24 h-3 bg-slate-100 rounded animate-pulse" /></td>
                                                                         </tr>
                                                                     ))
-                                                                ) : transactions.length > 0 ? (
-                                                                    transactions.map((tx: any) => (
-                                                                        <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
-                                                                            <td className="p-4 text-xs font-medium text-slate-600">{formatDateOnly(tx.date)}</td>
-                                                                            <td className="p-4 text-xs font-bold text-slate-800 flex items-center gap-2">
-                                                                                <span className={`w-1.5 h-1.5 rounded-full ${tx.type === 'Payment' ? 'bg-emerald-500' : 'bg-blue-500'}`}></span>
-                                                                                {tx.type} <span className="text-slate-400 font-normal text-[10px]">#{tx.no}</span>
-                                                                            </td>
-                                                                            <td className="p-4 text-xs font-black text-slate-900 text-right">
-                                                                                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(tx.amount)}
-                                                                            </td>
-                                                                        </tr>
-                                                                    ))
-                                                                ) : (
-                                                                    <tr><td colSpan={3} className="p-12 text-center text-slate-400 text-sm font-medium">No transactions found.</td></tr>
-                                                                )}
+                                                                ) : (() => {
+                                                                    const q = txSearch.toLowerCase().trim();
+                                                                    let filtered = transactions as any[];
+                                                                    if (txTypeFilter.length > 0) filtered = filtered.filter((tx: any) => txTypeFilter.includes(tx.type));
+                                                                    if (txStatusFilter.length > 0) filtered = filtered.filter((tx: any) => txStatusFilter.includes(tx.status));
+                                                                    if (q) filtered = filtered.filter((tx: any) => 
+                                                                        (tx.date && formatDateOnly(tx.date)?.toLowerCase().includes(q)) ||
+                                                                        (tx.type && tx.type.toLowerCase().includes(q)) ||
+                                                                        (tx.no && String(tx.no).toLowerCase().includes(q)) ||
+                                                                        (tx.from && tx.from.toLowerCase().includes(q)) ||
+                                                                        (tx.memo && tx.memo.toLowerCase().includes(q)) ||
+                                                                        (tx.status && tx.status.toLowerCase().includes(q)) ||
+                                                                        (tx.amount && String(tx.amount).includes(q))
+                                                                    );
+                                                                    return filtered.length > 0 ? (
+                                                                        filtered.map((tx: any) => (
+                                                                            <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
+                                                                                <td className="px-1.5 py-2 text-[11px] font-medium text-slate-600 whitespace-nowrap">{formatDateOnly(tx.date)}</td>
+                                                                                <td className="px-1.5 py-2 text-[11px] font-medium whitespace-nowrap">
+                                                                                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider ${
+                                                                                        tx.type === 'Payment' ? 'bg-teal-50 text-teal-700 border border-teal-200/50' : 
+                                                                                        tx.type === 'Invoice' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50' : 
+                                                                                        tx.type === 'Bill' ? 'bg-orange-50 text-orange-700 border border-orange-200/50' : 
+                                                                                        'bg-blue-50 text-blue-700 border border-blue-200/50'
+                                                                                    }`}>
+                                                                                        {tx.type}
+                                                                                    </span>
+                                                                                </td>
+                                                                                <td className="px-1.5 py-2 text-[11px] font-medium text-slate-600 whitespace-nowrap">#{tx.no}</td>
+                                                                                <td className="px-1.5 py-2 text-[11px] font-medium text-slate-600 truncate">{tx.from || '—'}</td>
+                                                                                <td className="px-1.5 py-2 text-center">
+                                                                                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold ${
+                                                                                        tx.status === 'Paid' ? 'bg-emerald-50 text-emerald-700' :
+                                                                                        tx.status === 'Overdue' ? 'bg-rose-50 text-rose-700' :
+                                                                                        'bg-amber-50 text-amber-700'
+                                                                                    }`}>{tx.status}</span>
+                                                                                </td>
+                                                                                <td className="px-1.5 py-2 text-[11px] font-bold text-slate-800 text-right whitespace-nowrap">
+                                                                                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(tx.amount)}
+                                                                                </td>
+                                                                                <td className="px-1.5 py-2 text-[11px] font-medium text-slate-600 break-words">{tx.memo || '—'}</td>
+                                                                            </tr>
+                                                                        ))
+                                                                    ) : (
+                                                                        <tr><td colSpan={7} className="p-8 text-center text-slate-400 text-sm font-medium">{txSearch || txTypeFilter.length > 0 || txStatusFilter.length > 0 ? 'No matching transactions.' : 'No transactions found.'}</td></tr>
+                                                                    );
+                                                                })()}
                                                             </tbody>
                                                         </table>
                                                     </div>
                                                 </Card>
 
                                                 {/* DJT Box */}
-                                                <Card className="flex flex-col h-full border border-slate-200 shadow-sm overflow-hidden bg-white">
-                                                    <div className="px-5 py-4 border-b border-slate-100 bg-white flex justify-between items-center shrink-0">
-                                                        <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                                                            <FileText size={16} className="text-amber-500" /> Daily Job Tickets
-                                                        </h3>
-                                                        <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md">{(selectedProject.jobTickets || []).length} Tickets</span>
+                                                <Card className="flex flex-col h-full border border-slate-200 shadow-none overflow-hidden bg-white">
+                                                    <div className="px-3 py-2 border-b border-slate-100 bg-white shrink-0 flex items-center justify-between">
+                                                        <div className="flex items-center gap-3">
+                                                            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2 shrink-0">
+                                                                <FileText size={16} className="text-amber-500" /> Tickets
+                                                            </h3>
+                                                            {(() => {
+                                                                const tickets = selectedProject.jobTickets || [];
+                                                                if (tickets.length === 0) return null;
+                                                                const totalEquip = tickets.reduce((s: number, t: any) => s + (t.equipmentCost || 0), 0);
+                                                                const totalOH = tickets.reduce((s: number, t: any) => s + (t.overheadCost || 0), 0);
+                                                                const fmt = (v: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v);
+                                                                return (
+                                                                    <div className="flex items-center gap-1">
+                                                                        <span className="text-[9px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded whitespace-nowrap">Equip {fmt(totalEquip)}</span>
+                                                                        <span className="text-[9px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded whitespace-nowrap">OH {fmt(totalOH)}</span>
+                                                                    </div>
+                                                                );
+                                                            })()}
+                                                        </div>
+                                                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{(selectedProject.jobTickets || []).length} Records</span>
                                                     </div>
                                                     <div className="flex-1 overflow-auto bg-slate-50/30">
-                                                        <table className="w-full text-left">
+                                                        <table className="w-full min-w-[500px] text-left">
                                                             <thead className="sticky top-0 bg-white/90 backdrop-blur-sm z-10 shadow-sm border-b border-slate-100">
                                                                 <tr>
-                                                                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Date</th>
-                                                                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Equipment</th>
-                                                                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Overhead</th>
-                                                                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-right">Total Cost</th>
+                                                                    <th className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider">Date</th>
+                                                                    <th className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider">Equipment</th>
+                                                                    <th className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider">Overhead</th>
+                                                                    <th className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider text-right">Total Cost</th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody className="divide-y divide-slate-50">
@@ -1240,8 +1595,9 @@ export default function WIPReportClient({
 
                                                                 return (
                                                                     <tr 
+                                                                        id={`project-row-${project.Id}`}
                                                                         key={project.Id} 
-                                                                        className="hover:bg-slate-50/50 transition-colors group"
+                                                                        className={`transition-all duration-500 group ${highlightedProject === project.Id ? 'bg-amber-100 ring-2 ring-amber-400 ring-inset z-10 scale-[1.005] shadow-sm relative' : 'hover:bg-slate-50/50'}`}
                                                                     >
                                                                         <td 
                                                                             className="px-2 py-1.5 text-center text-[11px] border border-slate-200"

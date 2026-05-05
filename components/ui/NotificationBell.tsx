@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import useSWRInfinite from 'swr/infinite';
 import { useRouter } from 'next/navigation';
 import { Bell, Check, CheckCheck, Trash2, X, Calendar, Clock, FileText, AlertCircle, Sparkles, ChevronRight, Volume2, VolumeX } from 'lucide-react';
-import Pusher from 'pusher-js';
+import { getPusherClient } from '@/lib/realtime/pusher-client';
 import { cld } from '@/lib/cld';
 import Image from 'next/image';
 
@@ -217,10 +217,8 @@ export default function NotificationBell({ currentUser }: { currentUser?: any })
         // Ensure pusher env vars are available
         if (!process.env.NEXT_PUBLIC_PUSHER_KEY) return;
 
-        const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY, {
-            cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
-            authEndpoint: '/api/pusher/auth',
-        });
+        const pusher = getPusherClient();
+        if (!pusher) return;
         
         const channelName = `private-notifications-${currentUser.email.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
         const channel = pusher.subscribe(channelName);
@@ -239,7 +237,6 @@ export default function NotificationBell({ currentUser }: { currentUser?: any })
         return () => {
             channel.unbind_all();
             pusher.unsubscribe(channelName);
-            pusher.disconnect();
         };
     }, [currentUser?.email, mutate, showDesktopNotification, showInAppToast, playNotificationSound]);
 

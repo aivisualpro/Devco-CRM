@@ -107,7 +107,7 @@ export async function resolveProjectIdsFromEntity(entityName: string, entityId: 
         
         // 3. Bills / Purchases (Expenses) / Journal Entries
         // These are harder because they can be split across multiple customers (projects) via Lines
-        if (['Bill', 'Purchase', 'JournalEntry', 'VendorCredit', 'CreditCardCredit'].includes(entityName)) {
+        if (['Bill', 'Purchase', 'JournalEntry', 'VendorCredit'].includes(entityName)) {
             const res = await qboQuery(`SELECT Line FROM ${entityName} WHERE Id = '${entityId}'`);
             const txn = res.QueryResponse?.[entityName]?.[0];
             

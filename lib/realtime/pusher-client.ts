@@ -1,6 +1,9 @@
 'use client';
 import Pusher from 'pusher-js';
 
+// Suppress Pusher connection warnings in console
+Pusher.logToConsole = false;
+
 let client: Pusher | null = null;
 export function getPusherClient() {
   if (!client && typeof window !== 'undefined' && process.env.NEXT_PUBLIC_PUSHER_KEY) {

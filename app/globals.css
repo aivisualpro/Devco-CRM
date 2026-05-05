@@ -512,6 +512,39 @@ thead.sticky {
   animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* Card Glow Animation for selected financial cards */
+@property --card-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes cardBorderSpin {
+  to { --card-angle: 360deg; }
+}
+
+.card-active-border {
+  position: relative;
+  z-index: 1; /* Establish stacking context */
+}
+
+.card-active-border::before {
+  content: '';
+  position: absolute;
+  inset: -3px; /* The border thickness */
+  border-radius: 15px; /* Matches rounded-xl (12px) + 3px */
+  background: conic-gradient(
+    from var(--card-angle),
+    rgba(15, 76, 117, 1) 0%,
+    rgba(0, 102, 255, 1) 15%,
+    rgba(102, 163, 255, 1) 30%,
+    transparent 50%,
+    transparent 100%
+  );
+  animation: cardBorderSpin 1.5s linear infinite;
+  z-index: -1; /* Place behind the card */
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

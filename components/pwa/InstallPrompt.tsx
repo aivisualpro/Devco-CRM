@@ -33,6 +33,8 @@ export function InstallPrompt() {
     }
 
     const handleBeforeInstallPrompt = (e: Event) => {
+      // Only intercept if not already installed as PWA
+      if (window.matchMedia('(display-mode: standalone)').matches) return;
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       setIsInstallable(true);

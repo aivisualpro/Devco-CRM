@@ -18,10 +18,26 @@ export const BASE_URL = IS_PRODUCTION
 
 const TOKEN_URL = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer';
 
+// In-memory access token cache to prevent concurrent refresh storms
+let _cachedAccessToken: string | null = null;
+let _tokenExpiresAt: number = 0;
+let _tokenRefreshPromise: Promise<string> | null = null;
+
 export async function getAccessToken() {
-    await connectToDatabase();
-    
-    // 1. Try to get from DB first
+    // Return cached token if still valid (5-minute buffer)
+    if (_cachedAccessToken && Date.now() < _tokenExpiresAt - 300000) {
+        return _cachedAccessToken;
+    }
+
+    // Single-flight: if a refresh is already in progress, wait for it
+    if (_tokenRefreshPromise) {
+        return _tokenRefreshPromise;
+    }
+
+    _tokenRefreshPromise = (async () => {
+        try {
+            await connectToDatabase();
+
     let dbToken = null;
     try {
         dbToken = await Token.findOne({ service: 'quickbooks' });
@@ -119,8 +135,16 @@ export async function getAccessToken() {
             }
         }
     }
+    _cachedAccessToken = data.access_token;
+    _tokenExpiresAt = Date.now() + (data.expires_in * 1000);
 
     return data.access_token;
+        } finally {
+            _tokenRefreshPromise = null;
+        }
+    })();
+
+    return _tokenRefreshPromise;
 }
 
 export async function qboQuery(query: string) {
@@ -379,155 +403,255 @@ export async function getAllCustomers() {
 }
 export async function getProjectTransactions(projectId: string) {
     try {
-        if (process.env.NODE_ENV !== 'production') console.log(`Fetching transactions for project/customer ID: ${projectId}...`);
-        
-        // Fetch relevant transaction types
-        // Invoices and Payments can be filtered by CustomerRef directly in the query
-        const invoiceQuery = `SELECT * FROM Invoice WHERE CustomerRef = '${projectId}' MAXRESULTS 1000`;
-        const paymentQuery = `SELECT * FROM Payment WHERE CustomerRef = '${projectId}' MAXRESULTS 1000`;
-        
-        // Fetch all potential cost-carrying transaction types
-        const [invoicesData, paymentsData, purchasesData, billsData, journalsData, vendorCreditsData, ccCreditsData] = await Promise.all([
-            qboQuery(invoiceQuery).catch(() => ({ QueryResponse: {} })),
-            qboQuery(paymentQuery).catch(() => ({ QueryResponse: {} })),
-            fetchAllOfType('Purchase').catch(() => []), 
-            fetchAllOfType('Bill').catch(() => []),
-            fetchAllOfType('JournalEntry').catch(() => []),
-            fetchAllOfType('VendorCredit').catch(() => []),
-            fetchAllOfType('CreditCardCredit').catch(() => [])
-        ]);
+        console.log(`[QB Transactions] Fetching for project ${projectId} using P&L discovery...`);
+        const startTime = Date.now();
 
-        // Helper to check if a line is linked to the project
-        const isLineLinked = (line: any) => {
-            return line.AccountBasedExpenseLineDetail?.CustomerRef?.value === projectId ||
-                   line.ItemBasedExpenseLineDetail?.CustomerRef?.value === projectId ||
-                   line.DescriptionLineDetail?.CustomerRef?.value === projectId ||
-                   line.JournalEntryLineDetail?.Entity?.EntityRef?.value === projectId ||
-                   line.CustomerRef?.value === projectId; // Some types have it directly on the line
+        // ── Step 1: Discover linked transactions via P&L Detail report (1 API call) ──
+        const accessToken = await getAccessToken();
+        const reportUrl = `${BASE_URL}/v3/company/${QBO_REALM_ID}/reports/ProfitAndLossDetail?customer=${projectId}&date_macro=All&minorversion=70`;
+        const reportResponse = await fetch(reportUrl, {
+            headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' },
+            cache: 'no-store'
+        });
+
+        if (!reportResponse.ok) {
+            console.error(`P&L Detail report failed: ${reportResponse.status}`);
+            return [];
+        }
+        const reportData = await reportResponse.json();
+
+        const parseAmount = (val: any) => parseFloat(String(val).replace(/[^0-9.-]/g, '')) || 0;
+
+        // Map P&L report type names → QB entity names
+        const mapPnlTypeToEntity = (t: string): string => {
+            const lower = t.toLowerCase();
+            if (lower.includes('check') || lower === 'expense' || lower.includes('credit card')) return 'Purchase';
+            if (lower.includes('bill payment')) return 'BillPayment';
+            if (lower === 'bill') return 'Bill';
+            if (lower === 'invoice') return 'Invoice';
+            if (lower === 'payment' || lower === 'sales receipt' || lower === 'deposit') return 'Payment';
+            if (lower.includes('journal')) return 'JournalEntry';
+            if (lower.includes('vendor credit')) return 'VendorCredit';
+            return 'Purchase';
         };
 
-        const invoices = (invoicesData?.QueryResponse?.Invoice || []).map((inv: any) => ({
-            id: inv.Id,
-            date: inv.TxnDate,
-            type: 'Invoice',
-            no: inv.DocNumber,
-            from: inv.CustomerRef?.name || '---',
-            memo: inv.PrivateNote || inv.CustomerMemo?.value || '',
-            amount: inv.TotalAmt,
-            status: inv.Balance === 0 ? 'Paid' : (new Date(inv.DueDate) < new Date() ? 'Overdue' : 'Open'),
-            statusColor: inv.Balance === 0 ? 'emerald' : 'amber'
-        }));
+        // Collect unique transaction IDs grouped by entity type + capture P&L row data as fallback
+        const entityIds: Record<string, Set<string>> = {};
+        const pnlFallback: Record<string, { date: string; type: string; no: string; from: string; memo: string; amount: number }> = {};
 
-        const payments = (paymentsData?.QueryResponse?.Payment || []).map((pay: any) => ({
-            id: pay.Id,
-            date: pay.TxnDate,
-            type: 'Payment',
-            no: pay.DocNumber || '',
-            from: pay.CustomerRef?.name || '---',
-            memo: pay.PrivateNote || '',
-            amount: pay.TotalAmt,
-            status: 'Closed',
-            statusColor: 'emerald'
-        }));
+        const traverseRows = (rows: any[]) => {
+            for (const row of rows) {
+                if (row.type === 'Data' && row.ColData) {
+                    const date = row.ColData[0]?.value || '';
+                    const pnlType = row.ColData[1]?.value || '';
+                    const txnId = row.ColData[1]?.id;
+                    const num = row.ColData[2]?.value || '';
+                    const name = row.ColData[3]?.value || '';
+                    const memo = row.ColData[4]?.value || '';
+                    const amount = parseAmount(row.ColData[6]?.value);
 
-        // Process Purchases (Expenses/Checks)
-        const purchases = (purchasesData || [])
-            .map(p => {
-                // DEBUG: Log if we find the specific transactions from the screenshot
-                if (process.env.NODE_ENV !== 'production' && (JSON.stringify(p).includes("Jose Hernandez") || JSON.stringify(p).includes("Joseph Dziuk"))) {
-                    console.log(`DEBUG: Found payroll check for ${JSON.stringify(p).includes("Jose Hernandez") ? "Jose Hernandez" : "Joseph Dziuk"}. Data:`, JSON.stringify(p).substring(0, 500));
+                    if (txnId && pnlType) {
+                        const entity = mapPnlTypeToEntity(pnlType);
+                        if (!entityIds[entity]) entityIds[entity] = new Set();
+                        entityIds[entity].add(txnId);
+
+                        // Capture/accumulate P&L fallback data for this transaction
+                        if (!pnlFallback[txnId]) {
+                            pnlFallback[txnId] = { date, type: pnlType, no: num, from: name, memo, amount: 0 };
+                        }
+                        pnlFallback[txnId].amount += amount;
+                        // Keep the longest memo/name
+                        if (name && name.length > (pnlFallback[txnId].from?.length || 0)) pnlFallback[txnId].from = name;
+                        if (memo && memo.length > (pnlFallback[txnId].memo?.length || 0)) pnlFallback[txnId].memo = memo;
+                        if (num && !pnlFallback[txnId].no) pnlFallback[txnId].no = num;
+                    }
+                } else if (row.Rows?.Row) {
+                    traverseRows(row.Rows.Row);
                 }
-                return p;
-            })
-            .filter((p: any) => p.Line?.some(isLineLinked))
-            .flatMap((p: any) => {
-                return p.Line.filter(isLineLinked).map((line: any) => ({
-                    id: `${p.Id}-${line.Id || Math.random().toString(36).substr(2, 5)}`,
-                    date: p.TxnDate,
-                    type: (p.PaymentType === 'Check' || p.DocNumber === 'DD') ? 'Payroll Check' : 'Expense',
-                    no: p.DocNumber || p.PaymentType || '',
-                    from: p.EntityRef?.name || '---',
-                    memo: p.PrivateNote || line.Description || '',
-                    amount: (line.Amount || 0), 
-                    status: 'Cleared',
+            }
+        };
+        if (reportData.Rows?.Row) traverseRows(reportData.Rows.Row);
+
+        const totalDiscovered = Object.values(entityIds).reduce((sum, s) => sum + s.size, 0);
+        console.log(`[QB Transactions] Discovered ${totalDiscovered} unique transactions from P&L report`);
+
+        // ── Step 2: Batch-fetch actual transaction objects by ID ──
+        const fetchByIds = async (entityType: string, ids: string[]): Promise<any[]> => {
+            if (ids.length === 0) return [];
+            const results: any[] = [];
+            for (let i = 0; i < ids.length; i += 50) {
+                const chunk = ids.slice(i, i + 50);
+                const idList = chunk.map(id => `'${id}'`).join(',');
+                try {
+                    const data = await qboQuery(`SELECT * FROM ${entityType} WHERE Id IN (${idList})`);
+                    results.push(...(data?.QueryResponse?.[entityType] || []));
+                } catch (e: any) {
+                    console.warn(`[QB Transactions] Failed to batch-fetch ${entityType}:`, e.message);
+                }
+            }
+            return results;
+        };
+
+        const directQuerySafe = async (query: string, entity: string): Promise<any[]> => {
+            try {
+                const data = await qboQuery(query);
+                return data?.QueryResponse?.[entity] || [];
+            } catch { return []; }
+        };
+
+        const [
+            purchasesRaw, billsRaw, journalsRaw, vendorCreditsRaw,
+            invoicesDirect, paymentsDirect
+        ] = await Promise.all([
+            fetchByIds('Purchase', [...(entityIds['Purchase'] || [])]),
+            fetchByIds('Bill', [...(entityIds['Bill'] || [])]),
+            fetchByIds('JournalEntry', [...(entityIds['JournalEntry'] || [])]),
+            fetchByIds('VendorCredit', [...(entityIds['VendorCredit'] || [])]),
+            directQuerySafe(`SELECT * FROM Invoice WHERE CustomerRef = '${projectId}' MAXRESULTS 1000`, 'Invoice'),
+            directQuerySafe(`SELECT * FROM Payment WHERE CustomerRef = '${projectId}' MAXRESULTS 1000`, 'Payment'),
+        ]);
+
+        // Merge P&L-discovered invoices/payments with direct-query results (dedup by Id)
+        const invoicePnlIds = [...(entityIds['Invoice'] || [])];
+        const paymentPnlIds = [...(entityIds['Payment'] || [])];
+        const [invoicesPnl, paymentsPnl] = await Promise.all([
+            fetchByIds('Invoice', invoicePnlIds.filter(id => !invoicesDirect.some((inv: any) => inv.Id === id))),
+            fetchByIds('Payment', paymentPnlIds.filter(id => !paymentsDirect.some((p: any) => p.Id === id))),
+        ]);
+        const allInvoices = [...invoicesDirect, ...invoicesPnl];
+        const allPayments = [...paymentsDirect, ...paymentsPnl];
+
+        // ── Step 3: Format entity-fetched transactions (full TotalAmt) ──
+        const fetchedIds = new Set<string>();
+
+        const invoices = allInvoices.map((inv: any) => {
+            fetchedIds.add(inv.Id);
+            return {
+                id: inv.Id,
+                date: inv.TxnDate,
+                type: 'Invoice',
+                no: inv.DocNumber,
+                from: inv.CustomerRef?.name || '---',
+                memo: inv.PrivateNote || inv.CustomerMemo?.value || '',
+                amount: inv.TotalAmt,
+                status: inv.Balance === 0 ? 'Paid' : (new Date(inv.DueDate) < new Date() ? 'Overdue' : 'Open'),
+                statusColor: inv.Balance === 0 ? 'emerald' : 'amber'
+            };
+        });
+
+        const payments = allPayments.map((pay: any) => {
+            fetchedIds.add(pay.Id);
+            return {
+                id: pay.Id,
+                date: pay.TxnDate,
+                type: 'Payment',
+                no: pay.DocNumber || '',
+                from: pay.CustomerRef?.name || '---',
+                memo: pay.PrivateNote || '',
+                amount: pay.TotalAmt,
+                status: 'Closed',
+                statusColor: 'emerald'
+            };
+        });
+
+        const purchases = purchasesRaw.map((p: any) => {
+            fetchedIds.add(p.Id);
+            // Use P&L-allocated amount (project portion) instead of TotalAmt (full transaction)
+            const allocatedAmt = pnlFallback[p.Id]?.amount;
+            return {
+                id: p.Id,
+                date: p.TxnDate,
+                type: pnlFallback[p.Id]?.type || ((p.PaymentType === 'Check' || p.DocNumber === 'DD') ? 'Payroll Check' : 'Expense'),
+                no: p.DocNumber || p.PaymentType || '',
+                from: p.EntityRef?.name || '---',
+                memo: p.PrivateNote || p.Line?.find((l: any) => l.Description)?.Description || '',
+                amount: allocatedAmt !== undefined ? allocatedAmt : (p.TotalAmt || 0),
+                status: 'Paid',
+                statusColor: 'emerald'
+            };
+        });
+
+        const bills = billsRaw.map((bill: any) => {
+            fetchedIds.add(bill.Id);
+            const allocatedAmt = pnlFallback[bill.Id]?.amount;
+            return {
+                id: bill.Id,
+                date: bill.TxnDate,
+                type: 'Bill',
+                no: bill.DocNumber || '',
+                from: bill.VendorRef?.name || '---',
+                memo: bill.PrivateNote || bill.Line?.find((l: any) => l.Description)?.Description || '',
+                amount: allocatedAmt !== undefined ? allocatedAmt : (bill.TotalAmt || 0),
+                status: bill.Balance === 0 ? 'Paid' : 'Open',
+                statusColor: bill.Balance === 0 ? 'emerald' : 'amber'
+            };
+        });
+
+        const vendorCredits = vendorCreditsRaw.map((vc: any) => {
+            fetchedIds.add(vc.Id);
+            const allocatedAmt = pnlFallback[vc.Id]?.amount;
+            return {
+                id: vc.Id,
+                date: vc.TxnDate,
+                type: 'Vendor Credit',
+                no: vc.DocNumber || '',
+                from: vc.VendorRef?.name || '---',
+                memo: vc.PrivateNote || '',
+                amount: allocatedAmt !== undefined ? -Math.abs(allocatedAmt) : -(vc.TotalAmt || 0),
+                status: 'Closed',
+                statusColor: 'emerald'
+            };
+        });
+
+        const journals = journalsRaw.map((j: any) => {
+            fetchedIds.add(j.Id);
+            const allocatedAmt = pnlFallback[j.Id]?.amount;
+            return {
+                id: j.Id,
+                date: j.TxnDate,
+                type: 'Journal Entry',
+                no: j.DocNumber || '',
+                from: j.Line?.find((l: any) => l.JournalEntryLineDetail?.Entity)?.JournalEntryLineDetail?.Entity?.EntityRef?.name || '---',
+                memo: j.PrivateNote || j.Line?.find((l: any) => l.Description)?.Description || '',
+                amount: allocatedAmt !== undefined ? allocatedAmt : (j.TotalAmt || 0),
+                status: 'Cleared',
+                statusColor: 'emerald'
+            };
+        });
+
+        // ── Step 4: P&L Fallback — transactions discovered but NOT returned by entity queries ──
+        // (e.g., payroll checks, deposits, special QB types that can't be queried by ID)
+        const fallbackTransactions: any[] = [];
+        for (const [txnId, data] of Object.entries(pnlFallback)) {
+            if (!fetchedIds.has(txnId)) {
+                fallbackTransactions.push({
+                    id: txnId,
+                    date: data.date,
+                    type: data.type,
+                    no: data.no,
+                    from: data.from,
+                    memo: data.memo,
+                    amount: data.amount,
+                    status: 'Paid',
                     statusColor: 'emerald'
-                }));
-            });
-
-        // Process CC Credits
-        const ccCredits = (ccCreditsData || [])
-            .filter((p: any) => p.Line?.some(isLineLinked))
-            .flatMap((p: any) => {
-                return p.Line.filter(isLineLinked).map((line: any) => ({
-                    id: `${p.Id}-${line.Id || Math.random().toString(36).substr(2, 5)}`,
-                    date: p.TxnDate,
-                    type: 'CC Credit',
-                    no: p.DocNumber || '',
-                    from: p.EntityRef?.name || '---',
-                    memo: p.PrivateNote || line.Description || '',
-                    amount: -(line.Amount || 0), // Credit reduces cost, so maybe negative?
-                    status: 'Cleared',
-                    statusColor: 'emerald'
-                }));
-            });
-
-        const bills = (billsData || [])
-            .filter((bill: any) => bill.Line?.some(isLineLinked))
-            .flatMap((bill: any) => {
-                return bill.Line.filter(isLineLinked).map((line: any) => ({
-                    id: `${bill.Id}-${line.Id || Math.random().toString(36).substr(2, 5)}`,
-                    date: bill.TxnDate,
-                    type: 'Bill',
-                    no: bill.DocNumber || '',
-                    from: bill.VendorRef?.name || '---',
-                    memo: bill.PrivateNote || line.Description || '',
-                    amount: (line.Amount || 0),
-                    status: bill.Balance === 0 ? 'Paid' : 'Open',
-                    statusColor: bill.Balance === 0 ? 'emerald' : 'amber'
-                }));
-            });
-
-        const vendorCredits = (vendorCreditsData || [])
-            .filter((vc: any) => vc.Line?.some(isLineLinked))
-            .flatMap((vc: any) => {
-                return vc.Line.filter(isLineLinked).map((line: any) => ({
-                    id: `${vc.Id}-${line.Id || Math.random().toString(36).substr(2, 5)}`,
-                    date: vc.TxnDate,
-                    type: 'Vendor Credit',
-                    no: vc.DocNumber || '',
-                    from: vc.VendorRef?.name || '---',
-                    memo: vc.PrivateNote || line.Description || '',
-                    amount: -(line.Amount || 0),
-                    status: 'Closed',
-                    statusColor: 'emerald'
-                }));
-            });
-
-        const journals = (journalsData || [])
-            .filter((j: any) => j.Line?.some(isLineLinked))
-            .flatMap((j: any) => {
-                return j.Line.filter(isLineLinked).map((line: any) => {
-                    const amount = line.Amount || 0;
-                    const isDebit = line.JournalEntryLineDetail?.PostingType === 'Debit';
-                    return {
-                        id: `${j.Id}-${line.Id || Math.random().toString(36).substr(2, 5)}`,
-                        date: j.TxnDate,
-                        type: 'Journal Entry',
-                        no: j.DocNumber || '',
-                        from: line.JournalEntryLineDetail?.Entity?.EntityRef?.name || '---',
-                        memo: j.PrivateNote || line.Description || '',
-                        amount: amount, // Positive for both debit and credit? UI just shows them.
-                        status: 'Cleared',
-                        statusColor: 'emerald'
-                    };
                 });
-            });
+            }
+        }
+        if (fallbackTransactions.length > 0) {
+            console.log(`[QB Transactions] ${fallbackTransactions.length} transactions resolved from P&L fallback (payroll/special types)`);
+        }
 
-        // Combine and sort by date descending
-        const allTransactions = [...invoices, ...payments, ...purchases, ...ccCredits, ...bills, ...vendorCredits, ...journals].sort((a, b) => 
-            new Date(b.date).getTime() - new Date(a.date).getTime()
-        );
+        // Combine, dedup by id, sort by date descending
+        const seen = new Set<string>();
+        const allTransactions = [...invoices, ...payments, ...purchases, ...bills, ...vendorCredits, ...journals, ...fallbackTransactions]
+            .filter(tx => {
+                if (seen.has(tx.id)) return false;
+                seen.add(tx.id);
+                return true;
+            })
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
+        console.log(`[QB Transactions] Done: ${allTransactions.length} transactions in ${Date.now() - startTime}ms`);
         return allTransactions;
     } catch (error) {
         console.error('Error in getProjectTransactions:', error);
