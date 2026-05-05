@@ -243,7 +243,9 @@ export async function POST(req: Request) {
                     fromTo: t.from,
                     projectId: lp.Id,
                     amount: t.amount,
-                    memo: t.memo
+                    memo: t.memo,
+                    status: t.status || 'Paid',
+                    no: t.no || ''
                 })),
                 income: lp.income || 0,
                 qbCost: lp.cost || 0

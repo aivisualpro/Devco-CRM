@@ -311,10 +311,11 @@ export default function WIPReportClient({
         }
     };
 
-    const fetchProjectTransactions = async (projectId: string) => {
+    const fetchProjectTransactions = async (projectId: string, refresh = false) => {
         setLoadingTransactions(true);
         try {
-            const response = await fetch(`/api/quickbooks/projects/${projectId}/transactions`);
+            const url = `/api/quickbooks/projects/${projectId}/transactions${refresh ? '?refresh=true' : ''}`;
+            const response = await fetch(url);
             const data = await response.json();
             if (data.error) {
                 toast.error(data.error);
@@ -351,13 +352,14 @@ export default function WIPReportClient({
                             ...updatedProject,
                             startDate: formatDateOnly(updatedProject.MetaData?.CreateTime || updatedProject.startDate),
                             endDate: formatDateOnly(new Date(new Date(updatedProject.MetaData?.CreateTime || updatedProject.startDate).getTime() + 86400000 * 30).toISOString()),
-                            // Ensure these defaults are still applied if missing in updatedProject
                             income: updatedProject.income || 0,
                             cost: updatedProject.cost || 0,
                             profitMargin: updatedProject.profitMargin || 0
                         } : p));
                     }
                 }
+                // Force-refresh transactions from live QB (sync already updated MongoDB)
+                fetchProjectTransactions(projectId, true);
             } else {
                 toast.error(data.error || 'Sync failed');
             }

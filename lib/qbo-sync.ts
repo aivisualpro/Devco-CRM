@@ -28,7 +28,9 @@ export async function syncProjectToDb(projectId: string) {
             fromTo: t.from,
             projectId: lp.Id,
             amount: t.amount,
-            memo: t.memo
+            memo: t.memo,
+            status: t.status || 'Paid',
+            no: t.no || ''
         }))
     };
     

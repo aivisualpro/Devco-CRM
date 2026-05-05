@@ -9,6 +9,8 @@ export interface IQuickBooksTransaction {
     projectId: string; // Linked to parent projectId
     amount: number;
     memo: string;
+    status: string;
+    no: string;
 }
 
 export interface IDevcoQuickBooks extends Document {
@@ -37,7 +39,9 @@ const QuickBooksTransactionSchema = new Schema({
     fromTo: { type: String },
     projectId: { type: String },
     amount: { type: Number, default: 0 },
-    memo: { type: String }
+    memo: { type: String },
+    status: { type: String, default: 'Paid' },
+    no: { type: String, default: '' }
 });
 
 const DevcoQuickBooksSchema = new Schema({
