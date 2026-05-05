@@ -60,6 +60,8 @@ interface Project {
     status?: string;
     proposalSlug?: string;
     jobTickets?: any[];
+    ar?: number;
+    ap?: number;
 }
 
 export default function WIPReportClient({ 
@@ -456,11 +458,73 @@ export default function WIPReportClient({
         }
     };
 
+    // Track selectedProject in a ref so the Pusher callback always has the latest value
+    const selectedProjectRef = useRef(selectedProject);
+    useEffect(() => { selectedProjectRef.current = selectedProject; }, [selectedProject]);
+
     useEffect(() => {
-        // Initial fetch is now handled server-side
-        // fetchProjects();
-        // fetchEmployees();
-        // fetchEquipment();
+        // Real-time QuickBooks sync listener via Pusher
+        let channel: any = null;
+        const setupPusher = async () => {
+            try {
+                const { getPusherClient } = await import('@/lib/realtime/pusher-client');
+                const pusher = getPusherClient();
+                if (!pusher) return;
+
+                channel = pusher.subscribe('qbo-updates');
+                channel.bind('projects-synced', (data: { projectIds: string[], projectNames: string[], changeTypes: string[], timestamp: string }) => {
+                    console.log('[WIP] Live QB update received:', data);
+
+                    // Show toast
+                    const name = data.projectNames?.[0] || 'A project';
+                    const types = data.changeTypes?.join(', ') || 'Transaction';
+                    toast.success(`QB Sync: ${types} updated in ${name}`, { duration: 5000, icon: '🔄' });
+
+                    // Re-fetch the WIP project list (bypass server cache)
+                    fetch('/api/quickbooks/projects?refresh=true')
+                        .then(r => r.json())
+                        .then(freshData => {
+                            if (!freshData.error) {
+                                const enhanced = freshData.map((p: any) => ({
+                                    ...p,
+                                    income: p.income || 0,
+                                    cost: p.cost || 0,
+                                    profitMargin: p.profitMargin || 0,
+                                    timeSpent: '0:00',
+                                    startDate: formatDateOnly(p.MetaData.CreateTime),
+                                    endDate: formatDateOnly(new Date(new Date(p.MetaData.CreateTime).getTime() + 86400000 * 30).toISOString()),
+                                    isFavorite: false
+                                })).sort((a: any, b: any) => {
+                                    const aNum = a.proposalNumber || '';
+                                    const bNum = b.proposalNumber || '';
+                                    if (!aNum && !bNum) return 0;
+                                    if (!aNum) return 1;
+                                    if (!bNum) return -1;
+                                    return bNum.localeCompare(aNum, undefined, { numeric: true });
+                                });
+                                setProjects(enhanced);
+                            }
+                        }).catch(() => {});
+
+                    // If currently viewing a synced project, refresh its transactions too
+                    const current = selectedProjectRef.current;
+                    if (current && data.projectIds.includes(current.Id)) {
+                        fetchProjectTransactions(current.Id, true);
+                    }
+                });
+            } catch (err) {
+                console.warn('[WIP] Pusher setup failed:', err);
+            }
+        };
+        setupPusher();
+
+        return () => {
+            if (channel) {
+                channel.unbind_all();
+                channel.unsubscribe();
+            }
+        };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const handleSaveDJT = async (e: React.FormEvent) => {
@@ -749,6 +813,8 @@ export default function WIPReportClient({
                     'Gross Profit (%)': fmt(grossProfitPct),
                     'Gross Markup on Cost (%)': fmt(grossMarkupPct),
                     '% Complete': fmt(percentageComplete),
+                    'A/R': fmt(project.ar || 0),
+                    'A/P': fmt(project.ap || 0),
                 };
             });
 
@@ -1843,6 +1909,22 @@ export default function WIPReportClient({
                                                                     </TooltipContent>
                                                                 </Tooltip>
                                                             </th>
+                                                            <th className={`px-2 py-1.5 text-[11px] font-black text-slate-500 uppercase tracking-tight text-center border border-slate-200 transition-colors ${activeHighlight.includes('ar') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger className="w-full text-center">A/R</TooltipTrigger>
+                                                                    <TooltipContent side="top">
+                                                                        <p className="text-[10px] font-bold">Accounts Receivable: Revenue Earned - Payments Received</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
+                                                            </th>
+                                                            <th className={`px-2 py-1.5 text-[11px] font-black text-slate-500 uppercase tracking-tight text-center border border-slate-200 transition-colors ${activeHighlight.includes('ap') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger className="w-full text-center">A/P</TooltipTrigger>
+                                                                    <TooltipContent side="top">
+                                                                        <p className="text-[10px] font-bold">Accounts Payable: Open/Overdue Bills & Expenses</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
+                                                            </th>
                                                             <th className={`px-2 py-1.5 text-[11px] font-black text-slate-500 uppercase tracking-tight text-center border border-slate-200 transition-colors ${activeHighlight.includes('sync') ? 'bg-blue-100 text-blue-800' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger className="w-full text-center">Sync</TooltipTrigger>
@@ -1854,7 +1936,7 @@ export default function WIPReportClient({
                                                     <tbody className="divide-y divide-slate-100 border-b border-slate-200">
                                                         {loading ? (
                                                             Array.from({ length: 15 }).map((_, i) => (
-                                                                <SkeletonTableRow key={i} columns={22} />
+                                                                <SkeletonTableRow key={i} columns={24} />
                                                             ))
                                                         ) : visibleProjects.length > 0 ? (
                                                             visibleProjects.map((project) => {
@@ -2069,6 +2151,8 @@ export default function WIPReportClient({
                                                                         <td className={`${cellBase} text-center font-bold ${grossProfitPct >= 0 ? 'text-emerald-600' : 'text-rose-600'} ${activeHighlight.includes('gp-pct') ? highlightCls : ''}`}>{grossProfitPct.toFixed(1)}%</td>
                                                                         <td className={`${cellCls} text-center ${activeHighlight.includes('markup') ? highlightCls : ''}`}>{grossMarkupPct.toFixed(1)}%</td>
                                                                         <td className={`${cellCls} text-center ${activeHighlight.includes('complete') ? highlightCls : ''}`}>{percentageComplete.toFixed(0)}%</td>
+                                                                        <td className={`${cellCls} text-center ${activeHighlight.includes('ar') ? highlightCls : ''} ${(project.ar || 0) > 0 ? 'text-rose-700 font-bold' : 'text-emerald-700'}`}>{fmt(project.ar || 0)}</td>
+                                                                        <td className={`${cellCls} text-center ${activeHighlight.includes('ap') ? highlightCls : ''} ${(project.ap || 0) > 0 ? 'text-amber-700 font-bold' : 'text-emerald-700'}`}>{fmt(project.ap || 0)}</td>
                                                                         <td 
                                                                             className={`p-1.5 text-center border border-slate-200 transition-colors ${activeHighlight.includes('sync') ? highlightCls : ''}`}
                                                                             onClick={(e) => e.stopPropagation()}

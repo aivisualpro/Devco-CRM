@@ -9,13 +9,61 @@ export const getCachedWipCalculations = unstable_cache(
 
         console.log('Fetching QuickBooks projects from MongoDB...');
 
-        // Fetch projects excluding the massive transactions array (not needed here).
-        // income, qbCost, and devcoCost are pre-computed and stored directly on
-        // each document during Sync, so no Schedule/OverheadItem queries needed.
-        const projects = await DevcoQuickBooks.find({})
-            .select('-transactions')
-            .sort({ createdAt: -1 })
-            .lean();
+        // Use MongoDB aggregation to compute Invoice income server-side
+        // (avoids pulling full transaction arrays — runs entirely in MongoDB)
+        const projects = await DevcoQuickBooks.aggregate([
+            { $addFields: {
+                invoiceIncome: {
+                    $reduce: {
+                        input: { $filter: {
+                            input: { $ifNull: ['$transactions', []] },
+                            as: 'tx',
+                            cond: { $eq: ['$$tx.transactionType', 'Invoice'] }
+                        }},
+                        initialValue: 0,
+                        in: { $add: ['$$value', { $ifNull: ['$$this.amount', 0] }] }
+                    }
+                },
+                costTypeSum: {
+                    $reduce: {
+                        input: { $filter: {
+                            input: { $ifNull: ['$transactions', []] },
+                            as: 'tx',
+                            cond: { $in: ['$$tx.transactionType', ['Expense', 'Check', 'Payroll Check', 'Bill']] }
+                        }},
+                        initialValue: 0,
+                        in: { $add: ['$$value', { $ifNull: ['$$this.amount', 0] }] }
+                    }
+                },
+                paymentSum: {
+                    $reduce: {
+                        input: { $filter: {
+                            input: { $ifNull: ['$transactions', []] },
+                            as: 'tx',
+                            cond: { $eq: ['$$tx.transactionType', 'Payment'] }
+                        }},
+                        initialValue: 0,
+                        in: { $add: ['$$value', { $ifNull: ['$$this.amount', 0] }] }
+                    }
+                },
+                payablesSum: {
+                    $reduce: {
+                        input: { $filter: {
+                            input: { $ifNull: ['$transactions', []] },
+                            as: 'tx',
+                            cond: { $and: [
+                                { $in: ['$$tx.transactionType', ['Expense', 'Check', 'Payroll Check', 'Bill']] },
+                                { $in: ['$$tx.status', ['Open', 'Overdue']] }
+                            ]}
+                        }},
+                        initialValue: 0,
+                        in: { $add: ['$$value', { $ifNull: ['$$this.amount', 0] }] }
+                    }
+                }
+            }},
+            { $project: { transactions: 0 } },
+            { $sort: { createdAt: -1 as 1 | -1 } }
+        ]);
 
         console.log(`Fetched ${projects.length} projects from DevcoQuickBooks`);
 
@@ -79,11 +127,15 @@ export const getCachedWipCalculations = unstable_cache(
 
         // Map MongoDB projects to the format expected by the UI
         return projects.map(p => {
-            const income = p.income || 0;
-            const qbCost = p.qbCost || 0;
-            // devcoCost is pre-computed during Sync and stored directly on the document
+            // invoiceIncome & costTypeSum are pre-computed by the aggregation pipeline
+            const income = (p as any).invoiceIncome > 0 ? (p as any).invoiceIncome : (p.income || 0);
+            const qbCost = (p as any).costTypeSum > 0 ? (p as any).costTypeSum : (p.qbCost || 0);
+            // devcoCost = Job Ticket cost, pre-computed during Sync
             const devcoCost = p.devcoCost || 0;
             const totalProjectCost = qbCost + devcoCost;
+            const payment = (p as any).paymentSum || 0;
+            const ar = income - payment;
+            const ap = (p as any).payablesSum || 0;
 
             const estData = p.proposalNumber ? estimateDataMap.get(p.proposalNumber) : null;
             const proposalSlug = p.proposalNumber
@@ -116,16 +168,28 @@ export const getCachedWipCalculations = unstable_cache(
                 endDate: p.endDate,
                 Active: true,
                 CurrencyRef: { value: 'USD' },
-                Balance: 0
+                Balance: 0,
+                ar,
+                ap
             };
         });
     },
     ['wip-calculations'],
-    { tags: ['wip-calculations'], revalidate: 300 }
+    { tags: ['wip-calculations'], revalidate: 30 }
 );
-export async function GET() {
+export async function GET(req: Request) {
     try {
-        const formattedProjects = await getCachedWipCalculations();
+        const url = new URL(req.url);
+        const forceRefresh = url.searchParams.get('refresh') === 'true';
+
+        let formattedProjects;
+        if (forceRefresh) {
+            // Bypass cache — run aggregation directly
+            formattedProjects = await (getCachedWipCalculations as any).__wrapped?.() || await getCachedWipCalculations();
+        } else {
+            formattedProjects = await getCachedWipCalculations();
+        }
+
         console.log(`Returning ${formattedProjects.length} formatted projects`);
         return NextResponse.json(formattedProjects);
     } catch (error: any) {

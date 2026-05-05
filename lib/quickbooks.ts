@@ -363,6 +363,57 @@ export async function getSingleProject(projectId: string) {
             if (process.env.NODE_ENV !== 'production') console.log('Error fetching ProfitAndLossDetail report:', e);
         }
 
+        // 3b. Payments & Invoices are NOT in P&L reports (they're balance sheet).
+        // Query them directly and merge into transactionsData.
+        try {
+            const pnlIds = new Set(transactionsData.map((t: any) => t.id));
+
+            const [invoicesDirect, paymentsDirect] = await Promise.all([
+                qboQuery(`SELECT * FROM Invoice WHERE CustomerRef = '${projectId}' MAXRESULTS 1000`)
+                    .then(d => d?.QueryResponse?.Invoice || []).catch(() => []),
+                qboQuery(`SELECT * FROM Payment WHERE CustomerRef = '${projectId}' MAXRESULTS 1000`)
+                    .then(d => d?.QueryResponse?.Payment || []).catch(() => [])
+            ]);
+
+            for (const inv of invoicesDirect) {
+                if (!pnlIds.has(inv.Id)) {
+                    transactionsData.push({
+                        id: inv.Id,
+                        date: inv.TxnDate,
+                        type: 'Invoice',
+                        no: inv.DocNumber || '',
+                        from: inv.CustomerRef?.name || '---',
+                        memo: inv.PrivateNote || inv.CustomerMemo?.value || '',
+                        amount: inv.TotalAmt,
+                        status: inv.Balance === 0 ? 'Paid' : (new Date(inv.DueDate) < new Date() ? 'Overdue' : 'Open'),
+                        statusColor: inv.Balance === 0 ? 'emerald' : 'amber'
+                    });
+                }
+            }
+
+            for (const pay of paymentsDirect) {
+                if (!pnlIds.has(pay.Id)) {
+                    transactionsData.push({
+                        id: pay.Id,
+                        date: pay.TxnDate,
+                        type: 'Payment',
+                        no: pay.DocNumber || '',
+                        from: pay.CustomerRef?.name || '---',
+                        memo: pay.PrivateNote || '',
+                        amount: pay.TotalAmt,
+                        status: 'Closed',
+                        statusColor: 'emerald'
+                    });
+                }
+            }
+
+            if (process.env.NODE_ENV !== 'production') {
+                console.log(`[getSingleProject] Merged ${invoicesDirect.length} invoices + ${paymentsDirect.length} payments via direct query`);
+            }
+        } catch (e) {
+            console.warn('[getSingleProject] Failed to fetch direct Invoices/Payments:', e);
+        }
+
         // 4. Robust status mapping
         const jobStatus = (lp.JobStatus || '').toLowerCase();
         let status = 'In progress';

@@ -104,6 +104,77 @@ export async function POST(req: NextRequest) {
             console.warn('[QBO-WEBHOOK] No eventNotifications in payload. Keys:', Object.keys(data));
         }
 
+        // --- Notifications & Live Push ---
+        if (syncedProjects.length > 0) {
+            const QBO_NOTIFY_RECIPIENTS = [
+                'info@devco-inc.com',
+                'dt@devco-inc.com', 
+                'cd@devco-inc.com',
+                'adeel@devco-inc.com'
+            ];
+
+            // Build human-readable summary
+            const { DevcoQuickBooks } = await import('@/lib/models');
+            const syncedDocs = await DevcoQuickBooks.find(
+                { projectId: { $in: syncedProjects } },
+                { project: 1, projectId: 1 }
+            ).lean();
+            const projectNames = syncedDocs.map((d: any) => d.project || d.projectId);
+            const summary = projectNames.length <= 2 
+                ? projectNames.join(' & ') 
+                : `${projectNames[0]} and ${projectNames.length - 1} more`;
+
+            // Entity types that triggered the sync
+            const entityTypes = new Set<string>();
+            data.eventNotifications?.forEach((n: any) => {
+                (n.dataChangeEvent?.entities || []).forEach((e: any) => entityTypes.add(e.name));
+            });
+            const changeTypes = Array.from(entityTypes).join(', ') || 'Transaction';
+
+            // Create bell notifications for each recipient
+            const Notification = (await import('@/lib/models/Notification')).default;
+            for (const email of QBO_NOTIFY_RECIPIENTS) {
+                try {
+                    const notif = await Notification.create({
+                        recipientEmail: email,
+                        type: 'qbo_sync',
+                        title: 'QuickBooks Updated',
+                        message: `${changeTypes} changed in ${summary}. WIP data has been refreshed.`,
+                        link: `/reports/wip?project=${syncedDocs[0]?.project?.match(/^[^_]+/)?.[0] || ''}&tab=Summary`,
+                        metadata: { projectIds: syncedProjects, entityTypes: Array.from(entityTypes) },
+                        createdBy: 'quickbooks-webhook',
+                        createdAt: new Date()
+                    });
+
+                    // Push real-time toast via Pusher
+                    const { pushNotification } = await import('@/lib/pusher');
+                    await pushNotification(email, {
+                        title: 'QuickBooks Updated',
+                        message: `${changeTypes} changed in ${summary}`,
+                        link: notif.link,
+                        type: 'qbo_sync',
+                        notificationId: String(notif._id)
+                    });
+                } catch (err) {
+                    console.error(`[QBO-WEBHOOK] Failed to notify ${email}:`, err);
+                }
+            }
+
+            // Broadcast on a public channel so WIP dashboard auto-refreshes
+            try {
+                const { pusherServer } = await import('@/lib/pusher');
+                await pusherServer.trigger('qbo-updates', 'projects-synced', {
+                    projectIds: syncedProjects,
+                    projectNames,
+                    changeTypes: Array.from(entityTypes),
+                    timestamp: new Date().toISOString()
+                });
+                console.log(`[QBO-WEBHOOK] Broadcast live update for ${syncedProjects.length} projects`);
+            } catch (err) {
+                console.error('[QBO-WEBHOOK] Pusher broadcast failed:', err);
+            }
+        }
+
         // Update log with final status
         await WebhookLog.findByIdAndUpdate(logEntry._id, {
             status: 'processed',
