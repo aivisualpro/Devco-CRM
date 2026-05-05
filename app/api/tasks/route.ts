@@ -5,6 +5,7 @@ import { Resend } from 'resend';
 import { getUserFromRequest } from '@/lib/permissions/middleware';
 import { isSuperAdmin } from '@/lib/permissions/service';
 import { createNotifications } from '@/lib/notifications';
+import { broadcast } from '@/lib/realtime/pusher-server';
 import { revalidateTag, revalidatePath } from 'next/cache';
 import { getWeekIdFromDate } from '@/lib/scheduleUtils';
 
@@ -84,6 +85,9 @@ export async function POST(req: NextRequest) {
         revalidateTag('tasks-list', 'default');
         revalidateTag(`task-${task._id}`, 'default');
         revalidatePath('/api/dashboard');
+
+        // Real-time broadcast to all connected clients
+        broadcast('private-org-tasks', 'task-created', { task: JSON.parse(JSON.stringify(task)), actor: user.email });
 
         // --- Notifications ---
         const currentUserEmail = user.email?.toLowerCase().trim() || '';
@@ -212,6 +216,9 @@ export async function PATCH(req: NextRequest) {
             revalidateTag('tasks-list', 'default');
             revalidateTag(`task-${updatedTask._id}`, 'default');
             revalidatePath('/api/dashboard');
+
+            // Real-time broadcast to all connected clients
+            broadcast('private-org-tasks', 'task-updated', { task: JSON.parse(JSON.stringify(updatedTask)), actor: user.email });
             
             const oldAssignees = task.assignees || [];
             const newAssignees = updatedTask.assignees || [];
@@ -291,6 +298,10 @@ export async function DELETE(req: NextRequest) {
         revalidateTag('tasks-list', 'default');
         revalidateTag(`task-${id}`, 'default');
         revalidatePath('/api/dashboard');
+
+        // Real-time broadcast to all connected clients
+        broadcast('private-org-tasks', 'task-deleted', { taskId: id, actor: user.email });
+
         return NextResponse.json({ success: true });
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });

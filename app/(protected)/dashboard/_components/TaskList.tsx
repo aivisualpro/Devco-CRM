@@ -4,6 +4,7 @@ import useSWR from 'swr';
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useCurrentUser } from '@/lib/context/AppContext';
+import { getPusherClient } from '@/lib/realtime/pusher-client';
 import { Badge, Modal, Button, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, MyDropDown, SearchableSelect } from '@/components/ui';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { CheckCircle2, Plus, GripVertical, Edit, Copy, Trash2, Activity as ActivityIcon, ChevronDown } from 'lucide-react';
@@ -469,6 +470,48 @@ export function TaskList({
     useEffect(() => {
         if (data?.tasks) setTodos(data.tasks);
     }, [data?.tasks]);
+
+    // ── Pusher real-time subscription ──
+    useEffect(() => {
+        const pusher = getPusherClient();
+        if (!pusher) return;
+
+        const channel = pusher.subscribe('private-org-tasks');
+
+        channel.bind('task-created', (payload: any) => {
+            if (payload.actor === userEmail) return; // already applied locally
+            const newTask = payload.task;
+            if (newTask) {
+                setTodos(prev => {
+                    if (prev.some(t => t._id === newTask._id)) return prev;
+                    return [newTask, ...prev];
+                });
+                mutate(); // also re-fetch to keep SWR cache in sync
+            }
+        });
+
+        channel.bind('task-updated', (payload: any) => {
+            if (payload.actor === userEmail) return;
+            const updated = payload.task;
+            if (updated) {
+                setTodos(prev => prev.map(t => t._id === updated._id ? updated : t));
+                mutate();
+            }
+        });
+
+        channel.bind('task-deleted', (payload: any) => {
+            if (payload.actor === userEmail) return;
+            if (payload.taskId) {
+                setTodos(prev => prev.filter(t => t._id !== payload.taskId));
+                mutate();
+            }
+        });
+
+        return () => {
+            channel.unbind_all();
+            pusher.unsubscribe('private-org-tasks');
+        };
+    }, [userEmail, mutate]);
 
     const todosByStatus = useMemo(() => {
         const filtered = taskView === 'self' ? todos.filter(t => t.assignees?.includes(userEmail) || t.createdBy === userEmail) : todos;

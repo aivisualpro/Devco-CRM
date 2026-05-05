@@ -147,8 +147,8 @@ export default function NotificationBell({ currentUser }: { currentUser?: any })
             const style = document.createElement('style');
             style.id = 'devco-toast-styles';
             style.textContent = `
-                @keyframes devcoSlideIn { from { opacity:0; transform:translateX(120%); } to { opacity:1; transform:translateX(0); } }
-                @keyframes devcoSlideOut { from { opacity:1; transform:translateX(0); } to { opacity:0; transform:translateX(120%); } }
+                @keyframes devcoSlideIn { from { opacity:0; transform:translateY(-8px) scale(0.98); } to { opacity:1; transform:translateY(0) scale(1); } }
+                @keyframes devcoSlideOut { from { opacity:1; transform:translateY(0) scale(1); } to { opacity:0; transform:translateY(-8px) scale(0.98); } }
                 @keyframes devcoProgress { from { width:100%; } to { width:0%; } }
             `;
             document.head.appendChild(style);
@@ -157,43 +157,41 @@ export default function NotificationBell({ currentUser }: { currentUser?: any })
         const el = document.createElement('div');
         el.style.cssText = `
             position:fixed; top:16px; right:16px; z-index:999999;
-            display:flex; align-items:center; gap:12px;
-            width:360px; max-width:calc(100vw - 32px);
-            padding:14px 16px;
-            background:rgba(255,255,255,0.98);
-            backdrop-filter:blur(24px) saturate(1.8);
-            border-radius:16px;
-            border:1px solid rgba(15,76,117,0.1);
-            box-shadow:0 20px 60px -12px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.02);
+            display:flex; align-items:center; gap:10px;
+            width:340px; max-width:calc(100vw - 32px);
+            padding:12px 14px;
+            background:rgba(255,255,255,0.96);
+            backdrop-filter:blur(20px) saturate(1.6);
+            border-radius:14px;
+            box-shadow:0 4px 24px -4px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.04);
             cursor:${payload.link ? 'pointer' : 'default'};
-            animation:devcoSlideIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards;
+            animation:devcoSlideIn 0.35s cubic-bezier(0.16,1,0.3,1) forwards;
             overflow:hidden;
             font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
         `;
 
         el.innerHTML = `
-            <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,#0F4C75,#3282B8);border-radius:16px 0 0 16px"></div>
-            <div style="position:absolute;bottom:0;left:0;height:2px;background:linear-gradient(90deg,#0F4C75,#3282B8);animation:devcoProgress 6s linear forwards;border-radius:0 0 0 16px"></div>
-            <div style="width:38px;height:38px;border-radius:12px;overflow:hidden;flex-shrink:0;background:${ci ? 'transparent' : 'linear-gradient(135deg,#0F4C75,#3282B8)'};display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(15,76,117,0.15)">
+            <div style="position:absolute;bottom:0;left:0;height:2px;background:linear-gradient(90deg,rgba(15,76,117,0.3),rgba(50,130,184,0.15));animation:devcoProgress 5s linear forwards;border-radius:0 0 14px 14px"></div>
+            <div style="width:34px;height:34px;border-radius:10px;overflow:hidden;flex-shrink:0;background:${ci ? 'transparent' : 'linear-gradient(135deg,#0F4C75,#3282B8)'};display:flex;align-items:center;justify-content:center">
                 ${ci
-                    ? `<img src="${cld(ci, { w: 76, q: 'auto' })}" alt="" style="width:100%;height:100%;object-fit:cover" />`
-                    : `<span style="color:#fff;font-size:12px;font-weight:900;letter-spacing:0.5px">${ini}</span>`
+                    ? `<img src="${cld(ci, { w: 68, q: 'auto' })}" alt="" style="width:100%;height:100%;object-fit:cover" />`
+                    : `<span style="color:#fff;font-size:11px;font-weight:700;letter-spacing:0.3px">${ini}</span>`
                 }
             </div>
             <div style="flex:1;min-width:0">
-                <p style="margin:0;font-size:12.5px;font-weight:800;color:#0f172a;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${payload.title || ''}</p>
-                <p style="margin:2px 0 0 0;font-size:11px;color:#64748b;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${payload.message || ''}</p>
+                <p style="margin:0;font-size:12px;font-weight:600;color:#1e293b;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${payload.title || ''}</p>
+                <p style="margin:2px 0 0 0;font-size:11px;color:#94a3b8;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${payload.message || ''}</p>
             </div>
-            <div class="devco-toast-close" style="width:22px;height:22px;border-radius:6px;border:none;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#94a3b8;flex-shrink:0">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            <div class="devco-toast-close" style="width:20px;height:20px;border-radius:6px;border:none;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#cbd5e1;flex-shrink:0;transition:color 0.15s">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </div>
         `;
 
         document.body.appendChild(el);
 
         const dismiss = () => {
-            el.style.animation = 'devcoSlideOut 0.3s ease-in forwards';
-            setTimeout(() => el.remove(), 300);
+            el.style.animation = 'devcoSlideOut 0.25s ease-in forwards';
+            setTimeout(() => el.remove(), 250);
         };
 
         // Click to navigate
@@ -208,8 +206,8 @@ export default function NotificationBell({ currentUser }: { currentUser?: any })
             dismiss();
         });
 
-        // Auto-dismiss after 6s
-        setTimeout(dismiss, 6000);
+        // Auto-dismiss after 5s
+        setTimeout(dismiss, 5000);
     }, [router]);
 
     // Pusher Subscribe
