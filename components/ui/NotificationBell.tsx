@@ -7,7 +7,6 @@ import { Bell, Check, CheckCheck, Trash2, X, Calendar, Clock, FileText, AlertCir
 import Pusher from 'pusher-js';
 import { cld } from '@/lib/cld';
 import Image from 'next/image';
-import { toast } from 'sonner';
 
 interface AppNotification {
     _id: string;
@@ -62,6 +61,7 @@ export default function NotificationBell({ currentUser }: { currentUser?: any })
     const bellRef = useRef<HTMLButtonElement>(null);
     const prevUnreadRef = useRef(0);
     const audioRef = useRef<HTMLAudioElement | null>(null);
+    const [toastQueue, setToastQueue] = useState<{ id: string; payload: any; exiting?: boolean }[]>([]);
 
     useEffect(() => {
         audioRef.current = new Audio('/sounds/notify.mp3');
@@ -135,126 +135,17 @@ export default function NotificationBell({ currentUser }: { currentUser?: any })
         setTimeout(() => notif.close(), 8000);
     }, [desktopNotificationsEnabled, router]);
 
-    // Premium in-app toast notification
+    // Premium in-app toast notification (self-contained, no sonner dependency)
+    const dismissToast = useCallback((id: string) => {
+        setToastQueue(prev => prev.map(t => t.id === id ? { ...t, exiting: true } : t));
+        setTimeout(() => setToastQueue(prev => prev.filter(t => t.id !== id)), 350);
+    }, []);
+
     const showInAppToast = useCallback((payload: any) => {
-        const creatorName = payload.metadata?.creatorName || '';
-        const creatorImage = payload.metadata?.creatorImage || '';
-        const initials = creatorName ? creatorName.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2) : '?';
-
-        toast.custom((id) => (
-            <div
-                onClick={() => {
-                    if (payload.link) router.push(payload.link);
-                    toast.dismiss(id);
-                }}
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                    width: '380px',
-                    padding: '14px 18px',
-                    background: 'linear-gradient(135deg, rgba(255,255,255,0.97) 0%, rgba(248,250,252,0.97) 100%)',
-                    backdropFilter: 'blur(20px)',
-                    borderRadius: '16px',
-                    border: '1px solid rgba(15, 76, 117, 0.12)',
-                    boxShadow: '0 20px 60px -15px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.02), 0 0 40px rgba(15, 76, 117, 0.06)',
-                    cursor: payload.link ? 'pointer' : 'default',
-                    animation: 'slideInRight 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
-                    position: 'relative',
-                    overflow: 'hidden',
-                }}
-            >
-                {/* Accent line */}
-                <div style={{
-                    position: 'absolute',
-                    left: 0, top: 0, bottom: 0,
-                    width: '3px',
-                    background: 'linear-gradient(180deg, #0F4C75, #3282B8)',
-                    borderRadius: '16px 0 0 16px',
-                }} />
-
-                {/* Creator Avatar */}
-                <div style={{
-                    width: '40px', height: '40px',
-                    borderRadius: '12px',
-                    overflow: 'hidden',
-                    flexShrink: 0,
-                    background: creatorImage ? 'transparent' : 'linear-gradient(135deg, #0F4C75, #3282B8)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: '0 2px 8px rgba(15, 76, 117, 0.15)',
-                }}>
-                    {creatorImage ? (
-                        <img
-                            src={cld(creatorImage, { w: 80, q: 'auto' })}
-                            alt={creatorName}
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        />
-                    ) : (
-                        <span style={{ color: '#fff', fontSize: '13px', fontWeight: 900, letterSpacing: '0.5px' }}>{initials}</span>
-                    )}
-                </div>
-
-                {/* Content */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{
-                        margin: 0,
-                        fontSize: '13px',
-                        fontWeight: 800,
-                        color: '#0f172a',
-                        lineHeight: '1.3',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                    }}>{payload.title}</p>
-                    <p style={{
-                        margin: '3px 0 0 0',
-                        fontSize: '11.5px',
-                        color: '#64748b',
-                        lineHeight: '1.4',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                    }}>
-                        {payload.message}
-                    </p>
-                </div>
-
-                {/* Dismiss button */}
-                <button
-                    onClick={(e) => { e.stopPropagation(); toast.dismiss(id); }}
-                    style={{
-                        width: '24px', height: '24px',
-                        borderRadius: '8px',
-                        border: 'none',
-                        background: 'transparent',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                        color: '#94a3b8',
-                        flexShrink: 0,
-                        transition: 'all 0.15s',
-                    }}
-                    onMouseEnter={(e) => {
-                        e.currentTarget.style.background = '#f1f5f9';
-                        e.currentTarget.style.color = '#475569';
-                    }}
-                    onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'transparent';
-                        e.currentTarget.style.color = '#94a3b8';
-                    }}
-                >
-                    <X size={12} />
-                </button>
-            </div>
-        ), {
-            duration: 6000,
-            position: 'bottom-right',
-            style: { padding: 0, background: 'transparent', border: 'none', boxShadow: 'none' },
-        });
-    }, [router]);
+        const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        setToastQueue(prev => [...prev.slice(-2), { id, payload }]); // max 3 visible
+        setTimeout(() => dismissToast(id), 6000);
+    }, [dismissToast]);
 
     // Pusher Subscribe
     useEffect(() => {
@@ -618,17 +509,92 @@ export default function NotificationBell({ currentUser }: { currentUser?: any })
 
             {/* Global keyframes for toast animation */}
             <style jsx global>{`
-                @keyframes slideInRight {
-                    from {
-                        opacity: 0;
-                        transform: translateX(100%) scale(0.95);
-                    }
-                    to {
-                        opacity: 1;
-                        transform: translateX(0) scale(1);
-                    }
+                @keyframes notifSlideIn {
+                    from { opacity: 0; transform: translateX(120%); }
+                    to { opacity: 1; transform: translateX(0); }
+                }
+                @keyframes notifSlideOut {
+                    from { opacity: 1; transform: translateX(0); }
+                    to { opacity: 0; transform: translateX(120%); }
+                }
+                @keyframes notifProgress {
+                    from { width: 100%; }
+                    to { width: 0%; }
                 }
             `}</style>
+
+            {/* Self-contained toast notifications */}
+            {toastQueue.length > 0 && (
+                <div style={{ position: 'fixed', top: '16px', right: '16px', zIndex: 99999, display: 'flex', flexDirection: 'column', gap: '10px', pointerEvents: 'none' }}>
+                    {toastQueue.map(({ id, payload, exiting }) => {
+                        const cn = payload.metadata?.creatorName || '';
+                        const ci = payload.metadata?.creatorImage || '';
+                        const ini = cn ? cn.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2) : '?';
+                        return (
+                            <div
+                                key={id}
+                                onClick={() => { if (payload.link) { router.push(payload.link); } dismissToast(id); }}
+                                style={{
+                                    pointerEvents: 'auto',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '12px',
+                                    width: '360px',
+                                    maxWidth: 'calc(100vw - 32px)',
+                                    padding: '14px 16px',
+                                    background: 'rgba(255,255,255,0.98)',
+                                    backdropFilter: 'blur(24px) saturate(1.8)',
+                                    borderRadius: '16px',
+                                    border: '1px solid rgba(15, 76, 117, 0.1)',
+                                    boxShadow: '0 20px 60px -12px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.02)',
+                                    cursor: payload.link ? 'pointer' : 'default',
+                                    animation: exiting ? 'notifSlideOut 0.3s ease-in forwards' : 'notifSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+                                    position: 'relative',
+                                    overflow: 'hidden',
+                                }}
+                            >
+                                {/* Accent bar */}
+                                <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '3px', background: 'linear-gradient(180deg, #0F4C75, #3282B8)', borderRadius: '16px 0 0 16px' }} />
+
+                                {/* Progress bar */}
+                                <div style={{ position: 'absolute', bottom: 0, left: 0, height: '2px', background: 'linear-gradient(90deg, #0F4C75, #3282B8)', animation: 'notifProgress 6s linear forwards', borderRadius: '0 0 0 16px' }} />
+
+                                {/* Avatar */}
+                                <div style={{
+                                    width: '38px', height: '38px', borderRadius: '12px', overflow: 'hidden', flexShrink: 0,
+                                    background: ci ? 'transparent' : 'linear-gradient(135deg, #0F4C75, #3282B8)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    boxShadow: '0 2px 8px rgba(15, 76, 117, 0.15)',
+                                }}>
+                                    {ci ? (
+                                        <img src={cld(ci, { w: 76, q: 'auto' })} alt={cn} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    ) : (
+                                        <span style={{ color: '#fff', fontSize: '12px', fontWeight: 900, letterSpacing: '0.5px' }}>{ini}</span>
+                                    )}
+                                </div>
+
+                                {/* Text */}
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <p style={{ margin: 0, fontSize: '12.5px', fontWeight: 800, color: '#0f172a', lineHeight: '1.3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {payload.title}
+                                    </p>
+                                    <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#64748b', lineHeight: '1.4', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {payload.message}
+                                    </p>
+                                </div>
+
+                                {/* Close */}
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); dismissToast(id); }}
+                                    style={{ width: '22px', height: '22px', borderRadius: '6px', border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#94a3b8', flexShrink: 0 }}
+                                >
+                                    <X size={11} />
+                                </button>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
         </div>
     );
 }
