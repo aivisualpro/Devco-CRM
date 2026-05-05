@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import Header from '@/components/ui/Header';
 import { BadgeTabs } from '@/components/ui/Tabs';
@@ -11,15 +11,21 @@ import {
     DollarSign, LayoutDashboard, Briefcase, RefreshCw, ExternalLink, 
     Calendar, User, Users, Search, Filter, Star, MoreVertical, 
     Settings, Printer, Share2, ChevronDown, Clock, Rocket, X,
-    FileText, Target, TrendingUp, Zap, HelpCircle, PieChart as PieChartIcon, Info, ArrowLeft, FolderOpen
+    FileText, Target, TrendingUp, Zap, HelpCircle, PieChart as PieChartIcon, Info, ArrowLeft, FolderOpen,
+    CalendarClock, Shield, Loader2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, Skeleton, SkeletonTableRow, SkeletonTable } from '@/components/ui';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, Skeleton, SkeletonTableRow, SkeletonTable, Modal } from '@/components/ui';
 
 import { DJTModal } from '../../jobs/schedules/components/DJTModal';
+import { ScheduleCard } from '../../jobs/schedules/components/ScheduleCard';
+import { ScheduleDetailsPopup } from '@/components/ui/ScheduleDetailsPopup';
+import { JHACard } from '../../docs/jha/components/JHACard';
+import { JHAModal } from '../../jobs/schedules/components/JHAModal';
 import { formatDateOnly } from '@/lib/timeCardUtils';
 import { getLocalNowISO } from '@/lib/scheduleUtils';
+import { formatWallDate } from '@/lib/format/date';
 // xlsx is imported dynamically in handleExportExcel to avoid loading the 272KB library in the initial bundle
 
 interface Project {
@@ -193,6 +199,27 @@ export default function WIPReportClient({
     const [isSavingSignature, setIsSavingSignature] = useState(false);
     const [isGeneratingDJTPDF, setIsGeneratingDJTPDF] = useState(false);
     const [activeSignatureEmployee, setActiveSignatureEmployee] = useState<string | null>(null);
+
+    // Schedules & JHAs Card State
+    const [projectSchedules, setProjectSchedules] = useState<any[]>([]);
+    const [projectJHAs, setProjectJHAs] = useState<any[]>([]);
+    const [loadingSchedules, setLoadingSchedules] = useState(false);
+    const [loadingJHAs, setLoadingJHAs] = useState(false);
+    const [schedulesPopupOpen, setSchedulesPopupOpen] = useState(false);
+    const [jhasPopupOpen, setJhasPopupOpen] = useState(false);
+    const [ticketsPopupOpen, setTicketsPopupOpen] = useState(false);
+    const [hoursPopupOpen, setHoursPopupOpen] = useState(false);
+    
+    // Schedule detail popup state (for clicking on a schedule card)
+    const [selectedScheduleForDetail, setSelectedScheduleForDetail] = useState<any>(null);
+    const [scheduleDetailPopupOpen, setScheduleDetailPopupOpen] = useState(false);
+    
+    // JHA modal state for viewing JHAs from WIP
+    const [wipJhaModalOpen, setWipJhaModalOpen] = useState(false);
+    const [selectedWipJHA, setSelectedWipJHA] = useState<any>(null);
+    const [isWipJhaEditMode, setIsWipJhaEditMode] = useState(false);
+    const [wipJhaSignatureEmployee, setWipJhaSignatureEmployee] = useState<string | null>(null);
+    const [isGeneratingWipJHAPDF, setIsGeneratingWipJHAPDF] = useState(false);
     
     const router = useRouter();
     const pathname = usePathname();
@@ -537,12 +564,63 @@ export default function WIPReportClient({
         }
     };
 
+    // Fetch Schedules count for the project
+    const fetchProjectSchedules = useCallback(async (proposalNumber: string) => {
+        if (!proposalNumber) { setProjectSchedules([]); return; }
+        setLoadingSchedules(true);
+        try {
+            const baseEstimate = proposalNumber.includes('-') ? proposalNumber.split('-').slice(0, 2).join('-') : proposalNumber;
+            const res = await fetch('/api/schedules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'getSchedulesByEstimate', payload: { estimateNumber: baseEstimate } })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setProjectSchedules(data.result || []);
+            }
+        } catch (e) {
+            console.error('Error fetching schedules:', e);
+        } finally {
+            setLoadingSchedules(false);
+        }
+    }, []);
+
+    // Fetch JHAs count for the project
+    const fetchProjectJHAs = useCallback(async (proposalNumber: string) => {
+        if (!proposalNumber) { setProjectJHAs([]); return; }
+        setLoadingJHAs(true);
+        try {
+            const baseEstimate = proposalNumber.includes('-') ? proposalNumber.split('-').slice(0, 2).join('-') : proposalNumber;
+            const res = await fetch('/api/jha', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'getJHAs', payload: { search: baseEstimate, page: 1, limit: 200 } })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setProjectJHAs(data.result?.jhas || []);
+            }
+        } catch (e) {
+            console.error('Error fetching JHAs:', e);
+        } finally {
+            setLoadingJHAs(false);
+        }
+    }, []);
+
     useEffect(() => {
         if (selectedProject) {
             fetchProjectTransactions(selectedProject.Id);
             fetchProjectProfitability(selectedProject.Id);
+            // Fetch schedules and JHAs counts
+            if (selectedProject.proposalNumber) {
+                fetchProjectSchedules(selectedProject.proposalNumber);
+                fetchProjectJHAs(selectedProject.proposalNumber);
+            }
         } else {
             setTransactions([]);
+            setProjectSchedules([]);
+            setProjectJHAs([]);
         }
     }, [selectedProject?.Id]);
 
@@ -1098,13 +1176,213 @@ export default function WIPReportClient({
                                                 );
                                             })()}
 
+                                            {/* Schedules, JHAs, Tickets & Hours Cards Row */}
+                                            {(() => {
+                                                const schedCount = projectSchedules.length;
+                                                const jhaCount = projectJHAs.length;
+                                                const ticketCount = (selectedProject.jobTickets || []).length;
+                                                const jhaPct = schedCount > 0 ? Math.round((jhaCount / schedCount) * 100) : 0;
+                                                const ticketPct = schedCount > 0 ? Math.round((ticketCount / schedCount) * 100) : 0;
+
+                                                // Hours calculation from timesheet arrays
+                                                let siteHrs = 0;
+                                                let driveHrs = 0;
+                                                for (const sched of projectSchedules) {
+                                                    for (const ts of (sched.timesheet || [])) {
+                                                        const h = typeof ts.hours === 'number' ? ts.hours : parseFloat(ts.hours || '0') || 0;
+                                                        const typeLower = (ts.type || '').toLowerCase();
+                                                        if (typeLower.includes('drive')) {
+                                                            driveHrs += h;
+                                                        } else {
+                                                            siteHrs += h;
+                                                        }
+                                                    }
+                                                }
+                                                const totalHrs = siteHrs + driveHrs;
+
+                                                // Avg Cost/Hr calculation
+                                                const laborCost = (transactions as any[]).reduce((sum: number, tx: any) => {
+                                                    const isPayroll = (tx.type || '').toLowerCase() === 'payroll check';
+                                                    const isUnion = (tx.from || '').toLowerCase().includes('southern california construction laborers');
+                                                    if (isPayroll || isUnion) return sum + (Math.abs(tx.amount) || 0);
+                                                    return sum;
+                                                }, 0);
+                                                const avgCostPerHr = totalHrs > 0 ? laborCost / totalHrs : 0;
+
+                                                return (
+                                            <div className="shrink-0 mb-3">
+                                                <div className="grid grid-cols-2 md:grid-cols-5 xl:grid-cols-5 gap-2">
+                                                    {/* Schedules Card */}
+                                                    <div
+                                                        onClick={() => setSchedulesPopupOpen(true)}
+                                                        className="relative rounded-xl shadow-sm cursor-pointer transition-all duration-200 hover:scale-[1.02] hover:shadow-md group"
+                                                    >
+                                                        <div className="absolute inset-0 overflow-hidden rounded-xl bg-gradient-to-br from-indigo-50 to-violet-50 border border-indigo-200" />
+                                                        <div className="relative p-3 flex justify-between items-center h-full">
+                                                            <div className="flex flex-col justify-center">
+                                                                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                                                                    <CalendarClock className="w-3.5 h-3.5" />
+                                                                    Schedules
+                                                                </p>
+                                                                {loadingSchedules ? (
+                                                                    <Skeleton className="h-7 w-10 rounded-md" />
+                                                                ) : (
+                                                                    <p className="text-2xl font-black text-indigo-950 tracking-tight leading-none">{schedCount}</p>
+                                                                )}
+                                                            </div>
+                                                            <div className="bg-indigo-100 group-hover:bg-indigo-200 rounded-lg p-2 transition-colors">
+                                                                <CalendarClock className="w-5 h-5 text-indigo-500" />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* JHAs Card */}
+                                                    <div
+                                                        onClick={() => {
+                                                            if (selectedProject?.proposalNumber) {
+                                                                fetchProjectJHAs(selectedProject.proposalNumber);
+                                                            }
+                                                            setJhasPopupOpen(true);
+                                                        }}
+                                                        className="relative rounded-xl shadow-sm cursor-pointer transition-all duration-200 hover:scale-[1.02] hover:shadow-md group"
+                                                    >
+                                                        <div className="absolute inset-0 overflow-hidden rounded-xl bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-200" />
+                                                        <div className="relative p-3 flex justify-between items-center h-full">
+                                                            <div className="flex flex-col justify-center">
+                                                                <p className="text-[10px] font-black text-orange-600 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                                                                    <Shield className="w-3.5 h-3.5" />
+                                                                    JHAs
+                                                                </p>
+                                                                {loadingJHAs ? (
+                                                                    <Skeleton className="h-7 w-10 rounded-md" />
+                                                                ) : (
+                                                                    <div className="flex items-end gap-2">
+                                                                        <p className="text-2xl font-black text-orange-950 tracking-tight leading-none">{jhaCount}</p>
+                                                                        {schedCount > 0 && (
+                                                                            <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md leading-none ${
+                                                                                jhaPct >= 100 ? 'bg-emerald-100 text-emerald-700' : jhaPct >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'
+                                                                            }`}>{jhaPct}%</span>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <div className="bg-orange-100 group-hover:bg-orange-200 rounded-lg p-2 transition-colors">
+                                                                <Shield className="w-5 h-5 text-orange-500" />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Tickets Card */}
+                                                    <div
+                                                        onClick={() => setTicketsPopupOpen(true)}
+                                                        className="relative rounded-xl shadow-sm cursor-pointer transition-all duration-200 hover:scale-[1.02] hover:shadow-md group"
+                                                    >
+                                                        <div className="absolute inset-0 overflow-hidden rounded-xl bg-gradient-to-br from-teal-50 to-cyan-50 border border-teal-200" />
+                                                        <div className="relative p-3 flex justify-between items-center h-full">
+                                                            <div className="flex flex-col justify-center">
+                                                                <p className="text-[10px] font-black text-teal-600 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                                                                    <FileText className="w-3.5 h-3.5" />
+                                                                    Tickets
+                                                                </p>
+                                                                <div className="flex items-end gap-2">
+                                                                    <p className="text-2xl font-black text-teal-950 tracking-tight leading-none">{ticketCount}</p>
+                                                                    {schedCount > 0 && (
+                                                                        <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md leading-none ${
+                                                                            ticketPct >= 100 ? 'bg-emerald-100 text-emerald-700' : ticketPct >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'
+                                                                        }`}>{ticketPct}%</span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                            <div className="bg-teal-100 group-hover:bg-teal-200 rounded-lg p-2 transition-colors">
+                                                                <FileText className="w-5 h-5 text-teal-500" />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Hours Card */}
+                                                    <div
+                                                        onClick={() => setHoursPopupOpen(true)}
+                                                        className="relative rounded-xl shadow-sm cursor-pointer transition-all duration-200 hover:scale-[1.02] hover:shadow-md group"
+                                                    >
+                                                        <div className="absolute inset-0 overflow-hidden rounded-xl bg-gradient-to-br from-purple-50 to-fuchsia-50 border border-purple-200" />
+                                                        <div className="relative p-3 flex justify-between items-start h-full">
+                                                            <div className="flex flex-col justify-center flex-1 min-w-0">
+                                                                <p className="text-[10px] font-black text-purple-600 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                                                    <Clock className="w-3.5 h-3.5" />
+                                                                    Hours
+                                                                </p>
+                                                                {loadingSchedules ? (
+                                                                    <Skeleton className="h-7 w-20 rounded-md" />
+                                                                ) : (
+                                                                    <div className="space-y-1">
+                                                                        <div className="flex items-center justify-between gap-2">
+                                                                            <span className="text-[9px] font-bold text-slate-500 uppercase">Site</span>
+                                                                            <span className="text-xs font-black text-emerald-700 tabular-nums">{siteHrs.toFixed(1)}h</span>
+                                                                        </div>
+                                                                        <div className="flex items-center justify-between gap-2">
+                                                                            <span className="text-[9px] font-bold text-slate-500 uppercase">Drive</span>
+                                                                            <span className="text-xs font-black text-blue-700 tabular-nums">{driveHrs.toFixed(1)}h</span>
+                                                                        </div>
+                                                                        <div className="border-t border-purple-200 pt-1 flex items-center justify-between gap-2">
+                                                                            <span className="text-[9px] font-black text-purple-600 uppercase">Total</span>
+                                                                            <span className="text-sm font-black text-purple-950 tabular-nums">{totalHrs.toFixed(1)}h</span>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <div className="bg-purple-100 group-hover:bg-purple-200 rounded-lg p-2 transition-colors shrink-0 ml-2">
+                                                                <Clock className="w-5 h-5 text-purple-500" />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Avg Cost/Hr Card */}
+                                                    <div
+                                                        className="relative rounded-xl shadow-sm transition-all duration-200 group"
+                                                    >
+                                                        <div className="absolute inset-0 overflow-hidden rounded-xl bg-gradient-to-br from-slate-50 to-zinc-50 border border-slate-300" />
+                                                        <div className="relative p-3 flex justify-between items-start h-full">
+                                                            <div className="flex flex-col justify-center flex-1 min-w-0">
+                                                                <p className="text-[10px] font-black text-slate-600 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                                                    <DollarSign className="w-3.5 h-3.5" />
+                                                                    Avg Cost/Hr
+                                                                </p>
+                                                                {loadingSchedules || loadingTransactions ? (
+                                                                    <Skeleton className="h-7 w-20 rounded-md" />
+                                                                ) : (
+                                                                    <div className="space-y-1">
+                                                                        <div className="flex items-center justify-between gap-2">
+                                                                            <span className="text-[9px] font-bold text-slate-500 uppercase">Labor</span>
+                                                                            <span className="text-[10px] font-black text-slate-700 tabular-nums">${laborCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                                                        </div>
+                                                                        <div className="flex items-center justify-between gap-2">
+                                                                            <span className="text-[9px] font-bold text-slate-500 uppercase">Hours</span>
+                                                                            <span className="text-[10px] font-black text-slate-700 tabular-nums">{totalHrs.toFixed(1)}h</span>
+                                                                        </div>
+                                                                        <div className="border-t border-slate-300 pt-1 flex items-center justify-between gap-2">
+                                                                            <span className="text-[9px] font-black text-slate-600 uppercase">Rate</span>
+                                                                            <span className={`text-sm font-black tabular-nums ${avgCostPerHr > 100 ? 'text-rose-700' : avgCostPerHr > 85 ? 'text-amber-700' : 'text-emerald-700'}`}>${avgCostPerHr.toFixed(2)}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <div className="bg-slate-200 group-hover:bg-slate-300 rounded-lg p-2 transition-colors shrink-0 ml-2">
+                                                                <DollarSign className="w-5 h-5 text-slate-500" />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                                );
+                                            })()}
+
                                             {/* 2 Boxes: Transactions & Daily Job Tickets */}
                                             <div className="grid grid-cols-1 lg:grid-cols-[3fr_1fr] gap-3 flex-1 min-h-0 overflow-hidden">
                                                 {/* Transactions Box */}
                                                 <Card className="flex flex-col h-full border border-slate-200 shadow-none overflow-hidden bg-white">
-                                                    <div className="px-3 py-2 border-b border-slate-100 bg-white shrink-0 space-y-1.5">
+                                                    <div className="px-3 h-12 border-b border-slate-100 bg-white shrink-0 flex items-center">
                                                         {/* Row 1: Title + Search + Filters + Counter */}
-                                                        <div className="flex items-center gap-2">
+                                                        <div className="flex items-center gap-2 w-full">
                                                             <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2 shrink-0">
                                                                 <Briefcase size={16} className="text-[#0F4C75]" /> Transactions
                                                             </h3>
@@ -1185,8 +1463,14 @@ export default function WIPReportClient({
                                                                 );
                                                                 const total = filtered.reduce((sum: number, tx: any) => sum + (tx.amount || 0), 0);
                                                                 const hasFilter = txSearch || txTypeFilter.length > 0 || txStatusFilter.length > 0;
+                                                                const fmt$ = (v: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v);
                                                                 return (
                                                                     <div className="flex items-center gap-2 shrink-0">
+                                                                        {hasFilter && (
+                                                                            <span className="text-xs font-black text-[#0F4C75] bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                                                                                {fmt$(total)}
+                                                                            </span>
+                                                                        )}
                                                                         <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
                                                                             {filtered.length}{hasFilter ? `/${transactions.length}` : ''} Records
                                                                         </span>
@@ -1198,14 +1482,14 @@ export default function WIPReportClient({
                                                     <div className="flex-1 overflow-auto bg-slate-50/30">
                                                         <table className="w-full min-w-[1000px] text-left table-fixed">
                                                             <thead className="sticky top-0 bg-white/90 backdrop-blur-sm z-10 shadow-sm border-b border-slate-100">
-                                                                <tr>
-                                                                    <th className="px-1.5 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider w-[10%]">Date</th>
-                                                                    <th className="px-1.5 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider w-[14%]">Type</th>
-                                                                    <th className="px-1.5 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider w-[8%]">No.</th>
-                                                                    <th className="px-1.5 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider w-[20%]">From/To</th>
-                                                                    <th className="px-1.5 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center w-[8%]">Status</th>
-                                                                    <th className="px-1.5 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider text-right w-[10%]">Amount</th>
-                                                                    <th className="px-1.5 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider w-[30%]">Memo</th>
+                                                                <tr className="h-8">
+                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-[10%] align-middle">Date</th>
+                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-[14%] align-middle">Type</th>
+                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-[8%] align-middle">No.</th>
+                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-[20%] align-middle">From/To</th>
+                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center w-[8%] align-middle">Status</th>
+                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider text-right w-[10%] align-middle">Amount</th>
+                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-[30%] align-middle">Memo</th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody className="divide-y divide-slate-50">
@@ -1275,7 +1559,7 @@ export default function WIPReportClient({
 
                                                 {/* DJT Box */}
                                                 <Card className="flex flex-col h-full border border-slate-200 shadow-none overflow-hidden bg-white">
-                                                    <div className="px-3 py-2 border-b border-slate-100 bg-white shrink-0 flex items-center justify-between">
+                                                    <div className="px-3 h-12 border-b border-slate-100 bg-white shrink-0 flex items-center justify-between">
                                                         <div className="flex items-center gap-3">
                                                             <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2 shrink-0">
                                                                 <FileText size={16} className="text-amber-500" /> Tickets
@@ -1294,26 +1578,28 @@ export default function WIPReportClient({
                                                                 );
                                                             })()}
                                                         </div>
-                                                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{(selectedProject.jobTickets || []).length} Records</span>
+                                                        <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">{(selectedProject.jobTickets || []).length} Records</span>
                                                     </div>
                                                     <div className="flex-1 overflow-auto bg-slate-50/30">
-                                                        <table className="w-full min-w-[500px] text-left">
+                                                        <table className="w-full text-left">
                                                             <thead className="sticky top-0 bg-white/90 backdrop-blur-sm z-10 shadow-sm border-b border-slate-100">
-                                                                <tr>
-                                                                    <th className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider">Date</th>
-                                                                    <th className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider">Equipment</th>
-                                                                    <th className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider">Overhead</th>
-                                                                    <th className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider text-right">Total Cost</th>
+                                                                <tr className="h-8">
+                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-24 align-middle">Date</th>
+                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-28 align-middle">Equipment</th>
+                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-28 align-middle">Overhead</th>
+                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-28 text-right align-middle">Total Cost</th>
+                                                                    <th className="px-2 py-0 w-auto align-middle"></th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody className="divide-y divide-slate-50">
                                                                 {loadingProfitability ? (
                                                                     [...Array(5)].map((_, i) => (
                                                                         <tr key={i}>
-                                                                            <td className="p-4"><div className="w-16 h-3 bg-slate-100 rounded animate-pulse" /></td>
-                                                                            <td className="p-4"><div className="w-14 h-3 bg-slate-100 rounded animate-pulse" /></td>
-                                                                            <td className="p-4"><div className="w-14 h-3 bg-slate-100 rounded animate-pulse" /></td>
-                                                                            <td className="p-4 text-right"><div className="w-16 h-3 bg-slate-100 rounded animate-pulse ml-auto" /></td>
+                                                                            <td className="px-2 py-2"><div className="w-16 h-3 bg-slate-100 rounded animate-pulse" /></td>
+                                                                            <td className="px-2 py-2"><div className="w-14 h-3 bg-slate-100 rounded animate-pulse" /></td>
+                                                                            <td className="px-2 py-2"><div className="w-14 h-3 bg-slate-100 rounded animate-pulse" /></td>
+                                                                            <td className="px-2 py-2 text-right"><div className="w-16 h-3 bg-slate-100 rounded animate-pulse ml-auto" /></td>
+                                                                            <td></td>
                                                                         </tr>
                                                                     ))
                                                                 ) : selectedProject.jobTickets && selectedProject.jobTickets.length > 0 ? (
@@ -1334,20 +1620,21 @@ export default function WIPReportClient({
                                                                                 }
                                                                             }}
                                                                         >
-                                                                            <td className="p-4 text-xs font-medium text-slate-600 group-hover:text-[#0F4C75]">{formatDateOnly(ticket.date)}</td>
-                                                                            <td className="p-4 text-xs font-bold text-slate-700">
+                                                                            <td className="px-2 py-2 text-xs font-medium text-slate-600 group-hover:text-[#0F4C75]">{formatDateOnly(ticket.date)}</td>
+                                                                            <td className="px-2 py-2 text-xs font-bold text-slate-700">
                                                                                 {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(ticket.equipmentCost)}
                                                                             </td>
-                                                                            <td className="p-4 text-xs font-bold text-slate-700">
+                                                                            <td className="px-2 py-2 text-xs font-bold text-slate-700">
                                                                                 {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(ticket.overheadCost)}
                                                                             </td>
-                                                                            <td className="p-4 text-xs font-black text-[#0F4C75] text-right">
+                                                                            <td className="px-2 py-2 text-xs font-black text-[#0F4C75] text-right">
                                                                                 {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(ticket.totalCost)}
                                                                             </td>
+                                                                            <td></td>
                                                                         </tr>
                                                                     ))
                                                                 ) : (
-                                                                    <tr><td colSpan={4} className="p-12 text-center text-slate-400 text-sm font-medium">No job tickets found.</td></tr>
+                                                                    <tr><td colSpan={5} className="p-12 text-center text-slate-400 text-sm font-medium">No job tickets found.</td></tr>
                                                                 )}
                                                             </tbody>
                                                         </table>
@@ -1872,6 +2159,429 @@ export default function WIPReportClient({
                         handleDownloadPDF={handleDownloadDjtPdf}
                     />
                 )}
+
+                {/* Schedules Popup Modal */}
+                <Modal
+                    isOpen={schedulesPopupOpen}
+                    onClose={() => { setSchedulesPopupOpen(false); setSelectedScheduleForDetail(null); }}
+                    title={`Schedules — ${selectedProject?.proposalNumber || ''} · ${selectedProject?.DisplayName || ''} · ${projectSchedules.length} schedule${projectSchedules.length !== 1 ? 's' : ''}`}
+                    maxWidth="full"
+                >
+                    <div className="p-4">
+                        {projectSchedules.length === 0 ? (
+                            <div className="text-center py-12 text-slate-400">
+                                <CalendarClock className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                                <p className="text-sm font-medium">No schedules found for this job.</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 max-h-[70vh] overflow-y-auto">
+                                {projectSchedules.map((item: any) => (
+                                    <ScheduleCard
+                                        key={item._id}
+                                        item={item}
+                                        initialData={{
+                                            employees: employees.map(e => ({
+                                                label: e.displayName || `${e.firstName} ${e.lastName}`.trim() || e.email,
+                                                value: e.email,
+                                                image: e.profilePicture
+                                            })),
+                                            clients: [],
+                                            constants: [],
+                                            estimates: selectedProject?.proposalNumber ? [{ value: selectedProject.proposalNumber }] : []
+                                        }}
+                                        currentUser={null}
+                                        onClick={() => {
+                                            setSelectedScheduleForDetail(item);
+                                            setScheduleDetailPopupOpen(true);
+                                        }}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </Modal>
+
+                {/* Schedule Detail Popup */}
+                <ScheduleDetailsPopup
+                    isOpen={scheduleDetailPopupOpen}
+                    onClose={() => {
+                        setScheduleDetailPopupOpen(false);
+                        setSelectedScheduleForDetail(null);
+                    }}
+                    schedule={selectedScheduleForDetail ? {
+                        _id: selectedScheduleForDetail._id,
+                        title: selectedScheduleForDetail.title,
+                        estimate: selectedScheduleForDetail.estimate,
+                        fromDate: selectedScheduleForDetail.fromDate,
+                        toDate: selectedScheduleForDetail.toDate,
+                        customerName: selectedScheduleForDetail.customerName || selectedProject?.CompanyName,
+                        customerId: selectedScheduleForDetail.customerId,
+                        jobLocation: selectedScheduleForDetail.jobLocation,
+                        projectManager: selectedScheduleForDetail.projectManager,
+                        foremanName: selectedScheduleForDetail.foremanName,
+                        assignees: selectedScheduleForDetail.assignees,
+                        description: selectedScheduleForDetail.description,
+                        service: selectedScheduleForDetail.service || selectedScheduleForDetail.item,
+                        notifyAssignees: selectedScheduleForDetail.notifyAssignees,
+                        perDiem: selectedScheduleForDetail.perDiem,
+                        certifiedPayroll: selectedScheduleForDetail.certifiedPayroll,
+                        fringe: selectedScheduleForDetail.fringe,
+                        hasJHA: selectedScheduleForDetail.hasJHA,
+                        hasDJT: selectedScheduleForDetail.hasDJT,
+                        timesheet: selectedScheduleForDetail.timesheet,
+                        todayObjectives: selectedScheduleForDetail.todayObjectives,
+                        aerialImage: selectedScheduleForDetail.aerialImage,
+                        siteLayout: selectedScheduleForDetail.siteLayout,
+                        projectName: selectedScheduleForDetail.title || selectedProject?.DisplayName,
+                    } : null}
+                    employees={employees.map(e => ({
+                        label: e.displayName || `${e.firstName} ${e.lastName}`.trim() || e.email,
+                        value: e.email,
+                        image: e.profilePicture
+                    }))}
+                    constants={[]}
+                    currentUserEmail={undefined}
+                />
+
+                {/* JHAs Popup Modal */}
+                <Modal
+                    isOpen={jhasPopupOpen}
+                    onClose={() => setJhasPopupOpen(false)}
+                    title={`JHAs — ${selectedProject?.proposalNumber || ''} · ${selectedProject?.DisplayName || ''} · ${projectJHAs.length} JHA${projectJHAs.length !== 1 ? 's' : ''}`}
+                    maxWidth="full"
+                >
+                    <div className="p-4">
+                        {projectJHAs.length === 0 ? (
+                            <div className="text-center py-12 text-slate-400">
+                                <Shield className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                                <p className="text-sm font-medium">No JHAs found for this job.</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 max-h-[70vh] overflow-y-auto">
+                                {projectJHAs.map((jha: any, idx: number) => {
+                                    const schedule = jha.scheduleRef;
+                                    const clientName = schedule?.customerName || selectedProject?.CompanyName || '-';
+                                    return (
+                                        <JHACard
+                                            key={`${jha._id || 'jha'}-${idx}`}
+                                            jha={jha}
+                                            schedule={schedule}
+                                            clientName={clientName}
+                                            employees={employees.map(e => ({
+                                                value: e.email,
+                                                label: e.displayName || `${e.firstName} ${e.lastName}`.trim() || e.email,
+                                                image: e.profilePicture,
+                                                email: e.email,
+                                            }))}
+                                            canViewEstimates={true}
+                                            canEdit={false}
+                                            canDelete={false}
+                                            onView={(jha) => {
+                                                setSelectedWipJHA({ ...jha });
+                                                setIsWipJhaEditMode(false);
+                                                setWipJhaModalOpen(true);
+                                            }}
+                                            router={router}
+                                        />
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                </Modal>
+
+                {/* JHA View Modal from WIP */}
+                {selectedWipJHA && (
+                    <JHAModal
+                        isOpen={wipJhaModalOpen}
+                        onClose={() => { setWipJhaModalOpen(false); setSelectedWipJHA(null); }}
+                        selectedJHA={selectedWipJHA}
+                        setSelectedJHA={setSelectedWipJHA}
+                        isEditMode={isWipJhaEditMode}
+                        setIsEditMode={setIsWipJhaEditMode}
+                        schedules={projectSchedules}
+                        handleSave={async (e) => { e.preventDefault(); setWipJhaModalOpen(false); }}
+                        initialData={{
+                            employees: employees.map(e => ({
+                                label: e.displayName || `${e.firstName} ${e.lastName}`.trim() || e.email,
+                                value: e.email,
+                                image: e.profilePicture,
+                            })),
+                        }}
+                        handleSaveSignature={async () => {}}
+                        activeSignatureEmployee={wipJhaSignatureEmployee}
+                        setActiveSignatureEmployee={setWipJhaSignatureEmployee}
+                        isGeneratingPDF={isGeneratingWipJHAPDF}
+                        handleDownloadPDF={async () => {}}
+                        setEmailModalOpen={() => {}}
+                    />
+                )}
+
+                {/* Tickets Popup Modal */}
+                <Modal
+                    isOpen={ticketsPopupOpen}
+                    onClose={() => setTicketsPopupOpen(false)}
+                    title={`Daily Job Tickets — ${selectedProject?.proposalNumber || ''} · ${selectedProject?.DisplayName || ''} · ${(selectedProject?.jobTickets || []).length} ticket${(selectedProject?.jobTickets || []).length !== 1 ? 's' : ''}`}
+                    maxWidth="full"
+                >
+                    <div className="p-4">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="flex-1" />
+                            {(() => {
+                                const tickets = selectedProject?.jobTickets || [];
+                                if (tickets.length === 0) return null;
+                                const totalEquip = tickets.reduce((s: number, t: any) => s + (t.equipmentCost || 0), 0);
+                                const totalOH = tickets.reduce((s: number, t: any) => s + (t.overheadCost || 0), 0);
+                                const totalCost = tickets.reduce((s: number, t: any) => s + (t.totalCost || 0), 0);
+                                const fmt = (v: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v);
+                                return (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-1 rounded-md">Equip {fmt(totalEquip)}</span>
+                                        <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-1 rounded-md">OH {fmt(totalOH)}</span>
+                                        <span className="text-[10px] font-bold text-teal-700 bg-teal-50 px-2 py-1 rounded-md">Total {fmt(totalCost)}</span>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                        {(selectedProject?.jobTickets || []).length === 0 ? (
+                            <div className="text-center py-12 text-slate-400">
+                                <FileText className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                                <p className="text-sm font-medium">No job tickets found for this project.</p>
+                            </div>
+                        ) : (
+                            <div className="overflow-auto max-h-[70vh] rounded-xl border border-slate-200">
+                                <table className="w-full text-left">
+                                    <thead className="sticky top-0 bg-slate-50 z-10 border-b border-slate-200">
+                                        <tr className="h-9">
+                                            <th className="px-3 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-28 align-middle">Date</th>
+                                            <th className="px-3 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider align-middle">Description</th>
+                                            <th className="px-3 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-28 align-middle">Equipment</th>
+                                            <th className="px-3 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-28 align-middle">Overhead</th>
+                                            <th className="px-3 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-28 text-right align-middle">Total Cost</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 bg-white">
+                                        {(selectedProject?.jobTickets || []).map((ticket: any, idx: number) => (
+                                            <tr
+                                                key={idx}
+                                                className="hover:bg-slate-50 transition-colors cursor-pointer group"
+                                                onClick={() => {
+                                                    if (ticket.djtData) {
+                                                        const djtWithSigs = {
+                                                            ...ticket.djtData,
+                                                            signatures: ticket.djtData.signatures || [],
+                                                            schedule_id: ticket.schedule_id
+                                                        };
+                                                        setSelectedDJT(djtWithSigs);
+                                                        setIsDjtEditMode(false);
+                                                        setDjtModalOpen(true);
+                                                    }
+                                                }}
+                                            >
+                                                <td className="px-3 py-2.5 text-xs font-medium text-slate-600 group-hover:text-[#0F4C75] whitespace-nowrap">{formatDateOnly(ticket.date)}</td>
+                                                <td className="px-3 py-2.5 text-xs font-medium text-slate-600 truncate max-w-[300px]">{ticket.djtData?.dailyJobDescription || '—'}</td>
+                                                <td className="px-3 py-2.5 text-xs font-bold text-slate-700">
+                                                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(ticket.equipmentCost || 0)}
+                                                </td>
+                                                <td className="px-3 py-2.5 text-xs font-bold text-slate-700">
+                                                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(ticket.overheadCost || 0)}
+                                                </td>
+                                                <td className="px-3 py-2.5 text-xs font-black text-[#0F4C75] text-right">
+                                                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(ticket.totalCost || 0)}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                </Modal>
+                {/* Hours Summary Modal */}
+                <Modal
+                    isOpen={hoursPopupOpen}
+                    onClose={() => setHoursPopupOpen(false)}
+                    title={`Hours Summary — ${selectedProject?.proposalNumber || ''} · ${selectedProject?.DisplayName || ''}`}
+                    maxWidth="full"
+                >
+                    <div className="p-5">
+                        {(() => {
+                            // Build employee-date map for Reg/OT/DT calculation
+                            // Key: `employee|YYYY-MM-DD`, Value: { siteHrs, driveHrs, scheduleTitles }
+                            const dayMap = new Map<string, { employee: string; date: string; siteHrs: number; driveHrs: number; schedTitle: string }>();
+                            
+                            for (const sched of projectSchedules) {
+                                const schedDate = sched.fromDate ? new Date(sched.fromDate).toISOString().split('T')[0] : 'unknown';
+                                for (const ts of (sched.timesheet || [])) {
+                                    const h = typeof ts.hours === 'number' ? ts.hours : parseFloat(ts.hours || '0') || 0;
+                                    if (h <= 0) continue;
+                                    const emp = ts.employee || 'Unknown';
+                                    const typeLower = (ts.type || '').toLowerCase();
+                                    const isDrive = typeLower.includes('drive');
+                                    // Use clockIn date if available, else schedule date
+                                    let entryDate = schedDate;
+                                    if (ts.clockIn) {
+                                        try { entryDate = new Date(ts.clockIn).toISOString().split('T')[0]; } catch {}
+                                    }
+                                    const key = `${emp}|${entryDate}`;
+                                    const existing = dayMap.get(key) || { employee: emp, date: entryDate, siteHrs: 0, driveHrs: 0, schedTitle: sched.title || '' };
+                                    if (isDrive) {
+                                        existing.driveHrs += h;
+                                    } else {
+                                        existing.siteHrs += h;
+                                    }
+                                    dayMap.set(key, existing);
+                                }
+                            }
+
+                            // Calculate Reg/OT/DT per day per employee
+                            let totalReg = 0, totalOT = 0, totalDT = 0, totalDrive = 0, totalSite = 0;
+                            const employeeMap = new Map<string, { reg: number; ot: number; dt: number; drive: number; site: number; days: number }>();
+
+                            for (const entry of dayMap.values()) {
+                                const site = Math.round(entry.siteHrs * 100) / 100;
+                                const drive = Math.round(entry.driveHrs * 100) / 100;
+
+                                // Reg/OT/DT split for site time only
+                                const reg = Math.min(site, 8);
+                                const ot = Math.min(Math.max(site - 8, 0), 4);
+                                const dt = Math.max(site - 12, 0);
+
+                                totalReg += reg;
+                                totalOT += ot;
+                                totalDT += dt;
+                                totalDrive += drive;
+                                totalSite += site;
+
+                                const empData = employeeMap.get(entry.employee) || { reg: 0, ot: 0, dt: 0, drive: 0, site: 0, days: 0 };
+                                empData.reg += reg;
+                                empData.ot += ot;
+                                empData.dt += dt;
+                                empData.drive += drive;
+                                empData.site += site;
+                                empData.days += 1;
+                                employeeMap.set(entry.employee, empData);
+                            }
+
+                            const totalAll = totalSite + totalDrive;
+                            const r2 = (n: number) => Math.round(n * 100) / 100;
+                            const empEntries = Array.from(employeeMap.entries()).sort((a, b) => (b[1].reg + b[1].ot + b[1].dt + b[1].drive) - (a[1].reg + a[1].ot + a[1].dt + a[1].drive));
+
+                            // Find employee display name helper
+                            const getEmpName = (email: string) => {
+                                const emp = employees.find(e => e.email === email);
+                                return emp ? (emp.displayName || `${emp.firstName} ${emp.lastName}`.trim() || email) : email;
+                            };
+
+                            return (
+                                <div className="space-y-6">
+                                    {/* KPI Summary Bar */}
+                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                                        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center">
+                                            <p className="text-[10px] font-black text-emerald-600 uppercase tracking-wider mb-1">Regular</p>
+                                            <p className="text-2xl font-black text-emerald-900 tabular-nums">{r2(totalReg).toLocaleString()}h</p>
+                                            <p className="text-[9px] text-emerald-600 font-medium mt-0.5">≤ 8 hrs/day</p>
+                                        </div>
+                                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
+                                            <p className="text-[10px] font-black text-amber-600 uppercase tracking-wider mb-1">Overtime</p>
+                                            <p className="text-2xl font-black text-amber-900 tabular-nums">{r2(totalOT).toLocaleString()}h</p>
+                                            <p className="text-[9px] text-amber-600 font-medium mt-0.5">8–12 hrs/day</p>
+                                        </div>
+                                        <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 text-center">
+                                            <p className="text-[10px] font-black text-rose-600 uppercase tracking-wider mb-1">Double Time</p>
+                                            <p className="text-2xl font-black text-rose-900 tabular-nums">{r2(totalDT).toLocaleString()}h</p>
+                                            <p className="text-[9px] text-rose-600 font-medium mt-0.5">&gt; 12 hrs/day</p>
+                                        </div>
+                                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+                                            <p className="text-[10px] font-black text-blue-600 uppercase tracking-wider mb-1">Drive Time</p>
+                                            <p className="text-2xl font-black text-blue-900 tabular-nums">{r2(totalDrive).toLocaleString()}h</p>
+                                            <p className="text-[9px] text-blue-600 font-medium mt-0.5">All drive entries</p>
+                                        </div>
+                                        <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 text-center">
+                                            <p className="text-[10px] font-black text-purple-600 uppercase tracking-wider mb-1">Total Hours</p>
+                                            <p className="text-2xl font-black text-purple-900 tabular-nums">{r2(totalAll).toLocaleString()}h</p>
+                                            <p className="text-[9px] text-purple-600 font-medium mt-0.5">Site + Drive</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Employee Breakdown Table */}
+                                    {empEntries.length === 0 ? (
+                                        <div className="text-center py-12 text-slate-400">
+                                            <Clock className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                                            <p className="text-sm font-medium">No timesheet data found for this project.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="overflow-auto max-h-[60vh] rounded-xl border border-slate-200">
+                                            <table className="w-full text-left">
+                                                <thead className="sticky top-0 bg-slate-50 z-10 border-b border-slate-200">
+                                                    <tr className="h-10">
+                                                        <th className="px-4 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider align-middle">Employee</th>
+                                                        <th className="px-4 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-16 text-center align-middle">Days</th>
+                                                        <th className="px-4 py-0 text-[10px] font-black text-emerald-500 uppercase tracking-wider w-24 text-right align-middle">Regular</th>
+                                                        <th className="px-4 py-0 text-[10px] font-black text-amber-500 uppercase tracking-wider w-24 text-right align-middle">OT</th>
+                                                        <th className="px-4 py-0 text-[10px] font-black text-rose-500 uppercase tracking-wider w-24 text-right align-middle">DT</th>
+                                                        <th className="px-4 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-24 text-right align-middle">Site Total</th>
+                                                        <th className="px-4 py-0 text-[10px] font-black text-blue-500 uppercase tracking-wider w-24 text-right align-middle">Drive</th>
+                                                        <th className="px-4 py-0 text-[10px] font-black text-purple-500 uppercase tracking-wider w-24 text-right align-middle">Grand Total</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100 bg-white">
+                                                    {empEntries.map(([email, data]) => {
+                                                        const grandTotal = data.site + data.drive;
+                                                        return (
+                                                            <tr key={email} className="hover:bg-slate-50 transition-colors">
+                                                                <td className="px-4 py-3">
+                                                                    <div className="flex items-center gap-2">
+                                                                        {(() => {
+                                                                            const emp = employees.find(e => e.email === email);
+                                                                            return emp?.profilePicture ? (
+                                                                                <img src={emp.profilePicture} alt="" className="w-6 h-6 rounded-full object-cover" />
+                                                                            ) : (
+                                                                                <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-500">
+                                                                                    {getEmpName(email).charAt(0).toUpperCase()}
+                                                                                </div>
+                                                                            );
+                                                                        })()}
+                                                                        <span className="text-xs font-bold text-slate-700 truncate max-w-[200px]">{getEmpName(email)}</span>
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-4 py-3 text-xs font-bold text-slate-500 text-center tabular-nums">{data.days}</td>
+                                                                <td className="px-4 py-3 text-xs font-black text-emerald-700 text-right tabular-nums">{r2(data.reg).toFixed(2)}</td>
+                                                                <td className="px-4 py-3 text-xs font-black text-right tabular-nums">
+                                                                    {data.ot > 0 ? <span className="text-amber-700">{r2(data.ot).toFixed(2)}</span> : <span className="text-slate-300">—</span>}
+                                                                </td>
+                                                                <td className="px-4 py-3 text-xs font-black text-right tabular-nums">
+                                                                    {data.dt > 0 ? <span className="text-rose-700">{r2(data.dt).toFixed(2)}</span> : <span className="text-slate-300">—</span>}
+                                                                </td>
+                                                                <td className="px-4 py-3 text-xs font-black text-slate-700 text-right tabular-nums">{r2(data.site).toFixed(2)}</td>
+                                                                <td className="px-4 py-3 text-xs font-black text-right tabular-nums">
+                                                                    {data.drive > 0 ? <span className="text-blue-700">{r2(data.drive).toFixed(2)}</span> : <span className="text-slate-300">—</span>}
+                                                                </td>
+                                                                <td className="px-4 py-3 text-sm font-black text-purple-800 text-right tabular-nums">{r2(grandTotal).toFixed(2)}</td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                                <tfoot className="bg-slate-50 border-t-2 border-slate-300">
+                                                    <tr className="font-black">
+                                                        <td className="px-4 py-3 text-xs text-slate-600 uppercase">Totals ({empEntries.length} employees)</td>
+                                                        <td className="px-4 py-3 text-xs text-slate-600 text-center tabular-nums">{dayMap.size}</td>
+                                                        <td className="px-4 py-3 text-xs text-emerald-700 text-right tabular-nums">{r2(totalReg).toFixed(2)}</td>
+                                                        <td className="px-4 py-3 text-xs text-amber-700 text-right tabular-nums">{totalOT > 0 ? r2(totalOT).toFixed(2) : '—'}</td>
+                                                        <td className="px-4 py-3 text-xs text-rose-700 text-right tabular-nums">{totalDT > 0 ? r2(totalDT).toFixed(2) : '—'}</td>
+                                                        <td className="px-4 py-3 text-xs text-slate-700 text-right tabular-nums">{r2(totalSite).toFixed(2)}</td>
+                                                        <td className="px-4 py-3 text-xs text-blue-700 text-right tabular-nums">{totalDrive > 0 ? r2(totalDrive).toFixed(2) : '—'}</td>
+                                                        <td className="px-4 py-3 text-sm text-purple-800 text-right tabular-nums">{r2(totalAll).toFixed(2)}</td>
+                                                    </tr>
+                                                </tfoot>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })()}
+                    </div>
+                </Modal>
             </TooltipProvider>
         </div>
     );
