@@ -1,13 +1,13 @@
 'use client';
 
 import useSWR from 'swr';
-import { useMemo, useState, useCallback, useEffect } from 'react';
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useCurrentUser } from '@/lib/context/AppContext';
 import { getPusherClient } from '@/lib/realtime/pusher-client';
 import { Badge, Modal, Button, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, MyDropDown, SearchableSelect } from '@/components/ui';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { CheckCircle2, Plus, GripVertical, Edit, Copy, Trash2, Activity as ActivityIcon, ChevronDown } from 'lucide-react';
+import { CheckCircle2, Plus, GripVertical, Edit, Copy, Trash2, Activity as ActivityIcon, ChevronDown, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
 import Image from 'next/image';
@@ -37,10 +37,6 @@ interface Employee { value: string; label: string; image?: string; }
 
 // ── Fetcher ──────────────────────────────────────────────────────────────────────
 const fetcher = (url: string) => fetch(url).then(r => r.json());
-
-function buildDashboardUrl(week: string, scope: string) {
-    return `/api/dashboard?week=${encodeURIComponent(week)}&scope=${scope}&section=tasks`;
-}
 
 // ── TodoCard ─────────────────────────────────────────────────────────────────────
 function TodoCard({
@@ -202,7 +198,7 @@ function TodoCard({
 // ── KanbanColumn ─────────────────────────────────────────────────────────────────
 function KanbanColumn({
     title, items, status, color, employees, currentUserEmail, isSuperAdmin, canViewEstimates,
-    onDragOver, onDrop, onEdit, onCopy, onStatusChange, onDelete,
+    onDragOver, onDrop, onEdit, onCopy, onStatusChange, onDelete, onColumnScroll,
 }: {
     title: string; items: TodoItem[]; status: string; color: string;
     employees: Employee[]; currentUserEmail: string; isSuperAdmin: boolean; canViewEstimates?: boolean;
@@ -212,6 +208,7 @@ function KanbanColumn({
     onCopy: (item: TodoItem, e: React.MouseEvent) => void;
     onStatusChange: (item: TodoItem, s: TodoItem['status']) => void;
     onDelete: (id: string, e: React.MouseEvent) => void;
+    onColumnScroll?: (e: React.UIEvent<HTMLDivElement>) => void;
 }) {
     return (
         <div className="flex-1 min-w-[200px] bg-slate-100 rounded-xl p-3" onDragOver={onDragOver} onDrop={e => onDrop(e, status)}>
@@ -220,7 +217,7 @@ function KanbanColumn({
                 <span className="font-bold text-xs uppercase tracking-wider text-slate-600">{title}</span>
                 <Badge variant="default" className="ml-auto text-[10px] font-bold">{items.length}</Badge>
             </div>
-            <div className="space-y-2 overflow-y-auto pr-1 max-h-[350px] scrollbar-thin scrollbar-thumb-slate-200">
+            <div className="space-y-2 overflow-y-auto pr-1 max-h-[350px] scrollbar-thin scrollbar-thumb-slate-200" onScroll={onColumnScroll}>
                 {items.map(item => (
                     <TodoCard
                         key={item._id}
@@ -450,26 +447,81 @@ export function TaskList({
     const userEmail = currentUser?.email || '';
     const canViewEstimates = can(MODULES.ESTIMATES, ACTIONS.VIEW);
 
-    const { data, mutate } = useSWR(
-        week ? buildDashboardUrl(week, scope) : null,
+    // ── Search & Pagination State ──
+    const [searchInput, setSearchInput] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [page, setPage] = useState(1);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const LIMIT = 50;
+    const debounceRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Debounce search
+    useEffect(() => {
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
+            setSearchQuery(searchInput);
+            setPage(1); // reset to page 1 on new search
+        }, 400);
+        return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    }, [searchInput]);
+
+    // Build tasks API URL (not week-based anymore)
+    function buildTasksUrl(pg: number, q: string) {
+        let url = `/api/tasks?page=${pg}&limit=${LIMIT}`;
+        if (q) url += `&q=${encodeURIComponent(q)}`;
+        return url;
+    }
+
+    const { data: tasksData } = useSWR(
+        buildTasksUrl(1, searchQuery),
         fetcher,
         {
-            fallbackData: initialData,
             revalidateOnFocus: true,
-            dedupingInterval: 30000,
+            dedupingInterval: 15000,
             keepPreviousData: true,
         }
     );
 
     const [todos, setTodos] = useState<TodoItem[]>([]);
+    const [hasMore, setHasMore] = useState(false);
+    const [totalTasks, setTotalTasks] = useState(0);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTask, setEditingTask] = useState<TodoItem | null>(null);
     const [taskView, setTaskView] = useState<'self' | 'all'>('all');
 
-    // Sync SWR data → local state
+    // Sync SWR page-1 data → local state
     useEffect(() => {
-        if (data?.tasks) setTodos(data.tasks);
-    }, [data?.tasks]);
+        if (tasksData?.items) {
+            setTodos(tasksData.items);
+            setHasMore(tasksData.hasMore ?? false);
+            setTotalTasks(tasksData.total ?? 0);
+            setPage(1);
+        }
+    }, [tasksData?.items]);
+
+    // ── Load More (append next page) ──
+    const loadMore = useCallback(async () => {
+        if (isLoadingMore || !hasMore) return;
+        setIsLoadingMore(true);
+        try {
+            const nextPage = page + 1;
+            const res = await fetch(buildTasksUrl(nextPage, searchQuery));
+            const data = await res.json();
+            if (data?.items) {
+                setTodos(prev => {
+                    const existingIds = new Set(prev.map(t => t._id));
+                    const newItems = data.items.filter((t: any) => !existingIds.has(t._id));
+                    return [...prev, ...newItems];
+                });
+                setHasMore(data.hasMore ?? false);
+                setPage(nextPage);
+            }
+        } catch (err) {
+            console.error('Failed to load more tasks', err);
+        } finally {
+            setIsLoadingMore(false);
+        }
+    }, [isLoadingMore, hasMore, page, searchQuery]);
 
     // ── Pusher real-time subscription ──
     useEffect(() => {
@@ -479,14 +531,13 @@ export function TaskList({
         const channel = pusher.subscribe('private-org-tasks');
 
         channel.bind('task-created', (payload: any) => {
-            if (payload.actor === userEmail) return; // already applied locally
+            if (payload.actor === userEmail) return;
             const newTask = payload.task;
             if (newTask) {
                 setTodos(prev => {
                     if (prev.some(t => t._id === newTask._id)) return prev;
                     return [newTask, ...prev];
                 });
-                mutate(); // also re-fetch to keep SWR cache in sync
             }
         });
 
@@ -495,7 +546,6 @@ export function TaskList({
             const updated = payload.task;
             if (updated) {
                 setTodos(prev => prev.map(t => t._id === updated._id ? updated : t));
-                mutate();
             }
         });
 
@@ -503,7 +553,6 @@ export function TaskList({
             if (payload.actor === userEmail) return;
             if (payload.taskId) {
                 setTodos(prev => prev.filter(t => t._id !== payload.taskId));
-                mutate();
             }
         });
 
@@ -511,7 +560,7 @@ export function TaskList({
             channel.unbind_all();
             pusher.unsubscribe('private-org-tasks');
         };
-    }, [userEmail, mutate]);
+    }, [userEmail]);
 
     const todosByStatus = useMemo(() => {
         const filtered = taskView === 'self' ? todos.filter(t => t.assignees?.includes(userEmail) || t.createdBy === userEmail) : todos;
@@ -527,27 +576,16 @@ export function TaskList({
     const handleDrop = useCallback(async (e: React.DragEvent, newStatus: string) => {
         e.preventDefault();
         const todoId = e.dataTransfer.getData('todoId');
-        
-        mutate((currentData: any) => {
-            if (!currentData) return currentData;
-            return { ...currentData, tasks: (currentData.tasks || []).map((t: any) => t._id === todoId ? { ...t, status: newStatus } : t) };
-        }, { revalidate: false });
-
         setTodos(prev => prev.map(t => t._id === todoId ? { ...t, status: newStatus as TodoItem['status'] } : t));
         await fetch('/api/tasks', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: todoId, status: newStatus, lastUpdatedBy: userEmail }) });
         onTaskMutate?.();
-    }, [userEmail, mutate, onTaskMutate]);
+    }, [userEmail, onTaskMutate]);
 
     const handleStatusChange = useCallback(async (item: TodoItem, newStatus: TodoItem['status']) => {
-        mutate((currentData: any) => {
-            if (!currentData) return currentData;
-            return { ...currentData, tasks: (currentData.tasks || []).map((t: any) => t._id === item._id ? { ...t, status: newStatus, lastUpdatedAt: new Date().toISOString() } : t) };
-        }, { revalidate: false });
-
         setTodos(prev => prev.map(t => t._id === item._id ? { ...t, status: newStatus, lastUpdatedAt: new Date().toISOString() } : t));
         await fetch('/api/tasks', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: item._id, status: newStatus, lastUpdatedBy: userEmail }) });
         onTaskMutate?.();
-    }, [userEmail, mutate, onTaskMutate]);
+    }, [userEmail, onTaskMutate]);
 
     const handleOpenModal = useCallback((task?: TodoItem) => {
         setEditingTask(task || null);
@@ -571,23 +609,13 @@ export function TaskList({
             
             if (dataRes.success) {
                 const newTask = dataRes.task || dataRes.result;
-                
-                mutate((currentData: any) => {
-                    if (!currentData) return currentData;
-                    const oldTasks = currentData.tasks || [];
-                    const updatedTasks = isEditing
-                        ? oldTasks.map((t: any) => t._id === editingTask._id ? newTask : t)
-                        : [newTask, ...oldTasks];
-                    return { ...currentData, tasks: updatedTasks };
-                }, { revalidate: false });
-
                 setTodos(prev => isEditing ? prev.map(t => t._id === editingTask._id ? newTask : t) : [newTask, ...prev]);
                 setIsModalOpen(false);
                 toast.success(isEditing ? 'Task updated' : 'Task created');
                 onTaskMutate?.();
             }
         } catch { toast.error('Failed to save task'); }
-    }, [editingTask, userEmail, mutate, onTaskMutate]);
+    }, [editingTask, userEmail, onTaskMutate]);
 
     const handleCopyTask = useCallback((item: TodoItem, e: React.MouseEvent) => {
         e.stopPropagation();
@@ -597,15 +625,7 @@ export function TaskList({
 
     const handleDeleteTask = useCallback(async (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
-
-        // Save previous state for potential rollback
         const previousTodos = [...todos];
-
-        // Optimistic update
-        mutate((currentData: any) => {
-            if (!currentData) return currentData;
-            return { ...currentData, tasks: (currentData.tasks || []).filter((t: any) => t._id !== id) };
-        }, { revalidate: false });
         setTodos(prev => prev.filter(t => t._id !== id));
 
         try {
@@ -616,22 +636,18 @@ export function TaskList({
                 toast.success('Task deleted');
                 onTaskMutate?.();
             } else {
-                // Revert optimistic update
                 setTodos(previousTodos);
-                mutate();
                 toast.error(data.error || 'Failed to delete task');
             }
         } catch (error) {
-            // Revert optimistic update
             setTodos(previousTodos);
-            mutate();
             toast.error('Network error while deleting task');
         }
-    }, [todos, mutate, onTaskMutate]);
+    }, [todos, onTaskMutate]);
 
-    const employees = initialData?.employees || data?.employees || [];
-    const clients = initialData?.clients || data?.clients || [];
-    const estimates = initialData?.estimates || data?.estimates || [];
+    const employees = initialData?.employees || [];
+    const clients = initialData?.clients || [];
+    const estimates = initialData?.estimates || [];
 
     const mappedEmployees = useMemo(() => employees.map((e: any) => ({
         ...e,
@@ -642,40 +658,89 @@ export function TaskList({
 
     const columnProps = { employees: mappedEmployees, currentUserEmail: userEmail, isSuperAdmin: !!isSuperAdmin, canViewEstimates, onDragOver: handleDragOver, onDrop: handleDrop, onEdit: handleOpenModal, onCopy: handleCopyTask, onStatusChange: handleStatusChange, onDelete: handleDeleteTask };
 
+    // ── Infinite Scroll Handler for Kanban columns ──
+    const handleColumnScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+        const el = e.currentTarget;
+        if (el.scrollHeight - el.scrollTop - el.clientHeight < 100) {
+            loadMore();
+        }
+    }, [loadMore]);
+
     return (
         <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm p-3 ${className || ''}`}>
-            <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between mb-4 gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                     <div className="w-8 h-8 rounded-xl bg-rose-100 flex items-center justify-center">
                         <CheckCircle2 className="w-4 h-4 text-rose-600" />
                     </div>
                     <h2 className="text-sm font-bold text-slate-900">Tasks</h2>
+                    {totalTasks > 0 && (
+                        <Badge variant="default" className="text-[10px] font-bold">{totalTasks}</Badge>
+                    )}
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 flex-1 justify-end">
+                    {/* Inline Search */}
+                    <div className="relative max-w-[200px] w-full">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                        <input 
+                            type="text"
+                            placeholder="Search tasks..."
+                            value={searchInput}
+                            onChange={(e) => setSearchInput(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-7 py-1.5 text-xs font-medium outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all placeholder:text-slate-400"
+                        />
+                        {searchInput && (
+                            <button onClick={() => setSearchInput('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                <X size={12} />
+                            </button>
+                        )}
+                    </div>
                     {scope === 'all' && (
-                        <div className="flex bg-slate-100 p-1 rounded-lg">
+                        <div className="flex bg-slate-100 p-1 rounded-lg shrink-0">
                             {(['self', 'all'] as const).map(v => (
                                 <button key={v} onClick={() => setTaskView(v)} className={`px-3 py-1.5 text-[10px] font-bold rounded-md transition-colors capitalize ${taskView === v ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{v}</button>
                             ))}
                         </div>
                     )}
-                    <button onClick={() => handleOpenModal()} className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center hover:bg-blue-700 transition-all shadow-sm active:scale-95">
+                    <button onClick={() => handleOpenModal()} className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center hover:bg-blue-700 transition-all shadow-sm active:scale-95 shrink-0">
                         <Plus className="w-4 h-4" />
                     </button>
                 </div>
             </div>
 
             <div className="hidden lg:flex gap-4 overflow-x-auto">
-                <KanbanColumn title="To Do" items={todosByStatus.todo} status="todo" color="bg-slate-400" {...columnProps} />
-                <KanbanColumn title="In Progress" items={todosByStatus['in progress']} status="in progress" color="bg-blue-500" {...columnProps} />
-                <KanbanColumn title="Done" items={todosByStatus.done} status="done" color="bg-emerald-500" {...columnProps} />
+                <KanbanColumn title="To Do" items={todosByStatus.todo} status="todo" color="bg-slate-400" {...columnProps} onColumnScroll={handleColumnScroll} />
+                <KanbanColumn title="In Progress" items={todosByStatus['in progress']} status="in progress" color="bg-blue-500" {...columnProps} onColumnScroll={handleColumnScroll} />
+                <KanbanColumn title="Done" items={todosByStatus.done} status="done" color="bg-emerald-500" {...columnProps} onColumnScroll={handleColumnScroll} />
             </div>
+
+            {/* Load More Button */}
+            {hasMore && (
+                <div className="flex justify-center mt-3">
+                    <button
+                        onClick={loadMore}
+                        disabled={isLoadingMore}
+                        className="px-4 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                        {isLoadingMore ? 'Loading...' : `Load More Tasks`}
+                    </button>
+                </div>
+            )}
 
             {/* Mobile list */}
             <div className="lg:hidden space-y-2">
-                {todos.slice(0, 5).map(item => (
+                {todos.slice(0, 10).map(item => (
                     <TodoCard key={item._id} item={item} {...columnProps} />
                 ))}
+                {hasMore && (
+                    <button
+                        onClick={loadMore}
+                        disabled={isLoadingMore}
+                        className="w-full py-2 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                        {isLoadingMore ? 'Loading...' : 'Load More'}
+                    </button>
+                )}
             </div>
 
             <TaskFormModal

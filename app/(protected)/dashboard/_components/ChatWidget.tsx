@@ -180,11 +180,13 @@ export function ChatWidget({ initialData, userEmail, canViewEstimates, searchPar
             };
         }).filter(a => a.email);
 
+        const resolvedEstimate = chatEstimate?.value || extractedEstimate;
+
         const optimisticMsg: any = {
             _id: `temp-${Date.now()}`,
             sender: userEmail,
             message: currentMessage,
-            estimate: extractedEstimate,
+            estimate: resolvedEstimate,
             assignees: safeAssignees,
             replyTo: replyingTo ? {
                 _id: replyingTo._id,
@@ -216,21 +218,35 @@ export function ChatWidget({ initialData, userEmail, canViewEstimates, searchPar
         }, 50);
 
         try {
-            await fetch('/api/chat', {
+            const chatRes = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     message: optimisticMsg.message,
-                    estimate: chatEstimate?.value || extractedEstimate,
+                    estimate: resolvedEstimate,
                     assignees: safeAssignees,
                     replyTo: optimisticMsg.replyTo
                 })
             });
+            const chatResData = await chatRes.json();
+
+            // Replace temp optimistic message with real server response
+            if (chatResData?.success && chatResData.message) {
+                mutateChatMessages((currentData: any) => {
+                    if (!currentData) return currentData;
+                    return {
+                        ...currentData,
+                        messages: (currentData.messages || []).map((m: any) =>
+                            m._id === optimisticMsg._id ? chatResData.message : m
+                        )
+                    };
+                }, false);
+            }
             setChatEstimate(null);
 
             if (safeAssignees.length > 0) {
                 try {
-                    const taggedEstimate = chatEstimate?.value || extractedEstimate;
+                    const taggedEstimate = resolvedEstimate;
                     let estimateFields: any = {};
                     if (taggedEstimate) {
                         const estObj = initialData.estimates?.find((e: any) => e.estimate === taggedEstimate);
