@@ -61,7 +61,6 @@ export default function NotificationBell({ currentUser }: { currentUser?: any })
     const bellRef = useRef<HTMLButtonElement>(null);
     const prevUnreadRef = useRef(0);
     const audioRef = useRef<HTMLAudioElement | null>(null);
-    const [toastQueue, setToastQueue] = useState<{ id: string; payload: any; exiting?: boolean }[]>([]);
 
     useEffect(() => {
         audioRef.current = new Audio('/sounds/notify.mp3');
@@ -135,17 +134,83 @@ export default function NotificationBell({ currentUser }: { currentUser?: any })
         setTimeout(() => notif.close(), 8000);
     }, [desktopNotificationsEnabled, router]);
 
-    // Premium in-app toast notification (self-contained, no sonner dependency)
-    const dismissToast = useCallback((id: string) => {
-        setToastQueue(prev => prev.map(t => t.id === id ? { ...t, exiting: true } : t));
-        setTimeout(() => setToastQueue(prev => prev.filter(t => t.id !== id)), 350);
-    }, []);
-
+    // Premium in-app toast — direct DOM injection (bypasses React tree entirely)
     const showInAppToast = useCallback((payload: any) => {
-        const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-        setToastQueue(prev => [...prev.slice(-2), { id, payload }]); // max 3 visible
-        setTimeout(() => dismissToast(id), 6000);
-    }, [dismissToast]);
+        if (typeof document === 'undefined') return;
+
+        const cn = payload.metadata?.creatorName || '';
+        const ci = payload.metadata?.creatorImage || '';
+        const ini = cn ? cn.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2) : '?';
+
+        // Inject keyframes once
+        if (!document.getElementById('devco-toast-styles')) {
+            const style = document.createElement('style');
+            style.id = 'devco-toast-styles';
+            style.textContent = `
+                @keyframes devcoSlideIn { from { opacity:0; transform:translateX(120%); } to { opacity:1; transform:translateX(0); } }
+                @keyframes devcoSlideOut { from { opacity:1; transform:translateX(0); } to { opacity:0; transform:translateX(120%); } }
+                @keyframes devcoProgress { from { width:100%; } to { width:0%; } }
+            `;
+            document.head.appendChild(style);
+        }
+
+        const el = document.createElement('div');
+        el.style.cssText = `
+            position:fixed; top:16px; right:16px; z-index:999999;
+            display:flex; align-items:center; gap:12px;
+            width:360px; max-width:calc(100vw - 32px);
+            padding:14px 16px;
+            background:rgba(255,255,255,0.98);
+            backdrop-filter:blur(24px) saturate(1.8);
+            border-radius:16px;
+            border:1px solid rgba(15,76,117,0.1);
+            box-shadow:0 20px 60px -12px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.02);
+            cursor:${payload.link ? 'pointer' : 'default'};
+            animation:devcoSlideIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards;
+            overflow:hidden;
+            font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+        `;
+
+        el.innerHTML = `
+            <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,#0F4C75,#3282B8);border-radius:16px 0 0 16px"></div>
+            <div style="position:absolute;bottom:0;left:0;height:2px;background:linear-gradient(90deg,#0F4C75,#3282B8);animation:devcoProgress 6s linear forwards;border-radius:0 0 0 16px"></div>
+            <div style="width:38px;height:38px;border-radius:12px;overflow:hidden;flex-shrink:0;background:${ci ? 'transparent' : 'linear-gradient(135deg,#0F4C75,#3282B8)'};display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(15,76,117,0.15)">
+                ${ci
+                    ? `<img src="${cld(ci, { w: 76, q: 'auto' })}" alt="" style="width:100%;height:100%;object-fit:cover" />`
+                    : `<span style="color:#fff;font-size:12px;font-weight:900;letter-spacing:0.5px">${ini}</span>`
+                }
+            </div>
+            <div style="flex:1;min-width:0">
+                <p style="margin:0;font-size:12.5px;font-weight:800;color:#0f172a;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${payload.title || ''}</p>
+                <p style="margin:2px 0 0 0;font-size:11px;color:#64748b;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${payload.message || ''}</p>
+            </div>
+            <div class="devco-toast-close" style="width:22px;height:22px;border-radius:6px;border:none;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#94a3b8;flex-shrink:0">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </div>
+        `;
+
+        document.body.appendChild(el);
+
+        const dismiss = () => {
+            el.style.animation = 'devcoSlideOut 0.3s ease-in forwards';
+            setTimeout(() => el.remove(), 300);
+        };
+
+        // Click to navigate
+        el.addEventListener('click', () => {
+            if (payload.link) router.push(payload.link);
+            dismiss();
+        });
+
+        // Close button
+        el.querySelector('.devco-toast-close')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            dismiss();
+        });
+
+        // Auto-dismiss after 6s
+        setTimeout(dismiss, 6000);
+    }, [router]);
 
     // Pusher Subscribe
     useEffect(() => {
@@ -507,94 +572,6 @@ export default function NotificationBell({ currentUser }: { currentUser?: any })
                 }
             `}</style>
 
-            {/* Global keyframes for toast animation */}
-            <style jsx global>{`
-                @keyframes notifSlideIn {
-                    from { opacity: 0; transform: translateX(120%); }
-                    to { opacity: 1; transform: translateX(0); }
-                }
-                @keyframes notifSlideOut {
-                    from { opacity: 1; transform: translateX(0); }
-                    to { opacity: 0; transform: translateX(120%); }
-                }
-                @keyframes notifProgress {
-                    from { width: 100%; }
-                    to { width: 0%; }
-                }
-            `}</style>
-
-            {/* Self-contained toast notifications */}
-            {toastQueue.length > 0 && (
-                <div style={{ position: 'fixed', top: '16px', right: '16px', zIndex: 99999, display: 'flex', flexDirection: 'column', gap: '10px', pointerEvents: 'none' }}>
-                    {toastQueue.map(({ id, payload, exiting }) => {
-                        const cn = payload.metadata?.creatorName || '';
-                        const ci = payload.metadata?.creatorImage || '';
-                        const ini = cn ? cn.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2) : '?';
-                        return (
-                            <div
-                                key={id}
-                                onClick={() => { if (payload.link) { router.push(payload.link); } dismissToast(id); }}
-                                style={{
-                                    pointerEvents: 'auto',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '12px',
-                                    width: '360px',
-                                    maxWidth: 'calc(100vw - 32px)',
-                                    padding: '14px 16px',
-                                    background: 'rgba(255,255,255,0.98)',
-                                    backdropFilter: 'blur(24px) saturate(1.8)',
-                                    borderRadius: '16px',
-                                    border: '1px solid rgba(15, 76, 117, 0.1)',
-                                    boxShadow: '0 20px 60px -12px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.02)',
-                                    cursor: payload.link ? 'pointer' : 'default',
-                                    animation: exiting ? 'notifSlideOut 0.3s ease-in forwards' : 'notifSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
-                                    position: 'relative',
-                                    overflow: 'hidden',
-                                }}
-                            >
-                                {/* Accent bar */}
-                                <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '3px', background: 'linear-gradient(180deg, #0F4C75, #3282B8)', borderRadius: '16px 0 0 16px' }} />
-
-                                {/* Progress bar */}
-                                <div style={{ position: 'absolute', bottom: 0, left: 0, height: '2px', background: 'linear-gradient(90deg, #0F4C75, #3282B8)', animation: 'notifProgress 6s linear forwards', borderRadius: '0 0 0 16px' }} />
-
-                                {/* Avatar */}
-                                <div style={{
-                                    width: '38px', height: '38px', borderRadius: '12px', overflow: 'hidden', flexShrink: 0,
-                                    background: ci ? 'transparent' : 'linear-gradient(135deg, #0F4C75, #3282B8)',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    boxShadow: '0 2px 8px rgba(15, 76, 117, 0.15)',
-                                }}>
-                                    {ci ? (
-                                        <img src={cld(ci, { w: 76, q: 'auto' })} alt={cn} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                    ) : (
-                                        <span style={{ color: '#fff', fontSize: '12px', fontWeight: 900, letterSpacing: '0.5px' }}>{ini}</span>
-                                    )}
-                                </div>
-
-                                {/* Text */}
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                    <p style={{ margin: 0, fontSize: '12.5px', fontWeight: 800, color: '#0f172a', lineHeight: '1.3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {payload.title}
-                                    </p>
-                                    <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#64748b', lineHeight: '1.4', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {payload.message}
-                                    </p>
-                                </div>
-
-                                {/* Close */}
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); dismissToast(id); }}
-                                    style={{ width: '22px', height: '22px', borderRadius: '6px', border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#94a3b8', flexShrink: 0 }}
-                                >
-                                    <X size={11} />
-                                </button>
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
         </div>
     );
 }
