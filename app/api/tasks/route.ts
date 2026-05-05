@@ -90,13 +90,18 @@ export async function POST(req: NextRequest) {
         const allRecipients = Array.isArray(taskData.assignees) ? taskData.assignees.map((e: string) => e.toLowerCase().trim()) : [];
         const filteredEmails = allRecipients;
 
+        // Resolve creator's name & avatar for notification display
+        const creatorDoc = await Employee.findOne({ email: currentUserEmail }).select('firstName lastName profilePicture').lean() as any;
+        const creatorName = creatorDoc ? `${creatorDoc.firstName || ''} ${creatorDoc.lastName || ''}`.trim() : (user as any).firstName || user.email?.split('@')[0] || 'Someone';
+        const creatorImage = creatorDoc?.profilePicture || '';
+
         void createNotifications({
             recipientEmails: filteredEmails,
             type: 'task_assigned',
             title: `New Task: ${task.task}`,
-            message: `You've been assigned a new task${task.customerName ? ` for ${task.customerName}` : ''}.`,
+            message: `You have been assigned to a new task${task.customerName ? ` for ${task.customerName}` : ''} by`,
             link: `/dashboard`,
-            metadata: { taskId: task._id.toString() }
+            metadata: { taskId: task._id.toString(), creatorName, creatorImage }
         }).catch(err => console.error('[notif]', err));
 
         // ── Task Alert Email (Background) ──

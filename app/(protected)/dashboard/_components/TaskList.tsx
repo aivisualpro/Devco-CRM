@@ -79,13 +79,31 @@ function TodoCard({
                     <p className={`text-sm font-medium whitespace-pre-wrap break-words ${item.status === 'done' ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
                         {item.task}
                     </p>
-                    {(item.createdAt || item.dueDate) && (
+                    {(item.createdAt || item.dueDate || item.createdBy) && (
                         <div className="text-xs mt-1 flex items-center justify-between gap-2 flex-wrap">
-                            <p className="text-slate-400">
+                            <div className="flex items-center gap-1.5 text-slate-400">
+                                {item.createdBy && (() => {
+                                    const creator = employees.find(e => e.value === item.createdBy);
+                                    const creatorName = creator?.label || item.createdBy.split('@')[0] || 'Unknown';
+                                    const creatorInitials = creatorName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+                                    return (
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Avatar className="w-5 h-5 border border-white ring-1 ring-blue-100">
+                                                        <AvatarImage src={creator?.image} />
+                                                        <AvatarFallback className="text-[8px] bg-blue-50 font-black text-blue-600">{creatorInitials}</AvatarFallback>
+                                                    </Avatar>
+                                                </TooltipTrigger>
+                                                <TooltipContent><p className="text-[10px]">Created by {creatorName}</p></TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    );
+                                })()}
                                 {item.createdAt && <span>Created: {new Date(item.createdAt).toLocaleDateString()}</span>}
-                                {item.createdAt && item.dueDate && <span className="mx-1">|</span>}
+                                {item.createdAt && item.dueDate && <span className="mx-0.5">|</span>}
                                 {item.dueDate && <span>Due: {formatWallDate(item.dueDate)}</span>}
-                            </p>
+                            </div>
                             {item.status === 'done' && item.lastUpdatedAt && (
                                 <div className="flex items-center gap-1.5 text-emerald-500 font-medium whitespace-nowrap ml-auto">
                                     <span>Completed: {formatWallDate(item.lastUpdatedAt)}</span>
@@ -116,6 +134,7 @@ function TodoCard({
                             </TooltipProvider>
                         );
                     })}
+
                     {item.estimate && (
                         <span
                             className={`ml-2 text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md border border-blue-200 whitespace-nowrap ${canViewEstimates ? 'cursor-pointer hover:bg-blue-100' : ''}`}
