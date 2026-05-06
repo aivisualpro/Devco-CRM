@@ -31,7 +31,8 @@ export async function syncProjectToDb(projectId: string) {
             amount: t.amount,
             memo: t.memo,
             status: t.status || 'Paid',
-            no: t.no || ''
+            no: t.no || '',
+            account: t.account || ''
         }))
     };
     

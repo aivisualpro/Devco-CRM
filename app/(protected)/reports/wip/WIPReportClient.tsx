@@ -115,8 +115,10 @@ export default function WIPReportClient({
     const [txSearch, setTxSearch] = useState('');
     const [txTypeFilter, setTxTypeFilter] = useState<string[]>([]);
     const [txStatusFilter, setTxStatusFilter] = useState<string[]>([]);
+    const [txAccountFilter, setTxAccountFilter] = useState<string[]>([]);
     const [txTypeDropdownOpen, setTxTypeDropdownOpen] = useState(false);
     const [txStatusDropdownOpen, setTxStatusDropdownOpen] = useState(false);
+    const [txAccountDropdownOpen, setTxAccountDropdownOpen] = useState(false);
     const [txCardFilter, setTxCardFilter] = useState<string | null>(null);
     const [isExporting, setIsExporting] = useState(false);
     const [isExportingPdf, setIsExportingPdf] = useState(false);
@@ -1131,7 +1133,10 @@ export default function WIPReportClient({
                                                 const fmt = (v: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v);
                                                 const costTypes = ['Expense', 'Check', 'Payroll Check', 'Bill'];
                                                 const income = transactions.filter((tx: any) => tx.type === 'Invoice').reduce((s: number, tx: any) => s + (tx.amount || 0), 0);
-                                                const qbCost = transactions.filter((tx: any) => costTypes.includes(tx.type)).reduce((s: number, tx: any) => s + (tx.amount || 0), 0);
+                                                // Use QB Profitability API cost (exact match to QB) as primary.
+                                                // Fall back to transaction sum only for projects not yet re-synced.
+                                                const txCostSum = transactions.filter((tx: any) => costTypes.includes(tx.type)).reduce((s: number, tx: any) => s + (tx.amount || 0), 0);
+                                                const qbCost = (selectedProject.qbCost || 0) > 0 ? (selectedProject.qbCost || 0) : txCostSum;
                                                 const tickets = selectedProject.jobTickets || [];
                                                 const jobTicketCost = tickets.reduce((s: number, t: any) => s + (t.totalCost || 0), 0);
                                                 const profit = income - qbCost - jobTicketCost;
@@ -1145,18 +1150,19 @@ export default function WIPReportClient({
                                                         setTxCardFilter(null);
                                                         setTxTypeFilter([]);
                                                         setTxStatusFilter([]);
+                                                        setTxAccountFilter([]);
                                                         return;
                                                     }
                                                     setTxCardFilter(card);
                                                     setTxSearch('');
                                                     switch (card) {
-                                                        case 'income': setTxTypeFilter(['Invoice']); setTxStatusFilter([]); break;
-                                                        case 'qbCost': setTxTypeFilter(costTypes); setTxStatusFilter([]); break;
-                                                        case 'profit': setTxTypeFilter([]); setTxStatusFilter([]); break;
-                                                        case 'payment': setTxTypeFilter(['Payment']); setTxStatusFilter([]); break;
-                                                        case 'ar': setTxTypeFilter(['Invoice']); setTxStatusFilter([]); break;
-                                                        case 'payables': setTxTypeFilter(costTypes); setTxStatusFilter(['Open', 'Overdue']); break;
-                                                        default: setTxTypeFilter([]); setTxStatusFilter([]);
+                                                        case 'income': setTxTypeFilter(['Invoice']); setTxStatusFilter([]); setTxAccountFilter([]); break;
+                                                        case 'qbCost': setTxTypeFilter(costTypes); setTxStatusFilter([]); setTxAccountFilter([]); break;
+                                                        case 'profit': setTxTypeFilter([]); setTxStatusFilter([]); setTxAccountFilter([]); break;
+                                                        case 'payment': setTxTypeFilter(['Payment']); setTxStatusFilter([]); setTxAccountFilter([]); break;
+                                                        case 'ar': setTxTypeFilter(['Invoice']); setTxStatusFilter([]); setTxAccountFilter([]); break;
+                                                        case 'payables': setTxTypeFilter(costTypes); setTxStatusFilter(['Open', 'Overdue']); setTxAccountFilter([]); break;
+                                                        default: setTxTypeFilter([]); setTxStatusFilter([]); setTxAccountFilter([]);
                                                     }
                                                 };
 
@@ -1546,6 +1552,39 @@ export default function WIPReportClient({
                                                                     </div>
                                                                 );
                                                             })()}
+                                            {/* Account multi-select filter */}
+                                            {(() => {
+                                                const accounts = [...new Set(
+                                                    (transactions as any[]).flatMap((tx: any) =>
+                                                        (tx.account || '').split(',').map((a: string) => a.split(':').pop()?.trim()).filter(Boolean)
+                                                    )
+                                                )].sort() as string[];
+                                                return (
+                                                    <div className="relative shrink-0 hidden xl:block">
+                                                        <button onClick={() => { setTxAccountDropdownOpen(!txAccountDropdownOpen); setTxTypeDropdownOpen(false); setTxStatusDropdownOpen(false); }} className={`flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-md border transition-all ${
+                                                            txAccountFilter.length > 0 ? 'bg-violet-50 border-violet-200 text-violet-700' : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'
+                                                        }`}>
+                                                            Account {txAccountFilter.length > 0 && <span className="bg-violet-200 text-violet-800 rounded-full w-3.5 h-3.5 flex items-center justify-center text-[8px]">{txAccountFilter.length}</span>}
+                                                        </button>
+                                                        {txAccountDropdownOpen && (
+                                                            <>
+                                                                <div className="fixed inset-0 z-20" onClick={() => setTxAccountDropdownOpen(false)} />
+                                                                <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-30 min-w-[200px] max-h-[260px] overflow-y-auto py-1">
+                                                                  {txAccountFilter.length > 0 && (
+                                                                    <button onClick={() => setTxAccountFilter([])} className="w-full text-left px-3 py-1.5 text-[10px] font-bold text-rose-500 hover:bg-rose-50 border-b border-slate-100">Clear All</button>
+                                                                  )}
+                                                                  {accounts.map(a => (
+                                                                    <label key={a} className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-slate-50 cursor-pointer">
+                                                                      <input type="checkbox" checked={txAccountFilter.includes(a)} onChange={() => setTxAccountFilter(prev => prev.includes(a) ? prev.filter(x => x !== a) : [...prev, a])} className="w-3.5 h-3.5 rounded border-slate-300 text-violet-600 cursor-pointer" />
+                                                                      <span className="text-[11px] font-medium text-slate-700">{a}</span>
+                                                                    </label>
+                                                                  ))}
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })()}
                                                             <div className="flex-1" />
                                                             {/* Records counter + total */}
                                                             {(() => {
@@ -1553,6 +1592,10 @@ export default function WIPReportClient({
                                                                 let filtered = transactions as any[];
                                                                 if (txTypeFilter.length > 0) filtered = filtered.filter((tx: any) => txTypeFilter.includes(tx.type));
                                                                 if (txStatusFilter.length > 0) filtered = filtered.filter((tx: any) => txStatusFilter.includes(tx.status));
+                                                if (txAccountFilter.length > 0) filtered = filtered.filter((tx: any) => {
+                                                    const leafAccounts = (tx.account || '').split(',').map((a: string) => a.split(':').pop()?.trim()).filter(Boolean);
+                                                    return txAccountFilter.some(f => leafAccounts.includes(f));
+                                                });
                                                                 if (q) filtered = filtered.filter((tx: any) => 
                                                                     (tx.date && formatDateOnly(tx.date)?.toLowerCase().includes(q)) ||
                                                                     (tx.type && tx.type.toLowerCase().includes(q)) ||
@@ -1563,7 +1606,7 @@ export default function WIPReportClient({
                                                                     (tx.amount && String(tx.amount).includes(q))
                                                                 );
                                                                 const total = filtered.reduce((sum: number, tx: any) => sum + (tx.amount || 0), 0);
-                                                                const hasFilter = txSearch || txTypeFilter.length > 0 || txStatusFilter.length > 0;
+                                                                const hasFilter = txSearch || txTypeFilter.length > 0 || txStatusFilter.length > 0 || txAccountFilter.length > 0;
                                                                 const fmt$ = (v: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v);
                                                                 return (
                                                                     <div className="flex items-center gap-2 shrink-0">
@@ -1584,13 +1627,14 @@ export default function WIPReportClient({
                                                         <table className="w-full min-w-[1000px] text-left table-fixed">
                                                             <thead className="sticky top-0 bg-white/90 backdrop-blur-sm z-10 shadow-sm border-b border-slate-100">
                                                                 <tr className="h-8">
-                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-[10%] align-middle">Date</th>
+                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-[9%] align-middle">Date</th>
                                                                     <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-[14%] align-middle">Type</th>
                                                                     <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-[8%] align-middle">No.</th>
                                                                     <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-[20%] align-middle">From/To</th>
                                                                     <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center w-[8%] align-middle">Status</th>
                                                                     <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider text-right w-[10%] align-middle">Amount</th>
-                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-[30%] align-middle">Memo</th>
+                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-[16%] align-middle">Account</th>
+                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-[24%] align-middle">Memo</th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody className="divide-y divide-slate-50">
@@ -1611,12 +1655,17 @@ export default function WIPReportClient({
                                                                     let filtered = transactions as any[];
                                                                     if (txTypeFilter.length > 0) filtered = filtered.filter((tx: any) => txTypeFilter.includes(tx.type));
                                                                     if (txStatusFilter.length > 0) filtered = filtered.filter((tx: any) => txStatusFilter.includes(tx.status));
+                                                                    if (txAccountFilter.length > 0) filtered = filtered.filter((tx: any) => {
+                                                                        const leafAccounts = (tx.account || '').split(',').map((a: string) => a.split(':').pop()?.trim()).filter(Boolean);
+                                                                        return txAccountFilter.some(f => leafAccounts.includes(f));
+                                                                    });
                                                                     if (q) filtered = filtered.filter((tx: any) => 
                                                                         (tx.date && formatDateOnly(tx.date)?.toLowerCase().includes(q)) ||
                                                                         (tx.type && tx.type.toLowerCase().includes(q)) ||
                                                                         (tx.no && String(tx.no).toLowerCase().includes(q)) ||
                                                                         (tx.from && tx.from.toLowerCase().includes(q)) ||
                                                                         (tx.memo && tx.memo.toLowerCase().includes(q)) ||
+                                                                        (tx.account && tx.account.toLowerCase().includes(q)) ||
                                                                         (tx.status && tx.status.toLowerCase().includes(q)) ||
                                                                         (tx.amount && String(tx.amount).includes(q))
                                                                     );
@@ -1646,11 +1695,17 @@ export default function WIPReportClient({
                                                                                 <td className="px-1.5 py-2 text-[11px] font-bold text-slate-800 text-right whitespace-nowrap">
                                                                                     {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(tx.amount)}
                                                                                 </td>
+                                                                                <td className="px-1.5 py-2 text-[11px] text-slate-500 truncate" title={tx.account || ''}>
+                                                                                    {tx.account
+                                                                                        ? tx.account.split(',').map((a: string) => a.split(':').pop()?.trim()).join(', ')
+                                                                                        : <span className="text-slate-300">—</span>
+                                                                                    }
+                                                                                </td>
                                                                                 <td className="px-1.5 py-2 text-[11px] font-medium text-slate-600 break-words">{tx.memo || '—'}</td>
                                                                             </tr>
                                                                         ))
                                                                     ) : (
-                                                                        <tr><td colSpan={7} className="p-8 text-center text-slate-400 text-sm font-medium">{txSearch || txTypeFilter.length > 0 || txStatusFilter.length > 0 ? 'No matching transactions.' : 'No transactions found.'}</td></tr>
+                                                                        <tr><td colSpan={8} className="p-8 text-center text-slate-400 text-sm font-medium">{txSearch || txTypeFilter.length > 0 || txStatusFilter.length > 0 || txAccountFilter.length > 0 ? 'No matching transactions.' : 'No transactions found.'}</td></tr>
                                                                     );
                                                                 })()}
                                                             </tbody>

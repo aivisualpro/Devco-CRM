@@ -85,8 +85,19 @@ export async function POST(req: Request) {
                                     const parseAmount = (val: any) => parseFloat(String(val).replace(/[^0-9.-]/g, '')) || 0;
                                     const transactionsMap = new Map<string, any>();
 
-                                    const traverseRows = (rows: any[]) => {
+                                    // Section-aware traversal: QB P&L Detail is nested by account.
+                                    // We track the current account section so we can filter Payroll Check
+                                    // lines to only Wages + Employer Tax sections, excluding fringe/benefit lines.
+                                    const traverseRows = (rows: any[], currentSection = '') => {
                                         for (const row of rows) {
+                                            // Section group row — extract the account name from its Header
+                                            // and recurse with it as the active section.
+                                            if (row.Header?.ColData && row.Rows?.Row) {
+                                                const sectionName = (row.Header.ColData[0]?.value || currentSection).toLowerCase();
+                                                traverseRows(row.Rows.Row, sectionName);
+                                                continue;
+                                            }
+
                                             if (row.type === 'Data' && row.ColData) {
                                                 const getValue = (idx: number) => (row.ColData[idx]?.value) || "";
                                                 const getId = (idx: number) => (row.ColData[idx]?.id) || null;
@@ -101,6 +112,16 @@ export async function POST(req: Request) {
                                                 const amountRaw = getValue(6);
                                                 const amount = parseAmount(amountRaw);
 
+                                                // For Payroll Checks: only count lines from Wages and Tax
+                                                // account sections. This excludes fringe/benefit/union-fund
+                                                // lines that sit under separate account sections, matching
+                                                // what QB's own Wages+Tax filtered P&L report shows.
+                                                if (type === 'Payroll Check' && currentSection) {
+                                                    const sec = currentSection;
+                                                    const isWageOrTax = sec.includes('wage') || sec.includes('tax');
+                                                    if (!isWageOrTax) continue;
+                                                }
+
                                                 const groupKey = txnIdRaw || `${date}_${type}_${num}_${amount}`;
 
                                                 if (!transactionsMap.has(groupKey)) {
@@ -113,18 +134,23 @@ export async function POST(req: Request) {
                                                         memo: "",
                                                         split: "",
                                                         amount: 0,
+                                                        account: "",
                                                         status: 'Cleared'
                                                     });
                                                 }
 
                                                 const tx = transactionsMap.get(groupKey);
                                                 tx.amount += amount;
+                                                // Accumulate account names (e.g. "Wages, Employer Taxes" for one paycheck)
+                                                if (currentSection && !tx.account.includes(currentSection)) {
+                                                    tx.account = tx.account ? `${tx.account}, ${currentSection}` : currentSection;
+                                                }
                                                 if (memo && memo.length > (tx.memo?.length || 0)) tx.memo = memo;
                                                 if (split && split.length > (tx.split?.length || 0)) tx.split = split;
                                                 if (!tx.no && num) tx.no = num;
                                                 if (!tx.from && name) tx.from = name;
                                             } else if (row.Rows?.Row) {
-                                                traverseRows(row.Rows.Row);
+                                                traverseRows(row.Rows.Row, currentSection);
                                             }
                                         }
                                     };
@@ -246,7 +272,8 @@ export async function POST(req: Request) {
                     amount: t.amount,
                     memo: t.memo,
                     status: t.status || 'Paid',
-                    no: t.no || ''
+                    no: t.no || '',
+                    account: t.account || ''
                 })),
                 income: lp.income || 0,
                 qbCost: lp.cost || 0

@@ -304,8 +304,15 @@ export async function getSingleProject(projectId: string) {
                 const parseAmount = (val: any) => parseFloat(String(val).replace(/[^0-9.-]/g, '')) || 0;
                 const transactionsMap = new Map<string, any>();
                 
-                const traverseRows = (rows: any[]) => {
+                const traverseRows = (rows: any[], currentSection = '') => {
                     for (const row of rows) {
+                        // Section group — extract account name, recurse with it
+                        if (row.Header?.ColData && row.Rows?.Row) {
+                            const sectionName = (row.Header.ColData[0]?.value || currentSection).toLowerCase();
+                            traverseRows(row.Rows.Row, sectionName);
+                            continue;
+                        }
+
                         if (row.type === 'Data' && row.ColData) {
                             const getValue = (idx: number) => (row.ColData[idx]?.value) || "";
                             const getId = (idx: number) => (row.ColData[idx]?.id) || null;
@@ -320,6 +327,12 @@ export async function getSingleProject(projectId: string) {
                             const amountRaw = getValue(6);
                             const amount = parseAmount(amountRaw);
 
+                            // Payroll Checks: only Wages + Tax account sections
+                            if (type === 'Payroll Check' && currentSection) {
+                                const sec = currentSection;
+                                if (!sec.includes('wage') && !sec.includes('tax')) continue;
+                            }
+
                             const groupKey = txnIdRaw || `${date}_${type}_${num}_${amount}`;
 
                             if (!transactionsMap.has(groupKey)) {
@@ -332,6 +345,7 @@ export async function getSingleProject(projectId: string) {
                                     memo: "",
                                     split: "",
                                     amount: 0,
+                                    account: "",
                                     status: 'Cleared',
                                     statusColor: 'emerald'
                                 });
@@ -339,12 +353,16 @@ export async function getSingleProject(projectId: string) {
 
                             const tx = transactionsMap.get(groupKey);
                             tx.amount += amount;
+                            // Accumulate account section names for this transaction
+                            if (currentSection && !tx.account.includes(currentSection)) {
+                                tx.account = tx.account ? `${tx.account}, ${currentSection}` : currentSection;
+                            }
                             if (memo && memo.length > (tx.memo?.length || 0)) tx.memo = memo;
                             if (split && split.length > (tx.split?.length || 0)) tx.split = split;
                             if (!tx.no && num) tx.no = num;
                             if (!tx.from && name) tx.from = name;
                         } else if (row.Rows?.Row) {
-                            traverseRows(row.Rows.Row);
+                            traverseRows(row.Rows.Row, currentSection);
                         }
                     }
                 };
@@ -438,6 +456,7 @@ export async function getSingleProject(projectId: string) {
                 from: t.from,
                 memo: t.memo,
                 amount: t.amount,
+                account: t.account || '',
                 status: t.status
             }))
         };
@@ -488,10 +507,17 @@ export async function getProjectTransactions(projectId: string) {
 
         // Collect unique transaction IDs grouped by entity type + capture P&L row data as fallback
         const entityIds: Record<string, Set<string>> = {};
-        const pnlFallback: Record<string, { date: string; type: string; no: string; from: string; memo: string; amount: number }> = {};
+        const pnlFallback: Record<string, { date: string; type: string; no: string; from: string; memo: string; amount: number; account: string }> = {};
 
-        const traverseRows = (rows: any[]) => {
+        const traverseRows = (rows: any[], currentSection = '') => {
             for (const row of rows) {
+                // Section group — extract account name, recurse with it
+                if (row.Header?.ColData && row.Rows?.Row) {
+                    const sectionName = (row.Header.ColData[0]?.value || currentSection).toLowerCase();
+                    traverseRows(row.Rows.Row, sectionName);
+                    continue;
+                }
+
                 if (row.type === 'Data' && row.ColData) {
                     const date = row.ColData[0]?.value || '';
                     const pnlType = row.ColData[1]?.value || '';
@@ -501,23 +527,34 @@ export async function getProjectTransactions(projectId: string) {
                     const memo = row.ColData[4]?.value || '';
                     const amount = parseAmount(row.ColData[6]?.value);
 
+                    // Payroll Checks: only Wages + Tax account sections
+                    if (pnlType === 'Payroll Check' && currentSection) {
+                        const sec = currentSection;
+                        if (!sec.includes('wage') && !sec.includes('tax')) continue;
+                    }
+
                     if (txnId && pnlType) {
                         const entity = mapPnlTypeToEntity(pnlType);
                         if (!entityIds[entity]) entityIds[entity] = new Set();
                         entityIds[entity].add(txnId);
 
-                        // Capture/accumulate P&L fallback data for this transaction
                         if (!pnlFallback[txnId]) {
-                            pnlFallback[txnId] = { date, type: pnlType, no: num, from: name, memo, amount: 0 };
+                            pnlFallback[txnId] = { date, type: pnlType, no: num, from: name, memo, amount: 0, account: '' };
                         }
+                        // Sum ALL lines for this transaction (Wages + Employer Taxes per employee)
                         pnlFallback[txnId].amount += amount;
-                        // Keep the longest memo/name
+                        // Accumulate account section names
+                        if (currentSection && !pnlFallback[txnId].account.includes(currentSection)) {
+                            pnlFallback[txnId].account = pnlFallback[txnId].account
+                                ? `${pnlFallback[txnId].account}, ${currentSection}`
+                                : currentSection;
+                        }
                         if (name && name.length > (pnlFallback[txnId].from?.length || 0)) pnlFallback[txnId].from = name;
                         if (memo && memo.length > (pnlFallback[txnId].memo?.length || 0)) pnlFallback[txnId].memo = memo;
                         if (num && !pnlFallback[txnId].no) pnlFallback[txnId].no = num;
                     }
                 } else if (row.Rows?.Row) {
-                    traverseRows(row.Rows.Row);
+                    traverseRows(row.Rows.Row, currentSection);
                 }
             }
         };
@@ -585,6 +622,7 @@ export async function getProjectTransactions(projectId: string) {
                 from: inv.CustomerRef?.name || '---',
                 memo: inv.PrivateNote || inv.CustomerMemo?.value || '',
                 amount: inv.TotalAmt,
+                account: pnlFallback[inv.Id]?.account || '',
                 status: inv.Balance === 0 ? 'Paid' : (new Date(inv.DueDate) < new Date() ? 'Overdue' : 'Open'),
                 statusColor: inv.Balance === 0 ? 'emerald' : 'amber'
             };
@@ -600,6 +638,7 @@ export async function getProjectTransactions(projectId: string) {
                 from: pay.CustomerRef?.name || '---',
                 memo: pay.PrivateNote || '',
                 amount: pay.TotalAmt,
+                account: pnlFallback[pay.Id]?.account || '',
                 status: 'Closed',
                 statusColor: 'emerald'
             };
@@ -607,8 +646,11 @@ export async function getProjectTransactions(projectId: string) {
 
         const purchases = purchasesRaw.map((p: any) => {
             fetchedIds.add(p.Id);
-            // Use P&L-allocated amount (project portion) instead of TotalAmt (full transaction)
             const allocatedAmt = pnlFallback[p.Id]?.amount;
+            // Account: from pnlFallback (section name) or from Line AccountRef
+            const lineAccounts = [...new Set(
+                (p.Line || []).map((l: any) => l.AccountBasedExpenseLineDetail?.AccountRef?.name).filter(Boolean)
+            )].join(', ');
             return {
                 id: p.Id,
                 date: p.TxnDate,
@@ -617,6 +659,7 @@ export async function getProjectTransactions(projectId: string) {
                 from: p.EntityRef?.name || '---',
                 memo: p.PrivateNote || p.Line?.find((l: any) => l.Description)?.Description || '',
                 amount: allocatedAmt !== undefined ? allocatedAmt : (p.TotalAmt || 0),
+                account: pnlFallback[p.Id]?.account || lineAccounts,
                 status: 'Paid',
                 statusColor: 'emerald'
             };
@@ -625,6 +668,9 @@ export async function getProjectTransactions(projectId: string) {
         const bills = billsRaw.map((bill: any) => {
             fetchedIds.add(bill.Id);
             const allocatedAmt = pnlFallback[bill.Id]?.amount;
+            const lineAccounts = [...new Set(
+                (bill.Line || []).map((l: any) => l.AccountBasedExpenseLineDetail?.AccountRef?.name).filter(Boolean)
+            )].join(', ');
             return {
                 id: bill.Id,
                 date: bill.TxnDate,
@@ -633,6 +679,7 @@ export async function getProjectTransactions(projectId: string) {
                 from: bill.VendorRef?.name || '---',
                 memo: bill.PrivateNote || bill.Line?.find((l: any) => l.Description)?.Description || '',
                 amount: allocatedAmt !== undefined ? allocatedAmt : (bill.TotalAmt || 0),
+                account: pnlFallback[bill.Id]?.account || lineAccounts,
                 status: bill.Balance === 0 ? 'Paid' : 'Open',
                 statusColor: bill.Balance === 0 ? 'emerald' : 'amber'
             };
@@ -641,6 +688,9 @@ export async function getProjectTransactions(projectId: string) {
         const vendorCredits = vendorCreditsRaw.map((vc: any) => {
             fetchedIds.add(vc.Id);
             const allocatedAmt = pnlFallback[vc.Id]?.amount;
+            const lineAccounts = [...new Set(
+                (vc.Line || []).map((l: any) => l.AccountBasedExpenseLineDetail?.AccountRef?.name).filter(Boolean)
+            )].join(', ');
             return {
                 id: vc.Id,
                 date: vc.TxnDate,
@@ -649,6 +699,7 @@ export async function getProjectTransactions(projectId: string) {
                 from: vc.VendorRef?.name || '---',
                 memo: vc.PrivateNote || '',
                 amount: allocatedAmt !== undefined ? -Math.abs(allocatedAmt) : -(vc.TotalAmt || 0),
+                account: pnlFallback[vc.Id]?.account || lineAccounts,
                 status: 'Closed',
                 statusColor: 'emerald'
             };
@@ -657,6 +708,9 @@ export async function getProjectTransactions(projectId: string) {
         const journals = journalsRaw.map((j: any) => {
             fetchedIds.add(j.Id);
             const allocatedAmt = pnlFallback[j.Id]?.amount;
+            const lineAccounts = [...new Set(
+                (j.Line || []).map((l: any) => l.JournalEntryLineDetail?.AccountRef?.name).filter(Boolean)
+            )].join(', ');
             return {
                 id: j.Id,
                 date: j.TxnDate,
@@ -665,6 +719,7 @@ export async function getProjectTransactions(projectId: string) {
                 from: j.Line?.find((l: any) => l.JournalEntryLineDetail?.Entity)?.JournalEntryLineDetail?.Entity?.EntityRef?.name || '---',
                 memo: j.PrivateNote || j.Line?.find((l: any) => l.Description)?.Description || '',
                 amount: allocatedAmt !== undefined ? allocatedAmt : (j.TotalAmt || 0),
+                account: pnlFallback[j.Id]?.account || lineAccounts,
                 status: 'Cleared',
                 statusColor: 'emerald'
             };
@@ -683,6 +738,7 @@ export async function getProjectTransactions(projectId: string) {
                     from: data.from,
                     memo: data.memo,
                     amount: data.amount,
+                    account: data.account || '',
                     status: 'Paid',
                     statusColor: 'emerald'
                 });

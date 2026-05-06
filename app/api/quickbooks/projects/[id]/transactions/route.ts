@@ -37,6 +37,7 @@ export async function GET(
                         from: t.fromTo,
                         memo: t.memo || '',
                         amount: t.amount || 0,
+                        account: t.account || '',
                         status: t.status || 'Paid',
                         statusColor: (t.status || '').toLowerCase() === 'paid' ? 'emerald' : 
                                      (t.status || '').toLowerCase() === 'open' ? 'amber' : 'emerald'
@@ -76,7 +77,8 @@ export async function GET(
                             amount: t.amount,
                             memo: t.memo,
                             status: t.status || 'Paid',
-                            no: t.no || ''
+                            no: t.no || '',
+                            account: t.account || ''
                         }))
                     }
                 },

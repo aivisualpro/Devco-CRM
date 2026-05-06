@@ -11,6 +11,7 @@ export interface IQuickBooksTransaction {
     memo: string;
     status: string;
     no: string;
+    account: string; // QB expense account (e.g. "Payroll expenses:Wages")
 }
 
 export interface IDevcoQuickBooks extends Document {
@@ -41,7 +42,8 @@ const QuickBooksTransactionSchema = new Schema({
     amount: { type: Number, default: 0 },
     memo: { type: String },
     status: { type: String, default: 'Paid' },
-    no: { type: String, default: '' }
+    no: { type: String, default: '' },
+    account: { type: String, default: '' }
 });
 
 const DevcoQuickBooksSchema = new Schema({
