@@ -21,12 +21,15 @@ interface AppNotification {
     createdAt: string;
 }
 
+const QB_ICON_URL = 'https://res.cloudinary.com/doqijlrhv/image/upload/v1778108011/64d21dbabd6695f39eeb2687_quickbooks-logo_h4cczb.png';
+
 const NOTIFICATION_ICONS: Record<string, React.ReactNode> = {
     schedule_assigned: <Calendar size={16} className="text-teal-500" />,
     schedule_updated: <Clock size={16} className="text-blue-500" />,
     estimate_won: <Sparkles size={16} className="text-amber-500" />,
     estimate_updated: <FileText size={16} className="text-indigo-500" />,
     task_assigned: <Calendar size={16} className="text-purple-500" />,
+    qbo_sync: <img src={QB_ICON_URL} alt="QuickBooks" style={{ width: 16, height: 16, borderRadius: 4, objectFit: 'cover' }} />,
     general: <AlertCircle size={16} className="text-slate-500" />,
 };
 
@@ -36,6 +39,7 @@ const NOTIFICATION_COLORS: Record<string, string> = {
     estimate_won: 'from-amber-500/10 to-amber-500/5 border-amber-200/50',
     estimate_updated: 'from-indigo-500/10 to-indigo-500/5 border-indigo-200/50',
     task_assigned: 'from-purple-500/10 to-purple-500/5 border-purple-200/50',
+    qbo_sync: 'from-green-500/10 to-emerald-500/5 border-green-200/50',
     general: 'from-slate-500/10 to-slate-500/5 border-slate-200/50',
 };
 
@@ -157,33 +161,48 @@ export default function NotificationBell({ currentUser }: { currentUser?: any })
         const el = document.createElement('div');
         el.style.cssText = `
             position:fixed; top:16px; right:16px; z-index:999999;
-            display:flex; align-items:center; gap:10px;
-            width:340px; max-width:calc(100vw - 32px);
-            padding:12px 14px;
-            background:rgba(255,255,255,0.96);
-            backdrop-filter:blur(20px) saturate(1.6);
-            border-radius:14px;
-            box-shadow:0 4px 24px -4px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.04);
+            display:flex; align-items:flex-start; gap:10px;
+            width:400px; max-width:calc(100vw - 32px);
+            padding:14px 14px 14px 18px;
+            background:rgba(255,255,255,0.97);
+            backdrop-filter:blur(24px) saturate(1.8);
+            border-radius:16px;
+            border:1px solid rgba(0,0,0,0.06);
+            box-shadow:0 8px 32px -4px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06), 0 0 0 1px rgba(255,255,255,0.8) inset;
             cursor:${payload.link ? 'pointer' : 'default'};
-            animation:devcoSlideIn 0.35s cubic-bezier(0.16,1,0.3,1) forwards;
+            animation:devcoSlideIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards;
             overflow:hidden;
             font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
         `;
 
+        // Determine toast accent color based on type
+        const isQbo = payload.type === 'qbo_sync';
+        const accentColor = isQbo ? '#16a34a' : '#0F4C75';
+        const accentLight = isQbo ? 'rgba(22,163,74,0.12)' : 'rgba(15,76,117,0.1)';
+
         el.innerHTML = `
-            <div style="position:absolute;bottom:0;left:0;height:2px;background:linear-gradient(90deg,rgba(15,76,117,0.3),rgba(50,130,184,0.15));animation:devcoProgress 5s linear forwards;border-radius:0 0 14px 14px"></div>
-            <div style="width:34px;height:34px;border-radius:10px;overflow:hidden;flex-shrink:0;background:${ci ? 'transparent' : 'linear-gradient(135deg,#0F4C75,#3282B8)'};display:flex;align-items:center;justify-content:center">
-                ${ci
-                    ? `<img src="${cld(ci, { w: 68, q: 'auto' })}" alt="" style="width:100%;height:100%;object-fit:cover" />`
-                    : `<span style="color:#fff;font-size:11px;font-weight:700;letter-spacing:0.3px">${ini}</span>`
+            <div style="position:absolute;bottom:0;left:0;right:0;height:3px;background:${accentColor};opacity:0.25;border-radius:0 0 14px 14px"></div>
+            <div style="position:absolute;bottom:0;left:0;height:3px;background:${accentColor};animation:devcoProgress 10s linear forwards;border-radius:0 0 14px 14px"></div>
+            <div style="position:absolute;top:0;left:0;width:3px;height:100%;background:linear-gradient(180deg,${accentColor},${accentColor}88);border-radius:14px 0 0 14px"></div>
+            <div style="width:40px;height:40px;border-radius:12px;overflow:hidden;flex-shrink:0;background:${isQbo ? '#dcfce7' : 'linear-gradient(135deg,#0F4C75,#3282B8)'};display:flex;align-items:center;justify-content:center;border:1.5px solid ${accentColor}22">
+                ${isQbo
+                    ? `<img src="${QB_ICON_URL}" alt="QB" style="width:28px;height:28px;object-fit:contain" />`
+                    : (ci
+                        ? `<img src="${ci}" alt="" style="width:100%;height:100%;object-fit:cover" />`
+                        : `<span style="color:#fff;font-size:12px;font-weight:700;letter-spacing:0.3px">${ini}</span>`
+                    )
                 }
             </div>
-            <div style="flex:1;min-width:0">
-                <p style="margin:0;font-size:12px;font-weight:600;color:#1e293b;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${payload.title || ''}</p>
-                <p style="margin:2px 0 0 0;font-size:11px;color:#94a3b8;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${payload.message || ''}</p>
+            <div style="flex:1;min-width:0;padding-left:2px">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+                    <p style="margin:0;font-size:12px;font-weight:700;color:#0f172a;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${payload.title || ''}</p>
+                    ${isQbo ? `<span style="font-size:9px;font-weight:700;color:#16a34a;background:#dcfce7;padding:1px 5px;border-radius:4px;flex-shrink:0;text-transform:uppercase;letter-spacing:0.5px">LIVE</span>` : ''}
+                </div>
+                <p style="margin:0;font-size:11px;color:#475569;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${payload.message || ''}</p>
+                ${payload.metadata?.amount ? `<p style="margin:3px 0 0;font-size:11px;font-weight:700;color:${accentColor}">$${Number(payload.metadata.amount).toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2})}</p>` : ''}
             </div>
-            <div class="devco-toast-close" style="width:20px;height:20px;border-radius:6px;border:none;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#cbd5e1;flex-shrink:0;transition:color 0.15s">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            <div class="devco-toast-close" style="width:22px;height:22px;border-radius:7px;border:1px solid #e2e8f0;background:#f8fafc;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#94a3b8;flex-shrink:0;transition:all 0.15s">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </div>
         `;
 
@@ -206,8 +225,8 @@ export default function NotificationBell({ currentUser }: { currentUser?: any })
             dismiss();
         });
 
-        // Auto-dismiss after 5s
-        setTimeout(dismiss, 5000);
+        // Auto-dismiss after 10s
+        setTimeout(dismiss, 10000);
     }, [router]);
 
     // Pusher Subscribe
@@ -480,8 +499,10 @@ export default function NotificationBell({ currentUser }: { currentUser?: any })
                                             )}
 
                                             {/* Icon or Avatar */}
-                                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 relative overflow-hidden ${!notif.read ? 'bg-white shadow-sm border border-slate-100' : 'bg-slate-100'}`}>
-                                                {notif.metadata?.creatorImage ? (
+                                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 relative overflow-hidden ${notif.type === 'qbo_sync' ? 'bg-green-50 border border-green-200/60' : !notif.read ? 'bg-white shadow-sm border border-slate-100' : 'bg-slate-100'}`}>
+                                                {notif.type === 'qbo_sync' ? (
+                                                    <img src={QB_ICON_URL} alt="QuickBooks" className="w-5 h-5 object-contain" />
+                                                ) : notif.metadata?.creatorImage ? (
                                                     <Image fill sizes="32px" src={cld(notif.metadata.creatorImage, { w: 64, q: 'auto' })} alt={notif.metadata.creatorName || ''} className="object-cover w-full h-full" />
                                                 ) : notif.metadata?.creatorName ? (
                                                     <span className="text-xs font-black text-slate-600 uppercase tracking-widest">{notif.metadata.creatorName[0]}</span>
@@ -560,15 +581,40 @@ export default function NotificationBell({ currentUser }: { currentUser?: any })
                                                     </>
                                                 ) : (
                                                     <>
-                                                        <p className={`text-[12px] leading-snug ${!notif.read ? 'font-bold text-slate-900' : 'font-medium text-slate-600'}`}>
-                                                            {notif.title}
-                                                        </p>
-                                                        <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2 leading-relaxed">
-                                                            {notif.message}
-                                                        </p>
-                                                        <p className="text-[10px] text-slate-400 mt-1 font-medium">
-                                                            {timeAgo(notif.createdAt)}
-                                                        </p>
+                                                        {notif.type === 'qbo_sync' ? (
+                                                            // Rich QB sync notification
+                                                            <>
+                                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                                    <p className={`text-[12px] leading-snug ${!notif.read ? 'font-bold text-slate-900' : 'font-semibold text-slate-700'}`}>
+                                                                        QuickBooks Synced
+                                                                    </p>
+                                                                    {(notif.metadata?.entityTypes || []).map((et: string) => (
+                                                                        <span key={et} className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-green-100 text-green-700 uppercase tracking-wide">{et}</span>
+                                                                    ))}
+                                                                </div>
+                                                                <p className="text-[11px] font-semibold text-slate-800 mt-0.5 truncate">
+                                                                    {notif.metadata?.projectNames?.[0] || notif.message?.split(' in ')?.[1]?.replace('. WIP data has been refreshed.','') || '—'}
+                                                                </p>
+                                                                {notif.metadata?.amount && (
+                                                                    <p className="text-[11px] font-black text-green-600 mt-0.5">
+                                                                        ${Number(notif.metadata.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                                                    </p>
+                                                                )}
+                                                                <p className="text-[10px] text-slate-400 mt-1 font-medium">{timeAgo(notif.createdAt)}</p>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <p className={`text-[12px] leading-snug ${!notif.read ? 'font-bold text-slate-900' : 'font-medium text-slate-600'}`}>
+                                                                    {notif.title}
+                                                                </p>
+                                                                <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2 leading-relaxed">
+                                                                    {notif.message}
+                                                                </p>
+                                                                <p className="text-[10px] text-slate-400 mt-1 font-medium">
+                                                                    {timeAgo(notif.createdAt)}
+                                                                </p>
+                                                            </>
+                                                        )}
                                                     </>
                                                 )}
                                             </div>

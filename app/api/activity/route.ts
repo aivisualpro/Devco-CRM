@@ -37,33 +37,7 @@ export async function GET(request: NextRequest) {
     }
 }
 
-export async function POST(request: NextRequest) {
-    try {
-        await connectToDatabase();
-        
-        const body = await request.json();
-        const { user, action, type, title, entityId, metadata } = body;
-        
-        if (!user || !action || !type || !title) {
-            return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
-        }
-        
-        const newId = new mongoose.Types.ObjectId().toString();
-        
-        const activity = await Activity.create({
-            _id: newId,
-            user,
-            action,
-            type,
-            title,
-            entityId,
-            metadata,
-            createdAt: new Date()
-        });
-        
-        return NextResponse.json({ success: true, activity });
-    } catch (error: any) {
-        console.error('Activity API Error:', error);
-        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-    }
+export async function POST(_request: NextRequest) {
+    // Activity logging disabled — no longer in use
+    return NextResponse.json({ success: true, activity: null });
 }

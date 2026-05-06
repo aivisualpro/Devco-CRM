@@ -61,16 +61,16 @@ export async function POST(request: NextRequest) {
 
                 // 4. Log Activity
                 const activityId = new mongoose.Types.ObjectId().toString();
-                await Activity.create({
-                    _id: activityId,
-                    user: createdBy || employee,
-                    action: 'signed_jha',
-                    type: 'jha',
-                    title: `Signed JHA for schedule`,
-                    entityId: schedule_id,
-                    metadata: { employee, location },
-                    createdAt: new Date()
-                });
+                // await Activity.create({
+                //                     _id: activityId,
+                //                     user: createdBy || employee,
+                //                     action: 'signed_jha',
+                //                     type: 'jha',
+                //                     title: `Signed JHA for schedule`,
+                //                     entityId: schedule_id,
+                //                     metadata: { employee, location },
+                //                     createdAt: new Date()
+                //                 });
 
                 if (sigDoc.createdAt) {
                     revalidateTag(`dashboard-${getWeekIdFromDate(sigDoc.createdAt)}`, undefined as any);
@@ -108,16 +108,16 @@ export async function POST(request: NextRequest) {
 
                 // Log Activity
                 const activityId = new mongoose.Types.ObjectId().toString();
-                await Activity.create({
-                    _id: activityId,
-                    user: jhaData.createdBy || 'system',
-                    action: 'created_jha',
-                    type: 'jha',
-                    title: `Created/Updated JHA`,
-                    entityId: jhaData.schedule_id,
-                    metadata: { schedule_id: jhaData.schedule_id },
-                    createdAt: new Date()
-                });
+                // await Activity.create({
+                //                     _id: activityId,
+                //                     user: jhaData.createdBy || 'system',
+                //                     action: 'created_jha',
+                //                     type: 'jha',
+                //                     title: `Created/Updated JHA`,
+                //                     entityId: jhaData.schedule_id,
+                //                     metadata: { schedule_id: jhaData.schedule_id },
+                //                     createdAt: new Date()
+                //                 });
 
                 if (result?.date || result?.createdAt) {
                     revalidateTag(`dashboard-${getWeekIdFromDate(result.date || result.createdAt)}`, undefined as any);
@@ -339,15 +339,15 @@ export async function POST(request: NextRequest) {
                 
                 // 4. Log Activity
                  const activityId = new mongoose.Types.ObjectId().toString();
-                 await Activity.create({
-                    _id: activityId,
-                    user: userId || 'system',
-                    action: 'deleted_jha',
-                    type: 'jha',
-                    title: `Deleted JHA`,
-                    entityId: id,
-                    createdAt: new Date()
-                });
+                 // await Activity.create({
+                 //                     _id: activityId,
+                 //                     user: userId || 'system',
+                 //                     action: 'deleted_jha',
+                 //                     type: 'jha',
+                 //                     title: `Deleted JHA`,
+                 //                     entityId: id,
+                 //                     createdAt: new Date()
+                 //                 });
 
                 if (jha?.date || jha?.createdAt) {
                     revalidateTag(`dashboard-${getWeekIdFromDate(jha.date || jha.createdAt)}`, undefined as any);

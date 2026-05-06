@@ -98,18 +98,18 @@ export async function POST(request: NextRequest) {
 
                     // Log Activity
                     const activityId = new mongoose.Types.ObjectId().toString();
-                    await Activity.create({
-                        _id: activityId,
-                        title: 'Daily Job Ticket Updated',
-                        type: 'job', // Changed from 'djt' to match likely schema enum if any, or general type
-                        action: 'updated',
-                        entityId: idToUse,
-                        user: djtData.createdBy || 'system',
-                        details: `Updated Daily Job Ticket for schedule`,
-                        metadata: { scheduleId: djtData.schedule_id },
-                        date: new Date(), // Many schemas use date or timestamp
-                        createdAt: new Date()
-                    });
+                    // await Activity.create({
+                    //                         _id: activityId,
+                    //                         title: 'Daily Job Ticket Updated',
+                    //                         type: 'job', // Changed from 'djt' to match likely schema enum if any, or general type
+                    //                         action: 'updated',
+                    //                         entityId: idToUse,
+                    //                         user: djtData.createdBy || 'system',
+                    //                         details: `Updated Daily Job Ticket for schedule`,
+                    //                         metadata: { scheduleId: djtData.schedule_id },
+                    //                         date: new Date(), // Many schemas use date or timestamp
+                    //                         createdAt: new Date()
+                    //                     });
                 }
 
                 if ((updatedDJT as any)?.date || updatedDJT?.createdAt) {
@@ -296,18 +296,18 @@ export async function POST(request: NextRequest) {
 
                 // 3. Log Activity
                 const activityId = new mongoose.Types.ObjectId().toString();
-                await Activity.create({
-                    _id: activityId,
-                    title: 'Daily Job Ticket Deleted',
-                    type: 'job',
-                    action: 'deleted',
-                    entityId: id,
-                    user: payload.user || 'system',
-                    details: `Deleted Daily Job Ticket`,
-                    metadata: { scheduleId: djtToDelete.schedule_id },
-                    date: new Date(),
-                    createdAt: new Date()
-                });
+                // await Activity.create({
+                //                     _id: activityId,
+                //                     title: 'Daily Job Ticket Deleted',
+                //                     type: 'job',
+                //                     action: 'deleted',
+                //                     entityId: id,
+                //                     user: payload.user || 'system',
+                //                     details: `Deleted Daily Job Ticket`,
+                //                     metadata: { scheduleId: djtToDelete.schedule_id },
+                //                     date: new Date(),
+                //                     createdAt: new Date()
+                //                 });
 
                 if ((djtToDelete as any)?.date || djtToDelete?.createdAt) {
                     revalidateTag(`dashboard-${getWeekIdFromDate((djtToDelete as any)?.date || djtToDelete.createdAt)}`, undefined as any);

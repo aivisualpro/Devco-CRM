@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
             const { DevcoQuickBooks } = await import('@/lib/models');
             const syncedDocs = await DevcoQuickBooks.find(
                 { projectId: { $in: syncedProjects } },
-                { project: 1, projectId: 1 }
+                { project: 1, projectId: 1, proposalNumber: 1 }
             ).lean();
             const projectNames = syncedDocs.map((d: any) => d.project || d.projectId);
             const summary = projectNames.length <= 2 
@@ -131,6 +131,14 @@ export async function POST(req: NextRequest) {
             });
             const changeTypes = Array.from(entityTypes).join(', ') || 'Transaction';
 
+            // Build deep-link using proposalNumber → falls back to project name prefix → Id
+            const firstDoc = syncedDocs[0] as any;
+            const linkProject = firstDoc?.proposalNumber 
+                || firstDoc?.project?.match(/^[\w-]+/)?.[0] 
+                || firstDoc?.projectId 
+                || '';
+            const deepLink = `/reports/wip?project=${encodeURIComponent(linkProject)}&tab=Summary`;
+
             // Create bell notifications for each recipient
             const Notification = (await import('@/lib/models/Notification')).default;
             for (const email of QBO_NOTIFY_RECIPIENTS) {
@@ -140,8 +148,12 @@ export async function POST(req: NextRequest) {
                         type: 'qbo_sync',
                         title: 'QuickBooks Updated',
                         message: `${changeTypes} changed in ${summary}. WIP data has been refreshed.`,
-                        link: `/reports/wip?project=${syncedDocs[0]?.project?.match(/^[^_]+/)?.[0] || ''}&tab=Summary`,
-                        metadata: { projectIds: syncedProjects, entityTypes: Array.from(entityTypes) },
+                        link: deepLink,
+                        metadata: { 
+                            projectIds: syncedProjects, 
+                            projectNames,
+                            entityTypes: Array.from(entityTypes) 
+                        },
                         createdBy: 'quickbooks-webhook',
                         createdAt: new Date()
                     });
@@ -153,7 +165,12 @@ export async function POST(req: NextRequest) {
                         message: `${changeTypes} changed in ${summary}`,
                         link: notif.link,
                         type: 'qbo_sync',
-                        notificationId: String(notif._id)
+                        notificationId: String(notif._id),
+                        metadata: { 
+                            projectIds: syncedProjects,
+                            projectNames,
+                            entityTypes: Array.from(entityTypes)
+                        }
                     });
                 } catch (err) {
                     console.error(`[QBO-WEBHOOK] Failed to notify ${email}:`, err);

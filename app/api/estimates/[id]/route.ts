@@ -197,22 +197,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         if (updated) {
             try {
                 const activityId = new Types.ObjectId().toString();
-                await Activity.create({
-                    _id: activityId,
-                    user: (() => {
-                        const u = estimateUpdates.proposalWriter ||
-                            estimateUpdates.createdBy ||
-                            updated?.proposalWriter ||
-                            'System';
-                        return Array.isArray(u) ? u.join(', ') : String(u);
-                    })(),
-                    action: 'updated_estimate',
-                    type: 'estimate',
-                    title: `Updated Estimate #${updated.estimate}`,
-                    entityId: updated.estimate, 
-                    metadata: { estimate_id: updated._id },
-                    createdAt: new Date()
-                });
+                // await Activity.create({
+                //                     _id: activityId,
+                //                     user: (() => {
+                //                         const u = estimateUpdates.proposalWriter ||
+                //                             estimateUpdates.createdBy ||
+                //                             updated?.proposalWriter ||
+                //                             'System';
+                //                         return Array.isArray(u) ? u.join(', ') : String(u);
+                //                     })(),
+                //                     action: 'updated_estimate',
+                //                     type: 'estimate',
+                //                     title: `Updated Estimate #${updated.estimate}`,
+                //                     entityId: updated.estimate, 
+                //                     metadata: { estimate_id: updated._id },
+                //                     createdAt: new Date()
+                //                 });
             } catch (e) {
                 console.error('Failed to log activity:', e);
             }

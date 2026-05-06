@@ -71,19 +71,19 @@ export async function POST(req: NextRequest) {
 
         try {
             const activityId = new Types.ObjectId().toString();
-            await Activity.create({
-                _id: activityId,
-                user: (() => {
-                    const u = (estimateData as any).proposalWriter || (estimateData as any).createdBy || '';
-                    return Array.isArray(u) ? u.join(', ') : String(u);
-                })(),
-                action: 'created_estimate',
-                type: 'estimate',
-                title: `Created Estimate #${est.estimate}`,
-                entityId: est.estimate,
-                metadata: { estimate_id: est._id },
-                createdAt: new Date()
-            });
+            // await Activity.create({
+            //                 _id: activityId,
+            //                 user: (() => {
+            //                     const u = (estimateData as any).proposalWriter || (estimateData as any).createdBy || '';
+            //                     return Array.isArray(u) ? u.join(', ') : String(u);
+            //                 })(),
+            //                 action: 'created_estimate',
+            //                 type: 'estimate',
+            //                 title: `Created Estimate #${est.estimate}`,
+            //                 entityId: est.estimate,
+            //                 metadata: { estimate_id: est._id },
+            //                 createdAt: new Date()
+            //             });
         } catch (e) {
             console.error('Failed to log activity:', e);
         }
