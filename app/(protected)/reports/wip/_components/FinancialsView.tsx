@@ -4,8 +4,8 @@ import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import dynamic from 'next/dynamic';
 import {
     DollarSign, Receipt, Hammer, Wallet, FileText,
-    TrendingUp, TrendingDown, Percent, Printer, CreditCard,
-    BarChart3, Target, CircleDollarSign, ArrowDownToLine,
+    TrendingUp, TrendingDown, Percent, CreditCard,
+    BarChart3, Target, CircleDollarSign, ArrowDownToLine, SlidersHorizontal,
 } from 'lucide-react';
 import { fmtMoney, fmtCurrency } from '@/lib/format/money';
 import { KpiCard } from './KpiCard';
@@ -81,12 +81,15 @@ interface Project {
     changeOrders?: number;
     ar?: number;
     ap?: number;
+    avgCostPerHr?: number;
     MetaData: { CreateTime: string };
 }
 
 interface FinancialsViewProps {
     projects: Project[];
     loading: boolean;
+    onExportPdf?: () => void;
+    isExportingPdf?: boolean;
 }
 
 // PT timezone helper
@@ -125,9 +128,9 @@ function computeDateRange(preset: DatePreset): { from: string; to: string } {
     }
 }
 
-export function FinancialsView({ projects, loading }: FinancialsViewProps) {
+export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf }: FinancialsViewProps) {
     // Filter state
-    const [datePreset, setDatePreset] = useState<DatePreset>('this_year');
+    const [datePreset, setDatePreset] = useState<DatePreset>('all_time');
     const [customFrom, setCustomFrom] = useState('');
     const [customTo, setCustomTo] = useState('');
     const [proposalWriters, setProposalWriters] = useState<string[]>([]);
@@ -394,10 +397,10 @@ export function FinancialsView({ projects, loading }: FinancialsViewProps) {
             .slice(0, 10);
     }, [filtered]);
 
-    const hasActiveFilters = datePreset !== 'this_year' || proposalWriters.length > 0 || statuses.length > 0 || customers.length > 0;
+    const hasActiveFilters = datePreset !== 'all_time' || proposalWriters.length > 0 || statuses.length > 0 || customers.length > 0;
 
     const resetFilters = useCallback(() => {
-        setDatePreset('this_year');
+        setDatePreset('all_time');
         setCustomFrom('');
         setCustomTo('');
         setProposalWriters([]);
@@ -405,13 +408,16 @@ export function FinancialsView({ projects, loading }: FinancialsViewProps) {
         setCustomers([]);
     }, []);
 
+    // Mobile sidebar state
+    const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
     // Sticky context strip scroll detection
     const scrollRef = useRef<HTMLDivElement>(null);
     const [showSticky, setShowSticky] = useState(false);
     useEffect(() => {
         const el = scrollRef.current;
         if (!el) return;
-        const onScroll = () => setShowSticky(el.scrollTop > 180);
+        const onScroll = () => setShowSticky(el.scrollTop > 10);
         el.addEventListener('scroll', onScroll, { passive: true });
         return () => el.removeEventListener('scroll', onScroll);
     }, []);
@@ -433,77 +439,155 @@ export function FinancialsView({ projects, loading }: FinancialsViewProps) {
     if (loading) {
         return (
             <div className="flex h-full">
-                <div className="w-[280px] shrink-0 border-r border-slate-200/80 p-4 space-y-4">
+                <div className="hidden md:block w-[280px] shrink-0 border-r border-slate-200/80 p-4 space-y-4">
                     {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-9 w-full rounded-lg" />)}
                 </div>
-                <div className="flex-1 p-6"><KpiSkeleton /></div>
+                <div className="flex-1 p-4 md:p-6"><KpiSkeleton /></div>
             </div>
         );
     }
 
     return (
-        <div className="flex h-full min-h-0 animate-fade-in">
-            <FinancialsSidebar
-                datePreset={datePreset}
-                setDatePreset={handlePresetChange}
-                dateFrom={datePreset === 'custom' ? customFrom : dateFrom}
-                setDateFrom={setCustomFrom}
-                dateTo={datePreset === 'custom' ? customTo : dateTo}
-                setDateTo={setCustomTo}
-                proposalWriters={proposalWriters}
-                setProposalWriters={setProposalWriters}
-                statuses={statuses}
-                setStatuses={setStatuses}
-                customers={customers}
-                setCustomers={setCustomers}
-                proposalWriterOptions={proposalWriterOptions}
-                statusOptions={statusOptions}
-                customerOptions={customerOptions}
-                projectCount={kpis.projectCount}
-                income={kpis.income}
-                profit={kpis.profit}
-                avgMargin={kpis.marginPct}
-                backlog={kpis.backlog}
-                arOutstanding={kpis.arOutstanding}
-                hasActiveFilters={hasActiveFilters}
-                onReset={resetFilters}
-            />
+        <div className="flex h-full min-h-0 animate-fade-in relative">
+            {/* Mobile sidebar overlay — starts below the 48px app header */}
+            {mobileSidebarOpen && (
+                <div
+                    className="fixed top-12 inset-x-0 bottom-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
+                    onClick={() => setMobileSidebarOpen(false)}
+                />
+            )}
+
+            {/* Sidebar — always visible on md+, slide-in sheet on mobile (below header) */}
+            <div className={`
+                md:relative md:flex md:shrink-0
+                fixed top-12 bottom-0 left-0 z-50 md:z-auto md:top-auto md:bottom-auto
+                transform transition-transform duration-300 ease-in-out
+                shadow-2xl md:shadow-none rounded-tr-2xl md:rounded-none overflow-hidden
+                ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+            `}>
+                <FinancialsSidebar
+                    datePreset={datePreset}
+                    setDatePreset={handlePresetChange}
+                    dateFrom={datePreset === 'custom' ? customFrom : dateFrom}
+                    setDateFrom={setCustomFrom}
+                    dateTo={datePreset === 'custom' ? customTo : dateTo}
+                    setDateTo={setCustomTo}
+                    proposalWriters={proposalWriters}
+                    setProposalWriters={setProposalWriters}
+                    statuses={statuses}
+                    setStatuses={setStatuses}
+                    customers={customers}
+                    setCustomers={setCustomers}
+                    proposalWriterOptions={proposalWriterOptions}
+                    statusOptions={statusOptions}
+                    customerOptions={customerOptions}
+                    projectCount={kpis.projectCount}
+                    income={kpis.income}
+                    profit={kpis.profit}
+                    avgMargin={kpis.marginPct}
+                    backlog={kpis.backlog}
+                    arOutstanding={kpis.arOutstanding}
+                    hasActiveFilters={hasActiveFilters}
+                    onReset={resetFilters}
+                />
+            </div>
 
             {/* Main dashboard */}
-            <div ref={scrollRef} className="flex-1 min-w-0 overflow-y-auto p-6 space-y-6 relative">
+            <div ref={scrollRef} className="flex-1 min-w-0 overflow-y-auto relative">
+                {/* Sticky context strip — sits at absolute top of scroll container */}
+                <div className={`sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200/70 print:hidden transition-all duration-200 ${
+                    showSticky ? 'shadow-sm' : 'shadow-none opacity-0 pointer-events-none'
+                }`}>
+                    <div className="flex items-center gap-3 md:gap-6 px-4 md:px-6 py-2 overflow-x-auto text-xs font-bold">
+                        <span className="text-slate-400 uppercase tracking-wider text-[10px] shrink-0">Summary</span>
+                        <span className="shrink-0" title={fmtCurrency(kpis.income)}>Income <span className="text-emerald-700 ml-1">{fmtMoney(kpis.income)}</span></span>
+                        <span className="shrink-0" title={fmtCurrency(kpis.profit)}>Profit <span className={`ml-1 ${kpis.profit >= 0 ? 'text-green-700' : 'text-red-600'}`}>{fmtMoney(kpis.profit)}</span></span>
+                        <span className="shrink-0">Margin <span className={`ml-1 ${kpis.marginPct >= 0 ? 'text-green-700' : 'text-red-600'}`}>{kpis.marginPct.toFixed(1)}%</span></span>
+                        <span className="shrink-0" title={fmtCurrency(kpis.backlog)}>Backlog <span className="text-blue-700 ml-1">{fmtMoney(kpis.backlog)}</span></span>
+                        <span className="shrink-0">Projects <span className="text-slate-800 ml-1">{kpis.projectCount}</span></span>
+                    </div>
+                </div>
+
+                {/* Insights Ticker — flush below sticky header, no padding gap */}
+                {(() => {
+                    const allInsights = computeInsights(filtered as any, thresholds);
+                    const tickerItems = allInsights.filter(i => i.severity === 'critical' || i.severity === 'warning');
+                    if (!tickerItems.length) return null;
+                    const SEVERITY_TICKER: Record<string, { bg: string; text: string }> = {
+                        critical: { bg: 'bg-red-600',   text: 'text-white' },
+                        warning:  { bg: 'bg-amber-500', text: 'text-white' },
+                    };
+                    const items = [...tickerItems, ...tickerItems];
+                    const duration = `${tickerItems.length * 3}s`;
+                    return (
+                        <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900 print:hidden group/ticker mx-4 md:mx-6">
+                                {/* Scrolling track — full width, no LIVE badge */}
+                                <div className="overflow-hidden">
+                                    <div
+                                        className="financials-ticker-track flex items-center whitespace-nowrap"
+                                        style={{ animationDuration: duration }}
+                                    >
+                                        {items.map((ins, idx) => {
+                                            const st = SEVERITY_TICKER[ins.severity];
+                                            return (
+                                                <span key={idx} className="inline-flex items-center gap-2 px-5 py-2.5 text-[11px] font-semibold text-slate-200">
+                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full ${st.bg} ${st.text} text-[9px] font-black uppercase tracking-wider shrink-0`}>
+                                                        {ins.severity}
+                                                    </span>
+                                                    <span className="font-bold text-white">{ins.title}</span>
+                                                    <span className="text-slate-500">—</span>
+                                                    <span className="text-slate-300">{ins.detail}</span>
+                                                    {ins.metric && (
+                                                        <span className="ml-1 px-2 py-0.5 rounded-full bg-white/10 text-white text-[9px] font-bold">
+                                                            {ins.metric.label}: {ins.metric.value}
+                                                        </span>
+                                                    )}
+                                                    <span className="text-slate-700 mx-3">▪︎</span>
+                                                </span>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            <style>{`
+                                .financials-ticker-track {
+                                    animation: financials-ticker-anim linear infinite;
+                                }
+                                @keyframes financials-ticker-anim {
+                                    0%   { transform: translateX(0); }
+                                    100% { transform: translateX(-50%); }
+                                }
+                                .group\/ticker:hover .financials-ticker-track {
+                                    animation-play-state: paused;
+                                }
+                            `}</style>
+                        </div>
+                    );
+                })()}
+
+                <div className="p-4 md:p-6 space-y-5 md:space-y-6">
                 {/* Print-only header */}
                 <div className="hidden print:block mb-4 border-b border-slate-300 pb-3">
                     <h1 className="text-lg font-black text-slate-900">DEVCO Financials — {periodLabel}</h1>
                     <p className="text-xs text-slate-500">Generated {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
                 </div>
 
-                {/* Sticky context strip */}
-                {showSticky && (
-                    <div className="sticky top-0 z-20 -mx-6 px-6 py-2 bg-white/90 backdrop-blur-md border-b border-slate-200/60 flex items-center gap-6 text-xs font-bold print:hidden animate-in slide-in-from-top-2 duration-200">
-                        <span className="text-slate-400 uppercase tracking-wider text-[10px]">Summary</span>
-                        <span title={fmtCurrency(kpis.income)}>Income <span className="text-emerald-700 ml-1">{fmtMoney(kpis.income)}</span></span>
-                        <span title={fmtCurrency(kpis.profit)}>Profit <span className={`ml-1 ${kpis.profit >= 0 ? 'text-green-700' : 'text-red-600'}`}>{fmtMoney(kpis.profit)}</span></span>
-                        <span>Margin <span className={`ml-1 ${kpis.marginPct >= 0 ? 'text-green-700' : 'text-red-600'}`}>{kpis.marginPct.toFixed(1)}%</span></span>
-                        <span title={fmtCurrency(kpis.backlog)}>Backlog <span className="text-blue-700 ml-1">{fmtMoney(kpis.backlog)}</span></span>
-                    </div>
-                )}
-
-                {/* Header */}
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h2 className="text-xl font-black text-slate-900">Financials Dashboard</h2>
-                        <p className="text-xs text-slate-500 font-medium mt-0.5">
-                            {filtered.length} project{filtered.length !== 1 ? 's' : ''} in current view
-                        </p>
-                    </div>
+                {/* Mobile top bar — filter toggle */}
+                <div className="flex items-center justify-between md:hidden print:hidden">
                     <button
-                        onClick={() => window.print()}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-600 transition-colors print:hidden"
+                        onClick={() => setMobileSidebarOpen(true)}
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-slate-200 shadow-sm text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors"
                     >
-                        <Printer className="w-3.5 h-3.5" />
-                        Export PDF
+                        <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600" />
+                        Filters
+                        {hasActiveFilters && <span className="w-2 h-2 rounded-full bg-blue-600" />}
                     </button>
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+                        <span className="text-emerald-700">{fmtMoney(kpis.income)}</span>
+                        <span>·</span>
+                        <span className={kpis.marginPct >= 0 ? 'text-green-700' : 'text-red-600'}>{kpis.marginPct.toFixed(1)}%</span>
+                    </div>
                 </div>
+
 
                 {filtered.length === 0 ? (
                     <EmptyState
@@ -522,7 +606,7 @@ export function FinancialsView({ projects, loading }: FinancialsViewProps) {
                 ) : (
                     <>
                         {/* ROW A — Revenue & Backlog (5 cards) */}
-                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-3">
                             <KpiCard
                                 label="Total Contract Value"
                                 value={<AnimatedNumber value={kpis.contractValue} formatter={fmtMoney} />}
@@ -564,7 +648,7 @@ export function FinancialsView({ projects, loading }: FinancialsViewProps) {
                         </div>
 
                         {/* ROW B — Cost & Profitability (5 cards) */}
-                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-3">
                             <KpiCard
                                 label="Total Cost"
                                 value={<AnimatedNumber value={kpis.totalCost} formatter={fmtMoney} />}
@@ -604,7 +688,7 @@ export function FinancialsView({ projects, loading }: FinancialsViewProps) {
                         </div>
 
                         {/* ROW C — Cash (4 compact/muted cards) */}
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 md:gap-3">
                             <KpiCard
                                 compact
                                 label="Payments Received"
@@ -657,7 +741,7 @@ export function FinancialsView({ projects, loading }: FinancialsViewProps) {
                                             </span>
                                         </h3>
                                     </div>
-                                    <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+                                    <div className="flex gap-3 overflow-x-auto pb-3 pt-2 -mx-1 px-1 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
                                         {insights.map(ins => (
                                             <InsightCard key={ins.id} insight={ins} />
                                         ))}
@@ -797,6 +881,7 @@ export function FinancialsView({ projects, loading }: FinancialsViewProps) {
                         })()}
                     </>
                 )}
+                </div> {/* end inner padding wrapper */}
             </div>
 
             {/* Print stylesheet */}

@@ -32,6 +32,7 @@ interface ProjectData {
     changeOrders?: number;
     ar?: number;
     ap?: number;
+    avgCostPerHr?: number; // Labor cost per site hour (payroll / site hours)
     MetaData: { CreateTime: string };
 }
 
@@ -309,6 +310,23 @@ export function computeInsights(projects: ProjectData[], thresholds?: Partial<Fi
             title: 'Change order needed',
             detail: `${coOpportunities.length} job${coOpportunities.length > 1 ? 's' : ''} ran over budget without a CO. Bill the customer.`,
             actionLabel: `View ${coOpportunities.length} projects`,
+        });
+    }
+
+    // ── K. High avg labor cost per hour ──
+    const HIGH_COST_THRESHOLD = 100; // $/hr
+    const highCostProjects = projects.filter(p => (p.avgCostPerHr || 0) >= HIGH_COST_THRESHOLD);
+    if (highCostProjects.length > 0) {
+        const worst = highCostProjects.reduce((a, b) => (a.avgCostPerHr || 0) > (b.avgCostPerHr || 0) ? a : b);
+        const worstRate = worst.avgCostPerHr || 0;
+        insights.push({
+            id: 'high-cost-per-hour',
+            severity: worstRate >= 150 ? 'critical' : 'warning',
+            icon: 'Clock',
+            title: 'High labor cost/hr',
+            detail: `${highCostProjects.length} project${highCostProjects.length > 1 ? 's' : ''} exceed $${HIGH_COST_THRESHOLD}/hr avg labor cost. Worst: ${worst.DisplayName} at $${worstRate}/hr.`,
+            metric: { label: 'Worst rate', value: `$${worstRate}/hr` },
+            actionLabel: `View ${highCostProjects.length} projects`,
         });
     }
 

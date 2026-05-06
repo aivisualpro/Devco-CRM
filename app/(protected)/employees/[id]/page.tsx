@@ -14,6 +14,185 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
+// ─── Employee Performance Score Component ──────────────────────────────────────
+
+function ScoreRing({ score, grade }: { score: number; grade: { label: string; color: string } }) {
+    const R = 54, C = 2 * Math.PI * R;
+    const offset = C - (score / 100) * C;
+    const colorMap: Record<string, string> = { emerald: '#10b981', blue: '#3b82f6', amber: '#f59e0b', red: '#ef4444' };
+    const stroke = colorMap[grade.color] || '#3b82f6';
+    const textColor: Record<string, string> = { emerald: 'text-emerald-600', blue: 'text-blue-600', amber: 'text-amber-500', red: 'text-red-500' };
+    return (
+        <div className="relative flex items-center justify-center w-36 h-36">
+            <svg width="144" height="144" viewBox="0 0 144 144" className="-rotate-90">
+                <circle cx="72" cy="72" r={R} fill="none" stroke="#e2e8f0" strokeWidth="10" />
+                <circle cx="72" cy="72" r={R} fill="none" stroke={stroke} strokeWidth="10"
+                    strokeDasharray={C} strokeDashoffset={offset}
+                    strokeLinecap="round" style={{ transition: 'stroke-dashoffset 1s ease' }} />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className={`text-3xl font-black ${textColor[grade.color]}`}>{score}</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{grade.label}</span>
+            </div>
+        </div>
+    );
+}
+
+function SubScoreBar({ label, value, color }: { label: string; value: number; color: string }) {
+    const colorMap: Record<string, string> = { emerald: 'bg-emerald-500', blue: 'bg-blue-500', amber: 'bg-amber-400', violet: 'bg-violet-500', rose: 'bg-rose-500' };
+    return (
+        <div className="space-y-1">
+            <div className="flex justify-between text-[10px] font-bold text-slate-500">
+                <span>{label}</span><span className="text-slate-700">{Math.round(value)}</span>
+            </div>
+            <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div className={`h-full rounded-full transition-all duration-700 ${colorMap[color]}`} style={{ width: `${value}%` }} />
+            </div>
+        </div>
+    );
+}
+
+function PerfKpi({ label, value, sub, highlight }: { label: string; value: string; sub?: string; highlight?: 'green' | 'red' | 'blue' }) {
+    const cls = highlight === 'green' ? 'text-emerald-600' : highlight === 'red' ? 'text-red-500' : highlight === 'blue' ? 'text-blue-600' : 'text-slate-800';
+    return (
+        <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-sm space-y-0.5">
+            <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">{label}</p>
+            <p className={`text-lg font-black ${cls}`}>{value}</p>
+            {sub && <p className="text-[10px] text-slate-400">{sub}</p>}
+        </div>
+    );
+}
+
+function fmt(n: number) {
+    const a = Math.abs(n), s = n < 0 ? '-' : '';
+    return a >= 1e6 ? `${s}$${(a / 1e6).toFixed(2)}M` : a >= 1000 ? `${s}$${(a / 1000).toFixed(1)}k` : `${s}$${Math.round(a)}`;
+}
+
+function EmployeePerformanceSection({ writerName, employeeEmail }: { writerName: string; employeeEmail: string }) {
+    const [data, setData] = (useState as any)(null);
+    const [loading, setLoading] = (useState as any)(true);
+
+    useEffect(() => {
+        if (!writerName) return;
+        setLoading(true);
+        fetch(`/api/employees/performance?writerEmail=${encodeURIComponent(employeeEmail)}&writerName=${encodeURIComponent(writerName)}`)
+            .then(r => r.json())
+            .then(d => { setData(d); setLoading(false); })
+            .catch(() => setLoading(false));
+    }, [writerName]);
+
+    if (loading) return (
+        <div className="bg-[#eef2f6] rounded-[40px] shadow-[12px_12px_24px_#d1d9e6,-12px_-12px_24px_#ffffff] p-6 mb-6 animate-pulse">
+            <div className="h-6 w-48 bg-slate-200 rounded-lg mb-4" />
+            <div className="grid grid-cols-4 gap-4">
+                {[...Array(8)].map((_, i) => <div key={i} className="h-20 bg-slate-200 rounded-xl" />)}
+            </div>
+        </div>
+    );
+
+    if (!data || !data.isWriter) return null;
+
+    const { performanceScore, grade, kpis, scores, topProjects, lossProjects, projectCount } = data;
+    const gradeColors: Record<string, string> = { emerald: 'from-emerald-500 to-teal-400', blue: 'from-blue-500 to-indigo-400', amber: 'from-amber-400 to-orange-400', red: 'from-red-500 to-rose-400' };
+    const gradeBg: Record<string, string> = { emerald: 'bg-emerald-50 border-emerald-200', blue: 'bg-blue-50 border-blue-200', amber: 'bg-amber-50 border-amber-200', red: 'bg-red-50 border-red-200' };
+
+    return (
+        <div className="bg-[#eef2f6] rounded-[40px] shadow-[12px_12px_24px_#d1d9e6,-12px_-12px_24px_#ffffff] p-4 mb-6">
+            {/* Section header */}
+            <div className="flex items-center gap-3 mb-4 px-1">
+                <div className="w-1 h-5 bg-gradient-to-b from-indigo-500 to-purple-500 rounded-full" />
+                <h3 className="text-xs font-black text-slate-700 uppercase tracking-widest">Performance Score</h3>
+                <span className="text-[10px] font-bold text-slate-400 bg-white/70 px-2 py-0.5 rounded-full border border-slate-200">{projectCount} projects as proposal writer</span>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
+
+                {/* Score gauge */}
+                <div className={`flex flex-col items-center justify-center gap-3 rounded-2xl p-5 border ${gradeBg[grade.color]}`}>
+                    <ScoreRing score={performanceScore} grade={grade} />
+                    <div className="w-full space-y-2.5">
+                        <SubScoreBar label="Margin Quality"   value={scores.marginScore}     color="emerald" />
+                        <SubScoreBar label="Collection Rate"  value={scores.collectionScore}  color="blue" />
+                        <SubScoreBar label="Receivables (DSO)"value={scores.dsoScore}         color="violet" />
+                        <SubScoreBar label="Revenue Volume"   value={scores.volumeScore}      color="amber" />
+                        <SubScoreBar label="% Completion"     value={scores.completionScore}  color="rose" />
+                    </div>
+                </div>
+
+                {/* KPI tiles (3-col × 4 rows) */}
+                <div className="xl:col-span-2 grid grid-cols-3 gap-2.5 content-start">
+                    <PerfKpi label="Revenue"        value={fmt(kpis.income)}          sub={`from ${projectCount} projects`} highlight="blue" />
+                    <PerfKpi label="Total Cost"      value={fmt(kpis.totalCost)}       sub={kpis.income > 0 ? `${((kpis.totalCost/kpis.income)*100).toFixed(0)}% of rev` : ''} />
+                    <PerfKpi label="Gross Profit"    value={fmt(kpis.profit)}          highlight={kpis.profit >= 0 ? 'green' : 'red'} />
+                    <PerfKpi label="Gross Margin"    value={`${kpis.marginPct.toFixed(1)}%`} highlight={kpis.marginPct >= 20 ? 'green' : kpis.marginPct >= 10 ? undefined : 'red'} />
+                    <PerfKpi label="Contract Value"  value={fmt(kpis.contractValue)}   sub="orig + change orders" />
+                    <PerfKpi label="Backlog"         value={fmt(kpis.backlog)}          sub="remaining to bill" highlight="blue" />
+                    <PerfKpi label="A/R Outstanding" value={fmt(kpis.arOutstanding)}   highlight={kpis.arOutstanding > 0 ? 'red' : 'green'} />
+                    <PerfKpi label="Collected"       value={`${kpis.collectedPct.toFixed(0)}%`} sub={fmt(kpis.income - kpis.arOutstanding)} highlight="green" />
+                    <PerfKpi label="DSO"             value={`${kpis.dso}d`}            highlight={kpis.dso > 60 ? 'red' : 'green'} />
+                    <PerfKpi label="Avg Project Size" value={fmt(kpis.avgProjectSize)}  />
+                    <PerfKpi label="% Complete"      value={`${kpis.pctComplete.toFixed(1)}%`} highlight="blue" />
+                    <PerfKpi label="Payables (A/P)"  value={fmt(kpis.payables)} />
+                </div>
+
+                {/* Top & Loss projects */}
+                <div className="flex flex-col gap-3">
+                    {/* Top 5 */}
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex-1">
+                        <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border-b border-emerald-100">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Top Projects</span>
+                        </div>
+                        <div className="divide-y divide-slate-50">
+                            {topProjects.slice(0, 5).map((p: any, i: number) => (
+                                <div key={i} className="flex items-center justify-between px-3 py-2 hover:bg-slate-50 transition-colors">
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-[10px] font-bold text-slate-700 truncate">{p.name || `Project ${i+1}`}</p>
+                                        <p className="text-[9px] text-slate-400">{fmt(p.income)} rev</p>
+                                    </div>
+                                    <div className="text-right ml-2">
+                                        <p className="text-[11px] font-black text-emerald-600">{fmt(p.profit)}</p>
+                                        <p className="text-[9px] text-slate-400">{p.margin.toFixed(1)}%</p>
+                                    </div>
+                                </div>
+                            ))}
+                            {topProjects.length === 0 && <p className="text-center text-[10px] text-slate-400 italic py-4">No projects yet</p>}
+                        </div>
+                    </div>
+
+                    {/* Loss projects */}
+                    {lossProjects.length > 0 && (
+                        <div className="bg-white rounded-2xl border border-red-100 shadow-sm overflow-hidden">
+                            <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border-b border-red-100">
+                                <span className="w-2 h-2 rounded-full bg-red-500" />
+                                <span className="text-[10px] font-black uppercase tracking-wider text-red-700">Loss Projects</span>
+                                <span className="ml-auto text-[9px] font-bold text-red-400">{lossProjects.length} project{lossProjects.length > 1 ? 's' : ''}</span>
+                            </div>
+                            <div className="divide-y divide-slate-50">
+                                {lossProjects.map((p: any, i: number) => (
+                                    <div key={i} className="flex items-center justify-between px-3 py-2 hover:bg-red-50/30 transition-colors">
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[10px] font-bold text-slate-700 truncate">{p.name}</p>
+                                            <p className="text-[9px] text-slate-400">{fmt(p.income)} rev</p>
+                                        </div>
+                                        <div className="text-right ml-2">
+                                            <p className="text-[11px] font-black text-red-500">{fmt(p.profit)}</p>
+                                            <p className="text-[9px] text-red-400">{p.margin.toFixed(1)}%</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+
+
 // Types (Mirrors Employee Interface)
 interface Employee {
     _id: string; // email
@@ -958,7 +1137,7 @@ export default function EmployeeViewPage() {
                             {/* Drug Testing Records */}
                             <div className="col-span-1">
                                 <SectionCard
-                                    title={`Drug Testing Records (${employee.drugTestingRecords?.length || 0})`}
+                                    title={`Drug Testing (${employee.drugTestingRecords?.length || 0})`}
                                     icon={FlaskConical}
                                     action={
                                         <div className="flex items-center gap-1 sm:gap-2">
@@ -1264,6 +1443,12 @@ export default function EmployeeViewPage() {
                             </div>
                         </div>
                     </div>
+
+                    {/* ── Performance Score (proposal writers only) ─────────── */}
+                    {(() => {
+                        const fullName = `${employee.firstName} ${employee.lastName}`.trim();
+                        return <EmployeePerformanceSection writerName={fullName} employeeEmail={employee.email} />;
+                    })()}
 
                 </div>
             </main>

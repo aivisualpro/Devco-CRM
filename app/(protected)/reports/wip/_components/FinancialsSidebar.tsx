@@ -42,13 +42,19 @@ interface FinancialsSidebarProps {
     onReset: () => void;
 }
 
-const PRESETS: { id: DatePreset; label: string }[] = [
-    { id: 'this_month', label: 'This Month' },
-    { id: 'last_month', label: 'Last Month' },
-    { id: 'this_year', label: 'This Year' },
-    { id: 'last_year', label: 'Last Year' },
-    { id: 'all_time', label: 'All Time' },
-    { id: 'custom', label: 'Custom' },
+// Row 1: All Time | This Year | This Month
+// Row 2: Last Year | Last Month | Custom
+const PRESETS: { id: DatePreset; label: string }[][] = [
+    [
+        { id: 'all_time',   label: 'All Time' },
+        { id: 'this_year',  label: 'This Year' },
+        { id: 'this_month', label: 'This Month' },
+    ],
+    [
+        { id: 'last_year',  label: 'Last Year' },
+        { id: 'last_month', label: 'Last Month' },
+        { id: 'custom',     label: 'Custom' },
+    ],
 ];
 
 export function FinancialsSidebar(props: FinancialsSidebarProps) {
@@ -72,12 +78,12 @@ export function FinancialsSidebar(props: FinancialsSidebarProps) {
         props.proposalWriters.length > 0,
         props.statuses.length > 0,
         props.customers.length > 0,
-        props.datePreset !== 'this_year',
+        props.datePreset !== 'all_time',
     ].filter(Boolean).length;
 
     return (
         <div
-            className={`shrink-0 border-r border-slate-200/80 bg-gradient-to-b from-white to-slate-50/50 flex flex-col min-h-0 transition-all duration-300 ease-in-out ${
+            className={`shrink-0 border-r border-slate-200/80 bg-white flex flex-col min-h-0 h-full transition-all duration-300 ease-in-out ${
                 collapsed ? 'w-12' : 'w-[280px]'
             }`}
         >
@@ -127,20 +133,24 @@ export function FinancialsSidebar(props: FinancialsSidebarProps) {
                             Date Range
                         </h3>
 
-                        {/* Preset chips */}
-                        <div className="flex flex-wrap gap-1.5">
-                            {PRESETS.map((preset) => (
-                                <button
-                                    key={preset.id}
-                                    className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all duration-200 ${
-                                        props.datePreset === preset.id
-                                            ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
-                                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                    }`}
-                                    onClick={() => props.setDatePreset(preset.id)}
-                                >
-                                    {preset.label}
-                                </button>
+                        {/* Preset chips — 2 rows of 3 */}
+                        <div className="space-y-1.5">
+                            {PRESETS.map((row, rowIdx) => (
+                                <div key={rowIdx} className="grid grid-cols-3 gap-1.5">
+                                    {row.map((preset) => (
+                                        <button
+                                            key={preset.id}
+                                            className={`px-1.5 py-1.5 rounded-lg text-[10px] font-bold transition-all duration-200 text-center ${
+                                                props.datePreset === preset.id
+                                                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
+                                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                            }`}
+                                            onClick={() => props.setDatePreset(preset.id)}
+                                        >
+                                            {preset.label}
+                                        </button>
+                                    ))}
+                                </div>
                             ))}
                         </div>
 

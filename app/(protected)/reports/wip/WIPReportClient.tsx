@@ -119,6 +119,7 @@ export default function WIPReportClient({
     const [txStatusDropdownOpen, setTxStatusDropdownOpen] = useState(false);
     const [txCardFilter, setTxCardFilter] = useState<string | null>(null);
     const [isExporting, setIsExporting] = useState(false);
+    const [isExportingPdf, setIsExportingPdf] = useState(false);
     const [highlightedProject, setHighlightedProject] = useState<string | null>(null);
 
     const handleBackClick = () => {
@@ -845,6 +846,92 @@ export default function WIPReportClient({
         }
     }, [filteredProjects]);
 
+    const handleExportPdf = useCallback(async () => {
+        setIsExportingPdf(true);
+        try {
+            // Import the insight logic dynamically to avoid circular deps
+            const { computeInsights } = await import('./_components/computeInsights');
+            const { DEFAULT_THRESHOLDS } = await import('@/lib/constants/financialThresholds');
+
+            // Re-compute KPIs from the current projects list (same as FinancialsView logic)
+            const allProjects = projects; // full list — FinancialsView has its own filter; we export everything
+            const sum = (key: string) => allProjects.reduce((s: number, p: any) => s + (Number((p as any)[key]) || 0), 0);
+            const income = sum('income');
+            const qbCost = sum('qbCost');
+            const jobTicketCost = sum('devcoCost');
+            const originalContract = sum('originalContract');
+            const changeOrders = sum('changeOrders');
+            const totalCost = qbCost + jobTicketCost;
+            const profit = income - totalCost;
+            const marginPct = income > 0 ? (profit / income) * 100 : 0;
+            const arOutstanding = sum('ar');
+            const paymentsReceived = income - arOutstanding;
+            const collectedPct = income > 0 ? (paymentsReceived / income) * 100 : 0;
+            const payables = sum('ap');
+            const contractValue = originalContract + changeOrders;
+            const backlog = Math.max(0, contractValue - income);
+            const pctComplete = contractValue > 0 ? Math.min(100, (income / contractValue) * 100) : 0;
+            const avgProjectSize = allProjects.length > 0 ? contractValue / allProjects.length : 0;
+            const eac = pctComplete > 0 ? totalCost / (pctComplete / 100) : 0;
+            const overUnderBilling = income - contractValue * (pctComplete / 100);
+            const dso = income > 0 ? Math.round((arOutstanding / income) * 365) : 0;
+
+            const kpis = {
+                income, qbCost, jobTicketCost, totalCost, originalContract, changeOrders,
+                profit, marginPct, projectCount: allProjects.length, arOutstanding,
+                paymentsReceived, collectedPct, payables, contractValue, backlog, pctComplete,
+                avgProjectSize, eac, overUnderBilling, dso, periodDays: 365,
+            };
+
+            const insights = computeInsights(allProjects as any, DEFAULT_THRESHOLDS);
+
+            const top10 = [...allProjects]
+                .map((p: any) => {
+                    const inc = p.income || 0;
+                    const cost = (p.qbCost || 0) + (p.devcoCost || 0);
+                    const calcProfit = inc - cost;
+                    const calcMargin = inc > 0 ? (calcProfit / inc) * 100 : 0;
+                    return { ...p, calcIncome: inc, calcCost: cost, calcProfit, calcMargin, calcAR: p.ar || 0, calcPctComplete: 0 };
+                })
+                .sort((a: any, b: any) => b.calcProfit - a.calcProfit)
+                .slice(0, 10);
+
+            const response = await fetch('/api/reports/financials/pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    kpis,
+                    insights,
+                    projects: allProjects,
+                    top10,
+                    periodLabel: 'All Time',
+                    projectCount: allProjects.length,
+                }),
+            });
+
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({ error: 'PDF generation failed' }));
+                throw new Error(err.error || 'PDF generation failed');
+            }
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `DEVCO-Financials-${new Date().toISOString().slice(0, 10)}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            a.remove();
+            toast.success('Financial report PDF downloaded!');
+        } catch (error: any) {
+            console.error('PDF export error:', error);
+            toast.error(error?.message || 'Failed to generate PDF report');
+        } finally {
+            setIsExportingPdf(false);
+        }
+    }, [projects]);
+
     // Pagination logic
     const visibleProjects = filteredProjects.slice(0, visibleCount);
     const hasMore = visibleCount < filteredProjects.length;
@@ -889,7 +976,9 @@ export default function WIPReportClient({
                     onExportExcel: handleExportExcel,
                     isExporting,
                     onRefresh: () => fetchProjects(true),
-                    isRefreshing: refreshing
+                    isRefreshing: refreshing,
+                    onExportPdf: handleExportPdf,
+                    isExportingPdf,
                 } : undefined}
             />
             
@@ -900,7 +989,12 @@ export default function WIPReportClient({
                     {/* Tab Content */}
                     <div className="flex-1 flex flex-col min-h-0">
                         {activeTab === 'financials' && (
-                            <FinancialsView projects={projects} loading={loading} />
+                            <FinancialsView
+                                projects={projects}
+                                loading={loading}
+                                onExportPdf={handleExportPdf}
+                                isExportingPdf={isExportingPdf}
+                            />
                         )}
 
                         {activeTab === 'wip' && (

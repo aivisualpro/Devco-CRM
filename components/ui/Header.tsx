@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import PrefetchLink from '@/components/PrefetchLink';
 import { usePathname, useRouter } from 'next/navigation';
-import { ChevronDown, FileText, Package, Calculator, Sliders, Users, Contact, Briefcase, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, AlertTriangle, Truck, Wrench, Settings, BarChart, FileCheck, Search, Bell, BookOpen, Command, LogOut, User as UserIcon, Clock, Import, X, Menu, MessageSquare, GraduationCap, Activity, Receipt, MapPin, Download, RefreshCw } from 'lucide-react';
+import { ChevronDown, FileText, Package, Calculator, Sliders, Users, Contact, Briefcase, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, AlertTriangle, Truck, Wrench, Settings, BarChart, FileCheck, Search, Bell, BookOpen, Command, LogOut, User as UserIcon, Clock, Import, X, Menu, MessageSquare, GraduationCap, Activity, Receipt, MapPin, Download, RefreshCw, Printer } from 'lucide-react';
 import { MyDropDown } from './MyDropDown';
 import NotificationBell from './NotificationBell';
 
@@ -104,6 +104,8 @@ interface HeaderProps {
         isExporting?: boolean;
         onRefresh?: () => void;
         isRefreshing?: boolean;
+        onExportPdf?: () => void;
+        isExportingPdf?: boolean;
     };
 }
 
@@ -330,6 +332,23 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                         >
                                             <RefreshCw className={`w-3 h-3 ${wipReportFilters.isRefreshing ? 'animate-spin' : ''}`} />
                                             <span className="hidden sm:inline">{wipReportFilters.isRefreshing ? 'Syncing...' : 'Sync'}</span>
+                                        </button>
+                                    )}
+
+                                    {/* PDF Export Button — only on Financials tab */}
+                                    {wipReportFilters.activeTab === 'financials' && wipReportFilters.onExportPdf && (
+                                        <button
+                                            onClick={wipReportFilters.onExportPdf}
+                                            disabled={wipReportFilters.isExportingPdf}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all shadow-sm hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
+                                            title="Export Financials Report as PDF"
+                                        >
+                                            {wipReportFilters.isExportingPdf ? (
+                                                <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                            ) : (
+                                                <Printer className="w-3 h-3" />
+                                            )}
+                                            <span className="hidden sm:inline">{wipReportFilters.isExportingPdf ? 'Generating...' : 'PDF'}</span>
                                         </button>
                                     )}
 

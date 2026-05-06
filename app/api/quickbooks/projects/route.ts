@@ -61,7 +61,57 @@ export const getCachedWipCalculations = unstable_cache(
                     }
                 }
             }},
-            { $project: { transactions: 0 } },
+            // Join schedules to compute total site/drive hours per project (by estimateNumber)
+            { $lookup: {
+                from: 'devcoschedules',
+                let: { propNum: '$proposalNumber' },
+                pipeline: [
+                    { $match: { $expr: {
+                        $and: [
+                            { $ne: ['$$propNum', null] },
+                            { $regexMatch: { input: { $ifNull: ['$estimate', ''] }, regex: '$$propNum', options: 'i' } }
+                        ]
+                    }} },
+                    { $project: { timesheet: 1 } }
+                ],
+                as: '_schedDocs'
+            }},
+            { $addFields: {
+                _totalSiteHours: {
+                    $reduce: {
+                        input: '$_schedDocs',
+                        initialValue: 0,
+                        in: {
+                            $add: ['$$value', {
+                                $reduce: {
+                                    input: { $filter: {
+                                        input: { $ifNull: ['$$this.timesheet', []] },
+                                        as: 'ts',
+                                        cond: { $and: [
+                                            { $gt: [{ $ifNull: ['$$ts.hours', 0] }, 0] },
+                                            { $not: { $regexMatch: { input: { $toLower: { $ifNull: ['$$ts.type', ''] } }, regex: 'drive' } } }
+                                        ]}
+                                    }},
+                                    initialValue: 0,
+                                    in: { $add: ['$$value', { $ifNull: ['$$this.hours', 0] }] }
+                                }
+                            }]
+                        }
+                    }
+                },
+                _payrollCost: {
+                    $reduce: {
+                        input: { $filter: {
+                            input: { $ifNull: ['$transactions', []] },
+                            as: 'tx',
+                            cond: { $eq: ['$$tx.transactionType', 'Payroll Check'] }
+                        }},
+                        initialValue: 0,
+                        in: { $add: ['$$value', { $ifNull: ['$$this.amount', 0] }] }
+                    }
+                }
+            }},
+            { $project: { transactions: 0, _schedDocs: 0 } },
             { $sort: { createdAt: -1 as 1 | -1 } }
         ]);
 
@@ -198,7 +248,13 @@ export const getCachedWipCalculations = unstable_cache(
                 CurrencyRef: { value: 'USD' },
                 Balance: 0,
                 ar,
-                ap
+                ap,
+                // Labor cost-per-hour (payroll cost ÷ pre-stored site hours from schedules)
+                avgCostPerHr: (() => {
+                    const siteHrs = (p as any)._totalSiteHours || 0;
+                    const payroll = (p as any)._payrollCost || 0;
+                    return siteHrs > 0 && payroll > 0 ? Math.round(payroll / siteHrs) : 0;
+                })()
             };
         });
     },

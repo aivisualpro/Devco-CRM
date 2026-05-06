@@ -2,7 +2,7 @@
 
 import { cld } from '@/lib/cld';
 import Image from 'next/image';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { User, Mail, Phone, MapPin, Briefcase, Calendar, ChevronDown, CheckCircle, XCircle, Eye, EyeOff, KeyRound, Save, X, RefreshCw, Copy } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
 
@@ -35,6 +35,74 @@ interface EmployeeHeaderCardProps {
     onUpdate: (field: string, value: any) => void;
     onEditSignature: () => void;
     animate: boolean;
+}
+
+function HeaderPerformanceGauge({ email, fullName, animate }: { email: string; fullName: string; animate: boolean }) {
+    const [data, setData] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        fetch(`/api/employees/performance?writerEmail=${encodeURIComponent(email)}&writerName=${encodeURIComponent(fullName)}`)
+            .then(r => r.json())
+            .then(d => { setData(d); setLoading(false); })
+            .catch(() => setLoading(false));
+    }, [email, fullName]);
+
+    const score = data?.performanceScore ?? 0;
+    const grade = data?.grade ?? { label: '—', color: 'slate' };
+    const projectCount = data?.projectCount ?? 0;
+    const isWriter = data?.isWriter ?? false;
+
+    const colorMap: Record<string, string> = { emerald: '#10b981', blue: '#3b82f6', amber: '#f59e0b', red: '#ef4444', slate: '#94a3b8' };
+    const textColorMap: Record<string, string> = { emerald: 'text-emerald-600', blue: 'text-blue-600', amber: 'text-amber-500', red: 'text-red-500', slate: 'text-slate-400' };
+    const strokeColor = colorMap[grade.color] || '#6366f1';
+    const fraction = score / 100;
+
+    return (
+        <div className="flex flex-col p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] relative overflow-hidden">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block text-center">
+                Performance Score
+            </label>
+
+            {loading ? (
+                <div className="flex-1 flex items-center justify-center">
+                    <div className="w-16 h-16 rounded-full border-4 border-slate-100 border-t-indigo-400 animate-spin" />
+                </div>
+            ) : !isWriter ? (
+                <div className="flex-1 flex flex-col items-center justify-center gap-1">
+                    <span className="text-3xl font-black text-slate-300">—</span>
+                    <span className="text-[10px] text-slate-400 font-bold">Not a Proposal Writer</span>
+                </div>
+            ) : (
+                <>
+                    <div className="flex-1 flex items-center justify-center relative">
+                        <svg viewBox="0 0 100 60" className="w-full h-full max-h-[80px]">
+                            <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="#e2e8f0" strokeWidth="8" strokeLinecap="round" />
+                            <path
+                                d="M 10 50 A 40 40 0 0 1 90 50"
+                                fill="none"
+                                stroke={strokeColor}
+                                strokeWidth="8"
+                                strokeLinecap="round"
+                                strokeDasharray="126"
+                                className="transition-all duration-1000 ease-out"
+                                style={{ strokeDashoffset: animate ? 126 - (126 * fraction) : 126 }}
+                            />
+                        </svg>
+                        <div className="absolute inset-0 flex items-end justify-center pb-1">
+                            <div className={`text-2xl font-black ${textColorMap[grade.color]}`}>
+                                {score}<span className="text-sm text-slate-400 font-bold">%</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex justify-between text-[10px] font-bold text-slate-400 px-4">
+                        <span>{grade.label}</span>
+                        <span>Projects: {projectCount}</span>
+                    </div>
+                </>
+            )}
+        </div>
+    );
 }
 
 export function EmployeeHeaderCard({ employee, onUpdate, animate, onEditSignature }: EmployeeHeaderCardProps) {
@@ -325,38 +393,12 @@ export function EmployeeHeaderCard({ employee, onUpdate, animate, onEditSignatur
                     </div>
                 </div>
 
-                {/* PART 4: KPI (Mocked for style) */}
-                <div className="flex flex-col p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] relative overflow-hidden">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block text-center">
-                        Performance Score
-                    </label>
-
-                    <div className="flex-1 flex items-center justify-center relative">
-                        {/* Simple Gauge */}
-                        <svg viewBox="0 0 100 60" className="w-full h-full max-h-[80px]">
-                            <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="#e2e8f0" strokeWidth="8" strokeLinecap="round" />
-                            <path
-                                d="M 10 50 A 40 40 0 0 1 90 50"
-                                fill="none"
-                                stroke="#6366f1"
-                                strokeWidth="8"
-                                strokeLinecap="round"
-                                strokeDasharray="126"
-                                strokeDashoffset={126 - (126 * 0.85)} // 85% score
-                                className="transition-all duration-1000 ease-out"
-                                style={{ strokeDashoffset: animate ? 126 - (126 * 0.85) : 126 }}
-                            />
-                        </svg>
-                        <div className="absolute inset-0 flex items-end justify-center pb-1">
-                            <div className="text-2xl font-black text-indigo-600">98<span className="text-sm text-slate-400 font-bold">%</span></div>
-                        </div>
-                    </div>
-
-                    <div className="flex justify-between text-[10px] font-bold text-slate-400 px-4">
-                        <span>Reliability</span>
-                        <span>Projects: 12</span>
-                    </div>
-                </div>
+                {/* PART 4: Performance Score (live data) */}
+                <HeaderPerformanceGauge
+                    email={employee.email}
+                    fullName={`${employee.firstName} ${employee.lastName}`.trim()}
+                    animate={animate}
+                />
             </div>
         </div>
     );

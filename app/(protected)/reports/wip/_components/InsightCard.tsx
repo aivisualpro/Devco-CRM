@@ -62,7 +62,7 @@ export function InsightCard({ insight }: InsightCardProps) {
 
     return (
         <div
-            className={`relative flex-shrink-0 w-[280px] rounded-xl border ${styles.border} bg-white p-4 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 group cursor-default`}
+            className={`relative flex-shrink-0 w-[280px] rounded-xl border ${styles.border} bg-white p-4 pt-[18px] transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 group cursor-default`}
         >
             {/* Header */}
             <div className="flex items-start gap-3 mb-2">
