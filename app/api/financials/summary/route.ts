@@ -164,6 +164,51 @@ function buildTopProjects(projects: Project[], orgAvgMargin: number) {
     }).sort((a, b) => b.profit - a.profit).slice(0, 10);
 }
 
+/** Build 12-month monthly sparkline buckets for primary KPIs */
+function buildSparklines(projects: Project[]) {
+    const mn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const now = new Date();
+    // Build sorted keys for last 12 months
+    const keys: string[] = [];
+    for (let i = 11; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+    }
+
+    const buckets = new Map<string, {
+        income: number; cost: number; ar: number; profit: number;
+        contractValue: number; backlog: number;
+    }>();
+    keys.forEach(k => buckets.set(k, { income: 0, cost: 0, ar: 0, profit: 0, contractValue: 0, backlog: 0 }));
+
+    projects.forEach(p => {
+        const d = p.startDate || p.MetaData?.CreateTime;
+        if (!d) return;
+        const dt = new Date(d);
+        const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
+        const b = buckets.get(key);
+        if (!b) return;
+        b.income += p.income || 0;
+        b.cost += (p.qbCost || 0) + (p.devcoCost || 0);
+        b.ar += p.ar || 0;
+        b.profit += (p.income || 0) - ((p.qbCost || 0) + (p.devcoCost || 0));
+        const cv = (p.originalContract || 0) + (p.changeOrders || 0);
+        b.contractValue += cv;
+        b.backlog += Math.max(0, cv - (p.income || 0));
+    });
+
+    const vals = keys.map(k => buckets.get(k)!);
+    return {
+        income: vals.map(v => v.income),
+        cost: vals.map(v => v.cost),
+        profit: vals.map(v => v.profit),
+        ar: vals.map(v => v.ar),
+        backlog: vals.map(v => v.backlog),
+        margin: vals.map(v => v.income > 0 ? ((v.income - v.cost) / v.income) * 100 : 0),
+        labels: keys.map(k => { const [y, m] = k.split('-'); return `${mn[+m - 1]} ${y.slice(2)}`; }),
+    };
+}
+
 function buildInsights(projects: Project[]): Insight[] {
     const insights: Insight[] = [];
     const totalIncome = projects.reduce((s, p) => s + (p.income || 0), 0);
@@ -183,10 +228,19 @@ function buildInsights(projects: Project[]): Insight[] {
     const mg3 = m3i > 0 ? ((m3i - m3c) / m3i) * 100 : 0; const mg12 = m12i > 0 ? ((m12i - m12c) / m12i) * 100 : 0;
     if (mg12 > 0 && mg3 < mg12 - 3) insights.push({ id: 'margin-erosion', severity: mg3 < mg12 - 8 ? 'critical' : 'warning', icon: 'TrendingDown', title: 'Margin erosion', detail: `Last 3 months ${mg3.toFixed(1)}% vs prior ${mg12.toFixed(1)}%.`, metric: { label: 'Drop', value: `${(mg12 - mg3).toFixed(1)} pts` }, _impact: Math.abs(mg12 - mg3) * totalIncome / 100 });
 
-    // C. Slow-paying customers
+    // C. Slow-paying customers (grouped)
     const cAR = new Map<string, { ar: number; inc: number; n: number }>();
     projects.forEach(p => { const ar = p.ar || 0; if (ar <= 0) return; const c = p.CompanyName || '?'; const e = cAR.get(c) || { ar: 0, inc: 0, n: 0 }; e.ar += ar; e.inc += p.income || 0; e.n++; cAR.set(c, e); });
-    cAR.forEach((d, c) => { if (d.n >= 2 && d.inc > 0) { const dso = (d.ar / d.inc) * 365; if (dso > 60) insights.push({ id: `slow-pay-${c.replace(/\s/g, '-')}`, severity: dso > 90 ? 'critical' : 'warning', icon: 'Clock', title: 'Slow-paying customer', detail: `${c} avg ${Math.round(dso)}d. ${fmtK(d.ar)} outstanding.`, metric: { label: 'DSO', value: `${Math.round(dso)}d` }, _impact: d.ar }); } });
+    const slowArr: Array<{ c: string; dso: number; ar: number }> = [];
+    cAR.forEach((d, c) => { if (d.n >= 2 && d.inc > 0) { const dso = (d.ar / d.inc) * 365; if (dso > 60) slowArr.push({ c, dso: Math.round(dso), ar: d.ar }); } });
+    if (slowArr.length > 0) {
+        slowArr.sort((a, b) => b.dso - a.dso);
+        const w = slowArr[0]; const extra = slowArr.length - 1;
+        const det = extra > 0
+            ? `${w.c} (${w.dso}d DSO, ${fmtK(w.ar)}) and ${extra} more slow payer${extra > 1 ? 's' : ''}.`
+            : `${w.c} avg ${w.dso}d. ${fmtK(w.ar)} outstanding.`;
+        insights.push({ id: 'slow-paying-customers', severity: w.dso > 90 ? 'critical' : 'warning', icon: 'Clock', title: `Slow-paying customer${slowArr.length > 1 ? 's' : ''}`, detail: det, metric: { label: `${slowArr.length} payer${slowArr.length > 1 ? 's' : ''}`, value: `${w.dso}d worst` }, _impact: slowArr.reduce((s, x) => s + x.ar, 0) });
+    }
 
     // D. Customer concentration
     if (totalIncome > 0) { const ci = new Map<string, number>(); projects.forEach(p => { const n = p.CompanyName || '?'; ci.set(n, (ci.get(n) || 0) + (p.income || 0)); }); const s = Array.from(ci.entries()).sort((a, b) => b[1] - a[1]); if (s.length && (s[0][1] / totalIncome) * 100 > 35) { const pct = (s[0][1] / totalIncome) * 100; insights.push({ id: 'concentration', severity: pct > 50 ? 'critical' : 'warning', icon: 'Users', title: 'Customer concentration', detail: `${s[0][0]} = ${pct.toFixed(0)}% of revenue.`, metric: { label: 'Share', value: `${pct.toFixed(0)}%` }, _impact: s[0][1] }); } }
@@ -254,6 +308,7 @@ const getCachedSummary = unstable_cache(
             revenueVsBacklog: buildWaterfall(filtered),
             insights: buildInsights(filtered),
             topProjects: buildTopProjects(filtered, orgMargin),
+            sparklines: buildSparklines(filtered),
         };
     },
     ['financials-summary'],

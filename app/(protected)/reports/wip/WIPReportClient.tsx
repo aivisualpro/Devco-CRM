@@ -1027,12 +1027,13 @@ export default function WIPReportClient({
                                                 </div>
 
                                                 <button
-                                                    onClick={() => fetchProjectTransactions(selectedProject.Id)}
-                                                    disabled={loadingTransactions}
+                                                    onClick={() => syncIndividualProject(selectedProject.Id)}
+                                                    disabled={loadingTransactions || syncingProjectId === selectedProject.Id}
+                                                    title="Pull latest transactions from QuickBooks"
                                                     className="flex xl:hidden items-center justify-center gap-2 px-3 py-2 bg-[#0F4C75] hover:bg-[#3282B8] text-white rounded-xl font-bold transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed h-10 shrink-0"
                                                 >
-                                                    <RefreshCw className={`w-3.5 h-3.5 ${loadingTransactions ? 'animate-spin' : ''}`} />
-                                                    <span className="text-[11px]">Sync</span>
+                                                    <RefreshCw className={`w-3.5 h-3.5 ${syncingProjectId === selectedProject.Id ? 'animate-spin' : ''}`} />
+                                                    <span className="text-[11px]">Sync QB</span>
                                                 </button>
                                             </div>
 
@@ -1113,12 +1114,13 @@ export default function WIPReportClient({
                                                 </div>
 
                                                 <button
-                                                    onClick={() => fetchProjectTransactions(selectedProject.Id)}
-                                                    disabled={loadingTransactions}
+                                                    onClick={() => syncIndividualProject(selectedProject.Id)}
+                                                    disabled={loadingTransactions || syncingProjectId === selectedProject.Id}
+                                                    title="Pull latest transactions from QuickBooks"
                                                     className="flex items-center justify-center gap-2 px-5 py-2 bg-[#0F4C75] hover:bg-[#3282B8] text-white rounded-xl font-bold transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed h-14 shrink-0"
                                                 >
-                                                    <RefreshCw className={`w-4 h-4 ${loadingTransactions ? 'animate-spin' : ''}`} />
-                                                    <span className="text-sm">Sync</span>
+                                                    <RefreshCw className={`w-4 h-4 ${syncingProjectId === selectedProject.Id ? 'animate-spin' : ''}`} />
+                                                    <span className="text-sm">Sync QB</span>
                                                 </button>
                                             </div>
                                         </div>

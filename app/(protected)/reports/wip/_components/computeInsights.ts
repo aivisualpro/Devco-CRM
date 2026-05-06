@@ -105,7 +105,7 @@ export function computeInsights(projects: ProjectData[], thresholds?: Partial<Fi
         });
     }
 
-    // ── C. Slow-paying customers ──
+    // ── C. Slow-paying customers (grouped — one card, not N cards) ──
     const customerAR = new Map<string, { totalAR: number; totalIncome: number; count: number }>();
     projects.forEach(p => {
         const name = p.CompanyName || 'Unknown';
@@ -118,21 +118,31 @@ export function computeInsights(projects: ProjectData[], thresholds?: Partial<Fi
         e.count += 1;
         customerAR.set(name, e);
     });
+    const slowPayers: Array<{ customer: string; dso: number; ar: number }> = [];
     customerAR.forEach((data, customer) => {
         if (data.count >= 2 && data.totalIncome > 0) {
             const avgDSO = (data.totalAR / data.totalIncome) * 365;
             if (avgDSO > t.dsoWarningDays) {
-                insights.push({
-                    id: `slow-pay-${customer.replace(/\s/g, '-').toLowerCase()}`,
-                    severity: avgDSO > 90 ? 'critical' : 'warning',
-                    icon: 'Clock',
-                    title: 'Slow-paying customer',
-                    detail: `${customer} avg pays in ${Math.round(avgDSO)} days. ${fmtK(data.totalAR)} outstanding.`,
-                    metric: { label: 'DSO', value: `${Math.round(avgDSO)}d` },
-                });
+                slowPayers.push({ customer, dso: Math.round(avgDSO), ar: data.totalAR });
             }
         }
     });
+    if (slowPayers.length > 0) {
+        slowPayers.sort((a, b) => b.dso - a.dso); // worst first
+        const worst = slowPayers[0];
+        const extraCount = slowPayers.length - 1;
+        const detail = extraCount > 0
+            ? `${worst.customer} (${worst.dso}d DSO, ${fmtK(worst.ar)}) and ${extraCount} more slow payer${extraCount > 1 ? 's' : ''}.`
+            : `${worst.customer} avg pays in ${worst.dso} days. ${fmtK(worst.ar)} outstanding.`;
+        insights.push({
+            id: 'slow-paying-customers',
+            severity: worst.dso > 90 ? 'critical' : 'warning',
+            icon: 'Clock',
+            title: `Slow-paying customer${slowPayers.length > 1 ? 's' : ''}`,
+            detail,
+            metric: { label: `${slowPayers.length} payer${slowPayers.length > 1 ? 's' : ''}`, value: `${worst.dso}d worst` },
+        });
+    }
 
     // ── D. Single-customer concentration ──
     if (totalIncome > 0) {

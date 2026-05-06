@@ -49,6 +49,25 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* ── Metric semantic colors (replaces pastel gradients) ── */
+  --metric-positive: oklch(0.62 0.18 145);
+  --metric-positive-bg: oklch(0.96 0.04 145);
+  --metric-negative: oklch(0.58 0.22 25);
+  --metric-negative-bg: oklch(0.96 0.04 25);
+  --metric-warning: oklch(0.72 0.18 70);
+  --metric-warning-bg: oklch(0.96 0.05 70);
+  --metric-neutral: oklch(0.55 0.04 250);
+  --metric-neutral-bg: oklch(0.97 0.01 250);
+  --metric-info: oklch(0.55 0.18 240);
+  --metric-info-bg: oklch(0.96 0.04 240);
+
+  /* ── Card structure tokens ── */
+  --card-bg: #ffffff;
+  --card-radius: 0.875rem;
+  --card-padding: 1.25rem;
+  --card-shadow-rest: 0 1px 2px rgb(0 0 0 / 0.04), 0 0 0 1px rgb(0 0 0 / 0.06);
+  --card-shadow-hover: 0 4px 16px rgb(0 0 0 / 0.08), 0 0 0 1px rgb(0 0 0 / 0.08);
 }
 
 @theme inline {

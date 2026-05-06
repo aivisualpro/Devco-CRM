@@ -2,6 +2,7 @@
  * Touching QBO fields? Update /lib/qbo-sync-contract.ts FIRST.
  */
 import { NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { connectToDatabase } from '@/lib/db';
 import { DevcoQuickBooks } from '@/lib/models';
 import { getProjects, getSingleProject, getProjectProfitability, getAccessToken } from '@/lib/quickbooks';
@@ -298,6 +299,19 @@ export async function POST(req: Request) {
         }
 
         console.log(`Sync complete. Added: ${addedCount}, Updated: ${updatedCount}`);
+
+        // ── Bust Next.js caches immediately so the WIP report reflects new data ──
+        // Without this, the WIP dashboard would show stale data for up to 30–60s
+        // even after the sync successfully wrote fresh transactions to MongoDB.
+        try {
+            revalidateTag('wip-calculations', undefined as any);
+            revalidateTag('quickbooks-projects', undefined as any);
+            revalidateTag('financials-summary', undefined as any);
+            console.log('[Sync] Cache tags invalidated: wip-calculations, quickbooks-projects, financials-summary');
+        } catch (cacheErr) {
+            // revalidateTag can fail outside a Next.js request context — safe to ignore
+            console.warn('[Sync] Cache invalidation warning:', cacheErr);
+        }
         
         return NextResponse.json({ 
             success: true, 

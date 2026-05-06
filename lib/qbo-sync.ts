@@ -5,6 +5,7 @@ import { DevcoQuickBooks } from '@/lib/models';
 import { getSingleProject, qboQuery } from '@/lib/quickbooks';
 import { connectToDatabase } from '@/lib/db';
 import { QBO_OWNED_FIELDS, MERGE_RULES } from '@/lib/qbo-sync-contract';
+import { revalidateTag } from 'next/cache';
 
 export async function syncProjectToDb(projectId: string) {
     await connectToDatabase();
@@ -66,6 +67,14 @@ export async function syncProjectToDb(projectId: string) {
         { $set: finalUpdateData },
         { upsert: true, new: true, runValidators: true }
     );
+
+    // Immediately bust the Next.js data cache so the WIP report shows live data
+    // after the webhook-triggered Pusher broadcast fires on the client.
+    try {
+        revalidateTag('wip-calculations', undefined as any);
+        revalidateTag('quickbooks-projects', undefined as any);
+        revalidateTag('financials-summary', undefined as any);
+    } catch (_) { /* safe to ignore outside Next.js request context */ }
     
     if (process.env.NODE_ENV !== 'production') console.log(`[QBO-SYNC] Successfully synced project ${projectId}`);
     return lp;

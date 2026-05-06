@@ -263,16 +263,10 @@ export const getCachedWipCalculations = unstable_cache(
 );
 export async function GET(req: Request) {
     try {
-        const url = new URL(req.url);
-        const forceRefresh = url.searchParams.get('refresh') === 'true';
-
-        let formattedProjects;
-        if (forceRefresh) {
-            // Bypass cache — run aggregation directly
-            formattedProjects = await (getCachedWipCalculations as any).__wrapped?.() || await getCachedWipCalculations();
-        } else {
-            formattedProjects = await getCachedWipCalculations();
-        }
+        // Cache is busted by the sync route via revalidateTag('wip-calculations').
+        // The ?refresh=true param is kept for backwards compatibility but no longer
+        // needs a special bypass — after sync, the next call will always be fresh.
+        const formattedProjects = await getCachedWipCalculations();
 
         console.log(`Returning ${formattedProjects.length} formatted projects`);
         return NextResponse.json(formattedProjects);

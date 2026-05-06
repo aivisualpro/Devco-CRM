@@ -6,10 +6,14 @@ import {
     DollarSign, Receipt, Hammer, Wallet, FileText,
     TrendingUp, TrendingDown, Percent, CreditCard,
     BarChart3, Target, CircleDollarSign, ArrowDownToLine, SlidersHorizontal,
+    Award, Users, ShieldAlert,
 } from 'lucide-react';
 import { fmtMoney, fmtCurrency } from '@/lib/format/money';
-import { KpiCard } from './KpiCard';
-import { AnimatedNumber } from './AnimatedNumber';
+import {
+    HeroKpiCard, CompositeKpiCard,
+    ListKpiCard, ForecastKpiCard, RiskKpiCard,
+} from './cards';
+
 import { FinancialsSidebar, DatePreset } from './FinancialsSidebar';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui';
@@ -17,7 +21,6 @@ import { computeInsights } from './computeInsights';
 import { InsightCard } from './InsightCard';
 import { DEFAULT_THRESHOLDS, FinancialThresholds } from '@/lib/constants/financialThresholds';
 
-// Lazy-load recharts components
 const MarginTrendChart = dynamic(() => import('./MarginTrendChart'), {
     ssr: false,
     loading: () => <ChartSkeleton />,
@@ -431,6 +434,26 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
             .catch(() => {});
     }, []);
 
+    // Fetch sparkline data from server-side summary (12-month buckets per KPI)
+    const [sparklines, setSparklines] = useState<{
+        income: number[]; cost: number[]; profit: number[];
+        ar: number[]; backlog: number[]; margin: number[];
+    } | null>(null);
+    useEffect(() => {
+        const params = new URLSearchParams();
+        if (datePreset !== 'all_time') params.set('datePreset', datePreset);
+        if (dateFrom) params.set('dateFrom', dateFrom);
+        if (dateTo) params.set('dateTo', dateTo);
+        if (proposalWriters.length) params.set('proposalWriters', proposalWriters.join(','));
+        if (statuses.length) params.set('statuses', statuses.join(','));
+        if (customers.length) params.set('customers', customers.join(','));
+        fetch(`/api/financials/summary?${params}`)
+            .then(r => r.json())
+            .then(data => { if (data?.sparklines) setSparklines(data.sparklines); })
+            .catch(() => {});
+    }, [datePreset, dateFrom, dateTo, proposalWriters, statuses, customers]);
+
+
     // Period label for print header
     const periodLabel = datePreset === 'custom'
         ? `${customFrom} — ${customTo}`
@@ -605,126 +628,254 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
                     />
                 ) : (
                     <>
-                        {/* ROW A — Revenue & Backlog (5 cards) */}
+                        {/* ═══════════════════════════════════════════
+                            ROW A — Revenue & Backlog (HeroKpiCards)
+                            ═══════════════════════════════════════════ */}
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-3">
-                            <KpiCard
-                                label="Total Contract Value"
-                                value={<AnimatedNumber value={kpis.contractValue} formatter={fmtMoney} />}
-                                icon={<FileText className="w-4 h-4 text-emerald-600" />}
-                                gradient="from-emerald-50 to-emerald-100/40"
-                                subtitle={`Orig ${fmtMoney(kpis.originalContract)} + CO ${fmtMoney(kpis.changeOrders)}`}
-                                trend={trend(kpis.contractValue, prevKpis?.contractValue)}
-                            />
-                            <KpiCard
+                            <HeroKpiCard
                                 label="Earned Revenue"
-                                value={<AnimatedNumber value={kpis.income} formatter={fmtMoney} />}
-                                icon={<DollarSign className="w-4 h-4 text-emerald-600" />}
-                                gradient="from-emerald-50 to-emerald-100/40"
-                                subtitle={`from ${kpis.projectCount} projects`}
+                                value={fmtMoney(kpis.income)}
+                                icon={<DollarSign className="w-3.5 h-3.5" />}
+                                secondary={`from ${kpis.projectCount} projects`}
                                 trend={trend(kpis.income, prevKpis?.income)}
+                                sparkline={sparklines?.income}
+                                sparklineColor="var(--metric-positive)"
                             />
-                            <KpiCard
+                            <HeroKpiCard
+                                label="Contract Value"
+                                value={fmtMoney(kpis.contractValue)}
+                                icon={<FileText className="w-3.5 h-3.5" />}
+                                secondary={`Orig ${fmtMoney(kpis.originalContract)} + CO ${fmtMoney(kpis.changeOrders)}`}
+                                trend={trend(kpis.contractValue, prevKpis?.contractValue)}
+                                sparkline={sparklines?.income}
+                            />
+                            <HeroKpiCard
                                 label="Backlog"
-                                value={<AnimatedNumber value={kpis.backlog} formatter={fmtMoney} />}
-                                icon={<ArrowDownToLine className="w-4 h-4 text-blue-600" />}
-                                gradient="from-blue-50 to-blue-100/40"
-                                subtitle="remaining to bill"
+                                value={fmtMoney(kpis.backlog)}
+                                icon={<ArrowDownToLine className="w-3.5 h-3.5" />}
+                                secondary="remaining to bill"
                                 trend={trend(kpis.backlog, prevKpis?.backlog)}
+                                sparkline={sparklines?.backlog}
+                                sparklineColor="var(--metric-info)"
                             />
-                            <KpiCard
-                                label="% Complete"
-                                value={<><AnimatedNumber value={kpis.pctComplete} formatter={(n) => n.toFixed(1)} />%</>}
-                                icon={<Target className="w-4 h-4 text-blue-600" />}
-                                gradient="from-blue-50 to-blue-100/40"
-                                subtitle="weighted by revenue"
+                            <HeroKpiCard
+                                label="Gross Profit"
+                                value={fmtMoney(kpis.profit)}
+                                icon={kpis.profit >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                                trend={trend(kpis.profit, prevKpis?.profit)}
+                                sparkline={sparklines?.profit}
+                                sparklineColor={kpis.profit >= 0 ? 'var(--metric-positive)' : 'var(--metric-negative)'}
                             />
-                            <KpiCard
+                            <HeroKpiCard
+                                label="Gross Margin"
+                                value={`${kpis.marginPct.toFixed(1)}%`}
+                                icon={<Percent className="w-3.5 h-3.5" />}
+                                secondary={`target: ${thresholds.targetGrossMarginPct}%`}
+                                trend={trend(kpis.marginPct, prevKpis?.marginPct)}
+                                sparkline={sparklines?.margin}
+                                sparklineColor={kpis.marginPct >= thresholds.targetGrossMarginPct ? 'var(--metric-positive)' : 'var(--metric-warning)'}
+                            />
+                        </div>
+
+                        {/* ═══════════════════════════════════════════
+                            ROW B — Cost Health & Forecast
+                            ═══════════════════════════════════════════ */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
+                            {/* Cost health composite */}
+                            <CompositeKpiCard
+                                label="Cost Breakdown"
+                                icon={<Wallet className="w-3.5 h-3.5" />}
+                                score={fmtMoney(kpis.totalCost)}
+                                scoreVariant={kpis.income > 0 && kpis.totalCost / kpis.income < 0.75 ? 'positive' : 'warning'}
+                                scoreSubtext={kpis.income > 0 ? `${((kpis.totalCost / kpis.income) * 100).toFixed(0)}% of revenue` : undefined}
+                                rows={[
+                                    {
+                                        label: 'QB / Payroll',
+                                        value: fmtMoney(kpis.qbCost),
+                                        barPct: kpis.totalCost > 0 ? (kpis.qbCost / kpis.totalCost) * 100 : 0,
+                                        barColor: 'var(--metric-warning)',
+                                        note: kpis.totalCost > 0 ? `${((kpis.qbCost / kpis.totalCost) * 100).toFixed(0)}%` : undefined,
+                                    },
+                                    {
+                                        label: 'Job Tickets',
+                                        value: fmtMoney(kpis.jobTicketCost),
+                                        barPct: kpis.totalCost > 0 ? (kpis.jobTicketCost / kpis.totalCost) * 100 : 0,
+                                        barColor: 'var(--metric-info)',
+                                        note: kpis.totalCost > 0 ? `${((kpis.jobTicketCost / kpis.totalCost) * 100).toFixed(0)}%` : undefined,
+                                    },
+                                ]}
+                            />
+
+                            {/* EAC forecast */}
+                            <ForecastKpiCard
+                                label="EAC vs Budget"
+                                icon={<Target className="w-3.5 h-3.5" />}
+                                currentValue={fmtMoney(kpis.totalCost)}
+                                currentLabel="Spent"
+                                projectedValue={kpis.eac > 0 ? fmtMoney(kpis.eac) : 'N/A'}
+                                projectedLabel="EAC"
+                                progressPct={kpis.pctComplete}
+                                variant={kpis.eac > 0 && kpis.eac > kpis.contractValue ? 'negative' : kpis.pctComplete > 80 ? 'positive' : 'neutral'}
+                                note={kpis.eac > kpis.contractValue
+                                    ? `Overrun risk: EAC ${fmtMoney(kpis.eac - kpis.contractValue)} over budget`
+                                    : kpis.pctComplete > 0 ? `${kpis.pctComplete.toFixed(0)}% through contract value` : 'Awaiting progress data'}
+                            />
+
+                            {/* Over/Under billing */}
+                            <ForecastKpiCard
+                                label="Billing Position"
+                                icon={<BarChart3 className="w-3.5 h-3.5" />}
+                                currentValue={fmtMoney(kpis.income)}
+                                currentLabel="Billed"
+                                projectedValue={fmtMoney(Math.abs(kpis.overUnderBilling))}
+                                projectedLabel={kpis.overUnderBilling >= 0 ? 'Over-billed ✓' : 'Under-billed ⚠'}
+                                progressPct={kpis.contractValue > 0 ? Math.min(100, (kpis.income / kpis.contractValue) * 100) : 0}
+                                variant={kpis.overUnderBilling >= 0 ? 'positive' : 'warning'}
+                                note={kpis.overUnderBilling >= 0
+                                    ? 'Favorable cash position — billed ahead of work'
+                                    : `Submit invoices: ${fmtMoney(Math.abs(kpis.overUnderBilling))} left to bill`}
+                            />
+
+                            {/* Avg project size */}
+                            <HeroKpiCard
                                 label="Avg Project Size"
-                                value={<AnimatedNumber value={kpis.avgProjectSize} formatter={fmtMoney} />}
-                                icon={<BarChart3 className="w-4 h-4 text-emerald-600" />}
-                                gradient="from-emerald-50 to-emerald-100/40"
+                                value={fmtMoney(kpis.avgProjectSize)}
+                                icon={<BarChart3 className="w-3.5 h-3.5" />}
+                                secondary={`${kpis.projectCount} projects total`}
                                 trend={trend(kpis.avgProjectSize, prevKpis?.avgProjectSize)}
                             />
                         </div>
 
-                        {/* ROW B — Cost & Profitability (5 cards) */}
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-3">
-                            <KpiCard
-                                label="Total Cost"
-                                value={<AnimatedNumber value={kpis.totalCost} formatter={fmtMoney} />}
-                                icon={<Wallet className="w-4 h-4 text-orange-600" />}
-                                gradient="from-orange-50 to-amber-100/40"
-                                badge={kpis.income > 0 ? `${((kpis.totalCost / kpis.income) * 100).toFixed(0)}% of Revenue` : undefined}
-                                badgeColor="amber"
+                        {/* ═══════════════════════════════════════════
+                            ROW C — Cash Flow & Risk
+                            ═══════════════════════════════════════════ */}
+                        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
+                            {/* A/R cash panel */}
+                            <HeroKpiCard
+                                label="A/R Outstanding"
+                                value={fmtMoney(kpis.arOutstanding)}
+                                icon={<CreditCard className="w-3.5 h-3.5" />}
+                                secondary={kpis.income > 0 ? `${((kpis.arOutstanding / kpis.income) * 100).toFixed(0)}% of earned revenue` : undefined}
+                                trend={trend(kpis.arOutstanding, prevKpis?.arOutstanding)}
+                                inverseSemantic
+                                sparkline={sparklines?.ar}
+                                sparklineColor="var(--metric-warning)"
                             />
-                            <KpiCard
-                                label="Gross Profit"
-                                value={<AnimatedNumber value={kpis.profit} formatter={fmtMoney} />}
-                                icon={<TrendingUp className="w-4 h-4" style={{ color: kpis.profit >= 0 ? '#16a34a' : '#dc2626' }} />}
-                                gradient={kpis.profit >= 0 ? 'from-green-50 to-green-100/40' : 'from-red-50 to-red-100/40'}
-                                trend={trend(kpis.profit, prevKpis?.profit)}
+                            <HeroKpiCard
+                                label="Payments Received"
+                                value={fmtMoney(kpis.paymentsReceived)}
+                                icon={<CircleDollarSign className="w-3.5 h-3.5" />}
+                                secondary={kpis.income > 0 ? `${kpis.collectedPct.toFixed(0)}% collected` : undefined}
+                                trend={trend(kpis.paymentsReceived, prevKpis?.paymentsReceived)}
+                                sparklineColor="var(--metric-positive)"
                             />
-                            <KpiCard
-                                label="Gross Margin %"
-                                value={<><AnimatedNumber value={kpis.marginPct} formatter={(n) => n.toFixed(1)} />%</>}
-                                icon={<Percent className="w-4 h-4" style={{ color: kpis.marginPct >= 0 ? '#16a34a' : '#dc2626' }} />}
-                                gradient={kpis.marginPct >= 0 ? 'from-green-50 to-green-100/40' : 'from-red-50 to-red-100/40'}
-                                trend={trend(kpis.marginPct, prevKpis?.marginPct)}
+                            <HeroKpiCard
+                                label="Payables (A/P)"
+                                value={fmtMoney(kpis.payables)}
+                                icon={<Receipt className="w-3.5 h-3.5" />}
+                                secondary={kpis.income > 0 ? `${((kpis.payables / kpis.income) * 100).toFixed(0)}% of revenue` : undefined}
+                                trend={trend(kpis.payables, prevKpis?.payables)}
+                                inverseSemantic
                             />
-                            <KpiCard
-                                label="EAC (Forecast)"
-                                value={<AnimatedNumber value={kpis.eac} formatter={fmtMoney} />}
-                                icon={<Target className="w-4 h-4 text-blue-600" />}
-                                gradient="from-blue-50 to-blue-100/40"
-                                subtitle={kpis.pctComplete > 0 ? `at ${kpis.pctComplete.toFixed(0)}% complete` : 'awaiting progress'}
-                            />
-                            <KpiCard
-                                label="Over/(Under) Billing"
-                                value={<AnimatedNumber value={kpis.overUnderBilling} formatter={fmtMoney} />}
-                                icon={<TrendingUp className="w-4 h-4" style={{ color: kpis.overUnderBilling >= 0 ? '#16a34a' : '#dc2626' }} />}
-                                gradient={kpis.overUnderBilling >= 0 ? 'from-green-50 to-green-100/40' : 'from-red-50 to-red-100/40'}
-                                subtitle={kpis.overUnderBilling >= 0 ? 'over-billed (good cash)' : 'under-billed'}
+                            <HeroKpiCard
+                                label="DSO"
+                                value={`${kpis.dso} days`}
+                                icon={<Hammer className="w-3.5 h-3.5" />}
+                                secondary={`over ${kpis.periodDays} day period`}
+                                inverseSemantic
+                                sparklineColor="var(--metric-warning)"
                             />
                         </div>
 
-                        {/* ROW C — Cash (4 compact/muted cards) */}
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 md:gap-3">
-                            <KpiCard
-                                compact
-                                label="Payments Received"
-                                value={<AnimatedNumber value={kpis.paymentsReceived} formatter={fmtMoney} />}
-                                icon={<CircleDollarSign className="w-3.5 h-3.5 text-violet-600" />}
-                                gradient="from-violet-50/60 to-violet-100/30"
-                                badge={kpis.income > 0 ? `${kpis.collectedPct.toFixed(0)}% collected` : undefined}
-                                badgeColor="violet"
-                            />
-                            <KpiCard
-                                compact
-                                label="A/R Outstanding"
-                                value={<AnimatedNumber value={kpis.arOutstanding} formatter={fmtMoney} />}
-                                icon={<CreditCard className="w-3.5 h-3.5 text-violet-600" />}
-                                gradient="from-violet-50/60 to-violet-100/30"
-                                badge={kpis.income > 0 ? `${((kpis.arOutstanding / kpis.income) * 100).toFixed(0)}% outstanding` : undefined}
-                                badgeColor="violet"
-                            />
-                            <KpiCard
-                                compact
-                                label="Payables (A/P)"
-                                value={<AnimatedNumber value={kpis.payables} formatter={fmtMoney} />}
-                                icon={<Receipt className="w-3.5 h-3.5 text-rose-600" />}
-                                gradient="from-rose-50/60 to-rose-100/30"
-                                badge={kpis.income > 0 ? `${((kpis.payables / kpis.income) * 100).toFixed(0)}% of Revenue` : undefined}
-                                badgeColor="red"
-                            />
-                            <KpiCard
-                                compact
-                                label="DSO"
-                                value={<><AnimatedNumber value={kpis.dso} formatter={(n) => Math.round(n).toString()} /> days</>}
-                                icon={<Hammer className="w-3.5 h-3.5 text-rose-600" />}
-                                gradient="from-rose-50/60 to-rose-100/30"
-                                subtitle={`over ${kpis.periodDays} day period`}
-                            />
-                        </div>
+                        {/* ═══════════════════════════════════════════
+                            ROW D — PM Leaderboard + Risk Overview
+                            ═══════════════════════════════════════════ */}
+                        {(() => {
+                            // PM stats
+                            const pmMap = new Map<string, { margin: number; count: number; income: number }>();
+                            filtered.forEach(p => {
+                                const inc = p.income || 0;
+                                if (inc <= 0) return;
+                                const cost = (p.qbCost || 0) + (p.devcoCost || 0);
+                                const margin = ((inc - cost) / inc) * 100;
+                                (p.proposalWriters || []).forEach(w => {
+                                    const e = pmMap.get(w) || { margin: 0, count: 0, income: 0 };
+                                    e.margin += margin;
+                                    e.count += 1;
+                                    e.income += inc;
+                                    pmMap.set(w, e);
+                                });
+                            });
+                            const pmRows = Array.from(pmMap.entries())
+                                .filter(([, d]) => d.count >= 1)
+                                .map(([name, d]) => ({ name, avgMargin: d.margin / d.count, count: d.count, income: d.income }))
+                                .sort((a, b) => b.avgMargin - a.avgMargin);
+                            const maxMargin = pmRows[0]?.avgMargin || 1;
+
+                            // Risk counts from insights
+                            const insights = computeInsights(filtered as any, thresholds);
+                            const criticalCount = insights.filter(i => i.severity === 'critical').length;
+                            const warningCount = insights.filter(i => i.severity === 'warning').length;
+
+                            if (pmRows.length === 0 && criticalCount === 0) return null;
+                            return (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3">
+                                    {/* PM Leaderboard */}
+                                    {pmRows.length > 0 && (
+                                        <ListKpiCard
+                                            label="PM Leaderboard"
+                                            icon={<Award className="w-3.5 h-3.5" />}
+                                            topRows={pmRows.slice(0, 3).map((pm, i) => ({
+                                                rank: i + 1,
+                                                label: pm.name,
+                                                sublabel: `${pm.count} project${pm.count > 1 ? 's' : ''}`,
+                                                value: `${pm.avgMargin.toFixed(0)}%`,
+                                                barPct: maxMargin > 0 ? (pm.avgMargin / maxMargin) * 100 : 0,
+                                                barColor: 'var(--metric-positive)',
+                                            }))}
+                                            bottomRows={pmRows.length > 3 ? pmRows.slice(-2).map((pm, i) => ({
+                                                rank: pmRows.length - 1 + i,
+                                                label: pm.name,
+                                                sublabel: `${pm.count} projects`,
+                                                value: `${pm.avgMargin.toFixed(0)}%`,
+                                                barPct: maxMargin > 0 ? (pm.avgMargin / maxMargin) * 100 : 0,
+                                            })) : undefined}
+                                            dividerLabel="Lowest margin"
+                                        />
+                                    )}
+
+                                    {/* Customer concentration */}
+                                    {topCustomers.length > 0 && (
+                                        <ListKpiCard
+                                            label="Top Customers"
+                                            icon={<Users className="w-3.5 h-3.5" />}
+                                            topRows={topCustomers.slice(0, 4).map((c, i) => ({
+                                                rank: i + 1,
+                                                label: c.customer,
+                                                value: fmtMoney(c.income),
+                                                barPct: kpis.income > 0 ? (c.income / kpis.income) * 100 : 0,
+                                                barColor: 'var(--metric-info)',
+                                            }))}
+                                        />
+                                    )}
+
+                                    {/* Risk overview */}
+                                    <RiskKpiCard
+                                        label="Project Risk"
+                                        icon={<ShieldAlert className="w-3.5 h-3.5" />}
+                                        totalCount={criticalCount + warningCount}
+                                        totalLabel="active alerts"
+                                        buckets={[
+                                            { label: 'Critical', count: criticalCount, severity: 'critical' },
+                                            { label: 'Warning', count: warningCount, severity: 'warning' },
+                                            { label: 'Info', count: insights.filter(i => i.severity === 'info').length, severity: 'info' },
+                                            { label: 'Positive', count: insights.filter(i => i.severity === 'positive').length, severity: 'positive' },
+                                        ]}
+                                        note={criticalCount > 0 ? 'Critical issues require immediate attention' : warningCount > 0 ? 'Review warnings below' : 'No active risk alerts'}
+                                    />
+                                </div>
+                            );
+                        })()}
 
                         {/* Insights Panel — horizontal scroll */}
                         {(() => {
