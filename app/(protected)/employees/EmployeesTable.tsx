@@ -146,6 +146,11 @@ export default function EmployeesTable({ initialData, initialRoles }: { initialD
     const [activeTab, setActiveTab] = useState('All');
     const [search, setSearch] = useState('');
     const [sortConfig, setSortConfig] = useState<any>({ key: 'updatedAt', direction: 'desc' });
+    const [psMap, setPsMap] = useState<Record<string, { score: number; isPM: boolean; isWriter: boolean }>>({});
+
+    useEffect(() => {
+        fetch('/api/employees/performance/batch').then(r => r.json()).then(d => { if (d && !d.error) setPsMap(d); }).catch(() => {});
+    }, []);
 
     const {
         items: employees,
@@ -274,6 +279,17 @@ export default function EmployeesTable({ initialData, initialRoles }: { initialD
                     );
                 }
                 return <span className="text-sm">{emp.appRole || '-'}</span>;
+            }
+        },
+        {
+            key: 'ps',
+            header: 'PS',
+            width: '60px',
+            cell: (emp) => {
+                const ps = psMap[emp._id] || psMap[emp.email];
+                if (!ps) return <span className="text-xs text-slate-300">—</span>;
+                const color = ps.score >= 75 ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : ps.score > 50 ? 'text-amber-600 bg-amber-50 border-amber-200' : 'text-red-600 bg-red-50 border-red-200';
+                return <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${color}`}>{ps.score}%</span>;
             }
         },
         { 

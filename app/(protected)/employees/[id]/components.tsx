@@ -149,12 +149,12 @@ function HeaderPerformanceGauge({ email, fullName, animate }: { email: string; f
             )}
         </div>
         {showModal && hasData && (
-            <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowModal(false)}>
-                <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-                    <div className="sticky top-0 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-t-3xl px-6 py-4 flex items-center justify-between z-10">
-                        <div><h2 className="text-white font-black text-lg">Performance Breakdown</h2><p className="text-white/60 text-xs font-medium">{fullName}</p></div>
+            <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/50" onClick={() => setShowModal(false)}>
+                <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto border border-slate-200" onClick={e => e.stopPropagation()}>
+                    <div className="sticky top-0 bg-slate-800 rounded-t-2xl px-5 py-4 flex items-center justify-between z-10">
+                        <div><h2 className="text-white font-bold text-base">Performance Breakdown</h2><p className="text-slate-400 text-xs">{fullName}</p></div>
                         <div className="flex items-center gap-3">
-                            <div className="bg-white/20 rounded-xl px-3 py-1.5 text-center"><div className="text-2xl font-black text-white">{score}%</div><div className="text-[9px] font-bold text-white/60 uppercase">{grade.label}</div></div>
+                            <div className="bg-slate-700 rounded-lg px-3 py-1 text-center"><div className="text-xl font-bold text-white">{score}%</div><div className="text-[9px] font-medium text-slate-400 uppercase">{grade.label}</div></div>
                             <button onClick={() => setShowModal(false)} className="text-white/70 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
                         </div>
                     </div>
@@ -162,23 +162,23 @@ function HeaderPerformanceGauge({ email, fullName, animate }: { email: string; f
                         <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Final Score Formula</p>
                             {isPM && isWriter ? (
-                                <><p className="text-sm font-bold text-slate-700">Average of PM + Writer</p><p className="text-xs text-slate-500 font-mono bg-white rounded-lg px-3 py-2 border mt-1">({data.pmScore} + {data.writerScore}) ÷ 2 = <span className="font-black text-indigo-600">{score}%</span></p></>
+                                <><p className="text-sm font-semibold text-slate-800">Average of PM + Writer</p><p className="text-xs text-slate-600 font-mono bg-white rounded px-3 py-2 border border-slate-200 mt-1.5">({data.pmScore} + {data.writerScore}) ÷ 2 = <span className="font-bold text-slate-900">{score}%</span></p></>
                             ) : isPM ? (
-                                <><p className="text-sm font-bold text-slate-700">PM Compliance Score</p><p className="text-xs text-slate-500 font-mono bg-white rounded-lg px-3 py-2 border mt-1">(Both×0.60) + (JHA×0.20) + (DJT×0.20) = <span className="font-black text-indigo-600">{score}%</span></p></>
+                                <><p className="text-sm font-semibold text-slate-800">PM Compliance Score</p><p className="text-xs text-slate-600 font-mono bg-white rounded px-3 py-2 border border-slate-200 mt-1.5">(Both×0.60) + (JHA×0.20) + (DJT×0.20) = <span className="font-bold text-slate-900">{score}%</span></p></>
                             ) : (
-                                <><p className="text-sm font-bold text-slate-700">Writer Financial Score</p><p className="text-xs text-slate-500 font-mono bg-white rounded-lg px-3 py-2 border mt-1">(Margin×0.40) + (Collection×0.30) + (DSO×0.30) = <span className="font-black text-indigo-600">{score}%</span></p></>
+                                <><p className="text-sm font-semibold text-slate-800">Writer Financial Score</p><p className="text-xs text-slate-600 font-mono bg-white rounded px-3 py-2 border border-slate-200 mt-1.5">(Margin×0.40) + (Collection×0.30) + (DSO×0.30) = <span className="font-bold text-slate-900">{score}%</span></p></>
                             )}
                         </div>
                         {isPM && (<div>
-                            <div className="flex items-center gap-2 mb-3"><div className="w-1 h-4 bg-indigo-500 rounded-full" /><span className="text-xs font-black text-slate-700 uppercase tracking-wider">PM Compliance</span><span className="ml-auto text-xs font-black text-indigo-600">{data.pmScore}%</span></div>
-                            <div className="grid grid-cols-3 gap-2 mb-3">
-                                <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100 text-center"><div className="text-xl font-black text-emerald-600">{sched.jhaRate}%</div><div className="text-[9px] font-bold text-slate-500">{sched.withJHA} / {sched.total}</div><div className="text-[8px] font-black text-emerald-400 uppercase mt-1">JHA (×20%)</div></div>
-                                <div className="bg-blue-50 rounded-xl p-3 border border-blue-100 text-center"><div className="text-xl font-black text-blue-600">{sched.djtRate}%</div><div className="text-[9px] font-bold text-slate-500">{sched.withDJT} / {sched.total}</div><div className="text-[8px] font-black text-blue-400 uppercase mt-1">DJT (×20%)</div></div>
-                                <div className="bg-violet-50 rounded-xl p-3 border border-violet-100 text-center"><div className="text-xl font-black text-violet-600">{sched.bothRate}%</div><div className="text-[9px] font-bold text-slate-500">{sched.withBoth} / {sched.total}</div><div className="text-[8px] font-black text-violet-400 uppercase mt-1">Both (×60%)</div></div>
+                            <div className="flex items-center gap-2 mb-2.5"><div className="w-1 h-4 bg-slate-700 rounded-full" /><span className="text-xs font-bold text-slate-700 uppercase tracking-wider">PM Compliance</span><span className="ml-auto text-xs font-bold text-slate-900">{data.pmScore}%</span></div>
+                            <div className="grid grid-cols-3 gap-2 mb-2.5">
+                                <div className="bg-white rounded-lg p-3 border border-slate-200 text-center"><div className="text-lg font-bold text-slate-800">{sched.jhaRate}%</div><div className="text-[9px] text-slate-500">{sched.withJHA} / {sched.total}</div><div className="text-[8px] font-bold text-slate-400 uppercase mt-1">JHA · 20%</div></div>
+                                <div className="bg-white rounded-lg p-3 border border-slate-200 text-center"><div className="text-lg font-bold text-slate-800">{sched.djtRate}%</div><div className="text-[9px] text-slate-500">{sched.withDJT} / {sched.total}</div><div className="text-[8px] font-bold text-slate-400 uppercase mt-1">DJT · 20%</div></div>
+                                <div className="bg-white rounded-lg p-3 border border-slate-200 text-center"><div className="text-lg font-bold text-slate-800">{sched.bothRate}%</div><div className="text-[9px] text-slate-500">{sched.withBoth} / {sched.total}</div><div className="text-[8px] font-bold text-slate-400 uppercase mt-1">Both · 60%</div></div>
                             </div>
-                            <div className="bg-indigo-50 rounded-lg px-3 py-2 border border-indigo-100">
-                                <p className="text-[10px] font-mono text-indigo-700">({sched.bothRate}×0.60) + ({sched.jhaRate}×0.20) + ({sched.djtRate}×0.20) = <span className="font-black">{data.pmScore}%</span></p>
-                                <p className="text-[9px] text-indigo-400 mt-1">Excludes &quot;Day Off&quot; schedules · {sched.total} qualifying schedules</p>
+                            <div className="bg-slate-50 rounded px-3 py-2 border border-slate-200">
+                                <p className="text-[10px] font-mono text-slate-600">({sched.bothRate}×0.60) + ({sched.jhaRate}×0.20) + ({sched.djtRate}×0.20) = <span className="font-bold text-slate-800">{data.pmScore}%</span></p>
+                                <p className="text-[9px] text-slate-400 mt-1">Excludes &quot;Day Off&quot; schedules · {sched.total} qualifying</p>
                             </div>
                         </div>)}
                         {isWriter && kpis && (() => {
@@ -186,15 +186,15 @@ function HeaderPerformanceGauge({ email, fullName, animate }: { email: string; f
                             const cS = Math.round(Math.min(100, Math.max(0, kpis.collectedPct||0)));
                             const dS = Math.round(Math.min(100, Math.max(0, 100-((kpis.dso||0)/90)*100)));
                             return (<div>
-                                <div className="flex items-center gap-2 mb-3"><div className="w-1 h-4 bg-amber-500 rounded-full" /><span className="text-xs font-black text-slate-700 uppercase tracking-wider">Writer Financial</span><span className="ml-auto text-xs font-black text-amber-600">{data.writerScore}%</span></div>
-                                <div className="grid grid-cols-3 gap-2 mb-3">
-                                    <div className="bg-amber-50 rounded-xl p-3 border border-amber-100 text-center"><div className="text-xl font-black text-amber-600">{mS}</div><div className="text-[10px] font-bold text-slate-600">{(kpis.marginPct||0).toFixed(1)}%</div><div className="text-[8px] font-black text-amber-400 uppercase mt-1">Margin (×40%)</div><div className="text-[8px] text-slate-400 mt-0.5">{fmtK(kpis.profit)} profit</div></div>
-                                    <div className="bg-amber-50 rounded-xl p-3 border border-amber-100 text-center"><div className="text-xl font-black text-amber-600">{cS}</div><div className="text-[10px] font-bold text-slate-600">{(kpis.collectedPct||0).toFixed(0)}%</div><div className="text-[8px] font-black text-amber-400 uppercase mt-1">Collected (×30%)</div><div className="text-[8px] text-slate-400 mt-0.5">{fmtK(kpis.arOutstanding)} A/R</div></div>
-                                    <div className="bg-amber-50 rounded-xl p-3 border border-amber-100 text-center"><div className="text-xl font-black text-amber-600">{dS}</div><div className="text-[10px] font-bold text-slate-600">{kpis.dso||0}d</div><div className="text-[8px] font-black text-amber-400 uppercase mt-1">DSO (×30%)</div><div className="text-[8px] text-slate-400 mt-0.5">Days outstanding</div></div>
+                                <div className="flex items-center gap-2 mb-2.5"><div className="w-1 h-4 bg-slate-700 rounded-full" /><span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Writer Financial</span><span className="ml-auto text-xs font-bold text-slate-900">{data.writerScore}%</span></div>
+                                <div className="grid grid-cols-3 gap-2 mb-2.5">
+                                    <div className="bg-white rounded-lg p-3 border border-slate-200 text-center"><div className="text-lg font-bold text-slate-800">{mS}</div><div className="text-[10px] text-slate-500">{(kpis.marginPct||0).toFixed(1)}%</div><div className="text-[8px] font-bold text-slate-400 uppercase mt-1">Margin · 40%</div><div className="text-[8px] text-slate-400 mt-0.5">{fmtK(kpis.profit)} profit</div></div>
+                                    <div className="bg-white rounded-lg p-3 border border-slate-200 text-center"><div className="text-lg font-bold text-slate-800">{cS}</div><div className="text-[10px] text-slate-500">{(kpis.collectedPct||0).toFixed(0)}%</div><div className="text-[8px] font-bold text-slate-400 uppercase mt-1">Collected · 30%</div><div className="text-[8px] text-slate-400 mt-0.5">{fmtK(kpis.arOutstanding)} A/R</div></div>
+                                    <div className="bg-white rounded-lg p-3 border border-slate-200 text-center"><div className="text-lg font-bold text-slate-800">{dS}</div><div className="text-[10px] text-slate-500">{kpis.dso||0}d</div><div className="text-[8px] font-bold text-slate-400 uppercase mt-1">DSO · 30%</div><div className="text-[8px] text-slate-400 mt-0.5">Days outstanding</div></div>
                                 </div>
-                                <div className="bg-amber-50 rounded-lg px-3 py-2 border border-amber-100">
-                                    <p className="text-[10px] font-mono text-amber-700">({mS}×0.40) + ({cS}×0.30) + ({dS}×0.30) = <span className="font-black">{data.writerScore}%</span></p>
-                                    <p className="text-[9px] text-amber-400 mt-1">{data.projectCount} projects as proposal writer</p>
+                                <div className="bg-slate-50 rounded px-3 py-2 border border-slate-200">
+                                    <p className="text-[10px] font-mono text-slate-600">({mS}×0.40) + ({cS}×0.30) + ({dS}×0.30) = <span className="font-bold text-slate-800">{data.writerScore}%</span></p>
+                                    <p className="text-[9px] text-slate-400 mt-1">{data.projectCount} projects as proposal writer</p>
                                 </div>
                             </div>);
                         })()}
