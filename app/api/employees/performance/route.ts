@@ -4,10 +4,11 @@ import { getCachedWipCalculations } from '@/app/api/quickbooks/projects/route';
 
 /**
  * GET /api/employees/performance?writerEmail=nr@devco-inc.com&writerName=Nick+Rossi
- * 
- * Computes a combined performance score from TWO sources:
- * 1. PROPOSAL WRITER: Financial KPIs from WIP projects where they wrote the proposal
- * 2. PROJECT MANAGER: JHA/DJT compliance rate from schedules they managed
+ *
+ * Computes a combined performance score from THREE sources:
+ * 1. PROPOSAL WRITER : Financial KPIs from WIP projects
+ * 2. PROJECT MANAGER : JHA/DJT compliance on schedules they managed
+ * 3. ASSIGNEE        : JHA & DJT signing rate on schedules where they appear as assignee
  */
 export async function GET(req: NextRequest) {
     try {
@@ -38,27 +39,24 @@ export async function GET(req: NextRequest) {
             const myProjects = allProjects.filter((p: any) =>
                 p.proposalNumber && writerProposalNumbers.has(p.proposalNumber)
             );
-
             if (myProjects.length > 0) {
                 const sum = (key: string) => myProjects.reduce((s: number, p: any) => s + (Number(p[key]) || 0), 0);
-                const income       = sum('income');
-                const totalCost    = sum('qbCost') + sum('devcoCost');
-                const profit       = income - totalCost;
-                const marginPct    = income > 0 ? (profit / income) * 100 : 0;
+                const income        = sum('income');
+                const totalCost     = sum('qbCost') + sum('devcoCost');
+                const profit        = income - totalCost;
+                const marginPct     = income > 0 ? (profit / income) * 100 : 0;
                 const arOutstanding = sum('ar');
-                const collectedPct = income > 0 ? ((income - arOutstanding) / income) * 100 : 0;
+                const collectedPct  = income > 0 ? ((income - arOutstanding) / income) * 100 : 0;
                 const contractValue = sum('originalContract') + sum('changeOrders');
-                const pctComplete  = contractValue > 0 ? Math.min(100, (income / contractValue) * 100) : 0;
-
+                const pctComplete   = contractValue > 0 ? Math.min(100, (income / contractValue) * 100) : 0;
                 const projectMargins = myProjects.map((p: any) => {
                     const inc = p.income || 0; const cost = (p.qbCost||0)+(p.devcoCost||0);
                     const gp = inc - cost; const mg = inc > 0 ? (gp / inc) * 100 : 0;
                     return { name: p.DisplayName || '', income: inc, cost, profit: gp, margin: mg, ar: p.ar || 0, proposalNumber: p.proposalNumber };
                 }).sort((a, b) => b.profit - a.profit);
-
                 writerData = {
-                    projectCount: myProjects.length,
-                    income, totalCost, profit, marginPct, arOutstanding, collectedPct, contractValue, pctComplete,
+                    projectCount: myProjects.length, income, totalCost, profit, marginPct,
+                    arOutstanding, collectedPct, contractValue, pctComplete,
                     backlog: Math.max(0, contractValue - income),
                     avgProjectSize: contractValue / myProjects.length,
                     payables: sum('ap'),
@@ -72,60 +70,121 @@ export async function GET(req: NextRequest) {
         }
 
         // ══════════════════════════════════════════════════════════════════════
-        // PART B: Project Manager — JHA/DJT compliance from schedules
+        // PART B: Project Manager — JHA/DJT compliance on managed schedules
         // ══════════════════════════════════════════════════════════════════════
         const { default: Schedule } = await import('@/lib/models/Schedule');
-
-        // projectManager stores email (e.g. "jt@devco-inc.com")
-        // Match by email (primary), fall back to name
         const pmQuery = writerEmail
             ? { projectManager: writerEmail }
             : { projectManager: { $regex: `^${writerName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' } };
 
         const scheduleStats = await Schedule.aggregate([
-            { $match: { ...pmQuery, item: { $ne: 'Day Off' } } },
+            { $match: { ...pmQuery, item: { $nin: ['Day Off', 'Other'] } } },
             { $group: {
                 _id: null,
-                total: { $sum: 1 },
-                withJHA: { $sum: { $cond: [{ $eq: ['$hasJHA', true] }, 1, 0] } },
-                withDJT: { $sum: { $cond: [{ $eq: ['$hasDJT', true] }, 1, 0] } },
+                total:    { $sum: 1 },
+                withJHA:  { $sum: { $cond: [{ $eq: ['$hasJHA', true] }, 1, 0] } },
+                withDJT:  { $sum: { $cond: [{ $eq: ['$hasDJT', true] }, 1, 0] } },
                 withBoth: { $sum: { $cond: [{ $and: [{ $eq: ['$hasJHA', true] }, { $eq: ['$hasDJT', true] }] }, 1, 0] } },
             }}
         ]);
 
         const pm = scheduleStats[0] || { total: 0, withJHA: 0, withDJT: 0, withBoth: 0 };
-        const isPM = pm.total > 0;
-        const jhaRate = pm.total > 0 ? (pm.withJHA / pm.total) * 100 : 0;
-        const djtRate = pm.total > 0 ? (pm.withDJT / pm.total) * 100 : 0;
+        const isPM   = pm.total > 0;
+        const jhaRate  = pm.total > 0 ? (pm.withJHA  / pm.total) * 100 : 0;
+        const djtRate  = pm.total > 0 ? (pm.withDJT  / pm.total) * 100 : 0;
         const bothRate = pm.total > 0 ? (pm.withBoth / pm.total) * 100 : 0;
 
         // ══════════════════════════════════════════════════════════════════════
-        // PART C: Combined Performance Score
+        // PART C: Assignee — JHA & DJT signing compliance
         // ══════════════════════════════════════════════════════════════════════
-        const isWriter = !!writerData;
+        const email = writerEmail;
+        let assigneeData: any = null;
 
-        if (!isWriter && !isPM) {
-            return NextResponse.json({ isWriter: false, isPM: false, projects: [], kpis: null });
+        if (email) {
+            // All non-DayOff schedules where this email is in assignees
+            const assigneeSchedules = await Schedule.find(
+                { assignees: email, item: { $exists: true, $ne: null, $nin: ['Day Off', 'Other', ''] } },
+                { _id: 1 }
+            ).lean() as any[];
+
+            const scheduleIds = assigneeSchedules.map((s: any) => s._id);
+
+            if (scheduleIds.length > 0) {
+                const { default: JHA } = await import('@/lib/models/JHA');
+                const { default: DailyJobTicket } = await import('@/lib/models/DailyJobTicket');
+
+                // JHA signing: how many JHAs for these schedules have a signature from this employee
+                const jhas = await JHA.find(
+                    { schedule_id: { $in: scheduleIds } },
+                    { schedule_id: 1, signatures: 1 }
+                ).lean() as any[];
+
+                // DJTs signing
+                const djts = await DailyJobTicket.find(
+                    { schedule_id: { $in: scheduleIds } },
+                    { schedule_id: 1, signatures: 1 }
+                ).lean() as any[];
+
+                // For each schedule: did this employee sign the JHA?
+                // A schedule may have 0 or 1 JHAs — we count the schedule as covered if they signed
+                const jhaSignedCount = jhas.filter((j: any) =>
+                    Array.isArray(j.signatures) && j.signatures.some((s: any) => s.employee === email)
+                ).length;
+                const jhaTotal = jhas.length; // schedules with a JHA
+
+                const djtSignedCount = djts.filter((d: any) =>
+                    Array.isArray(d.signatures) && d.signatures.some((s: any) => s.employee === email)
+                ).length;
+                const djtTotal = djts.length;
+
+                const jhaSignRate = jhaTotal > 0 ? (jhaSignedCount / jhaTotal) * 100 : 0;
+                const djtSignRate = djtTotal > 0 ? (djtSignedCount / djtTotal) * 100 : 0;
+
+                // Only flag as assignee if there's at least one JHA or DJT to sign
+                if (jhaTotal > 0 || djtTotal > 0) {
+                    const assigneeScore = Math.round((jhaSignRate + djtSignRate) / 2);
+                    assigneeData = {
+                        scheduleCount: scheduleIds.length,
+                        jhaTotal, jhaSignedCount, jhaSignRate: Math.round(jhaSignRate),
+                        djtTotal, djtSignedCount, djtSignRate: Math.round(djtSignRate),
+                        assigneeScore,
+                    };
+                }
+            }
         }
 
-        // Score components — compute individual scores for each role
+        // ══════════════════════════════════════════════════════════════════════
+        // PART D: Combined Performance Score
+        // ══════════════════════════════════════════════════════════════════════
+        const isWriter   = !!writerData;
+        const isAssignee = !!assigneeData;
+
+        if (!isWriter && !isPM && !isAssignee) {
+            return NextResponse.json({ isWriter: false, isPM: false, isAssignee: false, projects: [], kpis: null });
+        }
+
         const pmScore = isPM
             ? Math.round(bothRate * 0.60 + jhaRate * 0.20 + djtRate * 0.20)
             : 0;
 
         const writerScore = isWriter
             ? (() => {
-                const marginScore = Math.min(100, Math.max(0, (writerData.marginPct || 0) * 2.5));
+                const marginScore     = Math.min(100, Math.max(0, (writerData.marginPct || 0) * 2.5));
                 const collectionScore = Math.min(100, Math.max(0, writerData.collectedPct || 0));
-                const dsoScore = Math.min(100, Math.max(0, 100 - ((writerData.dso || 0) / 90) * 100));
+                const dsoScore        = Math.min(100, Math.max(0, 100 - ((writerData.dso || 0) / 90) * 100));
                 return Math.round(marginScore * 0.40 + collectionScore * 0.30 + dsoScore * 0.30);
             })()
             : 0;
 
-        // Combined: average of both if dual-role, otherwise the single role score
-        const performanceScore = (isPM && isWriter)
-            ? Math.round((pmScore + writerScore) / 2)
-            : isPM ? pmScore : writerScore;
+        const assigneeScore = isAssignee ? (assigneeData.assigneeScore || 0) : 0;
+
+        // Average all active role scores
+        const activeScores = [
+            ...(isPM       ? [pmScore]       : []),
+            ...(isWriter   ? [writerScore]   : []),
+            ...(isAssignee ? [assigneeScore] : []),
+        ];
+        const performanceScore = Math.round(activeScores.reduce((a, b) => a + b, 0) / activeScores.length);
 
         const grade =
             performanceScore >= 85 ? { label: 'Excellent', color: 'emerald' } :
@@ -134,41 +193,25 @@ export async function GET(req: NextRequest) {
                                      { label: 'Needs Work', color: 'red'    };
 
         return NextResponse.json({
-            isWriter,
-            isPM,
-            performanceScore,
-            pmScore,
-            writerScore,
+            isWriter, isPM, isAssignee,
+            performanceScore, pmScore, writerScore, assigneeScore,
             grade,
-            // Schedule / PM stats
             schedules: {
-                total: pm.total,
-                withJHA: pm.withJHA,
-                withDJT: pm.withDJT,
-                withBoth: pm.withBoth,
-                jhaRate: Math.round(jhaRate),
-                djtRate: Math.round(djtRate),
-                bothRate: Math.round(bothRate),
+                total: pm.total, withJHA: pm.withJHA, withDJT: pm.withDJT, withBoth: pm.withBoth,
+                jhaRate: Math.round(jhaRate), djtRate: Math.round(djtRate), bothRate: Math.round(bothRate),
             },
-            // Financial KPIs (only if writer)
+            assignee: assigneeData,
             kpis: writerData ? {
-                income: writerData.income,
-                totalCost: writerData.totalCost,
-                profit: writerData.profit,
-                marginPct: writerData.marginPct,
-                arOutstanding: writerData.arOutstanding,
-                collectedPct: writerData.collectedPct,
-                contractValue: writerData.contractValue,
-                backlog: writerData.backlog,
-                pctComplete: writerData.pctComplete,
-                avgProjectSize: writerData.avgProjectSize,
-                payables: writerData.payables,
-                dso: writerData.dso,
-                originalContract: writerData.originalContract,
+                income: writerData.income, totalCost: writerData.totalCost, profit: writerData.profit,
+                marginPct: writerData.marginPct, arOutstanding: writerData.arOutstanding,
+                collectedPct: writerData.collectedPct, contractValue: writerData.contractValue,
+                backlog: writerData.backlog, pctComplete: writerData.pctComplete,
+                avgProjectSize: writerData.avgProjectSize, payables: writerData.payables,
+                dso: writerData.dso, originalContract: writerData.originalContract,
                 changeOrders: writerData.changeOrders,
             } : null,
             projectCount: writerData?.projectCount || 0,
-            topProjects: writerData?.topProjects || [],
+            topProjects:  writerData?.topProjects  || [],
             lossProjects: writerData?.lossProjects || [],
         });
     } catch (err: any) {

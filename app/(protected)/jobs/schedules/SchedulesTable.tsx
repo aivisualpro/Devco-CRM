@@ -699,14 +699,14 @@ function SchedulesTable({ serverData }: { serverData?: any }) {
         let djts = 0;
         let driveHours = 0;
         let siteHours = 0;
-        let jobs = 0;
         let off = 0;
+        let others = 0;
 
         filteredSchedules.forEach(s => {
             if (s.item === 'Day Off' || ((s as any).tag && (s as any).tag === 'Day Off')) {
                 off++;
-            } else {
-                jobs++;
+            } else if (s.item === 'Other') {
+                others++;
             }
 
             if (s.hasJHA) jhas++;
@@ -724,8 +724,10 @@ function SchedulesTable({ serverData }: { serverData?: any }) {
             }
         });
 
-        return { jhas, djts, driveHours, siteHours, jobs, off };
-    }, [filteredSchedules]);
+        const total = activeDayTab === 'all' ? totalCount : filteredSchedules.length;
+        const jobs = total - off - others;
+        return { jhas, djts, driveHours, siteHours, jobs, off, others };
+    }, [filteredSchedules, activeDayTab, totalCount]);
 
     // Check for any active drive time across ALL schedules for the current user
     // Active = clockOut is not set (undefined/null/empty) - meaning still in progress
@@ -3600,21 +3602,25 @@ function SchedulesTable({ serverData }: { serverData?: any }) {
                                         <h4 className="text-[12px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 text-center w-full">QUICK STATS</h4>
                                         <div className="space-y-4 w-full">
                                             <div className="grid grid-cols-2 gap-3">
-                                                {/* Row 1 */}
-                                                <div className="bg-white p-4 rounded-3xl border border-slate-50 shadow-sm flex flex-col items-center justify-center text-center col-span-2">
+                                                {/* Row 1 — Total Records | Jobs */}
+                                                <div className="bg-white p-4 rounded-3xl border border-slate-50 shadow-sm flex flex-col items-center justify-center text-center">
                                                     <p className="text-2xl font-black text-slate-800">{activeDayTab === 'all' ? totalCount : filteredSchedules.length}</p>
-                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">TOTAL RECORDS</p>
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">TOTAL</p>
                                                 </div>
-                                                {/* Row 2 */}
                                                 <div className="bg-white p-4 rounded-3xl border border-slate-50 shadow-sm flex flex-col items-center justify-center text-center">
                                                     <p className="text-2xl font-black text-slate-800">{quickStats.jobs}</p>
                                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">JOBS</p>
+                                                </div>
+                                                {/* Row 2 — Others | Off */}
+                                                <div className="bg-white p-4 rounded-3xl border border-slate-50 shadow-sm flex flex-col items-center justify-center text-center">
+                                                    <p className="text-2xl font-black text-slate-800">{quickStats.others}</p>
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">OTHERS</p>
                                                 </div>
                                                 <div className="bg-white p-4 rounded-3xl border border-slate-50 shadow-sm flex flex-col items-center justify-center text-center">
                                                     <p className="text-2xl font-black text-slate-800">{quickStats.off}</p>
                                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">OFF</p>
                                                 </div>
-                                                {/* Row 3 */}
+                                                {/* Row 3 — JHAs | DJTs */}
                                                 <div className="bg-white p-4 rounded-3xl border border-slate-50 shadow-sm flex flex-col items-center justify-center text-center">
                                                     <p className={`text-2xl font-black ${quickStats.jhas < quickStats.jobs ? 'text-red-500' : 'text-slate-800'}`}>{quickStats.jhas}</p>
                                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">JHAS</p>
@@ -3623,7 +3629,7 @@ function SchedulesTable({ serverData }: { serverData?: any }) {
                                                     <p className={`text-2xl font-black ${quickStats.djts < quickStats.jobs ? 'text-red-500' : 'text-slate-800'}`}>{quickStats.djts}</p>
                                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">DJTS</p>
                                                 </div>
-                                                {/* Row 4 */}
+                                                {/* Row 4 — Drive | Site Hrs */}
                                                 <div className="bg-white p-4 rounded-3xl border border-slate-50 shadow-sm flex flex-col items-center justify-center text-center">
                                                     <p className="text-2xl font-black text-slate-800">{quickStats.driveHours.toFixed(1)}</p>
                                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">DRIVE HRS</p>
@@ -3632,7 +3638,7 @@ function SchedulesTable({ serverData }: { serverData?: any }) {
                                                     <p className="text-2xl font-black text-slate-800">{quickStats.siteHours.toFixed(1)}</p>
                                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">SITE HRS</p>
                                                 </div>
-                                                {/* Row 5 */}
+                                                {/* Capacity */}
                                                 {selectedDates.length > 0 && (
                                                     <div className="bg-[#0F4C75] p-4 rounded-3xl shadow-lg shadow-blue-900/20 flex flex-col items-center justify-center text-center col-span-2">
                                                         <p className="text-3xl font-black text-white">{serverCapacity}%</p>

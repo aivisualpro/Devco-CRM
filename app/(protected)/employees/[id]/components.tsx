@@ -51,16 +51,18 @@ function HeaderPerformanceGauge({ email, fullName, animate }: { email: string; f
 
     const score = data?.performanceScore ?? 0;
     const grade = data?.grade ?? { label: '—', color: 'slate' };
-    const isWriter = data?.isWriter ?? false;
-    const isPM = data?.isPM ?? false;
-    const sched = data?.schedules || {};
-    const kpis = data?.kpis || {};
+    const isWriter   = data?.isWriter   ?? false;
+    const isPM       = data?.isPM       ?? false;
+    const isAssignee = data?.isAssignee ?? false;
+    const sched  = data?.schedules || {};
+    const kpis   = data?.kpis || {};
+    const asn    = data?.assignee || {};
 
     const colorMap: Record<string, string> = { emerald: '#10b981', blue: '#3b82f6', amber: '#f59e0b', red: '#ef4444', slate: '#94a3b8' };
     const textColorMap: Record<string, string> = { emerald: 'text-emerald-600', blue: 'text-blue-600', amber: 'text-amber-500', red: 'text-red-500', slate: 'text-slate-400' };
     const strokeColor = colorMap[grade.color] || '#6366f1';
     const fraction = score / 100;
-    const hasData = isWriter || isPM;
+    const hasData = isWriter || isPM || isAssignee;
     const fmtK = (n: number) => { const a = Math.abs(n), s = n < 0 ? '-' : ''; return a >= 1e6 ? `${s}$${(a/1e6).toFixed(2)}M` : a >= 1000 ? `${s}$${(a/1000).toFixed(1)}k` : `${s}$${Math.round(a)}`; };
 
     return (
@@ -105,31 +107,46 @@ function HeaderPerformanceGauge({ email, fullName, animate }: { email: string; f
                         <span>{grade.label}</span>
                         {isPM && <span>Schedules: {sched.total}</span>}
                     </div>
-                    {/* Dual-role score bars */}
-                    {isPM && isWriter && (
+                    {/* Multi-role score bars */}
+                    {(isPM || isWriter || isAssignee) && [isPM, isWriter, isAssignee].filter(Boolean).length > 1 && (
                         <div className="space-y-1.5 mt-2 px-1">
-                            <div>
-                                <div className="flex justify-between text-[9px] font-bold mb-0.5">
-                                    <span className="text-indigo-500">PM Compliance</span>
-                                    <span className="text-slate-600">{data.pmScore}%</span>
+                            {isPM && (
+                                <div>
+                                    <div className="flex justify-between text-[9px] font-bold mb-0.5">
+                                        <span className="text-indigo-500">PM Compliance</span>
+                                        <span className="text-slate-600">{data.pmScore}%</span>
+                                    </div>
+                                    <div className="h-1.5 bg-indigo-100 rounded-full overflow-hidden">
+                                        <div className="h-full bg-indigo-500 rounded-full transition-all duration-700" style={{ width: `${data.pmScore}%` }} />
+                                    </div>
                                 </div>
-                                <div className="h-1.5 bg-indigo-100 rounded-full overflow-hidden">
-                                    <div className="h-full bg-indigo-500 rounded-full transition-all duration-700" style={{ width: `${data.pmScore}%` }} />
+                            )}
+                            {isWriter && (
+                                <div>
+                                    <div className="flex justify-between text-[9px] font-bold mb-0.5">
+                                        <span className="text-amber-500">Writer Financial</span>
+                                        <span className="text-slate-600">{data.writerScore}%</span>
+                                    </div>
+                                    <div className="h-1.5 bg-amber-100 rounded-full overflow-hidden">
+                                        <div className="h-full bg-amber-400 rounded-full transition-all duration-700" style={{ width: `${data.writerScore}%` }} />
+                                    </div>
                                 </div>
-                            </div>
-                            <div>
-                                <div className="flex justify-between text-[9px] font-bold mb-0.5">
-                                    <span className="text-amber-500">Writer Financial</span>
-                                    <span className="text-slate-600">{data.writerScore}%</span>
+                            )}
+                            {isAssignee && (
+                                <div>
+                                    <div className="flex justify-between text-[9px] font-bold mb-0.5">
+                                        <span className="text-teal-500">Signing Rate</span>
+                                        <span className="text-slate-600">{data.assigneeScore}%</span>
+                                    </div>
+                                    <div className="h-1.5 bg-teal-100 rounded-full overflow-hidden">
+                                        <div className="h-full bg-teal-500 rounded-full transition-all duration-700" style={{ width: `${data.assigneeScore}%` }} />
+                                    </div>
                                 </div>
-                                <div className="h-1.5 bg-amber-100 rounded-full overflow-hidden">
-                                    <div className="h-full bg-amber-400 rounded-full transition-all duration-700" style={{ width: `${data.writerScore}%` }} />
-                                </div>
-                            </div>
+                            )}
                         </div>
                     )}
                     {/* PM-only: JHA/DJT/Both pills */}
-                    {isPM && !isWriter && (
+                    {isPM && !isWriter && !isAssignee && (
                         <div className="flex gap-2 mt-2 px-1">
                             <div className="flex-1 bg-emerald-50 rounded-lg px-2 py-1 text-center border border-emerald-100">
                                 <div className="text-[10px] font-black text-emerald-700">{sched.jhaRate}%</div>
@@ -161,13 +178,24 @@ function HeaderPerformanceGauge({ email, fullName, animate }: { email: string; f
                     <div className="p-5 space-y-5">
                         <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Final Score Formula</p>
-                            {isPM && isWriter ? (
-                                <><p className="text-sm font-semibold text-slate-800">Average of PM + Writer</p><p className="text-xs text-slate-600 font-mono bg-white rounded px-3 py-2 border border-slate-200 mt-1.5">({data.pmScore} + {data.writerScore}) ÷ 2 = <span className="font-bold text-slate-900">{score}%</span></p></>
-                            ) : isPM ? (
-                                <><p className="text-sm font-semibold text-slate-800">PM Compliance Score</p><p className="text-xs text-slate-600 font-mono bg-white rounded px-3 py-2 border border-slate-200 mt-1.5">(Both×0.60) + (JHA×0.20) + (DJT×0.20) = <span className="font-bold text-slate-900">{score}%</span></p></>
-                            ) : (
-                                <><p className="text-sm font-semibold text-slate-800">Writer Financial Score</p><p className="text-xs text-slate-600 font-mono bg-white rounded px-3 py-2 border border-slate-200 mt-1.5">(Margin×0.40) + (Collection×0.30) + (DSO×0.30) = <span className="font-bold text-slate-900">{score}%</span></p></>
-                            )}
+                            {(() => {
+                                const activeRoles = [
+                                    ...(isPM       ? [`PM(${data.pmScore})`]       : []),
+                                    ...(isWriter   ? [`Writer(${data.writerScore})`] : []),
+                                    ...(isAssignee ? [`Signing(${data.assigneeScore})`] : []),
+                                ];
+                                const activeScores = [
+                                    ...(isPM       ? [data.pmScore]       : []),
+                                    ...(isWriter   ? [data.writerScore]   : []),
+                                    ...(isAssignee ? [data.assigneeScore] : []),
+                                ];
+                                if (activeRoles.length === 1) {
+                                    const lbl = isPM ? 'PM Compliance Score' : isWriter ? 'Writer Financial Score' : 'Assignee Signing Score';
+                                    const formula = isPM ? '(Both×0.60) + (JHA×0.20) + (DJT×0.20)' : isWriter ? '(Margin×0.40) + (Collection×0.30) + (DSO×0.30)' : '(JHA signing + DJT signing) ÷ 2';
+                                    return (<><p className="text-sm font-semibold text-slate-800">{lbl}</p><p className="text-xs text-slate-600 font-mono bg-white rounded px-3 py-2 border border-slate-200 mt-1.5">{formula} = <span className="font-bold text-slate-900">{score}%</span></p></>);
+                                }
+                                return (<><p className="text-sm font-semibold text-slate-800">Average of {activeRoles.join(' + ')}</p><p className="text-xs text-slate-600 font-mono bg-white rounded px-3 py-2 border border-slate-200 mt-1.5">({activeScores.join(' + ')}) ÷ {activeScores.length} = <span className="font-bold text-slate-900">{score}%</span></p></>);
+                            })()}
                         </div>
                         {isPM && (<div>
                             <div className="flex items-center gap-2 mb-2.5"><div className="w-1 h-4 bg-slate-700 rounded-full" /><span className="text-xs font-bold text-slate-700 uppercase tracking-wider">PM Compliance</span><span className="ml-auto text-xs font-bold text-slate-900">{data.pmScore}%</span></div>
@@ -198,6 +226,31 @@ function HeaderPerformanceGauge({ email, fullName, animate }: { email: string; f
                                 </div>
                             </div>);
                         })()}
+                        {isAssignee && asn && (
+                            <div>
+                                <div className="flex items-center gap-2 mb-2.5">
+                                    <div className="w-1 h-4 bg-teal-600 rounded-full" />
+                                    <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Assignee Signing</span>
+                                    <span className="ml-auto text-xs font-bold text-slate-900">{data.assigneeScore}%</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 mb-2.5">
+                                    <div className="bg-white rounded-lg p-3 border border-slate-200 text-center">
+                                        <div className="text-lg font-bold text-slate-800">{asn.jhaSignRate ?? 0}%</div>
+                                        <div className="text-[9px] text-slate-500">{asn.jhaSignedCount ?? 0} / {asn.jhaTotal ?? 0}</div>
+                                        <div className="text-[8px] font-bold text-slate-400 uppercase mt-1">JHA Signed</div>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-3 border border-slate-200 text-center">
+                                        <div className="text-lg font-bold text-slate-800">{asn.djtSignRate ?? 0}%</div>
+                                        <div className="text-[9px] text-slate-500">{asn.djtSignedCount ?? 0} / {asn.djtTotal ?? 0}</div>
+                                        <div className="text-[8px] font-bold text-slate-400 uppercase mt-1">DJT Signed</div>
+                                    </div>
+                                </div>
+                                <div className="bg-slate-50 rounded px-3 py-2 border border-slate-200">
+                                    <p className="text-[10px] font-mono text-slate-600">(JHA {asn.jhaSignRate ?? 0}% + DJT {asn.djtSignRate ?? 0}%) ÷ 2 = <span className="font-bold text-slate-800">{data.assigneeScore}%</span></p>
+                                    <p className="text-[9px] text-slate-400 mt-1">{asn.scheduleCount ?? 0} schedules as assignee · excludes Day Off</p>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

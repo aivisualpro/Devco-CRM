@@ -125,18 +125,21 @@ export function StatsCards({
         };
     }, [estData?.estimateStats]);
 
-    // Split schedules into jobs and time-offs
-    const { jobs, timeOffs } = useMemo(() => {
+    // Split schedules into jobs, time-offs, and others
+    const { jobs, timeOffs, others } = useMemo(() => {
         const j: any[] = [];
         const t: any[] = [];
+        const o: any[] = [];
         schedules.forEach((s: any) => {
             if (s.item?.toLowerCase() === 'day off' || s.title?.toLowerCase() === 'day off' || s.item?.toLowerCase() === 'time off' || s.title?.toLowerCase() === 'time off') {
                 t.push(s);
+            } else if (s.item?.toLowerCase() === 'other') {
+                o.push(s);
             } else {
                 j.push(s);
             }
         });
-        return { jobs: j, timeOffs: t };
+        return { jobs: j, timeOffs: t, others: o };
     }, [schedules]);
 
     // Unique crew across snapshot schedules (ONLY on JOBS)
@@ -201,7 +204,7 @@ export function StatsCards({
                             </div>
                         </div>
                     } 
-                    sub={`${timeOffs.length} off this week`} 
+                    sub={`${timeOffs.length} off · ${others.length} other this week`} 
                     accent="from-[#f0f7ff] to-[#e0efff]" 
                     iconColor="text-[#3b82f6]" 
                     ringColor="border-blue-100"

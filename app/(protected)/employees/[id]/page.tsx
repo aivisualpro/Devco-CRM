@@ -1019,7 +1019,7 @@ export default function EmployeeViewPage() {
 
                                     return (
                                         <div className="flex flex-col h-full">
-                                            <div className="grid grid-cols-1 xl:grid-cols-3 gap-x-6 gap-y-0">
+                                            <div className="grid grid-cols-1 xl:grid-cols-3 gap-x-2 gap-y-0">
                                                 <DetailRow label="Application / Resume" value={employee.applicationResume} isLink href={employee.applicationResume} editNode={renderCompEdit('applicationResume')} />
                                                 <DetailRow label="Employee Handbook" value={employee.employeeHandbook} isLink href={employee.employeeHandbook} editNode={renderCompEdit('employeeHandbook')} />
                                                 <DetailRow label="W4 / I9 / DD" value={employee.quickbooksW4I9DD} isLink href={employee.quickbooksW4I9DD} editNode={renderCompEdit('quickbooksW4I9DD')} />

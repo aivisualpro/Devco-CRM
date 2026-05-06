@@ -147,7 +147,13 @@ export default function EmployeesTable({ initialData, initialRoles }: { initialD
     const [psMap, setPsMap] = useState<Record<string, { score: number; isPM: boolean; isWriter: boolean }>>({});
 
     useEffect(() => {
-        fetch('/api/employees/performance/batch').then(r => r.json()).then(d => { if (d && !d.error) setPsMap(d); }).catch(() => {});
+        fetch('/api/employees/performance/batch')
+            .then(r => r.json())
+            .then(d => {
+                console.log('[PS Batch]', d);
+                if (d && !d.error) setPsMap(d);
+            })
+            .catch(e => console.error('[PS Batch] fetch error', e));
     }, []);
 
     const {
