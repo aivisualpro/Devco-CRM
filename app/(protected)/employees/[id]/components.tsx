@@ -50,13 +50,15 @@ function HeaderPerformanceGauge({ email, fullName, animate }: { email: string; f
 
     const score = data?.performanceScore ?? 0;
     const grade = data?.grade ?? { label: '—', color: 'slate' };
-    const projectCount = data?.projectCount ?? 0;
     const isWriter = data?.isWriter ?? false;
+    const isPM = data?.isPM ?? false;
+    const sched = data?.schedules || {};
 
     const colorMap: Record<string, string> = { emerald: '#10b981', blue: '#3b82f6', amber: '#f59e0b', red: '#ef4444', slate: '#94a3b8' };
     const textColorMap: Record<string, string> = { emerald: 'text-emerald-600', blue: 'text-blue-600', amber: 'text-amber-500', red: 'text-red-500', slate: 'text-slate-400' };
     const strokeColor = colorMap[grade.color] || '#6366f1';
     const fraction = score / 100;
+    const hasData = isWriter || isPM;
 
     return (
         <div className="flex flex-col p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] relative overflow-hidden">
@@ -68,10 +70,10 @@ function HeaderPerformanceGauge({ email, fullName, animate }: { email: string; f
                 <div className="flex-1 flex items-center justify-center">
                     <div className="w-16 h-16 rounded-full border-4 border-slate-100 border-t-indigo-400 animate-spin" />
                 </div>
-            ) : !isWriter ? (
+            ) : !hasData ? (
                 <div className="flex-1 flex flex-col items-center justify-center gap-1">
                     <span className="text-3xl font-black text-slate-300">—</span>
-                    <span className="text-[10px] text-slate-400 font-bold">Not a Proposal Writer</span>
+                    <span className="text-[10px] text-slate-400 font-bold">No Data</span>
                 </div>
             ) : (
                 <>
@@ -95,10 +97,50 @@ function HeaderPerformanceGauge({ email, fullName, animate }: { email: string; f
                             </div>
                         </div>
                     </div>
-                    <div className="flex justify-between text-[10px] font-bold text-slate-400 px-4">
+                    <div className="flex justify-between text-[10px] font-bold text-slate-400 px-2">
                         <span>{grade.label}</span>
-                        <span>Projects: {projectCount}</span>
+                        {isPM && <span>Schedules: {sched.total}</span>}
                     </div>
+                    {/* Dual-role score bars */}
+                    {isPM && isWriter && (
+                        <div className="space-y-1.5 mt-2 px-1">
+                            <div>
+                                <div className="flex justify-between text-[9px] font-bold mb-0.5">
+                                    <span className="text-indigo-500">PM Compliance</span>
+                                    <span className="text-slate-600">{data.pmScore}%</span>
+                                </div>
+                                <div className="h-1.5 bg-indigo-100 rounded-full overflow-hidden">
+                                    <div className="h-full bg-indigo-500 rounded-full transition-all duration-700" style={{ width: `${data.pmScore}%` }} />
+                                </div>
+                            </div>
+                            <div>
+                                <div className="flex justify-between text-[9px] font-bold mb-0.5">
+                                    <span className="text-amber-500">Writer Financial</span>
+                                    <span className="text-slate-600">{data.writerScore}%</span>
+                                </div>
+                                <div className="h-1.5 bg-amber-100 rounded-full overflow-hidden">
+                                    <div className="h-full bg-amber-400 rounded-full transition-all duration-700" style={{ width: `${data.writerScore}%` }} />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    {/* PM-only: JHA/DJT/Both pills */}
+                    {isPM && !isWriter && (
+                        <div className="flex gap-2 mt-2 px-1">
+                            <div className="flex-1 bg-emerald-50 rounded-lg px-2 py-1 text-center border border-emerald-100">
+                                <div className="text-[10px] font-black text-emerald-700">{sched.jhaRate}%</div>
+                                <div className="text-[8px] font-bold text-emerald-500 uppercase">JHA</div>
+                            </div>
+                            <div className="flex-1 bg-blue-50 rounded-lg px-2 py-1 text-center border border-blue-100">
+                                <div className="text-[10px] font-black text-blue-700">{sched.djtRate}%</div>
+                                <div className="text-[8px] font-bold text-blue-500 uppercase">DJT</div>
+                            </div>
+                            <div className="flex-1 bg-violet-50 rounded-lg px-2 py-1 text-center border border-violet-100">
+                                <div className="text-[10px] font-black text-violet-700">{sched.bothRate}%</div>
+                                <div className="text-[8px] font-bold text-violet-500 uppercase">Both</div>
+                            </div>
+                        </div>
+                    )}
                 </>
             )}
         </div>

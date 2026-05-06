@@ -90,101 +90,160 @@ function EmployeePerformanceSection({ writerName, employeeEmail }: { writerName:
         </div>
     );
 
-    if (!data || !data.isWriter) return null;
+    if (!data || (!data.isWriter && !data.isPM)) return null;
 
-    const { performanceScore, grade, kpis, scores, topProjects, lossProjects, projectCount } = data;
-    const gradeColors: Record<string, string> = { emerald: 'from-emerald-500 to-teal-400', blue: 'from-blue-500 to-indigo-400', amber: 'from-amber-400 to-orange-400', red: 'from-red-500 to-rose-400' };
+    const { performanceScore, grade, kpis, topProjects, lossProjects, projectCount } = data;
+    const isWriter = data.isWriter;
+    const isPM = data.isPM;
+    const sched = data.schedules || {};
     const gradeBg: Record<string, string> = { emerald: 'bg-emerald-50 border-emerald-200', blue: 'bg-blue-50 border-blue-200', amber: 'bg-amber-50 border-amber-200', red: 'bg-red-50 border-red-200' };
 
     return (
         <div className="bg-[#eef2f6] rounded-[40px] shadow-[12px_12px_24px_#d1d9e6,-12px_-12px_24px_#ffffff] p-4 mb-6">
             {/* Section header */}
-            <div className="flex items-center gap-3 mb-4 px-1">
+            <div className="flex items-center gap-3 mb-4 px-1 flex-wrap">
                 <div className="w-1 h-5 bg-gradient-to-b from-indigo-500 to-purple-500 rounded-full" />
                 <h3 className="text-xs font-black text-slate-700 uppercase tracking-widest">Performance Score</h3>
-                <span className="text-[10px] font-bold text-slate-400 bg-white/70 px-2 py-0.5 rounded-full border border-slate-200">{projectCount} projects as proposal writer</span>
+                {isPM && <span className="text-[10px] font-bold text-slate-400 bg-white/70 px-2 py-0.5 rounded-full border border-slate-200">{sched.total} schedules as PM</span>}
+                {isWriter && <span className="text-[10px] font-bold text-slate-400 bg-white/70 px-2 py-0.5 rounded-full border border-slate-200">{projectCount} projects as writer</span>}
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
+            <div className={`grid grid-cols-1 ${isWriter ? 'xl:grid-cols-4' : 'xl:grid-cols-3'} gap-4`}>
 
-                {/* Score gauge */}
+                {/* Score gauge + sub-scores */}
                 <div className={`flex flex-col items-center justify-center gap-3 rounded-2xl p-5 border ${gradeBg[grade.color]}`}>
                     <ScoreRing score={performanceScore} grade={grade} />
                     <div className="w-full space-y-2.5">
-                        <SubScoreBar label="Margin Quality"   value={scores.marginScore}     color="emerald" />
-                        <SubScoreBar label="Collection Rate"  value={scores.collectionScore}  color="blue" />
-                        <SubScoreBar label="Receivables (DSO)"value={scores.dsoScore}         color="violet" />
-                        <SubScoreBar label="Revenue Volume"   value={scores.volumeScore}      color="amber" />
-                        <SubScoreBar label="% Completion"     value={scores.completionScore}  color="rose" />
+                        {isPM && (
+                            <>
+                                <SubScoreBar label="JHA Compliance"  value={sched.jhaRate || 0}  color="emerald" />
+                                <SubScoreBar label="DJT Compliance"  value={sched.djtRate || 0}  color="blue" />
+                                <SubScoreBar label="Both (JHA+DJT)"  value={sched.bothRate || 0} color="violet" />
+                            </>
+                        )}
+                        {isWriter && (
+                            <>
+                                <SubScoreBar label="Margin Quality"  value={Math.min(100, Math.max(0, (kpis?.marginPct || 0) * 2.5))}  color="amber" />
+                                <SubScoreBar label="Collection Rate" value={Math.min(100, Math.max(0, kpis?.collectedPct || 0))}        color="rose" />
+                            </>
+                        )}
                     </div>
                 </div>
 
-                {/* KPI tiles (3-col × 4 rows) */}
-                <div className="xl:col-span-2 grid grid-cols-3 gap-2.5 content-start">
-                    <PerfKpi label="Revenue"        value={fmt(kpis.income)}          sub={`from ${projectCount} projects`} highlight="blue" />
-                    <PerfKpi label="Total Cost"      value={fmt(kpis.totalCost)}       sub={kpis.income > 0 ? `${((kpis.totalCost/kpis.income)*100).toFixed(0)}% of rev` : ''} />
-                    <PerfKpi label="Gross Profit"    value={fmt(kpis.profit)}          highlight={kpis.profit >= 0 ? 'green' : 'red'} />
-                    <PerfKpi label="Gross Margin"    value={`${kpis.marginPct.toFixed(1)}%`} highlight={kpis.marginPct >= 20 ? 'green' : kpis.marginPct >= 10 ? undefined : 'red'} />
-                    <PerfKpi label="Contract Value"  value={fmt(kpis.contractValue)}   sub="orig + change orders" />
-                    <PerfKpi label="Backlog"         value={fmt(kpis.backlog)}          sub="remaining to bill" highlight="blue" />
-                    <PerfKpi label="A/R Outstanding" value={fmt(kpis.arOutstanding)}   highlight={kpis.arOutstanding > 0 ? 'red' : 'green'} />
-                    <PerfKpi label="Collected"       value={`${kpis.collectedPct.toFixed(0)}%`} sub={fmt(kpis.income - kpis.arOutstanding)} highlight="green" />
-                    <PerfKpi label="DSO"             value={`${kpis.dso}d`}            highlight={kpis.dso > 60 ? 'red' : 'green'} />
-                    <PerfKpi label="Avg Project Size" value={fmt(kpis.avgProjectSize)}  />
-                    <PerfKpi label="% Complete"      value={`${kpis.pctComplete.toFixed(1)}%`} highlight="blue" />
-                    <PerfKpi label="Payables (A/P)"  value={fmt(kpis.payables)} />
-                </div>
-
-                {/* Top & Loss projects */}
-                <div className="flex flex-col gap-3">
-                    {/* Top 5 */}
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex-1">
-                        <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border-b border-emerald-100">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Top Projects</span>
-                        </div>
-                        <div className="divide-y divide-slate-50">
-                            {topProjects.slice(0, 5).map((p: any, i: number) => (
-                                <div key={i} className="flex items-center justify-between px-3 py-2 hover:bg-slate-50 transition-colors">
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-[10px] font-bold text-slate-700 truncate">{p.name || `Project ${i+1}`}</p>
-                                        <p className="text-[9px] text-slate-400">{fmt(p.income)} rev</p>
-                                    </div>
-                                    <div className="text-right ml-2">
-                                        <p className="text-[11px] font-black text-emerald-600">{fmt(p.profit)}</p>
-                                        <p className="text-[9px] text-slate-400">{p.margin.toFixed(1)}%</p>
-                                    </div>
+                {/* PM compliance stats + schedule breakdown */}
+                {isPM && (
+                    <div className="flex flex-col gap-2.5">
+                        {/* Big stat cards */}
+                        <div className="bg-white rounded-xl p-4 border border-emerald-200 shadow-sm">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-[9px] font-black uppercase tracking-wider text-emerald-500">JHA Completed</p>
+                                    <p className="text-2xl font-black text-emerald-600">{sched.withJHA}<span className="text-sm text-slate-400 font-bold ml-1">/ {sched.total}</span></p>
                                 </div>
-                            ))}
-                            {topProjects.length === 0 && <p className="text-center text-[10px] text-slate-400 italic py-4">No projects yet</p>}
+                                <div className="text-right">
+                                    <div className={`text-lg font-black ${sched.jhaRate >= 80 ? 'text-emerald-600' : sched.jhaRate >= 50 ? 'text-amber-500' : 'text-red-500'}`}>{sched.jhaRate}%</div>
+                                </div>
+                            </div>
+                            <div className="h-1.5 bg-emerald-100 rounded-full mt-2 overflow-hidden">
+                                <div className="h-full bg-emerald-500 rounded-full transition-all duration-700" style={{ width: `${sched.jhaRate}%` }} />
+                            </div>
+                        </div>
+                        <div className="bg-white rounded-xl p-4 border border-blue-200 shadow-sm">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-[9px] font-black uppercase tracking-wider text-blue-500">DJT Completed</p>
+                                    <p className="text-2xl font-black text-blue-600">{sched.withDJT}<span className="text-sm text-slate-400 font-bold ml-1">/ {sched.total}</span></p>
+                                </div>
+                                <div className="text-right">
+                                    <div className={`text-lg font-black ${sched.djtRate >= 80 ? 'text-blue-600' : sched.djtRate >= 50 ? 'text-amber-500' : 'text-red-500'}`}>{sched.djtRate}%</div>
+                                </div>
+                            </div>
+                            <div className="h-1.5 bg-blue-100 rounded-full mt-2 overflow-hidden">
+                                <div className="h-full bg-blue-500 rounded-full transition-all duration-700" style={{ width: `${sched.djtRate}%` }} />
+                            </div>
+                        </div>
+                        <div className="bg-white rounded-xl p-4 border border-violet-200 shadow-sm">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-[9px] font-black uppercase tracking-wider text-violet-500">Both Completed</p>
+                                    <p className="text-2xl font-black text-violet-600">{sched.withBoth}<span className="text-sm text-slate-400 font-bold ml-1">/ {sched.total}</span></p>
+                                </div>
+                                <div className="text-right">
+                                    <div className={`text-lg font-black ${sched.bothRate >= 80 ? 'text-violet-600' : sched.bothRate >= 50 ? 'text-amber-500' : 'text-red-500'}`}>{sched.bothRate}%</div>
+                                </div>
+                            </div>
+                            <div className="h-1.5 bg-violet-100 rounded-full mt-2 overflow-hidden">
+                                <div className="h-full bg-violet-500 rounded-full transition-all duration-700" style={{ width: `${sched.bothRate}%` }} />
+                            </div>
                         </div>
                     </div>
+                )}
 
-                    {/* Loss projects */}
-                    {lossProjects.length > 0 && (
-                        <div className="bg-white rounded-2xl border border-red-100 shadow-sm overflow-hidden">
-                            <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border-b border-red-100">
-                                <span className="w-2 h-2 rounded-full bg-red-500" />
-                                <span className="text-[10px] font-black uppercase tracking-wider text-red-700">Loss Projects</span>
-                                <span className="ml-auto text-[9px] font-bold text-red-400">{lossProjects.length} project{lossProjects.length > 1 ? 's' : ''}</span>
+                {/* Financial KPIs — only if writer */}
+                {isWriter && kpis && (
+                    <div className={`${isPM ? '' : 'xl:col-span-1'} grid grid-cols-3 gap-2.5 content-start`}>
+                        <PerfKpi label="Revenue"        value={fmt(kpis.income)}          sub={`from ${projectCount} projects`} highlight="blue" />
+                        <PerfKpi label="Total Cost"      value={fmt(kpis.totalCost)}       sub={kpis.income > 0 ? `${((kpis.totalCost/kpis.income)*100).toFixed(0)}% of rev` : ''} />
+                        <PerfKpi label="Gross Profit"    value={fmt(kpis.profit)}          highlight={kpis.profit >= 0 ? 'green' : 'red'} />
+                        <PerfKpi label="Gross Margin"    value={`${kpis.marginPct.toFixed(1)}%`} highlight={kpis.marginPct >= 20 ? 'green' : kpis.marginPct >= 10 ? undefined : 'red'} />
+                        <PerfKpi label="Contract Value"  value={fmt(kpis.contractValue)}   sub="orig + change orders" />
+                        <PerfKpi label="Backlog"         value={fmt(kpis.backlog)}          sub="remaining to bill" highlight="blue" />
+                        <PerfKpi label="A/R Outstanding" value={fmt(kpis.arOutstanding)}   highlight={kpis.arOutstanding > 0 ? 'red' : 'green'} />
+                        <PerfKpi label="Collected"       value={`${kpis.collectedPct.toFixed(0)}%`} sub={fmt(kpis.income - kpis.arOutstanding)} highlight="green" />
+                        <PerfKpi label="DSO"             value={`${kpis.dso}d`}            highlight={kpis.dso > 60 ? 'red' : 'green'} />
+                    </div>
+                )}
+
+                {/* Top & Loss projects — only if writer */}
+                {isWriter && (
+                    <div className="flex flex-col gap-3">
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex-1">
+                            <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border-b border-emerald-100">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Top Projects</span>
                             </div>
                             <div className="divide-y divide-slate-50">
-                                {lossProjects.map((p: any, i: number) => (
-                                    <div key={i} className="flex items-center justify-between px-3 py-2 hover:bg-red-50/30 transition-colors">
+                                {(topProjects || []).slice(0, 5).map((p: any, i: number) => (
+                                    <div key={i} className="flex items-center justify-between px-3 py-2 hover:bg-slate-50 transition-colors">
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-[10px] font-bold text-slate-700 truncate">{p.name}</p>
+                                            <p className="text-[10px] font-bold text-slate-700 truncate">{p.name || `Project ${i+1}`}</p>
                                             <p className="text-[9px] text-slate-400">{fmt(p.income)} rev</p>
                                         </div>
                                         <div className="text-right ml-2">
-                                            <p className="text-[11px] font-black text-red-500">{fmt(p.profit)}</p>
-                                            <p className="text-[9px] text-red-400">{p.margin.toFixed(1)}%</p>
+                                            <p className="text-[11px] font-black text-emerald-600">{fmt(p.profit)}</p>
+                                            <p className="text-[9px] text-slate-400">{p.margin.toFixed(1)}%</p>
                                         </div>
                                     </div>
                                 ))}
+                                {(!topProjects || topProjects.length === 0) && <p className="text-center text-[10px] text-slate-400 italic py-4">No projects yet</p>}
                             </div>
                         </div>
-                    )}
-                </div>
+
+                        {lossProjects && lossProjects.length > 0 && (
+                            <div className="bg-white rounded-2xl border border-red-100 shadow-sm overflow-hidden">
+                                <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border-b border-red-100">
+                                    <span className="w-2 h-2 rounded-full bg-red-500" />
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-red-700">Loss Projects</span>
+                                    <span className="ml-auto text-[9px] font-bold text-red-400">{lossProjects.length} project{lossProjects.length > 1 ? 's' : ''}</span>
+                                </div>
+                                <div className="divide-y divide-slate-50">
+                                    {lossProjects.map((p: any, i: number) => (
+                                        <div key={i} className="flex items-center justify-between px-3 py-2 hover:bg-red-50/30 transition-colors">
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-[10px] font-bold text-slate-700 truncate">{p.name}</p>
+                                                <p className="text-[9px] text-slate-400">{fmt(p.income)} rev</p>
+                                            </div>
+                                            <div className="text-right ml-2">
+                                                <p className="text-[11px] font-black text-red-500">{fmt(p.profit)}</p>
+                                                <p className="text-[9px] text-red-400">{p.margin.toFixed(1)}%</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );
