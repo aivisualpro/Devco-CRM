@@ -116,6 +116,7 @@ export default function WIPReportClient({
     const [txTypeFilter, setTxTypeFilter] = useState<string[]>([]);
     const [txStatusFilter, setTxStatusFilter] = useState<string[]>([]);
     const [txAccountFilter, setTxAccountFilter] = useState<string[]>([]);
+    const [txAccountSearch, setTxAccountSearch] = useState('');
     const [txTypeDropdownOpen, setTxTypeDropdownOpen] = useState(false);
     const [txStatusDropdownOpen, setTxStatusDropdownOpen] = useState(false);
     const [txAccountDropdownOpen, setTxAccountDropdownOpen] = useState(false);
@@ -1565,7 +1566,7 @@ export default function WIPReportClient({
                                                         </button>
                                                         {txAccountDropdownOpen && (
                                                             <>
-                                                                <div className="fixed inset-0 z-20" onClick={() => setTxAccountDropdownOpen(false)} />
+                                                                <div className="fixed inset-0 z-20" onClick={() => { setTxAccountDropdownOpen(false); setTxAccountSearch(''); }} />
                                                                 <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-30 min-w-[200px] max-h-[260px] overflow-y-auto py-1">
                                                                   {txAccountFilter.length > 0 && (
                                                                     <button onClick={() => setTxAccountFilter([])} className="w-full text-left px-3 py-1.5 text-[10px] font-bold text-rose-500 hover:bg-rose-50 border-b border-slate-100">Clear All</button>
@@ -1622,16 +1623,16 @@ export default function WIPReportClient({
                                                     </div>
                                                     <div className="flex-1 overflow-auto bg-slate-50/30">
                                                         <table className="w-full min-w-[1000px] text-left table-fixed">
-                                                            <thead className="sticky top-0 bg-white/90 backdrop-blur-sm z-10 shadow-sm border-b border-slate-100">
+                                                            <thead className="sticky top-0 bg-slate-800 z-10">
                                                                 <tr className="h-8">
-                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-[9%] align-middle">Date</th>
-                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-[14%] align-middle">Type</th>
-                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-[8%] align-middle">No.</th>
-                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-[20%] align-middle">From/To</th>
-                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center w-[8%] align-middle">Status</th>
-                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider text-right w-[10%] align-middle">Amount</th>
-                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-[16%] align-middle">Account</th>
-                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-[24%] align-middle">Memo</th>
+                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-200 uppercase tracking-wider w-[7%] align-middle">Date</th>
+                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-200 uppercase tracking-wider w-[9%] align-middle">Type</th>
+                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-200 uppercase tracking-wider w-[8%] align-middle">No.</th>
+                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-200 uppercase tracking-wider w-[22%] align-middle">From/To</th>
+                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-200 uppercase tracking-wider text-center w-[5%] align-middle">Status</th>
+                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-200 uppercase tracking-wider text-right w-[10%] align-middle">Amount</th>
+                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-200 uppercase tracking-wider w-[13%] align-middle">Account</th>
+                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-200 uppercase tracking-wider w-[26%] align-middle">Memo</th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody className="divide-y divide-slate-50">
@@ -1669,7 +1670,7 @@ export default function WIPReportClient({
                                                                     return filtered.length > 0 ? (
                                                                         filtered.map((tx: any) => (
                                                                             <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
-                                                                                <td className="px-1.5 py-2 text-[11px] font-medium text-slate-600 whitespace-nowrap">{formatDateOnly(tx.date)}</td>
+                                                                                <td className="px-1.5 py-2 text-[11px] font-medium text-slate-900 whitespace-nowrap">{formatDateOnly(tx.date)}</td>
                                                                                 <td className="px-1.5 py-2 text-[11px] font-medium whitespace-nowrap">
                                                                                     <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider ${
                                                                                         tx.type === 'Payment' ? 'bg-teal-50 text-teal-700 border border-teal-200/50' : 
@@ -1680,8 +1681,8 @@ export default function WIPReportClient({
                                                                                         {tx.type}
                                                                                     </span>
                                                                                 </td>
-                                                                                <td className="px-1.5 py-2 text-[11px] font-medium text-slate-600 whitespace-nowrap">#{tx.no}</td>
-                                                                                <td className="px-1.5 py-2 text-[11px] font-medium text-slate-600 truncate">{tx.from || '—'}</td>
+                                                                                <td className="px-1.5 py-2 text-[11px] font-medium text-slate-900 break-all">#{tx.no}</td>
+                                                                                <td className="px-1.5 py-2 text-[11px] font-medium text-slate-900 truncate">{tx.from || '—'}</td>
                                                                                 <td className="px-1.5 py-2 text-center">
                                                                                     <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold ${
                                                                                         tx.status === 'Paid' ? 'bg-emerald-50 text-emerald-700' :
@@ -1689,16 +1690,16 @@ export default function WIPReportClient({
                                                                                         'bg-amber-50 text-amber-700'
                                                                                     }`}>{tx.status}</span>
                                                                                 </td>
-                                                                                <td className="px-1.5 py-2 text-[11px] font-bold text-slate-800 text-right whitespace-nowrap">
+                                                                                <td className="px-1.5 py-2 text-[11px] font-bold text-slate-900 text-right whitespace-nowrap">
                                                                                     {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(tx.amount)}
                                                                                 </td>
-                                                                                <td className="px-1.5 py-2 text-[11px] text-slate-500 truncate" title={tx.account || ''}>
+                                                                                <td className="px-1.5 py-2 text-[11px] font-medium text-slate-900 truncate" title={tx.account || ''}>
                                                                                     {tx.account
-                                                                                        ? tx.account.split(',').map((a: string) => a.split(':').pop()?.trim()).join(', ')
-                                                                                        : <span className="text-slate-300">—</span>
+                                                                                        ? tx.account.split(',').map((a: string) => { const leaf = a.split(':').pop()?.trim() || ''; return leaf.replace(/\b\w/g, (c: string) => c.toUpperCase()); }).join(', ')
+                                                                                        : <span className="text-slate-400">—</span>
                                                                                     }
                                                                                 </td>
-                                                                                <td className="px-1.5 py-2 text-[11px] font-medium text-slate-600 break-words">{tx.memo || '—'}</td>
+                                                                                <td className="px-1.5 py-2 text-[11px] font-medium text-slate-900 break-words">{tx.memo || '—'}</td>
                                                                             </tr>
                                                                         ))
                                                                     ) : (
@@ -1735,12 +1736,12 @@ export default function WIPReportClient({
                                                     </div>
                                                     <div className="flex-1 overflow-auto bg-slate-50/30">
                                                         <table className="w-full text-left">
-                                                            <thead className="sticky top-0 bg-white/90 backdrop-blur-sm z-10 shadow-sm border-b border-slate-100">
+                                                            <thead className="sticky top-0 bg-slate-800 z-10">
                                                                 <tr className="h-8">
-                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-24 align-middle">Date</th>
-                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-28 align-middle">Equipment</th>
-                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-28 align-middle">Overhead</th>
-                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-28 text-right align-middle">Total Cost</th>
+                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-200 uppercase tracking-wider w-24 align-middle">Date</th>
+                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-200 uppercase tracking-wider w-28 align-middle">Equipment</th>
+                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-200 uppercase tracking-wider w-28 align-middle">Overhead</th>
+                                                                    <th className="px-2 py-0 text-[10px] font-black text-slate-200 uppercase tracking-wider w-28 text-right align-middle">Total Cost</th>
                                                                     <th className="px-2 py-0 w-auto align-middle"></th>
                                                                 </tr>
                                                             </thead>
@@ -1773,14 +1774,14 @@ export default function WIPReportClient({
                                                                                 }
                                                                             }}
                                                                         >
-                                                                            <td className="px-2 py-2 text-xs font-medium text-slate-600 group-hover:text-[#0F4C75]">{formatDateOnly(ticket.date)}</td>
+                                                                            <td className="px-2 py-2 text-xs font-medium text-slate-900 group-hover:text-[#0F4C75]">{formatDateOnly(ticket.date)}</td>
                                                                             <td className="px-2 py-2 text-xs font-bold text-slate-700">
                                                                                 {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(ticket.equipmentCost)}
                                                                             </td>
                                                                             <td className="px-2 py-2 text-xs font-bold text-slate-700">
                                                                                 {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(ticket.overheadCost)}
                                                                             </td>
-                                                                            <td className="px-2 py-2 text-xs font-black text-[#0F4C75] text-right">
+                                                                            <td className="px-2 py-2 text-xs font-black text-slate-900 text-right">
                                                                                 {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(ticket.totalCost)}
                                                                             </td>
                                                                             <td></td>
@@ -2524,11 +2525,11 @@ export default function WIPReportClient({
                                 <table className="w-full text-left">
                                     <thead className="sticky top-0 bg-slate-50 z-10 border-b border-slate-200">
                                         <tr className="h-9">
-                                            <th className="px-3 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-28 align-middle">Date</th>
-                                            <th className="px-3 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider align-middle">Description</th>
-                                            <th className="px-3 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-28 align-middle">Equipment</th>
-                                            <th className="px-3 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-28 align-middle">Overhead</th>
-                                            <th className="px-3 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-28 text-right align-middle">Total Cost</th>
+                                            <th className="px-3 py-0 text-[10px] font-black text-slate-200 uppercase tracking-wider w-28 align-middle">Date</th>
+                                            <th className="px-3 py-0 text-[10px] font-black text-slate-200 uppercase tracking-wider align-middle">Description</th>
+                                            <th className="px-3 py-0 text-[10px] font-black text-slate-200 uppercase tracking-wider w-28 align-middle">Equipment</th>
+                                            <th className="px-3 py-0 text-[10px] font-black text-slate-200 uppercase tracking-wider w-28 align-middle">Overhead</th>
+                                            <th className="px-3 py-0 text-[10px] font-black text-slate-200 uppercase tracking-wider w-28 text-right align-middle">Total Cost</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 bg-white">
@@ -2695,12 +2696,12 @@ export default function WIPReportClient({
                                             <table className="w-full text-left">
                                                 <thead className="sticky top-0 bg-slate-50 z-10 border-b border-slate-200">
                                                     <tr className="h-10">
-                                                        <th className="px-4 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider align-middle">Employee</th>
-                                                        <th className="px-4 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-16 text-center align-middle">Days</th>
+                                                        <th className="px-4 py-0 text-[10px] font-black text-slate-200 uppercase tracking-wider align-middle">Employee</th>
+                                                        <th className="px-4 py-0 text-[10px] font-black text-slate-200 uppercase tracking-wider w-16 text-center align-middle">Days</th>
                                                         <th className="px-4 py-0 text-[10px] font-black text-emerald-500 uppercase tracking-wider w-24 text-right align-middle">Regular</th>
                                                         <th className="px-4 py-0 text-[10px] font-black text-amber-500 uppercase tracking-wider w-24 text-right align-middle">OT</th>
                                                         <th className="px-4 py-0 text-[10px] font-black text-rose-500 uppercase tracking-wider w-24 text-right align-middle">DT</th>
-                                                        <th className="px-4 py-0 text-[10px] font-black text-slate-400 uppercase tracking-wider w-24 text-right align-middle">Site Total</th>
+                                                        <th className="px-4 py-0 text-[10px] font-black text-slate-200 uppercase tracking-wider w-24 text-right align-middle">Site Total</th>
                                                         <th className="px-4 py-0 text-[10px] font-black text-blue-500 uppercase tracking-wider w-24 text-right align-middle">Drive</th>
                                                         <th className="px-4 py-0 text-[10px] font-black text-purple-500 uppercase tracking-wider w-24 text-right align-middle">Grand Total</th>
                                                     </tr>
@@ -2728,14 +2729,14 @@ export default function WIPReportClient({
                                                                 <td className="px-4 py-3 text-xs font-bold text-slate-500 text-center tabular-nums">{data.days}</td>
                                                                 <td className="px-4 py-3 text-xs font-black text-emerald-700 text-right tabular-nums">{r2(data.reg).toFixed(2)}</td>
                                                                 <td className="px-4 py-3 text-xs font-black text-right tabular-nums">
-                                                                    {data.ot > 0 ? <span className="text-amber-700">{r2(data.ot).toFixed(2)}</span> : <span className="text-slate-300">—</span>}
+                                                                    {data.ot > 0 ? <span className="text-amber-700">{r2(data.ot).toFixed(2)}</span> : <span className="text-slate-400">—</span>}
                                                                 </td>
                                                                 <td className="px-4 py-3 text-xs font-black text-right tabular-nums">
-                                                                    {data.dt > 0 ? <span className="text-rose-700">{r2(data.dt).toFixed(2)}</span> : <span className="text-slate-300">—</span>}
+                                                                    {data.dt > 0 ? <span className="text-rose-700">{r2(data.dt).toFixed(2)}</span> : <span className="text-slate-400">—</span>}
                                                                 </td>
                                                                 <td className="px-4 py-3 text-xs font-black text-slate-700 text-right tabular-nums">{r2(data.site).toFixed(2)}</td>
                                                                 <td className="px-4 py-3 text-xs font-black text-right tabular-nums">
-                                                                    {data.drive > 0 ? <span className="text-blue-700">{r2(data.drive).toFixed(2)}</span> : <span className="text-slate-300">—</span>}
+                                                                    {data.drive > 0 ? <span className="text-blue-700">{r2(data.drive).toFixed(2)}</span> : <span className="text-slate-400">—</span>}
                                                                 </td>
                                                                 <td className="px-4 py-3 text-sm font-black text-purple-800 text-right tabular-nums">{r2(grandTotal).toFixed(2)}</td>
                                                             </tr>

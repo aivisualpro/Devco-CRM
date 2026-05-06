@@ -117,35 +117,47 @@ export async function resolveProjectIdsFromEntity(entityName: string, entityId: 
             }
         }
         
-        // 3. Bills / Purchases (Expenses) / Journal Entries
-        // These are harder because they can be split across multiple customers (projects) via Lines
-        if (['Bill', 'Purchase', 'JournalEntry', 'VendorCredit'].includes(entityName)) {
-            const res = await qboQuery(`SELECT Line FROM ${entityName} WHERE Id = '${entityId}'`);
-            const txn = res.QueryResponse?.[entityName]?.[0];
+        // 3. Bills / Purchases (Expenses) / Journal Entries / Checks
+        // These can have CustomerRef at transaction level OR within Line items
+        if (['Bill', 'Purchase', 'Expense', 'Check', 'JournalEntry', 'VendorCredit'].includes(entityName)) {
+            // Use Purchase for Expense entity (QB uses Purchase internally for expenses/checks)
+            const qboEntityName = entityName === 'Expense' ? 'Purchase' : entityName;
+            const res = await qboQuery(`SELECT * FROM ${qboEntityName} WHERE Id = '${entityId}'`);
+            const txn = res.QueryResponse?.[qboEntityName]?.[0];
             
             const projectIds = new Set<string>();
-            
-            if (txn && txn.Line) {
-                txn.Line.forEach((line: any) => {
-                    // Check various places where CustomerRef might hide in a Line
-                    const details = line.AccountBasedExpenseLineDetail || 
-                                    line.ItemBasedExpenseLineDetail || 
-                                    line.JournalEntryLineDetail || 
-                                    line.SalesItemLineDetail;
-                                    
-                    if (details) {
-                        // Sometimes it's directly in details.CustomerRef
-                        if (details.CustomerRef?.value) {
-                            projectIds.add(details.CustomerRef.value);
+
+            if (txn) {
+                // Check top-level CustomerRef (some transactions have it here directly)
+                if (txn.CustomerRef?.value) {
+                    projectIds.add(txn.CustomerRef.value);
+                }
+                // EntityRef at top level (some QB transaction types)
+                if (txn.EntityRef?.value && txn.EntityRef?.type === 'Customer') {
+                    projectIds.add(txn.EntityRef.value);
+                }
+
+                // Check each Line item for CustomerRef in detail blocks
+                if (txn.Line) {
+                    txn.Line.forEach((line: any) => {
+                        const details = line.AccountBasedExpenseLineDetail || 
+                                        line.ItemBasedExpenseLineDetail || 
+                                        line.JournalEntryLineDetail || 
+                                        line.SalesItemLineDetail;
+                                        
+                        if (details) {
+                            if (details.CustomerRef?.value) {
+                                projectIds.add(details.CustomerRef.value);
+                            }
+                            if (details.Entity?.EntityRef?.value && details.Entity?.EntityRef?.type === 'Customer') {
+                                projectIds.add(details.Entity.EntityRef.value);
+                            }
                         }
-                        // For Journal Entries, it might be in Entity (Name)
-                        if (details.Entity?.EntityRef?.value && details.Entity?.EntityRef?.type === 'Customer') {
-                            projectIds.add(details.Entity.EntityRef.value);
-                        }
-                    }
-                });
+                    });
+                }
             }
             
+            console.log(`[QBO-SYNC] Resolved project IDs from ${qboEntityName}/${entityId}:`, Array.from(projectIds));
             return Array.from(projectIds);
         }
 
