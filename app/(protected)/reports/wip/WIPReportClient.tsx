@@ -1064,36 +1064,33 @@ export default function WIPReportClient({
                                                     </span>
                                                 </div>
 
-                                                {/* Proposal Writer (20%) */}
+                                                {/* Proposal Writers */}
                                                 <div className="w-full xl:w-[20%] shrink-0 flex flex-row xl:flex-col items-center xl:items-start gap-1.5 xl:gap-0 xl:bg-slate-50 xl:border xl:border-slate-100 xl:rounded-xl xl:p-3 justify-start xl:justify-center">
-                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest xl:mb-1 w-20 xl:w-auto shrink-0">Writer<span className="xl:hidden">:</span></span>
-                                                    <div className="flex items-center gap-2 truncate">
+                                                    <div className="flex items-center gap-3">
                                                         {(selectedProject.proposalWriters || []).length > 0 ? (
-                                                            <div className="flex items-center gap-2 min-w-0">
-                                                                {(selectedProject.proposalWriters || []).map((w: string, idx: number) => {
-                                                                    const emp = employees.find(e => 
-                                                                        `${e.firstName} ${e.lastName}`.toLowerCase() === w.toLowerCase() ||
-                                                                        e.email?.toLowerCase() === w.toLowerCase() ||
-                                                                        e._id?.toLowerCase() === w.toLowerCase()
-                                                                    );
-                                                                    const displayName = emp ? `${emp.firstName} ${emp.lastName}`.trim() : w;
-                                                                    const profilePic = emp?.profilePicture;
-                                                                    return (
-                                                                        <div key={idx} className="flex items-center gap-1.5 shrink-0 min-w-0">
-                                                                            <div className="w-4 h-4 xl:w-5 xl:h-5 rounded-full bg-[#0F4C75] border border-white flex items-center justify-center text-[8px] text-white font-black shadow-sm overflow-hidden shrink-0 hidden xl:flex">
-                                                                                {profilePic ? (
-                                                                                    <img src={profilePic} alt={displayName} className="w-full h-full object-cover" />
-                                                                                ) : (
-                                                                                    displayName.substring(0, 1).toUpperCase()
-                                                                                )}
-                                                                            </div>
-                                                                            <span className="text-[11px] xl:text-sm font-black text-slate-700 truncate">{displayName}</span>
+                                                            (selectedProject.proposalWriters || []).map((w: string, idx: number) => {
+                                                                const emp = employees.find(e => 
+                                                                    `${e.firstName} ${e.lastName}`.toLowerCase() === w.toLowerCase() ||
+                                                                    e.email?.toLowerCase() === w.toLowerCase() ||
+                                                                    e._id?.toLowerCase() === w.toLowerCase()
+                                                                );
+                                                                const displayName = emp ? `${emp.firstName} ${emp.lastName}`.trim() : w;
+                                                                const profilePic = emp?.profilePicture;
+                                                                return (
+                                                                    <div key={idx} className="flex flex-col items-center gap-1 shrink-0">
+                                                                        <div className="w-8 h-8 xl:w-9 xl:h-9 rounded-full bg-[#0F4C75] border-2 border-white flex items-center justify-center text-[11px] text-white font-black shadow overflow-hidden">
+                                                                            {profilePic ? (
+                                                                                <img src={profilePic} alt={displayName} className="w-full h-full object-cover" />
+                                                                            ) : (
+                                                                                displayName.substring(0, 1).toUpperCase()
+                                                                            )}
                                                                         </div>
-                                                                    );
-                                                                })}
-                                                            </div>
+                                                                        <span className="text-[10px] font-bold text-slate-600 text-center leading-tight max-w-[64px] truncate">{displayName.split(' ')[0]}</span>
+                                                                    </div>
+                                                                );
+                                                            })
                                                         ) : (
-                                                            <span className="text-[11px] xl:text-sm font-black text-slate-400 truncate">---</span>
+                                                            <span className="text-[11px] font-black text-slate-400">---</span>
                                                         )}
                                                     </div>
                                                 </div>
