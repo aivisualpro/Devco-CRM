@@ -1467,37 +1467,39 @@ export async function POST(request: NextRequest) {
                 // Note: certifiedPayroll filter is handled via $lookup on Estimate collection (see pipeline below)
 
                 if (filters.employee) {
-                    const empQuery = [
-                        { projectManager: filters.employee },
-                        { foremanName: filters.employee },
-                        { assignees: filters.employee }
-                    ];
-                    // Merge with existing AND/OR structure if necessary, but usually this is standalone AND
-                    // Simplest way for adding to TOP level AND:
-                    if (matchStage.$or && !userEmail && !search) {
-                        // If only other $or exists (unlikely given logic above), rigorous merge needed.
-                        // But here, filters.employee implies an AND requirement on top of others.
-                        // So we use $and explicitly if there's potential conflict, or just implied AND key
-                        // But we can't have duplicate keys in object.
-                        // Let's use $and for safety if we already have complex logic
-                        matchStage.$and = [
-                            ...(matchStage.$and || []),
-                            { $or: empQuery }
-                        ];
+                    // Assignees-only filter
+                    const empQuery = [{ assignees: filters.employee }];
+                    if (matchStage.$and) {
+                        matchStage.$and.push({ $or: empQuery });
+                    } else if (matchStage.$or) {
+                        matchStage.$and = [{ $or: matchStage.$or }, { $or: empQuery }];
+                        delete matchStage.$or;
                     } else {
-                        // If we already have $and
-                        if (matchStage.$and) {
-                            matchStage.$and.push({ $or: empQuery });
-                        } else {
-                            // Create $and to combine with potential existing $or (from search/user) OR just standalone
-                            // Wait, if matchStage.$or exists from search/user, we shouldn't overwrite it.
-                            if (matchStage.$or) {
-                                matchStage.$and = [{ $or: matchStage.$or }, { $or: empQuery }];
-                                delete matchStage.$or;
-                            } else {
-                                matchStage.$or = empQuery;
-                            }
-                        }
+                        matchStage.assignees = filters.employee;
+                    }
+                }
+
+                if (filters.pm) {
+                    // Project Manager-only filter
+                    if (matchStage.$and) {
+                        matchStage.$and.push({ projectManager: filters.pm });
+                    } else if (matchStage.$or) {
+                        matchStage.$and = [{ $or: matchStage.$or }, { projectManager: filters.pm }];
+                        delete matchStage.$or;
+                    } else {
+                        matchStage.projectManager = filters.pm;
+                    }
+                }
+
+                if (filters.foreman) {
+                    // Foreman-only filter
+                    if (matchStage.$and) {
+                        matchStage.$and.push({ foremanName: filters.foreman });
+                    } else if (matchStage.$or) {
+                        matchStage.$and = [{ $or: matchStage.$or }, { foremanName: filters.foreman }];
+                        delete matchStage.$or;
+                    } else {
+                        matchStage.foremanName = filters.foreman;
                     }
                 }
 

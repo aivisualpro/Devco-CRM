@@ -193,7 +193,9 @@ function SchedulesTable({ serverData }: { serverData?: any }) {
     // Filter States
     const [filterEstimate, setFilterEstimate] = useState('');
     const [filterClient, setFilterClient] = useState('');
-    const [filterEmployee, setFilterEmployee] = useState('');
+    const [filterEmployee, setFilterEmployee] = useState('');   // assignees
+    const [filterPM, setFilterPM] = useState('');               // projectManager
+    const [filterForeman, setFilterForeman] = useState('');     // foremanName
     const [filterService, setFilterService] = useState('');
     const [filterTag, setFilterTag] = useState('');
     const [filterCertifiedPayroll, setFilterCertifiedPayroll] = useState('');
@@ -228,6 +230,8 @@ function SchedulesTable({ serverData }: { serverData?: any }) {
         setFilterEstimate('');
         setFilterClient('');
         setFilterEmployee('');
+        setFilterPM('');
+        setFilterForeman('');
         setFilterService('');
         setFilterTag('');
         setFilterCertifiedPayroll('');
@@ -359,7 +363,9 @@ function SchedulesTable({ serverData }: { serverData?: any }) {
                 filters: {
                     estimate: filterEstimate,
                     client: filterClient,
-                    employee: filterEmployee,
+                    employee: filterEmployee,   // assignees
+                    pm: filterPM,              // projectManager
+                    foreman: filterForeman,    // foremanName
                     service: filterService,
                     tag: filterTag,
                     certifiedPayroll: filterCertifiedPayroll
@@ -439,7 +445,7 @@ function SchedulesTable({ serverData }: { serverData?: any }) {
         if (!currentUser) return;
         setPage(1);
         fetchPageData(1, true);
-    }, [search, selectedDates, filterEstimate, filterClient, filterEmployee, filterService, filterTag, filterCertifiedPayroll, currentUser]);
+    }, [search, selectedDates, filterEstimate, filterClient, filterEmployee, filterPM, filterForeman, filterService, filterTag, filterCertifiedPayroll, currentUser]);
 
     // Synchronize selectedSchedule with schedules to ensure right panel immediately updates
     useEffect(() => {
@@ -2312,11 +2318,31 @@ function SchedulesTable({ serverData }: { serverData?: any }) {
                         />
                         <FilterItem
                             id="mobileFilterEmployee"
-                            label="Employee"
-                            placeholder="Select Employee"
+                            label="Assignees"
+                            placeholder="Select Assignee"
                             options={initialData.employees.map(e => ({ label: e.label, value: e.value, image: e.image }))}
                             value={filterEmployee}
                             onChange={setFilterEmployee}
+                            openDropdownId={openDropdownId}
+                            setOpenDropdownId={setOpenDropdownId}
+                        />
+                        <FilterItem
+                            id="mobileFilterPM"
+                            label="Project Manager"
+                            placeholder="Select PM"
+                            options={initialData.employees.map(e => ({ label: e.label, value: e.value, image: e.image }))}
+                            value={filterPM}
+                            onChange={setFilterPM}
+                            openDropdownId={openDropdownId}
+                            setOpenDropdownId={setOpenDropdownId}
+                        />
+                        <FilterItem
+                            id="mobileFilterForeman"
+                            label="Foreman"
+                            placeholder="Select Foreman"
+                            options={initialData.employees.map(e => ({ label: e.label, value: e.value, image: e.image }))}
+                            value={filterForeman}
+                            onChange={setFilterForeman}
                             openDropdownId={openDropdownId}
                             setOpenDropdownId={setOpenDropdownId}
                         />
@@ -2381,14 +2407,34 @@ function SchedulesTable({ serverData }: { serverData?: any }) {
                                     <div className="flex items-center justify-between mb-4 px-2">
                                         <div className="flex gap-1">
                                             <button
-                                                onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() - 1)))}
+                                                onClick={() => {
+                                                    const d = new Date(currentDate);
+                                                    d.setMonth(d.getMonth() - 1);
+                                                    setCurrentDate(new Date(d));
+                                                }}
                                                 className="text-slate-400 hover:text-[#0F4C75] transition-colors scale-75"
                                                 title="Previous Month"
                                             >
                                                 <ChevronsLeft size={24} />
                                             </button>
                                             <button
-                                                onClick={() => setCurrentDate(new Date(currentDate.setDate(currentDate.getDate() - 7)))}
+                                                onClick={() => {
+                                                    const d = new Date(currentDate);
+                                                    d.setDate(d.getDate() - 7);
+                                                    setCurrentDate(new Date(d));
+                                                    // Compute the Mon–Sun week containing 'd' and sync filterWeek
+                                                    const dayOfWeek = d.getUTCDay();
+                                                    const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+                                                    const mon = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate() + diff));
+                                                    const sun = new Date(mon); sun.setUTCDate(mon.getUTCDate() + 6);
+                                                    const fmt = (dt: Date) => `${dt.getUTCFullYear()}-${String(dt.getUTCMonth()+1).padStart(2,'0')}-${String(dt.getUTCDate()).padStart(2,'0')}`;
+                                                    const weekVal = `${fmt(mon)}|${fmt(sun)}`;
+                                                    setFilterWeek(weekVal);
+                                                    const dates: string[] = [];
+                                                    const cur = new Date(mon);
+                                                    for (let k = 0; k < 7; k++) { dates.push(formatLocalDate(cur)); cur.setUTCDate(cur.getUTCDate() + 1); }
+                                                    setSelectedDates(dates);
+                                                }}
                                                 className="text-slate-400 hover:text-[#0F4C75] transition-colors scale-75"
                                                 title="Previous Week"
                                             >
@@ -2398,14 +2444,34 @@ function SchedulesTable({ serverData }: { serverData?: any }) {
                                         <span className="text-sm sm:text-base font-black text-[#0F4C75] tracking-tight">{monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}</span>
                                         <div className="flex gap-1">
                                             <button
-                                                onClick={() => setCurrentDate(new Date(currentDate.setDate(currentDate.getDate() + 7)))}
+                                                onClick={() => {
+                                                    const d = new Date(currentDate);
+                                                    d.setDate(d.getDate() + 7);
+                                                    setCurrentDate(new Date(d));
+                                                    // Compute the Mon–Sun week containing 'd' and sync filterWeek
+                                                    const dayOfWeek = d.getUTCDay();
+                                                    const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+                                                    const mon = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate() + diff));
+                                                    const sun = new Date(mon); sun.setUTCDate(mon.getUTCDate() + 6);
+                                                    const fmt = (dt: Date) => `${dt.getUTCFullYear()}-${String(dt.getUTCMonth()+1).padStart(2,'0')}-${String(dt.getUTCDate()).padStart(2,'0')}`;
+                                                    const weekVal = `${fmt(mon)}|${fmt(sun)}`;
+                                                    setFilterWeek(weekVal);
+                                                    const dates: string[] = [];
+                                                    const cur = new Date(mon);
+                                                    for (let k = 0; k < 7; k++) { dates.push(formatLocalDate(cur)); cur.setUTCDate(cur.getUTCDate() + 1); }
+                                                    setSelectedDates(dates);
+                                                }}
                                                 className="text-slate-400 hover:text-[#0F4C75] transition-colors scale-75"
                                                 title="Next Week"
                                             >
                                                 <ChevronRight size={24} />
                                             </button>
                                             <button
-                                                onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + 1)))}
+                                                onClick={() => {
+                                                    const d = new Date(currentDate);
+                                                    d.setMonth(d.getMonth() + 1);
+                                                    setCurrentDate(new Date(d));
+                                                }}
                                                 className="text-slate-400 hover:text-[#0F4C75] transition-colors scale-75"
                                                 title="Next Month"
                                             >
@@ -2527,11 +2593,33 @@ function SchedulesTable({ serverData }: { serverData?: any }) {
 
                                 <FilterItem
                                     id="filterEmployee"
-                                    label="Employee"
-                                    placeholder="Select Employee"
+                                    label="Assignees"
+                                    placeholder="Select Assignee"
                                     options={initialData.employees.map(e => ({ label: e.label, value: e.value, image: e.image }))}
                                     value={filterEmployee}
                                     onChange={setFilterEmployee}
+                                    openDropdownId={openDropdownId}
+                                    setOpenDropdownId={setOpenDropdownId}
+                                />
+
+                                <FilterItem
+                                    id="filterPM"
+                                    label="Project Manager"
+                                    placeholder="Select PM"
+                                    options={initialData.employees.map(e => ({ label: e.label, value: e.value, image: e.image }))}
+                                    value={filterPM}
+                                    onChange={setFilterPM}
+                                    openDropdownId={openDropdownId}
+                                    setOpenDropdownId={setOpenDropdownId}
+                                />
+
+                                <FilterItem
+                                    id="filterForeman"
+                                    label="Foreman"
+                                    placeholder="Select Foreman"
+                                    options={initialData.employees.map(e => ({ label: e.label, value: e.value, image: e.image }))}
+                                    value={filterForeman}
+                                    onChange={setFilterForeman}
                                     openDropdownId={openDropdownId}
                                     setOpenDropdownId={setOpenDropdownId}
                                 />
