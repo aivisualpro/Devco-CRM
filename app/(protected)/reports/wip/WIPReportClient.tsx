@@ -23,9 +23,10 @@ import { ScheduleCard } from '../../jobs/schedules/components/ScheduleCard';
 import { ScheduleDetailsPopup } from '@/components/ui/ScheduleDetailsPopup';
 import { JHACard } from '../../docs/jha/components/JHACard';
 import { JHAModal } from '../../jobs/schedules/components/JHAModal';
-import { formatDateOnly } from '@/lib/timeCardUtils';
+import { formatDateOnly, calculateTimesheetData } from '@/lib/timeCardUtils';
 import { getLocalNowISO } from '@/lib/scheduleUtils';
 import { formatWallDate } from '@/lib/format/date';
+import { FinancialsView } from './_components/FinancialsView';
 // xlsx is imported dynamically in handleExportExcel to avoid loading the 272KB library in the initial bundle
 
 interface Project {
@@ -228,7 +229,7 @@ export default function WIPReportClient({
     const searchParams = useSearchParams();
 
     const tabs = [
-        { id: 'quickbooks', label: 'QuickBooks' },
+        { id: 'financials', label: 'Financials' },
         { id: 'wip', label: 'WIP' },
     ];
 
@@ -379,7 +380,7 @@ export default function WIPReportClient({
         const tab = searchParams.get('tab');
         const mainTab = searchParams.get('view');
 
-        if (mainTab && ['quickbooks', 'wip'].includes(mainTab)) {
+        if (mainTab && ['financials', 'wip'].includes(mainTab)) {
             setActiveTab(mainTab);
         }
 
@@ -892,81 +893,14 @@ export default function WIPReportClient({
                 } : undefined}
             />
             
-            <main className={`flex-1 flex flex-col min-h-0 ${!selectedProject ? 'p-4' : ''} bg-[#f8fafc]`}>
-                <div className={`flex-1 flex flex-col min-h-0 ${!selectedProject ? 'space-y-6' : ''}`}>
+            <main className={`flex-1 flex flex-col min-h-0 ${!selectedProject && activeTab !== 'financials' ? 'p-4' : ''} bg-[#f8fafc]`}>
+                <div className={`flex-1 flex flex-col min-h-0 ${!selectedProject && activeTab !== 'financials' ? 'space-y-6' : ''}`}>
                     {/* Project Detail Header removed per user request */}
 
                     {/* Tab Content */}
                     <div className="flex-1 flex flex-col min-h-0">
-                        {activeTab === 'quickbooks' && (
-                            <div className="space-y-6 animate-fade-in">
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                    <Card className="p-5 space-y-1.5 border-l-4 border-l-emerald-500 shadow-sm">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Project Income</span>
-                                            <DollarSign className="w-4 h-4 text-emerald-500" />
-                                        </div>
-                                        <div className="text-xl font-black text-slate-900">
-                                            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(filteredProjects.reduce((acc, p) => acc + (p.income || 0), 0))}
-                                        </div>
-                                        <div className="text-[10px] font-bold text-emerald-600 flex items-center gap-1">
-                                            <ChevronDown className="w-3 h-3 rotate-180" /> +12.5%
-                                        </div>
-                                    </Card>
-
-                                    <Card className="p-5 space-y-1.5 border-l-4 border-l-amber-500 shadow-sm">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Project Costs</span>
-                                            <Briefcase className="w-4 h-4 text-amber-500" />
-                                        </div>
-                                        <div className="text-xl font-black text-slate-900">
-                                            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(filteredProjects.reduce((acc, p) => acc + (p.cost || 0), 0))}
-                                        </div>
-                                        <div className="text-[10px] font-bold text-amber-600 flex items-center gap-1">
-                                            <ChevronDown className="w-3 h-3 rotate-180" /> +4.2%
-                                        </div>
-                                    </Card>
-
-                                    <Card className="p-5 space-y-1.5 border-l-4 border-l-[#0F4C75] shadow-sm">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Average Profit</span>
-                                            <LayoutDashboard className="w-4 h-4 text-[#0F4C75]" />
-                                        </div>
-                                        <div className="text-xl font-black text-slate-900">
-                                            {filteredProjects.length > 0 ? Math.floor(filteredProjects.reduce((acc, p) => acc + (p.profitMargin || 0), 0) / filteredProjects.length) : 0}%
-                                        </div>
-                                        <div className="text-[10px] font-bold text-[#0F4C75] flex items-center gap-1">
-                                            Healthy Margin
-                                        </div>
-                                    </Card>
-
-                                    <Card className="p-5 space-y-1.5 border-l-4 border-l-purple-500 shadow-sm">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Active Projects</span>
-                                            <RefreshCw className="w-4 h-4 text-purple-500" />
-                                        </div>
-                                        <div className="text-xl font-black text-slate-900">
-                                            {filteredProjects.length}
-                                        </div>
-                                        <div className="text-[10px] font-bold text-purple-600 flex items-center gap-1">
-                                            Syncing
-                                        </div>
-                                    </Card>
-
-                                    <Card className="p-12 flex flex-col items-center justify-center text-center space-y-4 border-dashed border-2 bg-white/50 col-span-full">
-                                        <div className="p-4 bg-slate-100 rounded-full">
-                                            <LayoutDashboard className="w-12 h-12 text-slate-400" />
-                                        </div>
-                                        <div>
-                                            <h3 className="text-xl font-bold text-slate-900">Charts & Analytics</h3>
-                                            <p className="text-slate-500 max-w-md mx-auto mt-2">
-                                                Visual charts for income vs cost trends and project performance over time are coming soon in the next update.
-                                            </p>
-                                        </div>
-                                    </Card>
-                                </div>
-                            </div>
+                        {activeTab === 'financials' && (
+                            <FinancialsView projects={projects} loading={loading} />
                         )}
 
                         {activeTab === 'wip' && (
@@ -1253,11 +1187,14 @@ export default function WIPReportClient({
                                                 const ticketPct = schedCount > 0 ? Math.round((ticketCount / schedCount) * 100) : 0;
 
                                                 // Hours calculation from timesheet arrays
+                                                // Falls back to calculateTimesheetData() when ts.hours is not pre-stored
                                                 let siteHrs = 0;
                                                 let driveHrs = 0;
                                                 for (const sched of projectSchedules) {
+                                                    const schedDate = sched.fromDate ? new Date(sched.fromDate).toISOString().split('T')[0] : undefined;
                                                     for (const ts of (sched.timesheet || [])) {
-                                                        const h = typeof ts.hours === 'number' ? ts.hours : parseFloat(ts.hours || '0') || 0;
+                                                        const storedH = typeof ts.hours === 'number' ? ts.hours : parseFloat(ts.hours || '') || 0;
+                                                        const h = storedH > 0 ? storedH : (calculateTimesheetData(ts, schedDate).hours || 0);
                                                         const typeLower = (ts.type || '').toLowerCase();
                                                         if (typeLower.includes('drive')) {
                                                             driveHrs += h;
@@ -2499,7 +2436,16 @@ export default function WIPReportClient({
                             for (const sched of projectSchedules) {
                                 const schedDate = sched.fromDate ? new Date(sched.fromDate).toISOString().split('T')[0] : 'unknown';
                                 for (const ts of (sched.timesheet || [])) {
-                                    const h = typeof ts.hours === 'number' ? ts.hours : parseFloat(ts.hours || '0') || 0;
+                                    // Use pre-stored hours if available; otherwise calculate from clockIn/clockOut
+                                    let h: number;
+                                    const storedHours = typeof ts.hours === 'number' ? ts.hours : parseFloat(ts.hours || '') || 0;
+                                    if (storedHours > 0) {
+                                        h = storedHours;
+                                    } else {
+                                        // Compute from clock times using the same utility as the Time Cards page
+                                        const computed = calculateTimesheetData(ts, schedDate);
+                                        h = computed.hours || 0;
+                                    }
                                     if (h <= 0) continue;
                                     const emp = ts.employee || 'Unknown';
                                     const typeLower = (ts.type || '').toLowerCase();

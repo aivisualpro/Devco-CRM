@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { usePathname } from 'next/navigation';
-import { FileText, Sparkles, Settings2, Bot } from 'lucide-react';
+import { FileText, Sparkles, Settings2, Bot, DollarSign } from 'lucide-react';
 import { Header } from '@/components/ui';
 import Link from 'next/link';
 
@@ -14,6 +14,7 @@ export default function GeneralSettingsLayout({ children }: { children: React.Re
         { id: 'sms-variables', path: '/settings/general/sms-variables', label: 'Customizations', icon: <Sparkles className="w-3.5 h-3.5" /> },
         { id: 'workflow', path: '/settings/general/workflow', label: 'Workflow Settings', icon: <Settings2 className="w-3.5 h-3.5" /> },
         { id: 'email-bots', path: '/settings/general/email-bots', label: 'Email Bot', icon: <Bot className="w-3.5 h-3.5" /> },
+        { id: 'financials', path: '/settings/general/financials', label: 'Financials', icon: <DollarSign className="w-3.5 h-3.5" /> },
     ];
 
     return (

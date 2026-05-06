@@ -333,7 +333,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                         </button>
                                     )}
 
-                                    {/* Toggle WIP/QuickBooks */}
+                                    {/* Toggle WIP/Financials */}
                                     <div className="flex p-0.5 bg-slate-200/50 rounded-xl border border-slate-200/50">
                                         <button
                                             onClick={() => wipReportFilters.setActiveTab('wip')}
@@ -342,10 +342,10 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                             WIP
                                         </button>
                                         <button
-                                            onClick={() => wipReportFilters.setActiveTab('quickbooks')}
-                                            className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${wipReportFilters.activeTab === 'quickbooks' ? 'bg-white text-[#0F4C75] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                            onClick={() => wipReportFilters.setActiveTab('financials')}
+                                            className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${wipReportFilters.activeTab === 'financials' ? 'bg-white text-[#0F4C75] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                                         >
-                                            QB
+                                            Financials
                                         </button>
                                     </div>
 

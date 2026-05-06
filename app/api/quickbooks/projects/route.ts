@@ -125,6 +125,32 @@ export const getCachedWipCalculations = unstable_cache(
             }
         });
 
+        // Resolve proposal writer emails → names via Employee collection
+        const allWriterEmails = new Set<string>();
+        estimateDataMap.forEach(data => {
+            data.proposalWriters.forEach(w => { if (w) allWriterEmails.add(w); });
+        });
+
+        let writerNameMap = new Map<string, string>();
+        if (allWriterEmails.size > 0) {
+            const { default: Employee } = await import('@/lib/models/Employee');
+            const employees = await Employee.find(
+                { _id: { $in: Array.from(allWriterEmails) } },
+                { _id: 1, firstName: 1, lastName: 1 }
+            ).lean();
+            employees.forEach((emp: any) => {
+                const name = [emp.firstName, emp.lastName].filter(Boolean).join(' ').trim();
+                if (name) writerNameMap.set(emp._id, name);
+            });
+        }
+
+        // Replace emails with resolved names in the estimateDataMap
+        estimateDataMap.forEach(data => {
+            data.proposalWriters = data.proposalWriters.map(email =>
+                writerNameMap.get(email) || email
+            );
+        });
+
         // Map MongoDB projects to the format expected by the UI
         return projects.map(p => {
             // invoiceIncome & costTypeSum are pre-computed by the aggregation pipeline
@@ -151,6 +177,8 @@ export const getCachedWipCalculations = unstable_cache(
                 FullyQualifiedName: `${p.customer}:${p.project}`,
                 MetaData: { CreateTime: p.startDate || p.createdAt },
                 income,
+                qbCost,
+                devcoCost,
                 cost: totalProjectCost,
                 profitMargin: income > 0 ? Math.round(((income - totalProjectCost) / income) * 100) : 0,
                 status: p.status,
