@@ -101,7 +101,7 @@ export function DataTable<T>({
               {/* Desktop View */}
               <div className="hidden md:flex md:flex-col md:flex-1 md:min-h-0 h-full">
                 <div className="rounded-xl border border-gray-200 bg-white flex flex-col overflow-hidden h-full">
-                  <Table>
+                  <Table className="table-fixed w-full">
                     <TableHeader className="sticky top-0 z-10 bg-white shadow-sm">
                       <TableRow>
                         {columns.map(col => (

@@ -39,11 +39,40 @@ export async function GET(req: NextRequest) {
             }
         }
 
-        const appliedSort: any = (sort || { firstName: 1, lastName: 1 });
-        // Ensure stable sorting by appending _id if not present
-        if (!appliedSort._id) {
-            appliedSort._id = 1;
+        // Map client-side column keys to actual MongoDB field paths
+        let appliedSort: any;
+        if (sort) {
+            // 'name' column sorts by firstName then lastName
+            if (sort['name'] !== undefined) {
+                appliedSort = { firstName: sort['name'], lastName: sort['name'] };
+            }
+            // 'recordId' is stored as string — sort numerically via aggregation
+            else if (sort['recordId'] !== undefined) {
+                const dir = sort['recordId'];
+                const [items, total, totalActive, totalInactive] = await Promise.all([
+                    Employee.aggregate([
+                        { $match: query },
+                        { $addFields: { recordIdNum: { $toInt: { $ifNull: ['$recordId', '0'] } } } },
+                        { $sort: { recordIdNum: dir, _id: 1 } },
+                        { $skip: skip },
+                        { $limit: limit },
+                        { $project: { password: 0, refreshToken: 0, __v: 0 } }
+                    ]),
+                    Employee.countDocuments(baseQuery),
+                    Employee.countDocuments({ ...baseQuery, status: 'Active' }),
+                    Employee.countDocuments({ ...baseQuery, status: { $nin: ['Active', 'deleted'] } })
+                ]);
+                const response = buildPaginationResponse(items as any, total, page, limit);
+                (response as any).counts = { all: total, active: totalActive, inactive: totalInactive };
+                return NextResponse.json(response);
+            } else {
+                appliedSort = sort;
+            }
+        } else {
+            appliedSort = { firstName: 1, lastName: 1 };
         }
+
+        if (!appliedSort._id) appliedSort._id = 1;
 
         let findQuery = Employee.find(query).select('-password -refreshToken -__v');
 

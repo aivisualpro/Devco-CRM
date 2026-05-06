@@ -9,6 +9,7 @@ import { Header, Button, ConfirmModal, Modal, Input, SearchableSelect, Underline
 import { SignaturePad } from '@/components/ui/SignaturePad';
 import { useToast } from '@/hooks/useToast';
 import { EmployeeHeaderCard, AccordionCard, DetailRow } from './components';
+import { EmployeeForm } from '@/components/employees/EmployeeForm';
 import { PageSkeleton } from './loading';
 import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
@@ -858,11 +859,15 @@ export default function EmployeeViewPage() {
         }
     };
 
+    const [isEditOpen, setIsEditOpen] = useState(false);
+    const canEdit = can(MODULES.EMPLOYEES, ACTIONS.EDIT);
+
     if (loading) {
         return <PageSkeleton />;
     }
 
-    if (!employee) return null; // Should redirect in loadEmployee
+
+    if (!employee) return null;
 
     return (
         <div className="flex flex-col h-full bg-gray-50/50">
@@ -883,7 +888,22 @@ export default function EmployeeViewPage() {
                             </TooltipContent>
                         </Tooltip>
                     }
-                    rightContent={null}
+                    rightContent={
+                        canEdit ? (
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={() => setIsEditOpen(true)}
+                                        className="flex items-center gap-2 px-4 py-2 bg-white text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl border border-slate-200 shadow-sm transition-all text-sm font-medium"
+                                    >
+                                        <Pencil className="w-4 h-4" />
+                                        <span className="hidden sm:inline">Edit</span>
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent><p>Edit Employee</p></TooltipContent>
+                            </Tooltip>
+                        ) : null
+                    }
                 />
             </div>
 
@@ -2206,6 +2226,16 @@ export default function EmployeeViewPage() {
                     )}
                 </div>
             </Modal>
+
+            {isEditOpen && (
+                <EmployeeForm
+                    open={isEditOpen}
+                    onOpenChange={setIsEditOpen}
+                    initialData={employee}
+                    onSave={() => loadEmployee()}
+                    roles={[]}
+                />
+            )}
 
         </div>
     );

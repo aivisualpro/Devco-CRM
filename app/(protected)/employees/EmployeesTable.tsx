@@ -139,11 +139,9 @@ const formatPhoneNumber = (value: string) => {
 export default function EmployeesTable({ initialData, initialRoles }: { initialData?: any[], initialRoles?: any[] }) {
     const router = useRouter();
     const { can } = usePermissions();
-    const canEdit = can(MODULES.EMPLOYEES, ACTIONS.EDIT);
-    const canDelete = can(MODULES.EMPLOYEES, ACTIONS.DELETE);
     const canCreate = can(MODULES.EMPLOYEES, ACTIONS.CREATE);
 
-    const [activeTab, setActiveTab] = useState('All');
+    const [activeTab, setActiveTab] = useState('Active');
     const [search, setSearch] = useState('');
     const [sortConfig, setSortConfig] = useState<any>({ key: 'updatedAt', direction: 'desc' });
     const [psMap, setPsMap] = useState<Record<string, { score: number; isPM: boolean; isWriter: boolean }>>({});
@@ -163,42 +161,26 @@ export default function EmployeesTable({ initialData, initialRoles }: { initialD
     } = useInfiniteEmployees({
         q: search,
         status: activeTab === 'All' ? undefined : activeTab,
-        limit: 25
-    }, { fallbackData: initialData });
+        limit: 500
+    } as any, { fallbackData: initialData });
 
     const [roles, setRoles] = useState<any[]>(initialRoles || []);
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentEmployee, setCurrentEmployee] = useState<Partial<Employee> | null>(null);
-    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-    const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isImporting, setIsImporting] = useState(false);
     const { success, error } = useToast();
 
     const openAddModal = () => { setCurrentEmployee(defaultEmployee); setIsModalOpen(true); };
-    const openEditModal = (emp: Employee) => { setCurrentEmployee(emp); setIsModalOpen(true); };
-    const openDeleteModal = (emp: Employee) => { setEmployeeToDelete(emp); setIsDeleteModalOpen(true); };
 
-    const handleDelete = async () => {
-        if (!employeeToDelete) return;
-        try {
-            const res = await fetch(`/api/employees/${employeeToDelete._id}`, { method: 'DELETE' });
-            const data = await res.json();
-            if (data.success) {
-                success('Employee deleted successfully');
-                refetchEmployees();
-            } else {
-                error('Failed to delete employee');
-            }
-        } catch (err) {
-            error('An error occurred');
-        }
-        setIsDeleteModalOpen(false);
-    };
-
-    const handleSort = (key: string, direction: 'asc' | 'desc') => {
-        setSortConfig({ key, direction });
+    const handleSort = (key: string) => {
+        setSortConfig((prev: any) => {
+            const next = prev?.key === key
+                ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
+                : { key, direction: 'asc' };
+            return next;
+        });
     };
 
     const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -239,25 +221,29 @@ export default function EmployeesTable({ initialData, initialRoles }: { initialD
         },
         { 
             key: 'recordId', 
-            header: 'Employee ID', 
+            header: 'Employee ID',
+            width: '110px',
             sortable: true, 
             cell: emp => <span className="text-sm text-gray-600">{emp.recordId || '-'}</span> 
         },
         { 
             key: 'companyPosition', 
-            header: 'Position', 
+            header: 'Position',
+            width: '160px',
             sortable: true, 
             cell: emp => <span className="text-sm">{emp.companyPosition || '-'}</span> 
         },
         { 
             key: 'email', 
-            header: 'Email', 
+            header: 'Email',
+            width: '200px',
             sortable: true, 
-            cell: emp => <span className="text-sm">{emp.email}</span> 
+            cell: emp => <span className="text-sm truncate block max-w-[190px]">{emp.email}</span> 
         },
         { 
             key: 'mobile', 
-            header: 'Phone', 
+            header: 'Phone',
+            width: '130px',
             sortable: true, 
             cell: emp => (
                 <a href={`tel:${emp.mobile || emp.phone}`} className="hover:text-indigo-600 hover:underline whitespace-nowrap text-sm" onClick={e => e.stopPropagation()}>
@@ -267,13 +253,14 @@ export default function EmployeesTable({ initialData, initialRoles }: { initialD
         },
         { 
             key: 'appRole', 
-            header: 'App Role', 
+            header: 'App Role',
+            width: '130px',
             sortable: true, 
             cell: emp => {
                 const role = roles.find(r => r.name === emp.appRole);
                 if (role) {
                     return (
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border whitespace-nowrap" style={{ backgroundColor: `${role.color}15`, color: role.color, borderColor: `${role.color}30` }}>
+                        <div className="inline-flex items-center justify-center w-28 px-2.5 py-1 rounded-lg text-xs font-medium border whitespace-nowrap" style={{ backgroundColor: `${role.color}15`, color: role.color, borderColor: `${role.color}30` }}>
                             {role.name}
                         </div>
                     );
@@ -284,7 +271,8 @@ export default function EmployeesTable({ initialData, initialRoles }: { initialD
         {
             key: 'ps',
             header: 'PS',
-            width: '60px',
+            width: '70px',
+            sortable: true,
             cell: (emp) => {
                 const ps = psMap[emp._id] || psMap[emp.email];
                 if (!ps) return <span className="text-xs text-slate-300">—</span>;
@@ -294,40 +282,13 @@ export default function EmployeesTable({ initialData, initialRoles }: { initialD
         },
         { 
             key: 'status', 
-            header: 'Status', 
+            header: 'Status',
+            width: '90px',
             sortable: true, 
             cell: emp => (
                 <Badge variant={emp.status === 'Active' ? 'success' : 'default'} className="whitespace-nowrap">
                     {emp.status || 'Active'}
                 </Badge>
-            )
-        },
-        { 
-            key: 'actions', 
-            header: 'Actions', 
-            cell: emp => (
-                <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
-                    {canEdit && (
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <button onClick={() => openEditModal(emp)} className="w-8 h-8 flex items-center justify-center bg-white text-slate-400 hover:text-[#0F4C75] hover:bg-slate-50 rounded-full border border-slate-100 shadow-sm transition-all">
-                                    <Pencil className="w-3.5 h-3.5" />
-                                </button>
-                            </TooltipTrigger>
-                            <TooltipContent><p>Edit Employee</p></TooltipContent>
-                        </Tooltip>
-                    )}
-                    {canDelete && (
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <button onClick={() => openDeleteModal(emp)} className="w-8 h-8 flex items-center justify-center bg-white text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full border border-slate-100 shadow-sm transition-all">
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                            </TooltipTrigger>
-                            <TooltipContent><p>Delete Employee</p></TooltipContent>
-                        </Tooltip>
-                    )}
-                </div>
             )
         }
     ];
@@ -417,17 +378,45 @@ export default function EmployeesTable({ initialData, initialRoles }: { initialD
         </>
     );
 
+    // All sorting is client-side since we load all employees at once (limit=500)
+    const sortedEmployees = useMemo(() => {
+        if (!sortConfig) return employees;
+        const { key, direction } = sortConfig;
+        const dir = direction === 'asc' ? 1 : -1;
+
+        return [...employees].sort((a: any, b: any) => {
+            switch (key) {
+                case 'name':
+                    return (`${a.firstName || ''} ${a.lastName || ''}`).trim().toLowerCase()
+                        .localeCompare((`${b.firstName || ''} ${b.lastName || ''}`).trim().toLowerCase()) * dir;
+                case 'recordId': {
+                    const aNum = parseInt(a.recordId || '0', 10) || 0;
+                    const bNum = parseInt(b.recordId || '0', 10) || 0;
+                    return (aNum - bNum) * dir;
+                }
+                case 'ps': {
+                    const aS = psMap[a._id]?.score ?? psMap[a.email]?.score ?? -1;
+                    const bS = psMap[b._id]?.score ?? psMap[b.email]?.score ?? -1;
+                    return (aS - bS) * dir;
+                }
+                default:
+                    return ((a[key] || '').toString().toLowerCase())
+                        .localeCompare((b[key] || '').toString().toLowerCase()) * dir;
+            }
+        });
+    }, [employees, sortConfig, psMap]);
+
     return (
         <div className="h-[100dvh] w-full flex flex-col">
             <DataTable
                 columns={columns}
-                data={employees}
+                data={sortedEmployees}
                 isLoading={loading}
                 isLoadingMore={isValidating && !loading}
                 hasMore={hasMore}
                 onLoadMore={() => setSize(size + 1)}
                 sortConfig={sortConfig}
-                onSort={handleSort as any}
+                onSort={handleSort}
                 emptyState={{ 
                     icon: <Users className="w-12 h-12" />, 
                     title: 'No employees found', 
@@ -449,15 +438,7 @@ export default function EmployeesTable({ initialData, initialRoles }: { initialD
                 />
             )}
 
-            {/* Delete Confirmation Modal */}
-            <ConfirmModal
-                isOpen={isDeleteModalOpen}
-                onClose={() => setIsDeleteModalOpen(false)}
-                onConfirm={handleDelete}
-                title="Delete Employee"
-                message={`Are you sure you want to delete ${employeeToDelete?.firstName} ${employeeToDelete?.lastName}? This action cannot be undone.`}
-                confirmText="Delete Employee"
-            />
+
         </div>
     );
 }
