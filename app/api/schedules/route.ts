@@ -156,10 +156,21 @@ export async function POST(request: NextRequest) {
                 console.log(`[SMS] notifyAssignees=${docAny.notifyAssignees}, shouldNotify=${shouldNotify}, assignees=${JSON.stringify(docAny.assignees)}`);
 
                 let empMap = new Map<string, any>();
-                if (shouldNotify && Array.isArray(docAny.assignees) && docAny.assignees.length > 0) {
-                    const allAssigneeEmails = [...new Set(docAny.assignees || [])] as string[];
-                    const employees = await Employee.find({ email: { $in: allAssigneeEmails } }).select('firstName lastName email phone mobile').lean();
-                    empMap = new Map(employees.map((e: any) => [String(e.email).toLowerCase(), e]));
+                {
+                    // Collect all emails we need to resolve: assignees + creator (for avatar)
+                    const emailsToResolve = new Set<string>(
+                        (Array.isArray(docAny.assignees) ? docAny.assignees : []).map((e: string) => e?.toLowerCase()).filter(Boolean)
+                    );
+                    if (loggedInEmail) emailsToResolve.add(loggedInEmail.toLowerCase());
+                    if (docAny.foremanName) emailsToResolve.add(docAny.foremanName.toLowerCase());
+                    if (docAny.projectManager) emailsToResolve.add(docAny.projectManager.toLowerCase());
+
+                    if (emailsToResolve.size > 0) {
+                        const employees = await Employee.find({ email: { $in: [...emailsToResolve] } })
+                            .select('firstName lastName email phone mobile profilePicture')
+                            .lean();
+                        empMap = new Map(employees.map((e: any) => [String(e.email).toLowerCase(), e]));
+                    }
                 }
 
                 if (shouldNotify && Array.isArray(docAny.assignees) && docAny.assignees.length > 0) {
@@ -418,12 +429,17 @@ export async function POST(request: NextRequest) {
                             const emp = empMap.get(email.toLowerCase());
                             return emp ? {
                                 name: `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
-                                image: emp.profilePicture || emp.image || '',
+                                image: emp.profilePicture || '',
                                 email: emp.email
                             } : { name: email, image: '', email };
                         });
                         const foremanEmp = docAny.foremanName ? empMap.get(docAny.foremanName.toLowerCase()) : null;
                         const pmEmp = docAny.projectManager ? empMap.get(docAny.projectManager.toLowerCase()) : null;
+
+                        // Resolve creator info for notification avatar
+                        const creatorEmp = loggedInEmail ? empMap.get(loggedInEmail.toLowerCase()) : null;
+                        const creatorName = creatorEmp ? `${creatorEmp.firstName || ''} ${creatorEmp.lastName || ''}`.trim() : (loggedInEmail || 'System');
+                        const creatorImage = creatorEmp?.profilePicture || '';
 
                         await createNotifications({
                             recipientEmails,
@@ -436,17 +452,19 @@ export async function POST(request: NextRequest) {
                                 estimate: docAny.estimate,
                                 location: docAny.jobLocation || '',
                                 dateRange,
+                                creatorName,
+                                creatorImage,
                                 assignees: assigneePeople,
                                 foreman: foremanEmp ? {
                                     name: `${foremanEmp.firstName || ''} ${foremanEmp.lastName || ''}`.trim(),
-                                    image: foremanEmp.profilePicture || foremanEmp.image || ''
+                                    image: foremanEmp.profilePicture || ''
                                 } : null,
                                 pm: pmEmp ? {
                                     name: `${pmEmp.firstName || ''} ${pmEmp.lastName || ''}`.trim(),
-                                    image: pmEmp.profilePicture || pmEmp.image || ''
+                                    image: pmEmp.profilePicture || ''
                                 } : null,
                             },
-                            createdBy: docAny.createdBy || payload?.createdBy,
+                            createdBy: loggedInEmail || docAny.createdBy || payload?.createdBy,
                         });
                         console.log('[Notifications] ✅ Schedule notifications created successfully');
                         
