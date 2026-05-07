@@ -256,7 +256,7 @@ export default function WIPReportClient({
                 }
             }
 
-            const response = await fetch('/api/quickbooks/projects');
+            const response = await fetch(`/api/quickbooks/projects${isRefresh ? '?refresh=true' : ''}`);
             const data = await response.json();
             
             if (data.error) {
@@ -348,12 +348,13 @@ export default function WIPReportClient({
             const data = await response.json();
             if (data.success) {
                 toast.success(`Project ${projectId} synced successfully`);
-                // Update the project in the local list
-                const projectResponse = await fetch('/api/quickbooks/projects');
+                // Update the project in the local list — bypass server cache
+                const projectResponse = await fetch('/api/quickbooks/projects?refresh=true');
                 const projectData = await projectResponse.json();
                 if (!projectData.error) {
                     const updatedProject = projectData.find((p: any) => p.Id === projectId);
                     if (updatedProject) {
+                        console.log(`[Sync] Updated project ${projectId}: ar=${updatedProject.ar}, ap=${updatedProject.ap}, income=${updatedProject.income}`);
                         setProjects(prev => prev.map(p => p.Id === projectId ? {
                             ...p,
                             ...updatedProject,
@@ -361,7 +362,9 @@ export default function WIPReportClient({
                             endDate: formatDateOnly(new Date(new Date(updatedProject.MetaData?.CreateTime || updatedProject.startDate).getTime() + 86400000 * 30).toISOString()),
                             income: updatedProject.income || 0,
                             cost: updatedProject.cost || 0,
-                            profitMargin: updatedProject.profitMargin || 0
+                            profitMargin: updatedProject.profitMargin || 0,
+                            ar: updatedProject.ar ?? 0,
+                            ap: updatedProject.ap ?? 0,
                         } : p));
                     }
                 }
@@ -429,8 +432,14 @@ export default function WIPReportClient({
         const newSearch = params.toString();
         const query = newSearch ? `?${newSearch}` : '';
         
-        // Use replace to avoid cluttering history while navigating tabs
-        router.replace(`${pathname}${query}`, { scroll: false });
+        // Use window.history.replaceState to update the URL WITHOUT triggering a
+        // server-side re-render. router.replace causes Next.js to re-run the server
+        // component with getCachedWipCalculations() which overwrites client state
+        // with stale cached data — breaking A/R and A/P values after sync.
+        const newUrl = `${pathname}${query}`;
+        if (typeof window !== 'undefined' && window.location.pathname + window.location.search !== newUrl) {
+            window.history.replaceState(null, '', newUrl);
+        }
     }, [selectedProject, activeDetailTab, activeTab, pathname, router]);
 
     const handleSaveProposal = async (projectId: string) => {
@@ -1141,17 +1150,19 @@ export default function WIPReportClient({
                                                 const profitPct = income > 0 ? ((profit / income) * 100).toFixed(0) : '0';
                                                 // Payment = sum of all Paid Invoices from live transactions
                                                 const payment = transactions
-                                                    .filter((tx: any) => tx.type === 'Invoice' && tx.status === 'Paid')
+                                                    .filter((tx: any) => tx.type === 'Invoice' && (tx.status || '').trim().toLowerCase() === 'paid')
                                                     .reduce((s: number, tx: any) => s + Math.abs(tx.amount || 0), 0);
                                                 // A/R = Income - Payment (always computed from live transactions)
                                                 // This is the correct formula: what was invoiced minus what was collected.
                                                 const ar = Math.max(0, income - payment);
-                                                // A/P = sum of unpaid Bills (Open or Overdue) from live transactions.
-                                                // Bill statuses are enriched during sync — fall back to stored ap if no live Bills found.
-                                                const liveBillsAP = transactions
-                                                    .filter((tx: any) => tx.type === 'Bill' && (tx.status === 'Open' || tx.status === 'Overdue'))
+                                                // A/P = sum of unpaid cost-type transactions (Open or Overdue).
+                                                // Uses ALL costTypes to match the list-view aggregation exactly.
+                                                const payables = transactions
+                                                    .filter((tx: any) => {
+                                                        const stat = (tx.status || 'open').trim().toLowerCase();
+                                                        return costTypes.includes(tx.type) && (stat === 'open' || stat === 'overdue');
+                                                    })
                                                     .reduce((s: number, tx: any) => s + Math.abs(tx.amount || 0), 0);
-                                                const payables = liveBillsAP > 0 ? liveBillsAP : (selectedProject.ap || 0);
 
                                                 const handleCardClick = (card: string) => {
                                                     if (txCardFilter === card) {

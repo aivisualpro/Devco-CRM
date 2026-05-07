@@ -3,8 +3,8 @@ import { connectToDatabase } from '@/lib/db';
 import { DevcoQuickBooks } from '@/lib/models';
 import { unstable_cache } from 'next/cache';
 
-export const getCachedWipCalculations = unstable_cache(
-    async () => {
+// Raw computation — can be called directly to bypass cache
+export async function computeWipCalculations() {
         await connectToDatabase();
 
         console.log('Fetching QuickBooks projects from MongoDB...');
@@ -40,10 +40,13 @@ export const getCachedWipCalculations = unstable_cache(
                         input: { $filter: {
                             input: { $ifNull: ['$transactions', []] },
                             as: 'tx',
-                            // Payment = Type="Invoice" AND Status="Paid" only
+                            // Payment = Invoice transactions that are explicitly Paid.
+                            // Do NOT count 'Cleared' — that's the P&L default for ALL
+                            // transactions and doesn't indicate actual payment status.
                             cond: { $and: [
                                 { $eq: ['$$tx.transactionType', 'Invoice'] },
-                                { $eq: ['$$tx.status', 'Paid'] }
+                                // Case-insensitive exact match for 'paid'
+                                { $eq: [{ $trim: { input: { $toLower: { $ifNull: ['$$tx.status', ''] } } } }, 'paid'] }
                             ]}
                         }},
                         initialValue: 0,
@@ -55,13 +58,16 @@ export const getCachedWipCalculations = unstable_cache(
                         input: { $filter: {
                             input: { $ifNull: ['$transactions', []] },
                             as: 'tx',
+                            // A/P = unpaid cost-type transactions (Open/Overdue).
+                            // Uses ALL cost types to match the detail-view fallback behaviour.
+                            // Default missing status to 'open' and do case-insensitive match.
                             cond: { $and: [
                                 { $in: ['$$tx.transactionType', ['Expense', 'Check', 'Payroll Check', 'Bill']] },
-                                { $in: ['$$tx.status', ['Open', 'Overdue']] }
+                                { $in: [{ $trim: { input: { $toLower: { $ifNull: ['$$tx.status', 'open'] } } } }, ['open', 'overdue']] }
                             ]}
                         }},
                         initialValue: 0,
-                        in: { $add: ['$$value', { $ifNull: ['$$this.amount', 0] }] }
+                        in: { $add: ['$$value', { $abs: { $ifNull: ['$$this.amount', 0] } }] }
                     }
                 }
             }},
@@ -222,7 +228,11 @@ export const getCachedWipCalculations = unstable_cache(
             const devcoCost = p.devcoCost || 0;
             const totalProjectCost = qbCost + devcoCost;
             const payment = (p as any).paymentSum || 0;
-            const ar = income - payment;
+            // A/R = Math.max(0, invoiceIncome - paidInvoiceSum)
+            // Must mirror the detail-view formula exactly (WIPReportClient lines 1143-1148).
+            // Use invoiceIncome (sum of ALL Invoice transactions) — never the blended
+            // `income` which may fall back to QB Profitability and diverge from payment data.
+            const ar = Math.max(0, ((p as any).invoiceIncome || 0) - payment);
             const ap = (p as any).payablesSum || 0;
 
             const estData = p.proposalNumber ? estimateDataMap.get(p.proposalNumber) : null;
@@ -269,16 +279,29 @@ export const getCachedWipCalculations = unstable_cache(
                 })()
             };
         });
-    },
+}
+
+// Cached wrapper — used by default GET requests
+export const getCachedWipCalculations = unstable_cache(
+    computeWipCalculations,
     ['wip-calculations'],
     { tags: ['wip-calculations'], revalidate: 30 }
 );
 export async function GET(req: Request) {
     try {
-        // Cache is busted by the sync route via revalidateTag('wip-calculations').
-        // The ?refresh=true param is kept for backwards compatibility but no longer
-        // needs a special bypass — after sync, the next call will always be fresh.
-        const formattedProjects = await getCachedWipCalculations();
+        const url = new URL(req.url);
+        const forceRefresh = url.searchParams.get('refresh') === 'true';
+
+        // When refresh=true (e.g. after sync), bypass unstable_cache entirely
+        // and run the aggregation live to guarantee fresh A/R, A/P, etc.
+        // revalidateTag alone is unreliable in dev mode.
+        let formattedProjects;
+        if (forceRefresh) {
+            formattedProjects = await computeWipCalculations();
+        }
+        if (!formattedProjects) {
+            formattedProjects = await getCachedWipCalculations();
+        }
 
         console.log(`Returning ${formattedProjects.length} formatted projects`);
         return NextResponse.json(formattedProjects);

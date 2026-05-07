@@ -19,11 +19,13 @@ function WIPReportSkeleton() {
     );
 }
 
-import { getCachedWipCalculations } from '@/app/api/quickbooks/projects/route';
+import { computeWipCalculations } from '@/app/api/quickbooks/projects/route';
 
 async function getInitialProjects() {
     try {
-        const projects = await getCachedWipCalculations();
+        // Always compute fresh — never use unstable_cache here.
+        // The Suspense skeleton handles the ~4s load time gracefully.
+        const projects = await computeWipCalculations();
         return JSON.parse(JSON.stringify(projects));
     } catch (e) {
         console.error('Failed to fetch initial projects', e);
