@@ -746,7 +746,7 @@ export async function POST(request: NextRequest) {
                     _id: item.recordId || item._id
                 }));
                 // Background operations: image propagation, and notifications
-                Promise.resolve().then(async () => {
+                {
 
                 // Propagate images to associated estimates (all versions)
                 // Propagate images to associated estimates (all versions)
@@ -790,8 +790,15 @@ export async function POST(request: NextRequest) {
                     }
 
                     const allGroupDocs = Array.from(notificationGroups.values());
-                    const allAssigneeEmails = [...new Set(allGroupDocs.flatMap((s: any) => s.assignees || []))] as string[];
-                    const allEmployees = await Employee.find({ email: { $in: allAssigneeEmails } }).select('firstName lastName email phone mobile').lean();
+                    // Collect all emails: assignees + foreman + PM + creator for avatar resolution
+                    const allEmailsSet = new Set<string>();
+                    for (const s of allGroupDocs) {
+                        (s.assignees || []).forEach((e: string) => e && allEmailsSet.add(e.toLowerCase()));
+                        if (s.foremanName) allEmailsSet.add(s.foremanName.toLowerCase());
+                        if (s.projectManager) allEmailsSet.add(s.projectManager.toLowerCase());
+                    }
+                    if (loggedInEmail) allEmailsSet.add(loggedInEmail.toLowerCase());
+                    const allEmployees = await Employee.find({ email: { $in: [...allEmailsSet] } }).select('firstName lastName email phone mobile profilePicture').lean();
                     const empMap = new Map(allEmployees.map((e: any) => [String(e.email).toLowerCase(), e]));
 
                     for (const docAny of notificationGroups.values()) {
@@ -848,20 +855,67 @@ export async function POST(request: NextRequest) {
                                 const recipientEmails = Array.from(new Set(rawRecipients)).filter(Boolean);
 
                                 if (recipientEmails.length > 0) {
+                                    const fmtDate = (d: any) => d ? formatWallDate(d) : 'N/A';
                                     const fmtDateShort = (d: any) => d ? formatWallDate(d) : 'N/A';
                                     const fmtTime = (d: any) => d ? formatWallTime(d) : '';
                                     const title = docAny.title || docAny.customerName || 'New Schedule';
+
+                                    // Resolve foreman & PM emails to display names
+                                    const foremanEmpImport = docAny.foremanName ? empMap.get(docAny.foremanName.toLowerCase()) : null;
+                                    const foremanDisplayName = foremanEmpImport ? `${foremanEmpImport.firstName || ''} ${foremanEmpImport.lastName || ''}`.trim() : (docAny.foremanName || '--');
+                                    const pmEmpImport = docAny.projectManager ? empMap.get(docAny.projectManager.toLowerCase()) : null;
+                                    const pmDisplayName = pmEmpImport ? `${pmEmpImport.firstName || ''} ${pmEmpImport.lastName || ''}`.trim() : (docAny.projectManager || '--');
+
                                     const scheduleFields = [
                                         { label: 'Customer', value: docAny.customerName || '--', icon: '🏢' },
                                         { label: 'Job Location', value: docAny.jobLocation || '--', icon: '📍' },
+                                        { label: 'Estimate #', value: docAny.estimate || '--', icon: '📋' },
                                         { label: 'Date', value: `${fmtDateShort(docAny.fromDate)} ${fmtTime(docAny.fromDate)} – ${fmtDateShort(docAny.toDate)} ${fmtTime(docAny.toDate)}`, icon: '📅' },
                                         { label: 'Service', value: docAny.service || '--', icon: '⚡' },
                                         { label: 'Item', value: docAny.item || '--', icon: '🔧' },
+                                        { label: 'Foreman', value: foremanDisplayName, icon: '👷' },
+                                        { label: 'Project Manager', value: pmDisplayName, icon: '👤' },
                                         { label: 'Description', value: docAny.description || '--', icon: '📝' },
+                                        { label: 'Per Diem', value: docAny.perDiem || 'No', icon: '💰' },
+                                        { label: 'Certified Payroll', value: docAny.certifiedPayroll || 'No', icon: '✅' },
+                                        { label: 'Fringe', value: docAny.fringe || '--', icon: '💵' },
                                     ];
                                     const fieldRows = scheduleFields.map((f, i) => `<tr style="background:${i % 2 === 0 ? '#ffffff' : '#f8fafc'};"><td style="padding:10px 16px;border-bottom:1px solid #f1f5f9;font-size:12px;"><span style="margin-right:6px;">${f.icon}</span><strong style="color:#64748b;font-size:10px;text-transform:uppercase;">${f.label}</strong></td><td style="padding:10px 16px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#334155;font-weight:600;">${f.value}</td></tr>`).join('');
 
-                                    const emailHtml = `<!DOCTYPE html><html><body style="margin:0;padding:24px;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;"><div style="max-width:640px;margin:0 auto;background:#fff;border-radius:16px;border:1px solid #e2e8f0;overflow:hidden;"><div style="background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#0f172a 100%);padding:32px 40px;text-align:center;"><p style="margin:0 0 4px 0;font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:2px;">📅 NEW SCHEDULE ASSIGNED</p><h1 style="margin:0;font-size:24px;font-weight:900;color:#fbbf24;">${title}</h1></div><div style="padding:24px 28px;"><table style="width:100%;border-collapse:collapse;">${fieldRows}</table></div></div></body></html>`;
+                                    const assigneeNames = assigneeDocs.map((e: any) => `${e.firstName || ''} ${e.lastName || ''}`.trim()).filter(Boolean);
+
+                                    const emailHtml = `<!DOCTYPE html>
+                                    <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+                                    <body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+                                        <div style="max-width:640px;margin:0 auto;padding:24px;">
+                                            <div style="background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#0f172a 100%);border-radius:16px;padding:32px 40px;text-align:center;margin-bottom:24px;">
+                                                <p style="margin:0 0 4px 0;font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:2px;">📅 NEW SCHEDULE ASSIGNED</p>
+                                                <h1 style="margin:0 0 6px 0;font-size:24px;font-weight:900;color:#fbbf24;letter-spacing:-0.5px;">${title}</h1>
+                                                <p style="margin:0;font-size:13px;color:#cbd5e1;font-weight:500;">${fmtDate(docAny.fromDate)}</p>
+                                            </div>
+                                            <div style="background:#ffffff;border-radius:16px;padding:24px 28px;border:1px solid #e2e8f0;margin-bottom:16px;">
+                                                <p style="margin:0;font-size:14px;color:#334155;line-height:1.6;">
+                                                    Hi Team,<br><br>
+                                                    You have been assigned to a new schedule. Please review the details below.
+                                                </p>
+                                            </div>
+                                            <div style="background:#ffffff;border-radius:16px;padding:0;border:1px solid #e2e8f0;overflow:hidden;margin-bottom:16px;">
+                                                <div style="padding:16px 20px;background:linear-gradient(90deg,#0f172a,#1e293b);">
+                                                    <h2 style="margin:0;font-size:13px;font-weight:800;color:#ffffff;text-transform:uppercase;letter-spacing:1px;">📋 Schedule Details</h2>
+                                                </div>
+                                                <table style="width:100%;border-collapse:collapse;">
+                                                    ${fieldRows}
+                                                </table>
+                                            </div>
+                                            <div style="background:#ffffff;border-radius:16px;padding:20px 28px;border:1px solid #e2e8f0;margin-bottom:16px;">
+                                                <p style="margin:0 0 8px 0;font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:1px;">👥 Assigned Team</p>
+                                                <p style="margin:0;font-size:13px;color:#334155;font-weight:600;">${assigneeNames.join(', ') || 'N/A'}</p>
+                                            </div>
+                                            <div style="text-align:center;padding:16px 0 0 0;">
+                                                <p style="margin:0;font-size:11px;color:#94a3b8;">This is an automated notification from <strong>DEVCO CRM</strong>.</p>
+                                            </div>
+                                        </div>
+                                    </body></html>`;
 
                                     await resendClient.emails.send({
                                         from: `${fromName} <info@devco.email>`,
@@ -927,14 +981,47 @@ export async function POST(request: NextRequest) {
 
                             if (recipientEmails.length > 0) {
                                 const fmtDateShort = (d: any) => d ? formatWallDate(d) : '';
+                                const dateRange = `${fmtDateShort(docAny.fromDate)}${docAny.toDate ? ' – ' + fmtDateShort(docAny.toDate) : ''}`;
+
+                                // Build rich assignee metadata for bell notification
+                                const assigneePeople = (docAny.assignees || []).map((email: string) => {
+                                    const emp = empMap.get(email.toLowerCase());
+                                    return emp ? {
+                                        name: `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
+                                        image: emp.profilePicture || '',
+                                        email: emp.email
+                                    } : { name: email, image: '', email };
+                                });
+                                const foremanEmp = docAny.foremanName ? empMap.get(docAny.foremanName.toLowerCase()) : null;
+                                const pmEmp = docAny.projectManager ? empMap.get(docAny.projectManager.toLowerCase()) : null;
+                                const creatorEmpImport = loggedInEmail ? empMap.get(loggedInEmail.toLowerCase()) : null;
+                                const creatorNameImport = creatorEmpImport ? `${creatorEmpImport.firstName || ''} ${creatorEmpImport.lastName || ''}`.trim() : (loggedInEmail || 'System');
+                                const creatorImageImport = creatorEmpImport?.profilePicture || '';
+
                                 await createNotifications({
                                     recipientEmails,
                                     type: 'schedule_assigned',
                                     title: `New Schedule: ${docAny.title || docAny.customerName || 'Untitled'}`,
-                                    message: `You've been assigned to a schedule${docAny.jobLocation ? ' at ' + docAny.jobLocation : ''}. ${fmtDateShort(docAny.fromDate)} – ${fmtDateShort(docAny.toDate)}`,
+                                    message: `${docAny.estimate || ''} · ${docAny.jobLocation || 'No location'}`,
                                     link: '/jobs/schedules',
-                                    metadata: { scheduleId, estimate: docAny.estimate },
-                                    createdBy: docAny.createdBy || payload?.createdBy,
+                                    metadata: {
+                                        scheduleId,
+                                        estimate: docAny.estimate,
+                                        location: docAny.jobLocation || '',
+                                        dateRange,
+                                        creatorName: creatorNameImport,
+                                        creatorImage: creatorImageImport,
+                                        assignees: assigneePeople,
+                                        foreman: foremanEmp ? {
+                                            name: `${foremanEmp.firstName || ''} ${foremanEmp.lastName || ''}`.trim(),
+                                            image: foremanEmp.profilePicture || ''
+                                        } : null,
+                                        pm: pmEmp ? {
+                                            name: `${pmEmp.firstName || ''} ${pmEmp.lastName || ''}`.trim(),
+                                            image: pmEmp.profilePicture || ''
+                                        } : null,
+                                    },
+                                    createdBy: loggedInEmail || docAny.createdBy || payload?.createdBy,
                                 });
                             }
                         } catch (e) {}
@@ -942,7 +1029,7 @@ export async function POST(request: NextRequest) {
                 } catch (e) {
                     console.error('[Bulk Notification] Error:', e);
                 }
-                }); // End background tasks
+                }
 
                 return NextResponse.json({ success: true, result });
             }
