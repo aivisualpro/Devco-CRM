@@ -8,7 +8,7 @@ import {
     TrendingUp, TrendingDown, Percent, CreditCard,
     BarChart3, Target, ArrowDownToLine, SlidersHorizontal,
     Award, Users, ShieldAlert, Activity, Clock, Zap, AlertTriangle, CheckCircle2,
-    PieChart, Building2, X, Filter, BookmarkPlus,
+    PieChart, Building2, X, Filter, BookmarkPlus, ChevronDown, TableProperties,
 } from 'lucide-react';
 import { DRILL_DEFINITIONS, BANNER_COLORS, buildDrillUrl, clearDrillUrl, DrillKey } from '@/lib/financials/drillDown';
 import { fmtMoney, fmtCurrency } from '@/lib/format/money';
@@ -26,7 +26,11 @@ import { DEFAULT_THRESHOLDS, FinancialThresholds } from '@/lib/constants/financi
 import { computeProjectHealth, HEALTH_COLORS } from '@/lib/financials/projectHealth';
 import { useSavedViews, buildShareUrl, parseShareUrl, ViewFilterState } from './useSavedViews';
 import { SaveViewModal } from './SaveViewModal';
+import { useFinancialsSummary } from './useFinancialsSummary';
 import { SavedViewChips } from './SavedViewChips';
+import { FinancialsSkeleton } from './FinancialsSkeleton';
+import { MetricInfoPopover } from '@/components/ui/MetricInfoPopover';
+
 
 const ProjectHealthHeatmap = dynamic(() => import('./ProjectHealthHeatmap').then(m => ({ default: m.ProjectHealthHeatmap })), {
     ssr: false,
@@ -60,6 +64,10 @@ const CashFlowForecastChart = dynamic(() => import('./CashFlowForecastChart').th
 const RevenueCalendarHeatmap = dynamic(() => import('./RevenueCalendarHeatmap').then(m => ({ default: m.RevenueCalendarHeatmap })), {
     ssr: false,
     loading: () => <ChartSkeleton />,
+});
+const WIPScheduleTable = dynamic(() => import('./WIPScheduleTable').then(m => ({ default: m.WIPScheduleTable })), {
+    ssr: false,
+    loading: () => <div className="h-48 flex items-center justify-center text-slate-400 text-xs">Loading WIP schedule…</div>,
 });
 
 function ChartSkeleton() {
@@ -158,7 +166,6 @@ function computeDateRange(preset: DatePreset): { from: string; to: string } {
 export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf }: FinancialsViewProps) {
     const router = useRouter();
     const searchParams = useSearchParams();
-
     // Drill-down state (read from URL)
     const [drillKey, setDrillKey] = useState<DrillKey | null>(null);
     const [drillValue, setDrillValue] = useState<string | undefined>(undefined);
@@ -309,10 +316,38 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
         return { income, qbCost, jobTicketCost, totalCost, originalContract, changeOrders, profit, marginPct, projectCount, arOutstanding, paymentsReceived, collectedPct, payables, contractValue, backlog, pctComplete, avgProjectSize, eac, overUnderBilling, dso, periodDays };
     }, [filtered, dateFrom, dateTo]);
 
-    // Previous period KPIs for trend
+    // ── Comparison mode (10.4) ─────────────────────────────────────
+    // 'prev' = previous period (already computed), 'yoy' = same period last year, 'off'
+    const [comparisonMode, setComparisonMode] = useState<'prev' | 'yoy' | 'off'>('prev');
+
+    const yoyFiltered = useMemo(() => {
+        if (comparisonMode !== 'yoy' || !dateFrom || !dateTo) return null;
+        const fromD = new Date(dateFrom); const toD = new Date(dateTo);
+        fromD.setFullYear(fromD.getFullYear() - 1); toD.setFullYear(toD.getFullYear() - 1);
+        const yoyFrom = fromD.toISOString().slice(0, 10);
+        const yoyTo   = toD.toISOString().slice(0, 10);
+        return projects.filter(p => {
+            const ref = p.startDate || p.MetaData?.CreateTime;
+            if (!ref) return false;
+            const d = new Date(ref);
+            return d >= new Date(yoyFrom + 'T00:00:00') && d <= new Date(yoyTo + 'T23:59:59');
+        });
+    }, [comparisonMode, projects, dateFrom, dateTo]);
+
+    // Resolve which comparison set to use
+    const activePrevFiltered = comparisonMode === 'off' ? null
+        : comparisonMode === 'yoy' ? yoyFiltered
+        : prevFiltered;
+
+    const trend = (current: number, prev: number | undefined) => {
+        if (comparisonMode === 'off' || prev === undefined || prev === 0) return null;
+        return ((current - prev) / Math.abs(prev)) * 100;
+    };
+
+    // Previous period KPIs for trend — reacts to comparisonMode via activePrevFiltered
     const prevKpis = useMemo(() => {
-        if (!prevFiltered) return null;
-        const sum = (key: keyof Project) => prevFiltered.reduce((s, p) => s + (Number(p[key]) || 0), 0);
+        if (!activePrevFiltered) return null;
+        const sum = (key: keyof Project) => activePrevFiltered.reduce((s, p) => s + (Number(p[key]) || 0), 0);
         const income = sum('income');
         const qbCost = sum('qbCost');
         const jobTicketCost = sum('devcoCost');
@@ -326,15 +361,10 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
         const arOutstanding = sum('ar');
         const paymentsReceived = income - arOutstanding;
         const payables = sum('ap');
-        const projectCount = prevFiltered.length;
+        const projectCount = activePrevFiltered.length;
         const avgProjectSize = projectCount > 0 ? contractValue / projectCount : 0;
         return { income, totalCost, profit, originalContract, changeOrders, contractValue, backlog, marginPct, arOutstanding, paymentsReceived, payables, avgProjectSize };
-    }, [prevFiltered]);
-
-    const trend = (current: number, prev: number | undefined) => {
-        if (prev === undefined || prev === 0) return null;
-        return ((current - prev) / Math.abs(prev)) * 100;
-    };
+    }, [activePrevFiltered]);
 
     // 3.1 — Margin Trend (monthly)
     const marginTrendData = useMemo(() => {
@@ -470,7 +500,39 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
             .catch(() => {});
     }, []);
 
-    // ── Chart data memos (use thresholds — must come after its declaration) ──
+    // ── WIP Schedule rows (audit-grade, derived after thresholds loaded) ──
+    const wipRows = useMemo(() => {
+        return filtered.map(p => {
+            const pAny = p as any;
+            const contractValue = (p.originalContract || 0) + (p.changeOrders || 0);
+            const estimatedCost = contractValue * (1 - ((pAny.targetMarginPct ?? thresholds.targetGrossMarginPct) / 100));
+            const costToDate    = (p.qbCost || 0) + (p.devcoCost || 0);
+            const earnedRevenue = p.income || 0;
+            const arAdjusted    = p.ar || 0;
+            const realBilled    = earnedRevenue + arAdjusted;
+            const oub           = realBilled - earnedRevenue;
+            const pctComplete   = contractValue > 0 ? Math.min(100, (earnedRevenue / contractValue) * 100) : 0;
+            const marginPct     = earnedRevenue > 0 ? ((earnedRevenue - costToDate) / earnedRevenue) * 100 : 0;
+
+            return {
+                id:             p.Id || pAny._id?.toString() || Math.random().toString(36),
+                project:        p.DisplayName || pAny.Name || '—',
+                customer:       p.CompanyName || '—',
+                proposalNumber: p.proposalNumber,
+                proposalSlug:   p.proposalSlug,
+                contractValue,
+                estimatedCost:  estimatedCost > 0 ? estimatedCost : costToDate * 1.2,
+                costToDate,
+                pctComplete,
+                earnedRevenue,
+                billedToDate:   realBilled,
+                overUnderBilled: oub,
+                marginPct,
+            };
+        });
+    }, [filtered, thresholds]);
+
+
 
     // 3.5 — Bullet vs Target rows (org + top PMs)
     const bulletRows = useMemo(() => {
@@ -672,6 +734,19 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
 
     const hasActiveFilters = datePreset !== 'all_time' || proposalWriters.length > 0 || statuses.length > 0 || customers.length > 0;
 
+    // ── Server-side aggregated summary (SWR, keepPreviousData) ────────
+    const { summary, isRefetching } = useFinancialsSummary({
+        datePreset,
+        dateFrom: datePreset === 'custom' ? customFrom : dateFrom,
+        dateTo:   datePreset === 'custom' ? customTo   : dateTo,
+        proposalWriters,
+        statuses,
+        customers,
+    });
+    // summary is available for future chart migration; currently the
+    // dashboard computes client-side from `filtered` for full reactivity.
+    // Gradually migrate heavy memos to consume `summary` instead.
+
     const resetFilters = useCallback(() => {
         setDatePreset('all_time');
         setCustomFrom('');
@@ -714,6 +789,8 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
             .then(data => { if (data?.sparklines) setSparklines(data.sparklines); })
             .catch(() => {});
     }, [datePreset, dateFrom, dateTo, proposalWriters, statuses, customers]);
+
+    const [showWipSchedule, setShowWipSchedule] = useState(false);
 
     // ── Saved views ──────────────────────────────────────────────────
     const { views: savedViews, saving: savingView, saveView: persistView, deleteView, renameView } = useSavedViews();
@@ -783,13 +860,32 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
         ? `${customFrom} — ${customTo}`
         : datePreset.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
 
+    // ── Pusher real-time (10.8) ────────────────────────────────────
+    // Subscribe to 'financials-updated' after any QB sync — auto-refresh SWR
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        let channel: any;
+        import('@/lib/realtime/pusher-client').then(({ getPusherClient }) => {
+            const pusher = getPusherClient();
+            if (!pusher) return;
+            channel = pusher.subscribe('private-org-financials');
+            channel.bind('financials-updated', () => {
+                // Bust the SWR key — summary will refetch with keepPreviousData
+                import('swr').then(({ mutate }) => {
+                    mutate((key: string) => typeof key === 'string' && key.startsWith('/api/financials/summary'), undefined, { revalidate: true });
+                });
+            });
+        }).catch(() => {});
+        return () => { try { channel?.unsubscribe(); } catch {} };
+    }, []);
+
     if (loading) {
         return (
             <div className="flex h-full">
                 <div className="hidden md:block w-[280px] shrink-0 border-r border-slate-200/80 p-4 space-y-4">
                     {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-9 w-full rounded-lg" />)}
                 </div>
-                <div className="flex-1 p-4 md:p-6"><KpiSkeleton /></div>
+                <FinancialsSkeleton />
             </div>
         );
     }
@@ -852,11 +948,18 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
                         <span className="shrink-0">Margin <span className={`ml-1 ${kpis.marginPct >= 0 ? 'text-green-700' : 'text-red-600'}`}>{kpis.marginPct.toFixed(1)}%</span></span>
                         <span className="shrink-0" title={fmtCurrency(kpis.backlog)}>Backlog <span className="text-blue-700 ml-1">{fmtMoney(kpis.backlog)}</span></span>
                         <span className="shrink-0">Projects <span className="text-slate-800 ml-1">{kpis.projectCount}</span></span>
+                        {/* Refetching indicator — subtle pulse when server summary is refreshing */}
+                        {isRefetching && (
+                            <span className="shrink-0 flex items-center gap-1 text-[9px] font-bold text-slate-400 ml-auto" title="Refreshing data…">
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                                Refreshing
+                            </span>
+                        )}
                         {/* Save view button in sticky bar */}
                         <button
                             type="button"
                             onClick={() => setSaveModalOpen(true)}
-                            className="ml-auto shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-black hover:bg-blue-100 transition-colors"
+                            className={`shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-black hover:bg-blue-100 transition-colors ${isRefetching ? '' : 'ml-auto'}`}
                             title="Save current view"
                         >
                             <BookmarkPlus className="w-3 h-3" />
@@ -976,6 +1079,25 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
                     <p className="text-xs text-slate-500">Generated {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
                 </div>
 
+                {/* ── Period comparison toggle (10.4) ─────────────────── */}
+                <div className="flex items-center justify-end print:hidden">
+                    <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5 text-[10px] font-black">
+                        {(['prev', 'yoy', 'off'] as const).map(mode => {
+                            const labels = { prev: 'vs Prev Period', yoy: 'vs Last Year', off: 'Off' };
+                            return (
+                                <button
+                                    key={mode}
+                                    type="button"
+                                    onClick={() => setComparisonMode(mode)}
+                                    className={`px-2.5 py-1 rounded-md transition-all ${comparisonMode === mode ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    {labels[mode]}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
                 {/* ── Drill-down Banner ─────────────────────────────── */}
                 {drillKey && (() => {
                     const def = DRILL_DEFINITIONS[drillKey];
@@ -1056,6 +1178,8 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
                                 <HeroKpiCard
                                     label="Earned Revenue"
                                     value={fmtMoney(kpis.income)}
+                                    rawValue={kpis.income}
+                                    rawFormatter={fmtMoney}
                                     icon={<DollarSign className="w-3.5 h-3.5" />}
                                     secondary={`from ${kpis.projectCount} projects`}
                                     trend={trend(kpis.income, prevKpis?.income)}
@@ -1063,26 +1187,33 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
                                     sparklineColor="var(--metric-positive)"
                                     onClick={() => drill('revenue')}
                                     title="Click to drill into revenue projects"
+                                    metricId="earnedRevenue"
                                 />
                                 {/* Hero: Backlog */}
                                 <HeroKpiCard
                                     label="Backlog"
                                     value={fmtMoney(kpis.backlog)}
+                                    rawValue={kpis.backlog}
+                                    rawFormatter={fmtMoney}
                                     icon={<ArrowDownToLine className="w-3.5 h-3.5" />}
                                     secondary={backlogMonths > 0 ? `${backlogMonths.toFixed(1)} mo at current run rate` : 'remaining to bill'}
                                     trend={trend(kpis.backlog, prevKpis?.backlog)}
                                     sparkline={sparklines?.backlog}
                                     sparklineColor="var(--metric-info)"
                                     inverseSemantic
+                                    metricId="backlog"
                                 />
                                 {/* Hero: Win Rate */}
                                 <HeroKpiCard
                                     label="Win Rate"
                                     value={`${winRate.toFixed(0)}%`}
+                                    rawValue={winRate}
+                                    rawFormatter={n => `${n.toFixed(0)}%`}
                                     icon={<Target className="w-3.5 h-3.5" />}
                                     secondary={`${filtered.filter(p => (p.income || 0) > 0).length} won of ${filtered.length} proposals`}
                                     trend={trend(winRate, prevWinRate ?? undefined)}
                                     sparklineColor="var(--metric-positive)"
+                                    metricId="winRate"
                                 />
                                 {/* Composite: Pipeline Health Score */}
                                 <CompositeKpiCard
@@ -1134,6 +1265,7 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
                                     sparklineColor={kpis.profit >= 0 ? 'var(--metric-positive)' : 'var(--metric-negative)'}
                                     onClick={() => drill('profit')}
                                     title="Click to drill into most profitable projects"
+                                    metricId="grossProfit"
                                 />
                                 {/* Hero: Gross Margin with target band */}
                                 <HeroKpiCard
@@ -1157,6 +1289,7 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
                                     }
                                     onClick={() => drill('margin')}
                                     title="Click to see lowest-margin projects"
+                                    metricId="grossMargin"
                                 />
                                 {/* Distribution: Cost Breakdown */}
                                 <DistributionKpiCard
@@ -1171,6 +1304,7 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
                                         { label: 'Other', value: kpis.jobTicketCost * 0.4, color: '#94a3b8' },
                                     ]}
                                     totalLabel={`${kpis.income > 0 ? ((kpis.totalCost / kpis.income) * 100).toFixed(0) : 0}% of revenue`}
+                                    metricId="costBreakdown"
                                 />
                                 {/* Hero: Cost Variance vs Estimate */}
                                 <HeroKpiCard
@@ -1181,6 +1315,7 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
                                     trend={prevCostVariance != null ? trend(costVariance, prevCostVariance) : null}
                                     inverseSemantic
                                     sparklineColor={costVariance > 4 ? 'var(--metric-negative)' : costVariance > 0 ? 'var(--metric-warning)' : 'var(--metric-positive)'}
+                                    metricId="costVariance"
                                 />
                             </div>
                         </div>
@@ -1211,6 +1346,7 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
                                     sparklineColor="var(--metric-warning)"
                                     onClick={() => drill('ar-outstanding')}
                                     title="Click to drill into outstanding receivables"
+                                    metricId="arOutstanding"
                                 />
                                 {/* Hero: DSO */}
                                 <HeroKpiCard
@@ -1220,6 +1356,7 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
                                     secondary={kpis.dso > (thresholds.dsoWarningDays) ? 'Over target — collect faster' : `over ${kpis.periodDays}d period`}
                                     inverseSemantic
                                     sparklineColor={kpis.dso > (thresholds.dsoWarningDays) ? 'var(--metric-negative)' : 'var(--metric-warning)'}
+                                    metricId="dso"
                                 />
                                 {/* Forecast: Cash Flow 30/60/90 */}
                                 <ForecastKpiCard
@@ -1232,6 +1369,7 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
                                     progressPct={Math.min(100, (cashForecast.d30.inflow / Math.max(1, cashForecast.d30.outflow)) * 50)}
                                     variant={(cashForecast.d30.inflow - cashForecast.d30.outflow) >= 0 ? 'positive' : 'negative'}
                                     note={`60d: ${fmtMoney(cashForecast.d60.inflow - cashForecast.d60.outflow)} · Inflow ${fmtMoney(cashForecast.d30.inflow)}/mo`}
+                                    metricId="cash-flow-forecast"
                                 />
                                 {/* Hero: Payables */}
                                 <HeroKpiCard
@@ -1241,6 +1379,7 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
                                     secondary={kpis.income > 0 ? `${((kpis.payables / kpis.income) * 100).toFixed(0)}% of revenue` : undefined}
                                     trend={trend(kpis.payables, prevKpis?.payables)}
                                     inverseSemantic
+                                    metricId="payables"
                                 />
                             </div>
                         </div>
@@ -1261,6 +1400,7 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
                                     icon={<Zap className="w-3.5 h-3.5" />}
                                     secondary="revenue per labor hour"
                                     sparklineColor="var(--metric-positive)"
+                                    metricId="laborProductivity"
                                 />
                                 {/* Hero: Avg Project Duration */}
                                 <HeroKpiCard
@@ -1389,6 +1529,7 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
                                                 { label: 'Top 3 Combined', count: Math.round(topCustomers.slice(0, 3).reduce((s, c) => s + (kpis.income > 0 ? (c.income / kpis.income) * 100 : 0), 0)), severity: 'info' },
                                             ]}
                                             note={concentrationRisk > 35 ? 'High concentration — top customer exceeds 35% threshold' : concentrationRisk > 25 ? 'Moderate risk — consider diversifying' : 'Healthy diversification'}
+                                            metricId="customer-concentration"
                                         />
                                         {/* Risk: Compliance */}
                                         <RiskKpiCard
@@ -1437,7 +1578,7 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
                             {/* 3.1 — Margin Trend */}
                             <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
                                 <h3 className="text-sm font-black text-slate-800 mb-4">Margin Trend (Last 12 Months)</h3>
-                                <MarginTrendChart data={marginTrendData} targetMargin={thresholds.targetGrossMarginPct} />
+                                <MarginTrendChart data={marginTrendData} targetMargin={thresholds.targetGrossMarginPct} metricId="margin-trend" />
                             </div>
 
                             {/* 3.2 — AR Aging */}
@@ -1446,13 +1587,13 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
                                     <h3 className="text-sm font-black text-slate-800">A/R Aging</h3>
                                     <span className="text-[10px] font-bold text-slate-400 uppercase">by project start date</span>
                                 </div>
-                                <ARAgingChart data={arAgingData} totalAR={kpis.arOutstanding} />
+                                <ARAgingChart data={arAgingData} totalAR={kpis.arOutstanding} metricId="ar-aging" />
                             </div>
 
                             {/* 3.3 — Customer Concentration */}
                             <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
                                 <h3 className="text-sm font-black text-slate-800 mb-3">Customer Concentration</h3>
-                                <CustomerConcentrationChart data={topCustomers} totalIncome={kpis.income} />
+                                <CustomerConcentrationChart data={topCustomers} totalIncome={kpis.income} metricId="customer-concentration" />
                             </div>
 
                             {/* 3.4 — Revenue vs Backlog Waterfall */}
@@ -1480,7 +1621,7 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
                                     <h3 className="text-sm font-black text-slate-800">Cash Flow Forecast</h3>
                                     <p className="text-[11px] text-slate-400 mt-0.5">Expected inflow / outflow — next 90 days</p>
                                 </div>
-                                <CashFlowForecastChart data={cashForecast30_60_90} />
+                                <CashFlowForecastChart data={cashForecast30_60_90} metricId="cash-flow-forecast" />
                             </div>
 
                             {/* 3.7 — Revenue Calendar Heatmap */}
@@ -1514,6 +1655,7 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
                                             <h3 className="text-sm font-black text-slate-800">Project Health Heatmap</h3>
                                             <p className="text-[11px] text-slate-400 mt-0.5">Each tile = one project, colored by composite health score. Hover for breakdown.</p>
                                         </div>
+                                        <MetricInfoPopover metricId="health-heatmap" align="end" iconSize={14} />
                                         <div className="flex items-center gap-2 shrink-0">
                                             {criticalCount > 0 && (
                                                 <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-red-50 border border-red-200 text-[11px] font-black text-red-700">
@@ -1656,6 +1798,50 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
                         })()}
                     </>
                 )}
+
+                {/* ═══════════════════════════════════════════════════
+                    SECTION 12 — WIP SCHEDULE (Audit-grade)
+                    Hidden by default, always printed. 
+                    ═══════════════════════════════════════════════════ */}
+                <div className="px-4 md:px-6 pb-6 space-y-4">
+                    {/* Disclosure toggle */}
+                    <div className="print:hidden">
+                        <button
+                            type="button"
+                            onClick={() => setShowWipSchedule(v => !v)}
+                            className="w-full flex items-center gap-3 py-3 group"
+                        >
+                            <div className="flex-1 h-px bg-slate-200" />
+                            <div className="flex items-center gap-2 shrink-0 px-3 py-1.5 rounded-full border border-slate-200 bg-white shadow-sm text-[11px] font-black text-slate-600 group-hover:border-blue-300 group-hover:text-blue-700 group-hover:bg-blue-50 transition-all">
+                                <TableProperties className="w-3.5 h-3.5" />
+                                {showWipSchedule ? 'Hide WIP Schedule' : 'Show WIP Schedule'}
+                                <span className="text-slate-300">—</span>
+                                <span className="font-medium text-slate-400">Audit-grade construction schedule</span>
+                                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${showWipSchedule ? 'rotate-180' : ''}`} />
+                            </div>
+                            <div className="flex-1 h-px bg-slate-200" />
+                        </button>
+                    </div>
+
+                    {/* Table — visible when open; always shown on print */}
+                    <div className={`${showWipSchedule ? '' : 'hidden'} print:block`}>
+                        <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
+                            <div className="flex items-center justify-between mb-4">
+                                <div>
+                                    <h3 className="text-sm font-black text-slate-800">WIP Schedule</h3>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">
+                                        Percentage-of-completion method &middot; {periodLabel}
+                                    </p>
+                                </div>
+                                <div className="hidden print:flex items-center gap-2 text-[10px] text-slate-400 font-medium">
+                                    Generated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                                </div>
+                            </div>
+                            <WIPScheduleTable rows={wipRows} periodLabel={periodLabel} />
+                        </div>
+                    </div>
+                </div>
+
                 </div> {/* end inner padding wrapper */}
             </div>
 

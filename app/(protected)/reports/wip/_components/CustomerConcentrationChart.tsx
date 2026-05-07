@@ -6,10 +6,12 @@ import {
     Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
 import { fmtMoney } from '@/lib/format/money';
+import { MetricInfoPopover } from '@/components/ui/MetricInfoPopover';
 
 interface CustomerConcentrationChartProps {
     data: { customer: string; income: number }[];
     totalIncome: number;
+    metricId?: string;
 }
 
 const BAR_PALETTE = [
@@ -17,7 +19,7 @@ const BAR_PALETTE = [
     '#06b6d4', '#ec4899', '#64748b', '#f97316',
 ];
 
-export function CustomerConcentrationChart({ data, totalIncome }: CustomerConcentrationChartProps) {
+export function CustomerConcentrationChart({ data, totalIncome, metricId }: CustomerConcentrationChartProps) {
     if (!data || data.length === 0) {
         return (
             <div className="flex items-center justify-center h-[280px] text-slate-400 text-sm">
@@ -39,6 +41,12 @@ export function CustomerConcentrationChart({ data, totalIncome }: CustomerConcen
 
     return (
         <div className="w-full">
+            {metricId && (
+                <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Customer Concentration</span>
+                    <MetricInfoPopover metricId={metricId} align="end" iconSize={13} />
+                </div>
+            )}
             {/* Pareto concentration chips */}
             <div className="flex items-center gap-2 mb-3 flex-wrap">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Concentration:</span>

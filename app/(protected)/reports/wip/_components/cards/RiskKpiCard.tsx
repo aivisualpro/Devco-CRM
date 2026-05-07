@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { MetricInfoPopover } from '@/components/ui/MetricInfoPopover';
 
 export interface RiskBucket {
     label: string;
@@ -17,6 +18,7 @@ interface RiskKpiCardProps {
     buckets: RiskBucket[];
     note?: string;
     onClick?: () => void;
+    metricId?: string;
 }
 
 const SEV_STYLES: Record<string, { dot: string; pill: string }> = {
@@ -27,7 +29,7 @@ const SEV_STYLES: Record<string, { dot: string; pill: string }> = {
 };
 
 export function RiskKpiCard({
-    icon, label, totalCount, totalLabel = 'issues', buckets, note, onClick,
+    icon, label, totalCount, totalLabel = 'issues', buckets, note, onClick, metricId,
 }: RiskKpiCardProps) {
     // Determine overall severity from highest-severity bucket with count > 0
     const sevOrder = ['critical', 'warning', 'info', 'positive'];
@@ -54,17 +56,20 @@ export function RiskKpiCard({
             `}
         >
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between overflow-visible">
                 <div className="flex items-center gap-1.5">
                     <span className="text-slate-400">{icon}</span>
                     <span className="text-[10px] font-black uppercase tracking-[0.13em] text-slate-500">
                         {label}
                     </span>
                 </div>
-                {/* Pulsing dot when there are active issues */}
-                {totalCount > 0 && (
-                    <span className={`w-2 h-2 rounded-full ${totalStyle.dot} animate-pulse`} />
-                )}
+                <div className="flex items-center gap-2">
+                    {metricId && <MetricInfoPopover metricId={metricId} align="end" iconSize={13} />}
+                    {/* Pulsing dot when there are active issues */}
+                    {totalCount > 0 && (
+                        <span className={`w-2 h-2 rounded-full ${totalStyle.dot} animate-pulse`} />
+                    )}
+                </div>
             </div>
 
             {/* Big count */}

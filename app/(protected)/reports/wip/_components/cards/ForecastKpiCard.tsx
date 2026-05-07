@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { MetricInfoPopover } from '@/components/ui/MetricInfoPopover';
 
 interface ForecastKpiCardProps {
     icon: React.ReactNode;
@@ -14,9 +15,9 @@ interface ForecastKpiCardProps {
     /** 0-100 — how far along we are (actual / projected) */
     progressPct: number;
     note?: string;
-    /** positive = good, negative = bad, neutral = unknown */
     variant?: 'positive' | 'negative' | 'neutral' | 'warning';
     onClick?: () => void;
+    metricId?: string;
 }
 
 const VARIANT_STYLES = {
@@ -41,7 +42,7 @@ const VARIANT_STYLES = {
 export function ForecastKpiCard({
     icon, label, currentValue, currentLabel = 'Actual',
     projectedValue, projectedLabel = 'Forecast',
-    progressPct, note, variant = 'neutral', onClick,
+    progressPct, note, variant = 'neutral', onClick, metricId,
 }: ForecastKpiCardProps) {
     const styles = VARIANT_STYLES[variant];
 
@@ -59,11 +60,14 @@ export function ForecastKpiCard({
             `}
         >
             {/* Header */}
-            <div className="flex items-center gap-1.5">
-                <span className="text-slate-400">{icon}</span>
-                <span className="text-[10px] font-black uppercase tracking-[0.13em] text-slate-500">
-                    {label}
-                </span>
+            <div className="flex items-center justify-between overflow-visible">
+                <div className="flex items-center gap-1.5">
+                    <span className="text-slate-400">{icon}</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.13em] text-slate-500">
+                        {label}
+                    </span>
+                </div>
+                {metricId && <MetricInfoPopover metricId={metricId} align="end" iconSize={13} />}
             </div>
 
             {/* Two-column values */}

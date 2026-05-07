@@ -2,10 +2,12 @@
 
 import React, { useState } from 'react';
 import { fmtMoney } from '@/lib/format/money';
+import { MetricInfoPopover } from '@/components/ui/MetricInfoPopover';
 
 interface ARAgingChartProps {
     data: { bucket: string; amount: number; color: string }[];
     totalAR: number;
+    metricId?: string;
 }
 
 const BUCKET_META: Record<string, { color: string; label: string; risk: string }> = {
@@ -15,7 +17,7 @@ const BUCKET_META: Record<string, { color: string; label: string; risk: string }
     '91+':   { color: '#ef4444', label: '91d+',   risk: 'Critical' },
 };
 
-export function ARAgingChart({ data, totalAR }: ARAgingChartProps) {
+export function ARAgingChart({ data, totalAR, metricId }: ARAgingChartProps) {
     const [hovered, setHovered] = useState<string | null>(null);
 
     if (!data || data.length === 0 || totalAR <= 0) {
@@ -36,6 +38,12 @@ export function ARAgingChart({ data, totalAR }: ARAgingChartProps) {
 
     return (
         <div className="w-full space-y-4">
+            {metricId && (
+                <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">A/R Aging</span>
+                    <MetricInfoPopover metricId={metricId} align="end" iconSize={13} />
+                </div>
+            )}
             {/* Summary chips */}
             <div className="flex items-center gap-3 flex-wrap">
                 <div className="flex flex-col">

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { MetricInfoPopover } from '@/components/ui/MetricInfoPopover';
 
 export interface ListKpiRow {
     rank: number;
@@ -22,10 +23,11 @@ interface ListKpiCardProps {
     bottomRows?: ListKpiRow[];
     dividerLabel?: string;
     onClick?: () => void;
+    metricId?: string;
 }
 
 export function ListKpiCard({
-    icon, label, topRows, bottomRows, dividerLabel, onClick,
+    icon, label, topRows, bottomRows, dividerLabel, onClick, metricId,
 }: ListKpiCardProps) {
     return (
         <div
@@ -41,11 +43,14 @@ export function ListKpiCard({
             `}
         >
             {/* Header */}
-            <div className="flex items-center gap-1.5">
-                <span className="text-slate-400">{icon}</span>
-                <span className="text-[10px] font-black uppercase tracking-[0.13em] text-slate-500">
-                    {label}
-                </span>
+            <div className="flex items-center justify-between overflow-visible">
+                <div className="flex items-center gap-1.5">
+                    <span className="text-slate-400">{icon}</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.13em] text-slate-500">
+                        {label}
+                    </span>
+                </div>
+                {metricId && <MetricInfoPopover metricId={metricId} align="end" iconSize={13} />}
             </div>
 
             {/* Top rows */}

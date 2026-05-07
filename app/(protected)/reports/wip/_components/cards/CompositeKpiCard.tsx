@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { MetricInfoPopover } from '@/components/ui/MetricInfoPopover';
 
 export interface CompositeRow {
     label: string;
@@ -14,13 +15,12 @@ export interface CompositeRow {
 interface CompositeKpiCardProps {
     icon: React.ReactNode;
     label: string;
-    /** Big score displayed top-right, e.g. "72" or "A-" */
     score: string;
-    /** Score color variant */
     scoreVariant?: 'positive' | 'negative' | 'warning' | 'neutral' | 'info';
     scoreSubtext?: string;
     rows: CompositeRow[];
     onClick?: () => void;
+    metricId?: string;
 }
 
 const SCORE_STYLES: Record<string, string> = {
@@ -40,7 +40,7 @@ const BAR_DEFAULTS: Record<string, string> = {
 };
 
 export function CompositeKpiCard({
-    icon, label, score, scoreVariant = 'neutral', scoreSubtext, rows, onClick,
+    icon, label, score, scoreVariant = 'neutral', scoreSubtext, rows, onClick, metricId,
 }: CompositeKpiCardProps) {
     const scoreStyle = SCORE_STYLES[scoreVariant];
     const defaultBarColor = BAR_DEFAULTS[scoreVariant];
@@ -66,12 +66,15 @@ export function CompositeKpiCard({
                         {label}
                     </span>
                 </div>
-                <div className="flex flex-col items-end">
-                    <span className={`text-xl font-black tabular-nums px-2 py-0.5 rounded-lg ${scoreStyle}`}>
-                        {score}
-                    </span>
+                <div className="flex flex-col items-end gap-1 overflow-visible">
+                    <div className="flex items-center gap-1 overflow-visible">
+                        {metricId && <MetricInfoPopover metricId={metricId} align="end" iconSize={13} />}
+                        <span className={`text-xl font-black tabular-nums px-2 py-0.5 rounded-lg ${scoreStyle}`}>
+                            {score}
+                        </span>
+                    </div>
                     {scoreSubtext && (
-                        <span className="text-[9px] text-slate-400 font-medium mt-0.5">{scoreSubtext}</span>
+                        <span className="text-[9px] text-slate-400 font-medium">{scoreSubtext}</span>
                     )}
                 </div>
             </div>

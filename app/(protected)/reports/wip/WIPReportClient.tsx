@@ -1139,8 +1139,14 @@ export default function WIPReportClient({
                                                 const jobTicketCost = tickets.reduce((s: number, t: any) => s + (t.totalCost || 0), 0);
                                                 const profit = income - qbCost - jobTicketCost;
                                                 const profitPct = income > 0 ? ((profit / income) * 100).toFixed(0) : '0';
-                                                const payment = transactions.filter((tx: any) => tx.type === 'Payment').reduce((s: number, tx: any) => s + (tx.amount || 0), 0);
-                                                const ar = income - payment;
+                                                // Payment = Type="Invoice" AND Status="Paid" only
+                                                const payment = transactions
+                                                    .filter((tx: any) => tx.type === 'Invoice' && tx.status === 'Paid')
+                                                    .reduce((s: number, tx: any) => s + Math.abs(tx.amount || 0), 0);
+                                                // A/R: use selectedProject.ar as source of truth (matches WIP list column).
+                                                // It is pre-computed by the projects API using the same aggregation pipeline,
+                                                // so it is always in sync with the value shown in the main WIP table.
+                                                const ar = selectedProject.ar ?? (income - payment);
                                                 const payables = transactions.filter((tx: any) => costTypes.includes(tx.type) && (tx.status === 'Open' || tx.status === 'Overdue')).reduce((s: number, tx: any) => s + (tx.amount || 0), 0);
 
                                                 const handleCardClick = (card: string) => {
@@ -1157,7 +1163,7 @@ export default function WIPReportClient({
                                                         case 'income': setTxTypeFilter(['Invoice']); setTxStatusFilter([]); setTxAccountFilter([]); break;
                                                         case 'qbCost': setTxTypeFilter(costTypes); setTxStatusFilter([]); setTxAccountFilter([]); break;
                                                         case 'profit': setTxTypeFilter([]); setTxStatusFilter([]); setTxAccountFilter([]); break;
-                                                        case 'payment': setTxTypeFilter(['Payment']); setTxStatusFilter([]); setTxAccountFilter([]); break;
+                                                        case 'payment': setTxTypeFilter(['Invoice']); setTxStatusFilter(['Paid']); setTxAccountFilter([]); break;
                                                         case 'ar': setTxTypeFilter(['Invoice']); setTxStatusFilter([]); setTxAccountFilter([]); break;
                                                         case 'payables': setTxTypeFilter(costTypes); setTxStatusFilter(['Open', 'Overdue']); setTxAccountFilter([]); break;
                                                         default: setTxTypeFilter([]); setTxStatusFilter([]); setTxAccountFilter([]);

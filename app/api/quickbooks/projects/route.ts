@@ -40,10 +40,14 @@ export const getCachedWipCalculations = unstable_cache(
                         input: { $filter: {
                             input: { $ifNull: ['$transactions', []] },
                             as: 'tx',
-                            cond: { $eq: ['$$tx.transactionType', 'Payment'] }
+                            // Payment = Type="Invoice" AND Status="Paid" only
+                            cond: { $and: [
+                                { $eq: ['$$tx.transactionType', 'Invoice'] },
+                                { $eq: ['$$tx.status', 'Paid'] }
+                            ]}
                         }},
                         initialValue: 0,
-                        in: { $add: ['$$value', { $ifNull: ['$$this.amount', 0] }] }
+                        in: { $add: ['$$value', { $abs: { $ifNull: ['$$this.amount', 0] } }] }
                     }
                 },
                 payablesSum: {

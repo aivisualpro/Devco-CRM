@@ -7,6 +7,7 @@ import {
     FilePlus2, ArrowRight, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import type { Insight } from '@/lib/financials/insights';
+import { MetricInfoPopover } from '@/components/ui/MetricInfoPopover';
 
 const ICON_MAP: Record<string, React.ComponentType<any>> = {
     Hammer, TrendingDown, TrendingUp, Clock, Users, AlertCircle,
@@ -110,6 +111,9 @@ export function InsightCard({ insight }: InsightCardProps) {
                             `}>
                                 {styles.label}
                             </span>
+                            {insight.ruleId && (
+                                <MetricInfoPopover metricId={insight.ruleId} align="start" iconSize={12} />
+                            )}
                             {insight.metric && (
                                 <span className={`
                                     text-[10px] font-bold px-2 py-0.5 rounded-full border

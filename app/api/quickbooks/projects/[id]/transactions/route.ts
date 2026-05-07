@@ -38,9 +38,9 @@ export async function GET(
                         memo: t.memo || '',
                         amount: t.amount || 0,
                         account: t.account || '',
-                        status: t.status || 'Paid',
+                        status: t.status || 'Open',
                         statusColor: (t.status || '').toLowerCase() === 'paid' ? 'emerald' : 
-                                     (t.status || '').toLowerCase() === 'open' ? 'amber' : 'emerald'
+                                     (t.status || '').toLowerCase() === 'open' ? 'amber' : 'rose'
                     }));
 
                     // Sort by date descending (same as live QB)

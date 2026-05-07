@@ -322,18 +322,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                         </button>
                                     )}
 
-                                    {/* Sync All Button */}
-                                    {wipReportFilters.onRefresh && (
-                                        <button
-                                            onClick={wipReportFilters.onRefresh}
-                                            disabled={wipReportFilters.isRefreshing}
-                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0F4C75] hover:bg-[#3282B8] text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all shadow-sm hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
-                                            title="Sync all projects from QuickBooks"
-                                        >
-                                            <RefreshCw className={`w-3 h-3 ${wipReportFilters.isRefreshing ? 'animate-spin' : ''}`} />
-                                            <span className="hidden sm:inline">{wipReportFilters.isRefreshing ? 'Syncing...' : 'Sync'}</span>
-                                        </button>
-                                    )}
+
 
                                     {/* PDF Export Button — only on Financials tab */}
                                     {wipReportFilters.activeTab === 'financials' && wipReportFilters.onExportPdf && (

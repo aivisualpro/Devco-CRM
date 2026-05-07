@@ -3,47 +3,34 @@
 import React from 'react';
 import { ArrowUp, ArrowDown } from 'lucide-react';
 import { Sparkline } from './Sparkline';
+import { AnimatedNumber } from '../AnimatedNumber';
+import { MetricInfoPopover } from '@/components/ui/MetricInfoPopover';
 
 interface HeroKpiCardProps {
-    /** Icon element */
     icon: React.ReactNode;
-    /** ALL-CAPS label */
     label: string;
-    /** Pre-formatted value string, e.g. "$1.39M" */
     value: string;
-    /** Secondary line, e.g. "from 53 projects" */
+    rawValue?: number;
+    rawFormatter?: (n: number) => string;
     secondary?: string;
-    /** Period-over-period trend %, e.g. 12.4 means +12.4% */
     trend?: number | null;
-    /** For metrics where down-is-good (DSO, cost, payables) */
     inverseSemantic?: boolean;
-    /** 12-month sparkline values */
     sparkline?: number[];
-    /** Sparkline color override */
     sparklineColor?: string;
-    /** Click handler for drill-down */
     onClick?: () => void;
-    /** Accessibility / tooltip */
     title?: string;
+    /** Metric catalog ID — powers the ⓘ popover */
+    metricId?: string;
 }
 
 export function HeroKpiCard({
-    icon,
-    label,
-    value,
-    secondary,
-    trend,
-    inverseSemantic = false,
-    sparkline,
-    sparklineColor,
-    onClick,
-    title,
+    icon, label, value, rawValue, rawFormatter,
+    secondary, trend, inverseSemantic = false,
+    sparkline, sparklineColor, onClick, title, metricId,
 }: HeroKpiCardProps) {
     const hasTrend = trend != null && trend !== 0;
     const isPositiveTrend = hasTrend
-        ? inverseSemantic
-            ? trend! < 0
-            : trend! > 0
+        ? inverseSemantic ? trend! < 0 : trend! > 0
         : false;
 
     const trendBg = hasTrend
@@ -52,13 +39,14 @@ export function HeroKpiCard({
             : 'bg-[var(--metric-negative-bg)] text-[var(--metric-negative)]'
         : '';
 
-    // Default sparkline stroke color follows semantic
     const sparkColor = sparklineColor
         ?? (hasTrend
-            ? isPositiveTrend
-                ? 'var(--metric-positive)'
-                : 'var(--metric-negative)'
+            ? isPositiveTrend ? 'var(--metric-positive)' : 'var(--metric-negative)'
             : 'var(--metric-neutral)');
+
+    const displayValue = rawValue !== undefined && rawFormatter
+        ? <AnimatedNumber value={rawValue} formatter={rawFormatter} duration={500} />
+        : value;
 
     return (
         <div
@@ -76,36 +64,33 @@ export function HeroKpiCard({
             `}
             style={{ minHeight: 120 }}
         >
-            {/* Top row: icon + label + trend pill */}
+            {/* Top row: icon + label + trend pill + MetricInfoPopover */}
             <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 min-w-0">
                     <span className="text-slate-400 flex-shrink-0">{icon}</span>
-                    <span className="text-[10px] font-black uppercase tracking-[0.13em] text-slate-500 leading-none">
+                    <span className="text-[10px] font-black uppercase tracking-[0.13em] text-slate-500 leading-none truncate">
                         {label}
                     </span>
                 </div>
-                {hasTrend && (
-                    <span
-                        className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-black ${trendBg} shrink-0`}
-                    >
-                        {isPositiveTrend
-                            ? <ArrowUp className="w-2.5 h-2.5" />
-                            : <ArrowDown className="w-2.5 h-2.5" />}
-                        {Math.abs(trend!).toFixed(1)}%
-                    </span>
-                )}
+                <div className="flex items-center gap-1 shrink-0 overflow-visible">
+                    {hasTrend && (
+                        <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-black ${trendBg}`}>
+                            {isPositiveTrend ? <ArrowUp className="w-2.5 h-2.5" /> : <ArrowDown className="w-2.5 h-2.5" />}
+                            {Math.abs(trend!).toFixed(1)}%
+                        </span>
+                    )}
+                    {metricId && <MetricInfoPopover metricId={metricId} align="end" iconSize={13} />}
+                </div>
             </div>
 
-            {/* Big number */}
+            {/* Big animated number */}
             <div className="text-[1.6rem] font-black tabular-nums text-slate-900 leading-none tracking-tight mt-0.5">
-                {value}
+                {displayValue}
             </div>
 
             {/* Secondary text */}
             {secondary && (
-                <div className="text-[11px] text-slate-400 font-medium leading-none">
-                    {secondary}
-                </div>
+                <div className="text-[11px] text-slate-400 font-medium leading-none">{secondary}</div>
             )}
 
             {/* Sparkline area */}
@@ -113,8 +98,7 @@ export function HeroKpiCard({
                 <div className="mt-auto pt-2 flex flex-col gap-0.5">
                     <Sparkline values={sparkline} color={sparkColor} width={100} height={24} />
                     <div className="flex justify-between text-[9px] text-slate-300 font-medium tracking-tight">
-                        <span>12 mo ago</span>
-                        <span>Now</span>
+                        <span>12 mo ago</span><span>Now</span>
                     </div>
                 </div>
             )}

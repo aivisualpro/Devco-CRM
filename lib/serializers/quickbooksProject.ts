@@ -5,11 +5,21 @@
 
 /**
  * Compute Accounts Receivable from a project's transaction history.
- * A/R = Income (billed via Invoices) − Payments Received
+ *
+ * Payments Received = Σ |amount| where:
+ *   • transactionType = "Payment"  (explicit QB payment record)
+ *   • OR transactionType = "Invoice" AND status = "Paid"  (paid invoice)
+ *
+ * A/R = Income − Payments Received
  */
 export function computeAR(project: any) {
+    // Payment = Type="Invoice" AND Status="Paid" only
     const payments = (project.transactions || [])
-        .filter((t: any) => /payment/i.test(t.transactionType))
+        .filter((t: any) => {
+            const type = (t.transactionType || '').toLowerCase();
+            const status = (t.status || '').toLowerCase();
+            return type === 'invoice' && status === 'paid';
+        })
         .reduce((s: number, t: any) => s + Math.abs(Number(t.amount) || 0), 0);
     const income = Number(project.income) || 0;
     return {

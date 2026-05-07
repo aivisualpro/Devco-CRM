@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { MetricInfoPopover } from '@/components/ui/MetricInfoPopover';
 
 export interface DistributionSegment {
     label: string;
@@ -15,10 +16,11 @@ interface DistributionKpiCardProps {
     totalLabel?: string;
     totalValue?: string;
     onClick?: () => void;
+    metricId?: string;
 }
 
 export function DistributionKpiCard({
-    icon, label, segments, totalLabel, totalValue, onClick,
+    icon, label, segments, totalLabel, totalValue, onClick, metricId,
 }: DistributionKpiCardProps) {
     const total = segments.reduce((s, seg) => s + seg.value, 0);
     const nonZero = segments.filter(s => s.value > 0);
@@ -44,9 +46,12 @@ export function DistributionKpiCard({
                         {label}
                     </span>
                 </div>
-                {totalValue && (
-                    <span className="text-sm font-black tabular-nums text-slate-900">{totalValue}</span>
-                )}
+                <div className="flex items-center gap-1.5 overflow-visible">
+                    {totalValue && (
+                        <span className="text-sm font-black tabular-nums text-slate-900">{totalValue}</span>
+                    )}
+                    {metricId && <MetricInfoPopover metricId={metricId} align="end" iconSize={13} />}
+                </div>
             </div>
 
             {/* Stacked bar */}

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { MetricInfoPopover } from '@/components/ui/MetricInfoPopover';
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid,
     Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea, Legend,
@@ -9,6 +10,7 @@ import {
 interface MarginTrendChartProps {
     data: { month: string; grossMargin: number; operatingMargin: number; prevGrossMargin?: number }[];
     targetMargin?: number;
+    metricId?: string;
 }
 
 const TOOLTIP_STYLE = {
@@ -21,7 +23,7 @@ const TOOLTIP_STYLE = {
     padding: '10px 14px',
 };
 
-export function MarginTrendChart({ data, targetMargin = 25 }: MarginTrendChartProps) {
+export function MarginTrendChart({ data, targetMargin = 25, metricId }: MarginTrendChartProps) {
     if (!data || data.length === 0) {
         return (
             <div className="flex items-center justify-center h-[280px] text-slate-400 text-sm">
@@ -37,6 +39,12 @@ export function MarginTrendChart({ data, targetMargin = 25 }: MarginTrendChartPr
 
     return (
         <div className="w-full">
+            {metricId && (
+                <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Margin Trend (12 mo)</span>
+                    <MetricInfoPopover metricId={metricId} align="end" iconSize={13} />
+                </div>
+            )}
             <div className="h-[260px]">
                 <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={data} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>

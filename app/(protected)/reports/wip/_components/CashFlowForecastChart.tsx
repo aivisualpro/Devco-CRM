@@ -6,6 +6,7 @@ import {
     Tooltip, ResponsiveContainer, ReferenceLine, Line, ComposedChart,
 } from 'recharts';
 import { fmtMoney } from '@/lib/format/money';
+import { MetricInfoPopover } from '@/components/ui/MetricInfoPopover';
 
 export interface CashFlowPoint {
     label: string;          // "Day 30", "Day 60", "Day 90" or a date string
@@ -16,7 +17,8 @@ export interface CashFlowPoint {
 
 interface CashFlowForecastChartProps {
     data: CashFlowPoint[];
-    currentCash?: number;   // starting cash balance (optional)
+    currentCash?: number;
+    metricId?: string;
 }
 
 const TOOLTIP_STYLE = {
@@ -29,7 +31,7 @@ const TOOLTIP_STYLE = {
     padding: '10px 14px',
 };
 
-export function CashFlowForecastChart({ data, currentCash = 0 }: CashFlowForecastChartProps) {
+export function CashFlowForecastChart({ data, currentCash = 0, metricId }: CashFlowForecastChartProps) {
     if (!data || data.length === 0) {
         return (
             <div className="flex items-center justify-center h-[260px] text-slate-400 text-sm">
@@ -49,6 +51,12 @@ export function CashFlowForecastChart({ data, currentCash = 0 }: CashFlowForecas
 
     return (
         <div className="w-full">
+            {metricId && (
+                <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Cash Flow Forecast (90 Days)</span>
+                    <MetricInfoPopover metricId={metricId} align="end" iconSize={13} />
+                </div>
+            )}
             <div className="h-[240px]">
                 <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={enriched} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>

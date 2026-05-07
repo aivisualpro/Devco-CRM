@@ -32,6 +32,8 @@ export interface Insight {
     actionLabel?: string;
     actionLink?: string;
     nextStep?: string;   // short imperative CTA e.g. "Send statements"
+    /** Maps to metricCatalog id — powers the ⓘ popover on InsightCard */
+    ruleId?: string;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -99,6 +101,7 @@ function buildLaborOutliers(projects: any[], revenue: number): Insight | null {
         metric: { label: `${outliers.length} projects`, value: fmtK(totalExcess) },
         actionLabel: `Review ${outliers.length} project${outliers.length > 1 ? 's' : ''}`,
         nextStep: 'Review staffing & estimates',
+        ruleId: 'above-avg-labor',
     };
 }
 
@@ -137,6 +140,7 @@ function buildCOOpportunities(projects: any[], revenue: number): Insight | null 
         metric: { label: `${hits.length} jobs`, value: fmtK(total) },
         actionLabel: `Log ${hits.length} CO${hits.length > 1 ? 's' : ''}`,
         nextStep: 'Submit change orders',
+        ruleId: 'budget-risk',
     };
 }
 
@@ -184,6 +188,7 @@ function buildSlowPayers(
         metric: { label: `${slow.length} customers`, value: fmtK(totalAR) },
         actionLabel: 'Send statements',
         nextStep: 'Send statements',
+        ruleId: 'slow-paying-customers',
     };
 }
 
@@ -229,6 +234,7 @@ function buildUnderBilling(
         metric: { label: `${hits.length} jobs`, value: fmtK(total) },
         actionLabel: 'Submit invoices',
         nextStep: 'Submit invoices',
+        ruleId: 'under-billing',
     };
 }
 
@@ -309,6 +315,7 @@ function buildBudgetOverrun(projects: any[], revenue: number): Insight | null {
         metric: { label: `${hits.length} jobs`, value: hits.length > 0 ? `${fmtK(totalOverrun)} likely overrun` : 'at risk' },
         actionLabel: `Review ${hits.length} job${hits.length > 1 ? 's' : ''}`,
         nextStep: 'Review job cost immediately',
+        ruleId: 'budget-risk',
     };
 }
 
@@ -351,6 +358,7 @@ function buildMarginErosion(projects: any[], revenue: number): Insight | null {
         metric: { label: 'Drop', value: `${drop.toFixed(1)} pts` },
         actionLabel: 'Review margin by job type',
         nextStep: 'Adjust estimating rates',
+        ruleId: 'margin-erosion',
     };
 }
 

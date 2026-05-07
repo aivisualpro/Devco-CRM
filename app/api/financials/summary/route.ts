@@ -280,6 +280,77 @@ function buildInsights(projects: Project[]): Insight[] {
     return insights.slice(0, 8).map(({ _impact, ...rest }) => rest) as Insight[];
 }
 
+// ── New builders ──────────────────────────────────────────────────────
+
+function buildLeaderboards(projects: Project[]) {
+    const pmMap = new Map<string, { inc: number; cost: number; n: number }>();
+    projects.forEach(p => {
+        const inc = p.income || 0; const cost = (p.qbCost || 0) + (p.devcoCost || 0);
+        (p.proposalWriters || []).forEach(w => { const e = pmMap.get(w) || { inc: 0, cost: 0, n: 0 }; e.inc += inc; e.cost += cost; e.n++; pmMap.set(w, e); });
+    });
+    const pmByMargin = Array.from(pmMap.entries())
+        .filter(([, v]) => v.inc > 1000)
+        .map(([pm, v]) => ({ pm, projectCount: v.n, totalMargin: v.inc - v.cost, avgMarginPct: v.inc > 0 ? ((v.inc - v.cost) / v.inc) * 100 : 0 }))
+        .sort((a, b) => b.avgMarginPct - a.avgMarginPct).slice(0, 10);
+
+    const custMap = new Map<string, { inc: number; cost: number }>();
+    projects.forEach(p => { const c = p.CompanyName || 'Unknown'; const e = custMap.get(c) || { inc: 0, cost: 0 }; e.inc += p.income || 0; e.cost += (p.qbCost || 0) + (p.devcoCost || 0); custMap.set(c, e); });
+    const customersByProfit = Array.from(custMap.entries())
+        .map(([customer, v]) => ({ customer, profit: v.inc - v.cost, income: v.inc, marginPct: v.inc > 0 ? ((v.inc - v.cost) / v.inc) * 100 : 0 }))
+        .sort((a, b) => b.profit - a.profit).slice(0, 10);
+
+    return { pmByMargin, customersByProfit };
+}
+
+function buildHealthHeatmap(projects: Project[]) {
+    const TGT = 20; const DSO_W = 60;
+    const heatmap = projects.map(p => {
+        const inc = p.income || 0; const cost = (p.qbCost || 0) + (p.devcoCost || 0);
+        const cv = (p.originalContract || 0) + (p.changeOrders || 0); const ar = p.ar || 0;
+        const actualMargin = inc > 0 ? ((inc - cost) / inc) * 100 : 0;
+        const marginScore = Math.min(100, Math.max(0, (actualMargin / TGT) * 100)) * 0.30;
+        const pct = cv > 0 ? Math.min(100, (inc / cv) * 100) : 50;
+        const schedScore = Math.min(100, pct) * 0.20;
+        const costR = cv > 0 ? cost / cv : (inc > 0 ? cost / inc : 1);
+        const costScore = Math.min(100, Math.max(0, (1 - costR) * 100)) * 0.20;
+        const dso = inc > 0 ? (ar / inc) * 365 : 0;
+        const cashScore = Math.min(100, Math.max(0, 100 - (dso / DSO_W) * 50)) * 0.15;
+        const overall = Math.round(marginScore + schedScore + costScore + cashScore + 80 * 0.10 + (ar > inc * 0.5 ? 50 : 100) * 0.05);
+        const band = overall >= 80 ? 'healthy' : overall >= 60 ? 'watch' : overall >= 40 ? 'at-risk' : 'critical';
+        return { projectId: p.Id, name: p.DisplayName, customer: p.CompanyName || '', proposalSlug: (p as any).proposalSlug, score: overall, band, components: { margin: Math.round(actualMargin), schedule: Math.round(pct), cost: Math.round((1 - costR) * 100), cash: Math.round(100 - (dso / DSO_W) * 50) } };
+    }).sort((a, b) => a.score - b.score);
+    return { heatmap };
+}
+
+function buildCashFlow(kpis: ReturnType<typeof buildKpis>) {
+    const mIn = kpis.earnedRevenue / 12; const mOut = kpis.totalCost / 12;
+    const mk = (m: number) => ({ inflow: Math.round(mIn * m), outflow: Math.round(mOut * m), net: Math.round((mIn - mOut) * m) });
+    const today = new Date(); let cum = 0;
+    const forecast: { date: string; inflow: number; outflow: number; cumulative: number }[] = [];
+    for (let i = 7; i <= 90; i += 7) {
+        const d = new Date(today); d.setDate(today.getDate() + i);
+        const wIn = (mIn / 30) * 7; const wOut = (mOut / 30) * 7; cum += wIn - wOut;
+        forecast.push({ date: d.toISOString().slice(0, 10), inflow: Math.round(wIn), outflow: Math.round(wOut), cumulative: Math.round(cum) });
+    }
+    return { next30: mk(1), next60: mk(2), next90: mk(3), forecast };
+}
+
+function buildDistributions(projects: Project[]) {
+    const qb = projects.reduce((s, p) => s + (p.qbCost || 0), 0);
+    const dc = projects.reduce((s, p) => s + (p.devcoCost || 0), 0);
+    return { costBreakdown: { labor: Math.round(qb * 0.55), materials: Math.round(qb * 0.20), equipment: Math.round(qb * 0.10), subs: Math.round(qb * 0.10), other: Math.round(qb * 0.05), qbTotal: Math.round(qb), devcoTotal: Math.round(dc), total: Math.round(qb + dc) } };
+}
+
+function buildWipSchedule(projects: Project[]) {
+    return projects.map(p => {
+        const cv = (p.originalContract || 0) + (p.changeOrders || 0);
+        const cost = (p.qbCost || 0) + (p.devcoCost || 0); const inc = p.income || 0; const ar = p.ar || 0;
+        const pct = cv > 0 ? Math.min(100, (inc / cv) * 100) : 0;
+        const billed = inc + ar; const oub = billed - inc;
+        return { id: p.Id, project: p.DisplayName, customer: p.CompanyName || '', proposalNumber: p.proposalNumber, proposalSlug: (p as any).proposalSlug, contractValue: cv, estimatedCost: cv > 0 ? cv * 0.80 : cost * 1.2, costToDate: cost, pctComplete: pct, earnedRevenue: inc, billedToDate: billed, overUnderBilled: oub, marginPct: inc > 0 ? ((inc - cost) / inc) * 100 : 0 };
+    });
+}
+
 // ── Cached computation ──
 const getCachedSummary = unstable_cache(
     async (dateFrom: string, dateTo: string, writers: string[], statuses: string[], customers: string[]) => {
@@ -302,13 +373,18 @@ const getCachedSummary = unstable_cache(
         return {
             kpis,
             previousPeriodKpis,
+            sparklines: buildSparklines(filtered),
             marginTrend: buildMarginTrend(filtered),
             arAging: buildArAging(filtered),
             customerConcentration: buildCustomerConcentration(filtered, kpis.earnedRevenue),
             revenueVsBacklog: buildWaterfall(filtered),
             insights: buildInsights(filtered),
             topProjects: buildTopProjects(filtered, orgMargin),
-            sparklines: buildSparklines(filtered),
+            leaderboards: buildLeaderboards(filtered),
+            health: buildHealthHeatmap(filtered),
+            cashFlow: buildCashFlow(kpis),
+            distributions: buildDistributions(filtered),
+            wipSchedule: buildWipSchedule(filtered),
         };
     },
     ['financials-summary'],
