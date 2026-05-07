@@ -216,23 +216,18 @@ export async function computeWipCalculations() {
             // invoiceIncome & costTypeSum are pre-computed by the aggregation pipeline
             const income = (p as any).invoiceIncome > 0 ? (p as any).invoiceIncome : (p.income || 0);
 
-            // Cost preference order:
-            //   1. p.qbCost  — stored from QB's ProfitAndLoss summary API (income - netProfit).
-            //                  This EXACTLY matches what QB shows on the project page.
-            //   2. costTypeSum — recomputed from stored transactions. Always under-counts because
-            //                    it misses Journal Entries, Reimbursements, and any QB types not
-            //                    in ['Expense','Check','Payroll Check','Bill'].
-            const qbCost = (p.qbCost || 0) > 0 ? (p.qbCost || 0) : ((p as any).costTypeSum || 0);
+            // Cost: always use costTypeSum (sum of cost-type transactions) so the
+            // WIP list "Cost of Revenue Earned" matches the project detail QB Cost box.
+            // Both views now derive cost from the same transaction data.
+            const qbCost = (p as any).costTypeSum || 0;
 
             // devcoCost = Job Ticket cost, pre-computed during Sync
             const devcoCost = p.devcoCost || 0;
             const totalProjectCost = qbCost + devcoCost;
             const payment = (p as any).paymentSum || 0;
-            // A/R = Math.max(0, invoiceIncome - paidInvoiceSum)
-            // Must mirror the detail-view formula exactly (WIPReportClient lines 1143-1148).
-            // Use invoiceIncome (sum of ALL Invoice transactions) — never the blended
-            // `income` which may fall back to QB Profitability and diverge from payment data.
-            const ar = Math.max(0, ((p as any).invoiceIncome || 0) - payment);
+            // A/R = Income - Payment. Uses the same `income` variable shown
+            // in the Revenue column so the math always holds as displayed.
+            const ar = Math.max(0, income - payment);
             const ap = (p as any).payablesSum || 0;
 
             const estData = p.proposalNumber ? estimateDataMap.get(p.proposalNumber) : null;

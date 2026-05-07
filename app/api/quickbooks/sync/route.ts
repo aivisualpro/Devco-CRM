@@ -112,15 +112,10 @@ export async function POST(req: Request) {
                                                 const amountRaw = getValue(6);
                                                 const amount = parseAmount(amountRaw);
 
-                                                // For Payroll Checks: only count lines from Wages and Tax
-                                                // account sections. This excludes fringe/benefit/union-fund
-                                                // lines that sit under separate account sections, matching
-                                                // what QB's own Wages+Tax filtered P&L report shows.
-                                                if (type === 'Payroll Check' && currentSection) {
-                                                    const sec = currentSection;
-                                                    const isWageOrTax = sec.includes('wage') || sec.includes('tax');
-                                                    if (!isWageOrTax) continue;
-                                                }
+                                                // Previously filtered Payroll Check lines to only Wages+Tax
+                                                // sections, but this excluded legitimate costs like fringe
+                                                // benefits, union funds, and COGS-allocated payroll.
+                                                // All P&L Detail lines are real costs — keep them all.
 
                                                 const groupKey = txnIdRaw || `${date}_${type}_${num}_${amount}`;
 

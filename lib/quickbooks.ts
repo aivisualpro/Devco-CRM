@@ -327,11 +327,7 @@ export async function getSingleProject(projectId: string) {
                             const amountRaw = getValue(6);
                             const amount = parseAmount(amountRaw);
 
-                            // Payroll Checks: only Wages + Tax account sections
-                            if (type === 'Payroll Check' && currentSection) {
-                                const sec = currentSection;
-                                if (!sec.includes('wage') && !sec.includes('tax')) continue;
-                            }
+                            // All P&L Detail lines are real costs — no section filtering needed.
 
                             const groupKey = txnIdRaw || `${date}_${type}_${num}_${amount}`;
 
@@ -527,11 +523,7 @@ export async function getProjectTransactions(projectId: string) {
                     const memo = row.ColData[4]?.value || '';
                     const amount = parseAmount(row.ColData[6]?.value);
 
-                    // Payroll Checks: only Wages + Tax account sections
-                    if (pnlType === 'Payroll Check' && currentSection) {
-                        const sec = currentSection;
-                        if (!sec.includes('wage') && !sec.includes('tax')) continue;
-                    }
+                    // All P&L Detail lines are real costs — no section filtering needed.
 
                     if (txnId && pnlType) {
                         const entity = mapPnlTypeToEntity(pnlType);

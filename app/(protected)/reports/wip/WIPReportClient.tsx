@@ -125,7 +125,7 @@ export default function WIPReportClient({
     const [isExportingPdf, setIsExportingPdf] = useState(false);
     const [highlightedProject, setHighlightedProject] = useState<string | null>(null);
 
-    const handleBackClick = () => {
+    const handleBackClick = async () => {
         const projectId = selectedProject?.Id;
         setSelectedProject(null);
         if (projectId) {
@@ -137,6 +137,24 @@ export default function WIPReportClient({
                     setTimeout(() => setHighlightedProject(null), 2000);
                 }
             }, 100);
+        }
+        // Refresh project list so WIP columns reflect any changes made in detail view
+        try {
+            const res = await fetch('/api/quickbooks/projects');
+            const data = await res.json();
+            if (!data.error && Array.isArray(data)) {
+                setProjects(data.map((p: any) => ({
+                    ...p,
+                    income: p.income || 0,
+                    cost: p.cost || 0,
+                    profitMargin: p.profitMargin || 0,
+                    timeSpent: '0:00',
+                    startDate: p.startDate ? formatDateOnly(p.startDate) : formatDateOnly(p.MetaData?.CreateTime),
+                    endDate: formatDateOnly(new Date(new Date(p.MetaData?.CreateTime || p.startDate || new Date()).getTime() + 86400000 * 30).toISOString()),
+                })));
+            }
+        } catch (e) {
+            console.warn('[WIP] Failed to refresh projects on back:', e);
         }
     };
 
@@ -1140,10 +1158,9 @@ export default function WIPReportClient({
                                                 const fmt = (v: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v);
                                                 const costTypes = ['Expense', 'Check', 'Payroll Check', 'Bill'];
                                                 const income = transactions.filter((tx: any) => tx.type === 'Invoice').reduce((s: number, tx: any) => s + (tx.amount || 0), 0);
-                                                // Use QB Profitability API cost (exact match to QB) as primary.
-                                                // Fall back to transaction sum only for projects not yet re-synced.
-                                                const txCostSum = transactions.filter((tx: any) => costTypes.includes(tx.type)).reduce((s: number, tx: any) => s + (tx.amount || 0), 0);
-                                                const qbCost = (selectedProject.qbCost || 0) > 0 ? (selectedProject.qbCost || 0) : txCostSum;
+                                                // QB Cost = sum of all cost-type transactions so it always
+                                                // matches the transaction table total exactly.
+                                                const qbCost = transactions.filter((tx: any) => costTypes.includes(tx.type)).reduce((s: number, tx: any) => s + (tx.amount || 0), 0);
                                                 const tickets = selectedProject.jobTickets || [];
                                                 const jobTicketCost = tickets.reduce((s: number, t: any) => s + (t.totalCost || 0), 0);
                                                 const profit = income - qbCost - jobTicketCost;
@@ -1152,11 +1169,9 @@ export default function WIPReportClient({
                                                 const payment = transactions
                                                     .filter((tx: any) => tx.type === 'Invoice' && (tx.status || '').trim().toLowerCase() === 'paid')
                                                     .reduce((s: number, tx: any) => s + Math.abs(tx.amount || 0), 0);
-                                                // A/R = Income - Payment (always computed from live transactions)
-                                                // This is the correct formula: what was invoiced minus what was collected.
+                                                // A/R = Income - Payment. Always from live transactions.
                                                 const ar = Math.max(0, income - payment);
-                                                // A/P = sum of unpaid cost-type transactions (Open or Overdue).
-                                                // Uses ALL costTypes to match the list-view aggregation exactly.
+                                                // A/P (Payables) = sum of unpaid cost-type transactions.
                                                 const payables = transactions
                                                     .filter((tx: any) => {
                                                         const stat = (tx.status || 'open').trim().toLowerCase();
@@ -1588,17 +1603,30 @@ export default function WIPReportClient({
                                                         {txAccountDropdownOpen && (
                                                             <>
                                                                 <div className="fixed inset-0 z-20" onClick={() => { setTxAccountDropdownOpen(false); setTxAccountSearch(''); }} />
-                                                                <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-30 min-w-[200px] max-h-[260px] overflow-y-auto py-1">
-                                                                  {txAccountFilter.length > 0 && (
-                                                                    <button onClick={() => setTxAccountFilter([])} className="w-full text-left px-3 py-1.5 text-[10px] font-bold text-rose-500 hover:bg-rose-50 border-b border-slate-100">Clear All</button>
-                                                                  )}
-                                                                  {accounts.map(a => (
-                                                                    <label key={a} className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-slate-50 cursor-pointer">
-                                                                      <input type="checkbox" checked={txAccountFilter.includes(a)} onChange={() => setTxAccountFilter(prev => prev.includes(a) ? prev.filter(x => x !== a) : [...prev, a])} className="w-3.5 h-3.5 rounded border-slate-300 text-violet-600 cursor-pointer" />
-                                                                      <span className="text-[11px] font-medium text-slate-700">{a}</span>
-                                                                    </label>
-                                                                  ))}
-                                                                </div>
+                                                                <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-30 min-w-[220px] max-h-[300px] flex flex-col py-1">
+                                                                   {/* Search input */}
+                                                                   <div className="px-2 py-1.5 border-b border-slate-100 shrink-0">
+                                                                     <input
+                                                                       type="text"
+                                                                       placeholder="Search accounts..."
+                                                                       value={txAccountSearch}
+                                                                       onChange={(e) => setTxAccountSearch(e.target.value)}
+                                                                       className="w-full bg-slate-50 border border-slate-200 rounded-md px-2 py-1 text-[11px] font-medium text-slate-700 outline-none focus:ring-1 focus:ring-violet-300 focus:border-violet-300"
+                                                                       autoFocus
+                                                                     />
+                                                                   </div>
+                                                                   {txAccountFilter.length > 0 && (
+                                                                     <button onClick={() => setTxAccountFilter([])} className="w-full text-left px-3 py-1.5 text-[10px] font-bold text-rose-500 hover:bg-rose-50 border-b border-slate-100 shrink-0">Clear All</button>
+                                                                   )}
+                                                                   <div className="overflow-y-auto flex-1">
+                                                                   {accounts.filter(a => !txAccountSearch || a.toLowerCase().includes(txAccountSearch.toLowerCase())).map(a => (
+                                                                     <label key={a} className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-slate-50 cursor-pointer">
+                                                                       <input type="checkbox" checked={txAccountFilter.includes(a)} onChange={() => setTxAccountFilter(prev => prev.includes(a) ? prev.filter(x => x !== a) : [...prev, a])} className="w-3.5 h-3.5 rounded border-slate-300 text-violet-600 cursor-pointer" />
+                                                                       <span className="text-[11px] font-medium text-slate-700">{a}</span>
+                                                                     </label>
+                                                                   ))}
+                                                                   </div>
+                                                                 </div>
                                                             </>
                                                         )}
                                                     </div>
@@ -2065,6 +2093,8 @@ export default function WIPReportClient({
                                                                 const grossProfitPct = revenueToDate > 0 ? (grossProfit / revenueToDate) * 100 : 0;
                                                                 const grossMarkupPct = costOfRevenue > 0 ? (grossProfit / costOfRevenue) * 100 : 0;
                                                                 const percentageComplete = updatedContract > 0 ? (revenueToDate / updatedContract) * 100 : 0;
+
+
 
                                                                 const fmt = (val: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(val);
                                                                 const cellBase = "px-2 py-1.5 text-[11px] whitespace-nowrap border border-slate-200 transition-colors";
