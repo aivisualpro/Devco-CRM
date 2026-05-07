@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
                 });
 
                 // ── SMS Notification ──
-                Promise.resolve().then(async () => {
+                {
                 const docAny = doc as any;
                 const shouldNotify = docAny.notifyAssignees === true || docAny.notifyAssignees === 'Yes' || docAny.notifyAssignees === 'true';
                 console.log(`[SMS] notifyAssignees=${docAny.notifyAssignees}, shouldNotify=${shouldNotify}, assignees=${JSON.stringify(docAny.assignees)}`);
@@ -473,7 +473,7 @@ export async function POST(request: NextRequest) {
                 } catch (notifErr) {
                     console.error('[Notifications] ❌ Error creating schedule notifications:', notifErr);
                 }
-                }); // End background tasks
+                }
 
                 revalidateTag('schedule-stats', undefined as any);
                 if ((doc as any).fromDate) {
