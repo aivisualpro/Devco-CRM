@@ -172,22 +172,25 @@ export async function POST(req: Request) {
                                 console.log('Error fetching ProfitAndLossDetail report for project', project.Id, ':', e);
                             }
 
-                            // ── Enrich Invoice statuses via direct QB query ──
-                            // The P&L Detail report always marks transactions 'Cleared' — it cannot
-                            // tell us whether an invoice has been paid. We query Invoices directly
-                            // to get real Balance-based statuses (Paid / Open / Overdue), which are
-                            // required for correct A/R calculation in the projects aggregation pipeline.
+                            // ── Enrich Invoice + Bill statuses via direct QB queries ──
+                            // The P&L Detail report always marks ALL transactions 'Cleared' — it cannot
+                            // tell us whether an invoice or bill is actually paid/open.
+                            // We query Invoices and Bills directly from QB to get real Balance-based
+                            // statuses (Paid / Open / Overdue) required for correct A/R and A/P calculation.
                             try {
-                                const [invoicesDirect, paymentsDirect] = await Promise.all([
+                                const [invoicesDirect, paymentsDirect, billsDirect] = await Promise.all([
                                     qboQuery(`SELECT * FROM Invoice WHERE CustomerRef = '${project.Id}' MAXRESULTS 1000`)
                                         .then((d: any) => d?.QueryResponse?.Invoice || []).catch(() => []),
                                     qboQuery(`SELECT * FROM Payment WHERE CustomerRef = '${project.Id}' MAXRESULTS 1000`)
                                         .then((d: any) => d?.QueryResponse?.Payment || []).catch(() => []),
+                                    qboQuery(`SELECT * FROM Bill WHERE CustomerRef = '${project.Id}' MAXRESULTS 1000`)
+                                        .then((d: any) => d?.QueryResponse?.Bill || []).catch(() => []),
                                 ]);
 
                                 // Build a map of P&L-discovered IDs so we can patch or add
                                 const pnlIdSet = new Set(transactionsData.map((t: any) => t.id));
 
+                                // ── Invoices ──
                                 for (const inv of invoicesDirect) {
                                     const realStatus = inv.Balance === 0 ? 'Paid'
                                         : (inv.DueDate && new Date(inv.DueDate) < new Date() ? 'Overdue' : 'Open');
@@ -211,6 +214,7 @@ export async function POST(req: Request) {
                                     }
                                 }
 
+                                // ── Payments ──
                                 for (const pay of paymentsDirect) {
                                     if (!pnlIdSet.has(pay.Id)) {
                                         transactionsData.push({
@@ -226,9 +230,33 @@ export async function POST(req: Request) {
                                         });
                                     }
                                 }
-                                console.log(`Project ${project.Id}: Enriched with ${invoicesDirect.length} invoices + ${paymentsDirect.length} payments (real statuses)`);
+
+                                // ── Bills — enrich Open/Overdue/Paid so payablesSum is accurate ──
+                                for (const bill of billsDirect) {
+                                    const billStatus = bill.Balance === 0 ? 'Paid'
+                                        : (bill.DueDate && new Date(bill.DueDate) < new Date() ? 'Overdue' : 'Open');
+                                    if (pnlIdSet.has(bill.Id)) {
+                                        const existing = transactionsData.find((t: any) => t.id === bill.Id);
+                                        if (existing) existing.status = billStatus;
+                                    } else {
+                                        // Bill not in P&L — add it so payablesSum can capture it
+                                        transactionsData.push({
+                                            id: bill.Id,
+                                            date: bill.TxnDate,
+                                            type: 'Bill',
+                                            no: bill.DocNumber || '',
+                                            from: bill.VendorRef?.name || '---',
+                                            memo: bill.PrivateNote || '',
+                                            amount: bill.TotalAmt,
+                                            account: '',
+                                            status: billStatus,
+                                        });
+                                    }
+                                }
+
+                                console.log(`Project ${project.Id}: Enriched with ${invoicesDirect.length} invoices + ${paymentsDirect.length} payments + ${billsDirect.length} bills (real statuses)`);
                             } catch (e) {
-                                console.warn(`Project ${project.Id}: Failed to enrich invoice statuses:`, e);
+                                console.warn(`Project ${project.Id}: Failed to enrich transaction statuses:`, e);
                             }
 
                             return {
