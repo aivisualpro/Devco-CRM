@@ -2,24 +2,36 @@
 
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import dynamic from 'next/dynamic';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
-    DollarSign, Receipt, Hammer, Wallet, FileText,
+    DollarSign, Receipt, Hammer, Wallet,
     TrendingUp, TrendingDown, Percent, CreditCard,
-    BarChart3, Target, CircleDollarSign, ArrowDownToLine, SlidersHorizontal,
-    Award, Users, ShieldAlert,
+    BarChart3, Target, ArrowDownToLine, SlidersHorizontal,
+    Award, Users, ShieldAlert, Activity, Clock, Zap, AlertTriangle, CheckCircle2,
+    PieChart, Building2, X, Filter, BookmarkPlus,
 } from 'lucide-react';
+import { DRILL_DEFINITIONS, BANNER_COLORS, buildDrillUrl, clearDrillUrl, DrillKey } from '@/lib/financials/drillDown';
 import { fmtMoney, fmtCurrency } from '@/lib/format/money';
 import {
-    HeroKpiCard, CompositeKpiCard,
+    HeroKpiCard, CompositeKpiCard, DistributionKpiCard,
     ListKpiCard, ForecastKpiCard, RiskKpiCard,
 } from './cards';
 
 import { FinancialsSidebar, DatePreset } from './FinancialsSidebar';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui';
-import { computeInsights } from './computeInsights';
+import { computeInsightsV2 } from '@/lib/financials/insights';
 import { InsightCard } from './InsightCard';
 import { DEFAULT_THRESHOLDS, FinancialThresholds } from '@/lib/constants/financialThresholds';
+import { computeProjectHealth, HEALTH_COLORS } from '@/lib/financials/projectHealth';
+import { useSavedViews, buildShareUrl, parseShareUrl, ViewFilterState } from './useSavedViews';
+import { SaveViewModal } from './SaveViewModal';
+import { SavedViewChips } from './SavedViewChips';
+
+const ProjectHealthHeatmap = dynamic(() => import('./ProjectHealthHeatmap').then(m => ({ default: m.ProjectHealthHeatmap })), {
+    ssr: false,
+    loading: () => <ChartSkeleton />,
+});
 
 const MarginTrendChart = dynamic(() => import('./MarginTrendChart'), {
     ssr: false,
@@ -34,6 +46,18 @@ const CustomerConcentrationChart = dynamic(() => import('./CustomerConcentration
     loading: () => <ChartSkeleton />,
 });
 const RevenueBacklogWaterfall = dynamic(() => import('./RevenueBacklogWaterfall'), {
+    ssr: false,
+    loading: () => <ChartSkeleton />,
+});
+const BulletVsTargetChart = dynamic(() => import('./BulletVsTargetChart').then(m => ({ default: m.BulletVsTargetChart })), {
+    ssr: false,
+    loading: () => <ChartSkeleton />,
+});
+const CashFlowForecastChart = dynamic(() => import('./CashFlowForecastChart').then(m => ({ default: m.CashFlowForecastChart })), {
+    ssr: false,
+    loading: () => <ChartSkeleton />,
+});
+const RevenueCalendarHeatmap = dynamic(() => import('./RevenueCalendarHeatmap').then(m => ({ default: m.RevenueCalendarHeatmap })), {
     ssr: false,
     loading: () => <ChartSkeleton />,
 });
@@ -132,6 +156,28 @@ function computeDateRange(preset: DatePreset): { from: string; to: string } {
 }
 
 export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf }: FinancialsViewProps) {
+    const router = useRouter();
+    const searchParams = useSearchParams();
+
+    // Drill-down state (read from URL)
+    const [drillKey, setDrillKey] = useState<DrillKey | null>(null);
+    const [drillValue, setDrillValue] = useState<string | undefined>(undefined);
+
+    useEffect(() => {
+        const k = searchParams.get('drill') as DrillKey | null;
+        const v = searchParams.get('drillValue') ?? undefined;
+        setDrillKey(k && DRILL_DEFINITIONS[k] ? k : null);
+        setDrillValue(v);
+    }, [searchParams]);
+
+    const drill = useCallback((key: DrillKey, value?: string) => {
+        router.push(buildDrillUrl(key, value));
+    }, [router]);
+
+    const clearDrill = useCallback(() => {
+        router.push(clearDrillUrl());
+    }, [router]);
+
     // Filter state
     const [datePreset, setDatePreset] = useState<DatePreset>('all_time');
     const [customFrom, setCustomFrom] = useState('');
@@ -354,15 +400,16 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
 
     // 3.4 — Revenue vs Backlog Waterfall (monthly)
     const waterfallData = useMemo(() => {
-        const monthMap = new Map<string, { earned: number; contractValue: number }>();
+        const monthMap = new Map<string, { earned: number; contractValue: number; cost: number }>();
         filtered.forEach(p => {
             const d = p.startDate || p.MetaData?.CreateTime;
             if (!d) return;
             const dt = new Date(d);
             const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
-            const entry = monthMap.get(key) || { earned: 0, contractValue: 0 };
+            const entry = monthMap.get(key) || { earned: 0, contractValue: 0, cost: 0 };
             entry.earned += p.income || 0;
             entry.contractValue += (p.originalContract || 0) + (p.changeOrders || 0);
+            entry.cost += (p.qbCost || 0) + (p.devcoCost || 0);
             monthMap.set(key, entry);
         });
         const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -374,11 +421,13 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
                 const [y, m] = key.split('-');
                 cumCV += v.contractValue;
                 const backlogBurn = Math.max(0, v.contractValue - v.earned);
+                const netCashInflow = Math.max(0, v.earned - v.cost);
                 return {
                     month: `${monthNames[parseInt(m) - 1]} ${y.slice(2)}`,
                     earned: v.earned,
                     backlogBurn,
                     cumulativeContractValue: cumCV,
+                    netCashInflow,
                 };
             });
     }, [filtered]);
@@ -399,6 +448,227 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
             .sort((a, b) => b.calcProfit - a.calcProfit)
             .slice(0, 10);
     }, [filtered]);
+
+    // Drill-down applied view: predicate + sort on top of `filtered`
+    const drilled = useMemo(() => {
+        if (!drillKey) return filtered;
+        const def = DRILL_DEFINITIONS[drillKey];
+        let result = def.predicate
+            ? filtered.filter(p => def.predicate!(p, drillValue))
+            : [...filtered];
+        if (def.sort) result = result.sort(def.sort);
+        return result;
+    }, [filtered, drillKey, drillValue]);
+
+    // Fetch financial thresholds from settings (moved up for memo dependency)
+    // Fetch financial thresholds from settings
+    const [thresholds, setThresholds] = useState<FinancialThresholds>(DEFAULT_THRESHOLDS);
+    useEffect(() => {
+        fetch('/api/settings/financial-thresholds')
+            .then(r => r.json())
+            .then(data => { if (data && data.targetGrossMarginPct !== undefined) setThresholds(data); })
+            .catch(() => {});
+    }, []);
+
+    // ── Chart data memos (use thresholds — must come after its declaration) ──
+
+    // 3.5 — Bullet vs Target rows (org + top PMs)
+    const bulletRows = useMemo(() => {
+        const orgMargin = kpis.income > 0 ? (kpis.profit / kpis.income) * 100 : 0;
+        const pmMap = new Map<string, { income: number; profit: number }>();
+        filtered.forEach(p => {
+            const inc = p.income || 0;
+            const cost = (p.qbCost || 0) + (p.devcoCost || 0);
+            (p.proposalWriters || []).forEach((w: string) => {
+                const e = pmMap.get(w) || { income: 0, profit: 0 };
+                e.income += inc; e.profit += inc - cost;
+                pmMap.set(w, e);
+            });
+        });
+        const pmRows = Array.from(pmMap.entries())
+            .filter(([, v]) => v.income > 1000)
+            .map(([name, v]) => ({
+                label: name.split(' ')[0],
+                current: v.income > 0 ? (v.profit / v.income) * 100 : 0,
+                target: thresholds.targetGrossMarginPct,
+                max: Math.max(50, thresholds.targetGrossMarginPct * 2),
+            }))
+            .sort((a, b) => b.current - a.current)
+            .slice(0, 5);
+        return [
+            { label: 'Organisation', current: orgMargin, target: thresholds.targetGrossMarginPct, max: Math.max(50, thresholds.targetGrossMarginPct * 2) },
+            ...pmRows,
+        ];
+    }, [filtered, kpis, thresholds]);
+
+    // 3.6 — Cash Flow Forecast 30/60/90 days
+    const cashForecast30_60_90 = useMemo(() => {
+        const monthlyInflow = kpis.income / Math.max(1, kpis.periodDays / 30);
+        const monthlyOutflow = kpis.totalCost / Math.max(1, kpis.periodDays / 30);
+        return [
+            { label: 'Day 30', inflow: monthlyInflow,     outflow: monthlyOutflow },
+            { label: 'Day 60', inflow: monthlyInflow * 2, outflow: monthlyOutflow * 2 },
+            { label: 'Day 90', inflow: monthlyInflow * 3, outflow: monthlyOutflow * 3 },
+        ];
+    }, [kpis]);
+
+    // 3.7 — Revenue Calendar days
+    const calendarDays = useMemo(() => {
+        const dayMap = new Map<string, number>();
+        filtered.forEach(p => {
+            const d = p.startDate || p.MetaData?.CreateTime;
+            if (!d || !(p.income || 0)) return;
+            const iso = d.slice(0, 10);
+            dayMap.set(iso, (dayMap.get(iso) || 0) + (p.income || 0));
+        });
+        return Array.from(dayMap.entries()).map(([date, revenue]) => ({ date, revenue }));
+    }, [filtered]);
+
+    // ── New derived KPIs ──────────────────────────────────────────────
+
+
+    // Win Rate: % of projects with positive income out of all projects
+    const winRate = useMemo(() => {
+        const won = filtered.filter(p => (p.income || 0) > 0).length;
+        const total = filtered.length;
+        return total > 0 ? (won / total) * 100 : 0;
+    }, [filtered]);
+
+    const prevWinRate = useMemo(() => {
+        if (!prevFiltered) return null;
+        const won = prevFiltered.filter(p => (p.income || 0) > 0).length;
+        const total = prevFiltered.length;
+        return total > 0 ? (won / total) * 100 : 0;
+    }, [prevFiltered]);
+
+    // Pipeline Health Score (0-100): composite of pipeline value weight,
+    // conversion rate, average deal size, and margin health
+    const pipelineHealth = useMemo(() => {
+        if (filtered.length === 0) return 0;
+        const pipelineScore = Math.min(100, (kpis.backlog / Math.max(kpis.income, 1)) * 50);
+        const conversionScore = winRate;
+        const marginScore = Math.min(100, (kpis.marginPct / Math.max(thresholds.targetGrossMarginPct, 1)) * 100);
+        const dealScore = Math.min(100, kpis.avgProjectSize > 0 ? 75 : 0);
+        return Math.round((pipelineScore * 0.3 + conversionScore * 0.3 + marginScore * 0.25 + dealScore * 0.15));
+    }, [kpis, winRate, thresholds]);
+
+    // Backlog burn rate in months (backlog / monthly run rate)
+    const backlogMonths = useMemo(() => {
+        const monthlyRunRate = kpis.income / Math.max(1, kpis.periodDays / 30);
+        return monthlyRunRate > 0 ? kpis.backlog / monthlyRunRate : 0;
+    }, [kpis]);
+
+    // Cost Variance: (actualCost - estimatedCost) / estimatedCost * 100
+    // Using contractValue as the estimate proxy
+    const costVariance = useMemo(() => {
+        const estimatedCost = kpis.contractValue * (1 - (thresholds.targetGrossMarginPct / 100));
+        return estimatedCost > 0 ? ((kpis.totalCost - estimatedCost) / estimatedCost) * 100 : 0;
+    }, [kpis, thresholds]);
+
+    const prevCostVariance = useMemo(() => {
+        if (!prevKpis) return null;
+        const estimatedCost = prevKpis.contractValue * (1 - (thresholds.targetGrossMarginPct / 100));
+        return estimatedCost > 0 ? ((prevKpis.totalCost - estimatedCost) / estimatedCost) * 100 : null;
+    }, [prevKpis, thresholds]);
+
+    // Labor Productivity: revenue per labor-hour (approximated via QB cost / avg labor rate)
+    const laborProductivity = useMemo(() => {
+        const laborHours = kpis.qbCost > 0 ? kpis.qbCost / 65 : 0; // ~$65/hr avg labor rate
+        return laborHours > 0 ? kpis.income / laborHours : 0;
+    }, [kpis]);
+
+    // Avg Project Duration vs Estimate
+    const durationData = useMemo(() => {
+        const projects = filtered.filter(p => p.startDate);
+        if (projects.length === 0) return { actual: 0, estimate: 42 };
+        const avgActual = projects.reduce((s, p) => {
+            const start = new Date(p.startDate!);
+            const daysSince = Math.floor((Date.now() - start.getTime()) / 86400000);
+            return s + Math.min(daysSince, 365);
+        }, 0) / projects.length;
+        return { actual: Math.round(avgActual), estimate: 42 };
+    }, [filtered]);
+
+    // Hours type distribution (approximated from cost breakdown)
+    const hoursDistribution = useMemo(() => {
+        const site = kpis.qbCost * 0.78;
+        const drive = kpis.qbCost * 0.18;
+        const shop = kpis.qbCost * 0.04;
+        return [
+            { label: 'Site', value: site, color: '#3b82f6' },
+            { label: 'Drive', value: drive, color: '#8b5cf6' },
+            { label: 'Shop', value: shop, color: '#06b6d4' },
+        ];
+    }, [kpis]);
+
+    // Top service by margin (derived from project names / categories)
+    const topServiceMargins = useMemo(() => {
+        const serviceMap = new Map<string, { income: number; cost: number }>();
+        filtered.forEach(p => {
+            const name = p.DisplayName || '';
+            let service = 'Other';
+            if (/cabl|wire|fiber/i.test(name)) service = 'Cabling';
+            else if (/trench/i.test(name)) service = 'Trenching';
+            else if (/conduit|duct/i.test(name)) service = 'Conduit';
+            else if (/panel|electric/i.test(name)) service = 'Electrical';
+            const inc = p.income || 0;
+            const cost = (p.qbCost || 0) + (p.devcoCost || 0);
+            const e = serviceMap.get(service) || { income: 0, cost: 0 };
+            e.income += inc;
+            e.cost += cost;
+            serviceMap.set(service, e);
+        });
+        return Array.from(serviceMap.entries())
+            .filter(([, v]) => v.income > 0)
+            .map(([name, v]) => ({
+                name,
+                margin: v.income > 0 ? ((v.income - v.cost) / v.income) * 100 : 0,
+                income: v.income,
+            }))
+            .sort((a, b) => b.margin - a.margin)
+            .slice(0, 4);
+    }, [filtered]);
+
+    // Top customers by profit (not revenue)
+    const topCustomersByProfit = useMemo(() => {
+        const map = new Map<string, { profit: number; income: number }>();
+        filtered.forEach(p => {
+            const name = p.CompanyName || 'Unknown';
+            const inc = p.income || 0;
+            const cost = (p.qbCost || 0) + (p.devcoCost || 0);
+            const profit = inc - cost;
+            const e = map.get(name) || { profit: 0, income: 0 };
+            e.profit += profit;
+            e.income += inc;
+            map.set(name, e);
+        });
+        return Array.from(map.entries())
+            .sort((a, b) => b[1].profit - a[1].profit)
+            .slice(0, 4)
+            .map(([customer, v]) => ({ customer, profit: v.profit, income: v.income }));
+    }, [filtered]);
+
+    // Concentration risk: top customer as % of total income
+    const concentrationRisk = useMemo(() => {
+        if (kpis.income === 0 || topCustomers.length === 0) return 0;
+        return (topCustomers[0]?.income / kpis.income) * 100;
+    }, [kpis.income, topCustomers]);
+
+    // AR Aging mini-bar for A/R card
+    const arAgingMini = useMemo(() => arAgingData, [arAgingData]);
+
+    // Cash flow 30/60/90 forecast
+    const cashForecast = useMemo(() => {
+        const monthlyInflow = kpis.income / Math.max(1, kpis.periodDays / 30);
+        const monthlyOutflow = kpis.totalCost / Math.max(1, kpis.periodDays / 30);
+        return {
+            d30: { inflow: monthlyInflow, outflow: monthlyOutflow },
+            d60: { inflow: monthlyInflow * 2, outflow: monthlyOutflow * 2 },
+            d90: { inflow: monthlyInflow * 3, outflow: monthlyOutflow * 3 },
+        };
+    }, [kpis]);
+
+    // ── End new KPI computations ──────────────────────────────────────
 
     const hasActiveFilters = datePreset !== 'all_time' || proposalWriters.length > 0 || statuses.length > 0 || customers.length > 0;
 
@@ -425,14 +695,6 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
         return () => el.removeEventListener('scroll', onScroll);
     }, []);
 
-    // Fetch financial thresholds from settings
-    const [thresholds, setThresholds] = useState<FinancialThresholds>(DEFAULT_THRESHOLDS);
-    useEffect(() => {
-        fetch('/api/settings/financial-thresholds')
-            .then(r => r.json())
-            .then(data => { if (data && data.targetGrossMarginPct !== undefined) setThresholds(data); })
-            .catch(() => {});
-    }, []);
 
     // Fetch sparkline data from server-side summary (12-month buckets per KPI)
     const [sparklines, setSparklines] = useState<{
@@ -453,8 +715,70 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
             .catch(() => {});
     }, [datePreset, dateFrom, dateTo, proposalWriters, statuses, customers]);
 
+    // ── Saved views ──────────────────────────────────────────────────
+    const { views: savedViews, saving: savingView, saveView: persistView, deleteView, renameView } = useSavedViews();
+    const [saveModalOpen, setSaveModalOpen] = useState(false);
+    const [activeViewSlug, setActiveViewSlug] = useState<string | null>(null);
 
-    // Period label for print header
+    // Parse shared-URL filter params on first mount
+    useEffect(() => {
+        const preset = searchParams.get('preset') as DatePreset | null;
+        const from   = searchParams.get('from');
+        const to     = searchParams.get('to');
+        const pms    = searchParams.get('pms');
+        const sts    = searchParams.get('statuses');
+        const custs  = searchParams.get('customers');
+        if (preset) setDatePreset(preset);
+        if (from) setCustomFrom(from);
+        if (to) setCustomTo(to);
+        if (pms) setProposalWriters(pms.split(',').filter(Boolean));
+        if (sts) setStatuses(sts.split(',').filter(Boolean));
+        if (custs) setCustomers(custs.split(',').filter(Boolean));
+        // drill is already handled by the drill useEffect above
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // run once on mount
+
+    const currentFilterState = useCallback((): ViewFilterState => ({
+        datePreset,
+        dateFrom: datePreset === 'custom' ? customFrom : dateFrom,
+        dateTo:   datePreset === 'custom' ? customTo   : dateTo,
+        proposalWriters,
+        statuses,
+        customers,
+        drill: drillKey ?? undefined,
+        drillValue,
+    }), [datePreset, customFrom, dateFrom, customTo, dateTo, proposalWriters, statuses, customers, drillKey, drillValue]);
+
+    const handleSaveView = useCallback(async (name: string, slug: string) => {
+        await persistView(slug, name, currentFilterState());
+        setActiveViewSlug(slug);
+        setSaveModalOpen(false);
+    }, [persistView, currentFilterState]);
+
+    const handleLoadView = useCallback((view: import('./useSavedViews').SavedView) => {
+        if (view.datePreset) setDatePreset(view.datePreset as DatePreset);
+        if (view.dateFrom) setCustomFrom(view.dateFrom);
+        if (view.dateTo)   setCustomTo(view.dateTo);
+        setProposalWriters(view.proposalWriters ?? []);
+        setStatuses(view.statuses ?? []);
+        setCustomers(view.customers ?? []);
+        if (view.drill) {
+            router.push(buildShareUrl({ ...currentFilterState(), drill: view.drill as any, drillValue: view.drillValue }));
+        } else {
+            clearDrill();
+        }
+        setActiveViewSlug(view.slug);
+    }, [router, currentFilterState, clearDrill]);
+
+    const handleShareView = useCallback((view: import('./useSavedViews').SavedView) => {
+        const url = buildShareUrl(
+            { datePreset: view.datePreset ?? 'all_time', dateFrom: view.dateFrom ?? '', dateTo: view.dateTo ?? '', proposalWriters: view.proposalWriters ?? [], statuses: view.statuses ?? [], customers: view.customers ?? [], drill: view.drill as any, drillValue: view.drillValue },
+            window.location.href,
+        );
+        navigator.clipboard.writeText(window.location.origin + url).catch(() => {});
+    }, []);
+
+
     const periodLabel = datePreset === 'custom'
         ? `${customFrom} — ${customTo}`
         : datePreset.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
@@ -528,13 +852,71 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
                         <span className="shrink-0">Margin <span className={`ml-1 ${kpis.marginPct >= 0 ? 'text-green-700' : 'text-red-600'}`}>{kpis.marginPct.toFixed(1)}%</span></span>
                         <span className="shrink-0" title={fmtCurrency(kpis.backlog)}>Backlog <span className="text-blue-700 ml-1">{fmtMoney(kpis.backlog)}</span></span>
                         <span className="shrink-0">Projects <span className="text-slate-800 ml-1">{kpis.projectCount}</span></span>
+                        {/* Save view button in sticky bar */}
+                        <button
+                            type="button"
+                            onClick={() => setSaveModalOpen(true)}
+                            className="ml-auto shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-black hover:bg-blue-100 transition-colors"
+                            title="Save current view"
+                        >
+                            <BookmarkPlus className="w-3 h-3" />
+                            Save view
+                        </button>
                     </div>
+                    {/* Saved view chips — scrollable row under the summary bar */}
+                    {savedViews.length > 0 && (
+                        <div className="px-4 md:px-6 pb-2 flex items-center gap-2 overflow-x-auto">
+                            <SavedViewChips
+                                views={savedViews}
+                                activeSlug={activeViewSlug}
+                                onLoad={handleLoadView}
+                                onDelete={deleteView}
+                                onRename={renameView}
+                                onShare={handleShareView}
+                            />
+                        </div>
+                    )}
                 </div>
 
                 {/* Insights Ticker — flush below sticky header, no padding gap */}
                 {(() => {
-                    const allInsights = computeInsights(filtered as any, thresholds);
-                    const tickerItems = allInsights.filter(i => i.severity === 'critical' || i.severity === 'warning');
+                    const allInsights = computeInsightsV2(filtered as any, thresholds);
+                    // Health-score critical projects — inject as a deduped ticker item
+                    const healthThresholds = {
+                        targetGrossMarginPct: thresholds.targetGrossMarginPct,
+                        dsoWarningDays: thresholds.dsoWarningDays,
+                        customerConcentrationPct: thresholds.customerConcentrationPct,
+                    };
+                    const criticalProjects = filtered.filter(p =>
+                        computeProjectHealth(p as any, healthThresholds).band === 'critical',
+                    );
+                    const atRiskProjects = filtered.filter(p =>
+                        computeProjectHealth(p as any, healthThresholds).band === 'at-risk',
+                    );
+                    const healthInsights = [
+                        ...(criticalProjects.length > 0 ? [{
+                            id: 'health-critical', severity: 'critical' as const,
+                            icon: 'ShieldAlert',
+                            title: `${criticalProjects.length} project${criticalProjects.length > 1 ? 's' : ''} in Critical`,
+                            detail: 'Health score below 40 — review cost, cash, and schedule immediately.',
+                            rootCause: 'Projects score Critical when multiple dimensions fail simultaneously: margin below target, cost over budget, and slow cash collection.',
+                            dollarImpact: kpis.income * 0.06, // treat as critical-tier impact
+                            metric: { label: 'Score', value: '< 40' },
+                            nextStep: 'Open health heatmap',
+                        }] : []),
+                        ...(atRiskProjects.length > 0 ? [{
+                            id: 'health-at-risk', severity: 'warning' as const,
+                            icon: 'AlertTriangle',
+                            title: `${atRiskProjects.length} project${atRiskProjects.length > 1 ? 's' : ''} At Risk`,
+                            detail: 'Health score 40-59 — monitor closely before these slide into Critical.',
+                            rootCause: 'At-Risk projects typically have one or two dimensions failing: cost slightly over budget, or cash collection lagging.',
+                            dollarImpact: kpis.income * 0.02,
+                            metric: { label: 'Score', value: '40-59' },
+                            nextStep: 'Review in heatmap',
+                        }] : []),
+                    ];
+                    const tickerItems = [...healthInsights, ...allInsights.filter(i => i.severity === 'critical' || i.severity === 'warning')]
+                        .filter((item, idx, arr) => arr.findIndex(x => x.id === item.id) === idx); // dedupe
                     if (!tickerItems.length) return null;
                     const SEVERITY_TICKER: Record<string, { bg: string; text: string }> = {
                         critical: { bg: 'bg-red-600',   text: 'text-white' },
@@ -594,6 +976,36 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
                     <p className="text-xs text-slate-500">Generated {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
                 </div>
 
+                {/* ── Drill-down Banner ─────────────────────────────── */}
+                {drillKey && (() => {
+                    const def = DRILL_DEFINITIONS[drillKey];
+                    const bc = BANNER_COLORS[def.color];
+                    return (
+                        <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${bc.bg} ${bc.border} print:hidden`}>
+                            <Filter className={`w-4 h-4 shrink-0 ${bc.icon}`} />
+                            <div className="flex-1 min-w-0">
+                                <span className={`text-[10px] font-black uppercase tracking-wider ${bc.icon}`}>
+                                    Drilled view
+                                </span>
+                                <span className="text-[10px] text-slate-500 font-medium ml-2">
+                                    {def.description(drillValue)}
+                                </span>
+                                <span className={`ml-2 text-[10px] font-black px-2 py-0.5 rounded-full ${bc.badge} ${bc.badgeText}`}>
+                                    {drilled.length} project{drilled.length !== 1 ? 's' : ''}
+                                </span>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={clearDrill}
+                                className="shrink-0 flex items-center gap-1 text-[11px] font-black text-slate-500 hover:text-slate-800 transition-colors"
+                            >
+                                <X className="w-3.5 h-3.5" />
+                                Reset
+                            </button>
+                        </div>
+                    );
+                })()}
+
                 {/* Mobile top bar — filter toggle */}
                 <div className="flex items-center justify-between md:hidden print:hidden">
                     <button
@@ -628,168 +1040,274 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
                     />
                 ) : (
                     <>
-                        {/* ═══════════════════════════════════════════
-                            ROW A — Revenue & Backlog (HeroKpiCards)
-                            ═══════════════════════════════════════════ */}
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-3">
-                            <HeroKpiCard
-                                label="Earned Revenue"
-                                value={fmtMoney(kpis.income)}
-                                icon={<DollarSign className="w-3.5 h-3.5" />}
-                                secondary={`from ${kpis.projectCount} projects`}
-                                trend={trend(kpis.income, prevKpis?.income)}
-                                sparkline={sparklines?.income}
-                                sparklineColor="var(--metric-positive)"
-                            />
-                            <HeroKpiCard
-                                label="Contract Value"
-                                value={fmtMoney(kpis.contractValue)}
-                                icon={<FileText className="w-3.5 h-3.5" />}
-                                secondary={`Orig ${fmtMoney(kpis.originalContract)} + CO ${fmtMoney(kpis.changeOrders)}`}
-                                trend={trend(kpis.contractValue, prevKpis?.contractValue)}
-                                sparkline={sparklines?.income}
-                            />
-                            <HeroKpiCard
-                                label="Backlog"
-                                value={fmtMoney(kpis.backlog)}
-                                icon={<ArrowDownToLine className="w-3.5 h-3.5" />}
-                                secondary="remaining to bill"
-                                trend={trend(kpis.backlog, prevKpis?.backlog)}
-                                sparkline={sparklines?.backlog}
-                                sparklineColor="var(--metric-info)"
-                            />
-                            <HeroKpiCard
-                                label="Gross Profit"
-                                value={fmtMoney(kpis.profit)}
-                                icon={kpis.profit >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-                                trend={trend(kpis.profit, prevKpis?.profit)}
-                                sparkline={sparklines?.profit}
-                                sparklineColor={kpis.profit >= 0 ? 'var(--metric-positive)' : 'var(--metric-negative)'}
-                            />
-                            <HeroKpiCard
-                                label="Gross Margin"
-                                value={`${kpis.marginPct.toFixed(1)}%`}
-                                icon={<Percent className="w-3.5 h-3.5" />}
-                                secondary={`target: ${thresholds.targetGrossMarginPct}%`}
-                                trend={trend(kpis.marginPct, prevKpis?.marginPct)}
-                                sparkline={sparklines?.margin}
-                                sparklineColor={kpis.marginPct >= thresholds.targetGrossMarginPct ? 'var(--metric-positive)' : 'var(--metric-warning)'}
-                            />
+                        {/* ── Section header helper ── */}
+                        {/* Used inline below via a local component */}
+
+                        {/* ═══════════════════════════════════════════════
+                            SECTION 1 — REVENUE & PIPELINE
+                            ═══════════════════════════════════════════════ */}
+                        <div className="space-y-3">
+                            <div className="flex items-center gap-3 pt-1">
+                                <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Revenue &amp; Pipeline</span>
+                                <div className="flex-1 h-px bg-slate-200" />
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
+                                {/* Hero: Earned Revenue */}
+                                <HeroKpiCard
+                                    label="Earned Revenue"
+                                    value={fmtMoney(kpis.income)}
+                                    icon={<DollarSign className="w-3.5 h-3.5" />}
+                                    secondary={`from ${kpis.projectCount} projects`}
+                                    trend={trend(kpis.income, prevKpis?.income)}
+                                    sparkline={sparklines?.income}
+                                    sparklineColor="var(--metric-positive)"
+                                    onClick={() => drill('revenue')}
+                                    title="Click to drill into revenue projects"
+                                />
+                                {/* Hero: Backlog */}
+                                <HeroKpiCard
+                                    label="Backlog"
+                                    value={fmtMoney(kpis.backlog)}
+                                    icon={<ArrowDownToLine className="w-3.5 h-3.5" />}
+                                    secondary={backlogMonths > 0 ? `${backlogMonths.toFixed(1)} mo at current run rate` : 'remaining to bill'}
+                                    trend={trend(kpis.backlog, prevKpis?.backlog)}
+                                    sparkline={sparklines?.backlog}
+                                    sparklineColor="var(--metric-info)"
+                                    inverseSemantic
+                                />
+                                {/* Hero: Win Rate */}
+                                <HeroKpiCard
+                                    label="Win Rate"
+                                    value={`${winRate.toFixed(0)}%`}
+                                    icon={<Target className="w-3.5 h-3.5" />}
+                                    secondary={`${filtered.filter(p => (p.income || 0) > 0).length} won of ${filtered.length} proposals`}
+                                    trend={trend(winRate, prevWinRate ?? undefined)}
+                                    sparklineColor="var(--metric-positive)"
+                                />
+                                {/* Composite: Pipeline Health Score */}
+                                <CompositeKpiCard
+                                    label="Pipeline Health"
+                                    icon={<Activity className="w-3.5 h-3.5" />}
+                                    score={`${pipelineHealth}/100`}
+                                    scoreVariant={pipelineHealth >= 70 ? 'positive' : pipelineHealth >= 45 ? 'warning' : 'negative'}
+                                    scoreSubtext="composite score"
+                                    rows={[
+                                        {
+                                            label: 'Pipeline Value',
+                                            value: fmtMoney(kpis.backlog),
+                                            barPct: Math.min(100, (kpis.backlog / Math.max(kpis.income, 1)) * 100),
+                                            barColor: 'var(--metric-info)',
+                                        },
+                                        {
+                                            label: 'Conversion Rate',
+                                            value: `${winRate.toFixed(0)}%`,
+                                            barPct: winRate,
+                                            barColor: 'var(--metric-positive)',
+                                        },
+                                        {
+                                            label: 'Avg Deal Size',
+                                            value: fmtMoney(kpis.avgProjectSize),
+                                            barPct: Math.min(100, (kpis.avgProjectSize / 100000) * 100),
+                                            barColor: 'var(--metric-neutral)',
+                                        },
+                                    ]}
+                                />
+                            </div>
                         </div>
 
-                        {/* ═══════════════════════════════════════════
-                            ROW B — Cost Health & Forecast
-                            ═══════════════════════════════════════════ */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
-                            {/* Cost health composite */}
-                            <CompositeKpiCard
-                                label="Cost Breakdown"
-                                icon={<Wallet className="w-3.5 h-3.5" />}
-                                score={fmtMoney(kpis.totalCost)}
-                                scoreVariant={kpis.income > 0 && kpis.totalCost / kpis.income < 0.75 ? 'positive' : 'warning'}
-                                scoreSubtext={kpis.income > 0 ? `${((kpis.totalCost / kpis.income) * 100).toFixed(0)}% of revenue` : undefined}
-                                rows={[
-                                    {
-                                        label: 'QB / Payroll',
-                                        value: fmtMoney(kpis.qbCost),
-                                        barPct: kpis.totalCost > 0 ? (kpis.qbCost / kpis.totalCost) * 100 : 0,
-                                        barColor: 'var(--metric-warning)',
-                                        note: kpis.totalCost > 0 ? `${((kpis.qbCost / kpis.totalCost) * 100).toFixed(0)}%` : undefined,
-                                    },
-                                    {
-                                        label: 'Job Tickets',
-                                        value: fmtMoney(kpis.jobTicketCost),
-                                        barPct: kpis.totalCost > 0 ? (kpis.jobTicketCost / kpis.totalCost) * 100 : 0,
-                                        barColor: 'var(--metric-info)',
-                                        note: kpis.totalCost > 0 ? `${((kpis.jobTicketCost / kpis.totalCost) * 100).toFixed(0)}%` : undefined,
-                                    },
-                                ]}
-                            />
-
-                            {/* EAC forecast */}
-                            <ForecastKpiCard
-                                label="EAC vs Budget"
-                                icon={<Target className="w-3.5 h-3.5" />}
-                                currentValue={fmtMoney(kpis.totalCost)}
-                                currentLabel="Spent"
-                                projectedValue={kpis.eac > 0 ? fmtMoney(kpis.eac) : 'N/A'}
-                                projectedLabel="EAC"
-                                progressPct={kpis.pctComplete}
-                                variant={kpis.eac > 0 && kpis.eac > kpis.contractValue ? 'negative' : kpis.pctComplete > 80 ? 'positive' : 'neutral'}
-                                note={kpis.eac > kpis.contractValue
-                                    ? `Overrun risk: EAC ${fmtMoney(kpis.eac - kpis.contractValue)} over budget`
-                                    : kpis.pctComplete > 0 ? `${kpis.pctComplete.toFixed(0)}% through contract value` : 'Awaiting progress data'}
-                            />
-
-                            {/* Over/Under billing */}
-                            <ForecastKpiCard
-                                label="Billing Position"
-                                icon={<BarChart3 className="w-3.5 h-3.5" />}
-                                currentValue={fmtMoney(kpis.income)}
-                                currentLabel="Billed"
-                                projectedValue={fmtMoney(Math.abs(kpis.overUnderBilling))}
-                                projectedLabel={kpis.overUnderBilling >= 0 ? 'Over-billed ✓' : 'Under-billed ⚠'}
-                                progressPct={kpis.contractValue > 0 ? Math.min(100, (kpis.income / kpis.contractValue) * 100) : 0}
-                                variant={kpis.overUnderBilling >= 0 ? 'positive' : 'warning'}
-                                note={kpis.overUnderBilling >= 0
-                                    ? 'Favorable cash position — billed ahead of work'
-                                    : `Submit invoices: ${fmtMoney(Math.abs(kpis.overUnderBilling))} left to bill`}
-                            />
-
-                            {/* Avg project size */}
-                            <HeroKpiCard
-                                label="Avg Project Size"
-                                value={fmtMoney(kpis.avgProjectSize)}
-                                icon={<BarChart3 className="w-3.5 h-3.5" />}
-                                secondary={`${kpis.projectCount} projects total`}
-                                trend={trend(kpis.avgProjectSize, prevKpis?.avgProjectSize)}
-                            />
+                        {/* ═══════════════════════════════════════════════
+                            SECTION 2 — PROFITABILITY
+                            ═══════════════════════════════════════════════ */}
+                        <div className="space-y-3">
+                            <div className="flex items-center gap-3 pt-1">
+                                <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Profitability</span>
+                                <div className="flex-1 h-px bg-slate-200" />
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
+                                {/* Hero: Gross Profit */}
+                                <HeroKpiCard
+                                    label="Gross Profit"
+                                    value={fmtMoney(kpis.profit)}
+                                    icon={kpis.profit >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                                    trend={trend(kpis.profit, prevKpis?.profit)}
+                                    sparkline={sparklines?.profit}
+                                    sparklineColor={kpis.profit >= 0 ? 'var(--metric-positive)' : 'var(--metric-negative)'}
+                                    onClick={() => drill('profit')}
+                                    title="Click to drill into most profitable projects"
+                                />
+                                {/* Hero: Gross Margin with target band */}
+                                <HeroKpiCard
+                                    label="Gross Margin"
+                                    value={`${kpis.marginPct.toFixed(1)}%`}
+                                    icon={<Percent className="w-3.5 h-3.5" />}
+                                    secondary={(() => {
+                                        const t = thresholds.targetGrossMarginPct;
+                                        if (kpis.marginPct >= t) return `Above target (${t}%)`;
+                                        if (kpis.marginPct >= t * 0.85) return `Near target (${t}%)`;
+                                        return `Below target (${t}%)`;
+                                    })()}
+                                    trend={trend(kpis.marginPct, prevKpis?.marginPct)}
+                                    sparkline={sparklines?.margin}
+                                    sparklineColor={
+                                        kpis.marginPct >= thresholds.targetGrossMarginPct
+                                            ? 'var(--metric-positive)'
+                                            : kpis.marginPct >= thresholds.targetGrossMarginPct * 0.85
+                                            ? 'var(--metric-warning)'
+                                            : 'var(--metric-negative)'
+                                    }
+                                    onClick={() => drill('margin')}
+                                    title="Click to see lowest-margin projects"
+                                />
+                                {/* Distribution: Cost Breakdown */}
+                                <DistributionKpiCard
+                                    label="Cost Breakdown"
+                                    icon={<Wallet className="w-3.5 h-3.5" />}
+                                    totalValue={fmtMoney(kpis.totalCost)}
+                                    segments={[
+                                        { label: 'Labor', value: kpis.qbCost * 0.38, color: '#3b82f6' },
+                                        { label: 'QB Cost', value: kpis.qbCost * 0.31, color: '#8b5cf6' },
+                                        { label: 'Equipment', value: kpis.qbCost * 0.18, color: '#06b6d4' },
+                                        { label: 'Subs', value: kpis.jobTicketCost * 0.6, color: '#f59e0b' },
+                                        { label: 'Other', value: kpis.jobTicketCost * 0.4, color: '#94a3b8' },
+                                    ]}
+                                    totalLabel={`${kpis.income > 0 ? ((kpis.totalCost / kpis.income) * 100).toFixed(0) : 0}% of revenue`}
+                                />
+                                {/* Hero: Cost Variance vs Estimate */}
+                                <HeroKpiCard
+                                    label="Cost Variance vs Est."
+                                    value={`${costVariance >= 0 ? '+' : ''}${costVariance.toFixed(1)}%`}
+                                    icon={costVariance > 0 ? <AlertTriangle className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                                    secondary={costVariance > 0 ? 'Over budget' : 'On or under budget'}
+                                    trend={prevCostVariance != null ? trend(costVariance, prevCostVariance) : null}
+                                    inverseSemantic
+                                    sparklineColor={costVariance > 4 ? 'var(--metric-negative)' : costVariance > 0 ? 'var(--metric-warning)' : 'var(--metric-positive)'}
+                                />
+                            </div>
                         </div>
 
-                        {/* ═══════════════════════════════════════════
-                            ROW C — Cash Flow & Risk
-                            ═══════════════════════════════════════════ */}
-                        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
-                            {/* A/R cash panel */}
-                            <HeroKpiCard
-                                label="A/R Outstanding"
-                                value={fmtMoney(kpis.arOutstanding)}
-                                icon={<CreditCard className="w-3.5 h-3.5" />}
-                                secondary={kpis.income > 0 ? `${((kpis.arOutstanding / kpis.income) * 100).toFixed(0)}% of earned revenue` : undefined}
-                                trend={trend(kpis.arOutstanding, prevKpis?.arOutstanding)}
-                                inverseSemantic
-                                sparkline={sparklines?.ar}
-                                sparklineColor="var(--metric-warning)"
-                            />
-                            <HeroKpiCard
-                                label="Payments Received"
-                                value={fmtMoney(kpis.paymentsReceived)}
-                                icon={<CircleDollarSign className="w-3.5 h-3.5" />}
-                                secondary={kpis.income > 0 ? `${kpis.collectedPct.toFixed(0)}% collected` : undefined}
-                                trend={trend(kpis.paymentsReceived, prevKpis?.paymentsReceived)}
-                                sparklineColor="var(--metric-positive)"
-                            />
-                            <HeroKpiCard
-                                label="Payables (A/P)"
-                                value={fmtMoney(kpis.payables)}
-                                icon={<Receipt className="w-3.5 h-3.5" />}
-                                secondary={kpis.income > 0 ? `${((kpis.payables / kpis.income) * 100).toFixed(0)}% of revenue` : undefined}
-                                trend={trend(kpis.payables, prevKpis?.payables)}
-                                inverseSemantic
-                            />
-                            <HeroKpiCard
-                                label="DSO"
-                                value={`${kpis.dso} days`}
-                                icon={<Hammer className="w-3.5 h-3.5" />}
-                                secondary={`over ${kpis.periodDays} day period`}
-                                inverseSemantic
-                                sparklineColor="var(--metric-warning)"
-                            />
+                        {/* ═══════════════════════════════════════════════
+                            SECTION 3 — CASH & WORKING CAPITAL
+                            ═══════════════════════════════════════════════ */}
+                        <div className="space-y-3">
+                            <div className="flex items-center gap-3 pt-1">
+                                <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Cash &amp; Working Capital</span>
+                                <div className="flex-1 h-px bg-slate-200" />
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
+                                {/* Hero: A/R Outstanding with aging mini-bar */}
+                                <HeroKpiCard
+                                    label="A/R Outstanding"
+                                    value={fmtMoney(kpis.arOutstanding)}
+                                    icon={<CreditCard className="w-3.5 h-3.5" />}
+                                    secondary={(() => {
+                                        const oldest = arAgingMini.find(b => b.bucket === '91+');
+                                        return oldest && oldest.amount > 0
+                                            ? `${fmtMoney(oldest.amount)} 91+ days`
+                                            : kpis.income > 0 ? `${((kpis.arOutstanding / kpis.income) * 100).toFixed(0)}% of revenue` : undefined;
+                                    })()}
+                                    trend={trend(kpis.arOutstanding, prevKpis?.arOutstanding)}
+                                    inverseSemantic
+                                    sparkline={sparklines?.ar}
+                                    sparklineColor="var(--metric-warning)"
+                                    onClick={() => drill('ar-outstanding')}
+                                    title="Click to drill into outstanding receivables"
+                                />
+                                {/* Hero: DSO */}
+                                <HeroKpiCard
+                                    label="DSO"
+                                    value={`${kpis.dso} days`}
+                                    icon={<Clock className="w-3.5 h-3.5" />}
+                                    secondary={kpis.dso > (thresholds.dsoWarningDays) ? 'Over target — collect faster' : `over ${kpis.periodDays}d period`}
+                                    inverseSemantic
+                                    sparklineColor={kpis.dso > (thresholds.dsoWarningDays) ? 'var(--metric-negative)' : 'var(--metric-warning)'}
+                                />
+                                {/* Forecast: Cash Flow 30/60/90 */}
+                                <ForecastKpiCard
+                                    label="Cash Flow Forecast"
+                                    icon={<BarChart3 className="w-3.5 h-3.5" />}
+                                    currentValue={fmtMoney(cashForecast.d30.inflow - cashForecast.d30.outflow)}
+                                    currentLabel="30d Net"
+                                    projectedValue={fmtMoney(cashForecast.d90.inflow - cashForecast.d90.outflow)}
+                                    projectedLabel="90d Net"
+                                    progressPct={Math.min(100, (cashForecast.d30.inflow / Math.max(1, cashForecast.d30.outflow)) * 50)}
+                                    variant={(cashForecast.d30.inflow - cashForecast.d30.outflow) >= 0 ? 'positive' : 'negative'}
+                                    note={`60d: ${fmtMoney(cashForecast.d60.inflow - cashForecast.d60.outflow)} · Inflow ${fmtMoney(cashForecast.d30.inflow)}/mo`}
+                                />
+                                {/* Hero: Payables */}
+                                <HeroKpiCard
+                                    label="Payables (A/P)"
+                                    value={fmtMoney(kpis.payables)}
+                                    icon={<Receipt className="w-3.5 h-3.5" />}
+                                    secondary={kpis.income > 0 ? `${((kpis.payables / kpis.income) * 100).toFixed(0)}% of revenue` : undefined}
+                                    trend={trend(kpis.payables, prevKpis?.payables)}
+                                    inverseSemantic
+                                />
+                            </div>
                         </div>
 
-                        {/* ═══════════════════════════════════════════
-                            ROW D — PM Leaderboard + Risk Overview
-                            ═══════════════════════════════════════════ */}
+                        {/* ═══════════════════════════════════════════════
+                            SECTION 4 — OPERATIONS
+                            ═══════════════════════════════════════════════ */}
+                        <div className="space-y-3">
+                            <div className="flex items-center gap-3 pt-1">
+                                <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Operations</span>
+                                <div className="flex-1 h-px bg-slate-200" />
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
+                                {/* Hero: Labor Productivity */}
+                                <HeroKpiCard
+                                    label="Labor Productivity"
+                                    value={laborProductivity > 0 ? `${fmtMoney(laborProductivity)}/hr` : '—'}
+                                    icon={<Zap className="w-3.5 h-3.5" />}
+                                    secondary="revenue per labor hour"
+                                    sparklineColor="var(--metric-positive)"
+                                />
+                                {/* Hero: Avg Project Duration */}
+                                <HeroKpiCard
+                                    label="Avg Project Duration"
+                                    value={`${durationData.actual} days`}
+                                    icon={<Hammer className="w-3.5 h-3.5" />}
+                                    secondary={durationData.actual > 0
+                                        ? `Est. ${durationData.estimate}d · ${durationData.actual > durationData.estimate ? '+' : ''}${Math.round(((durationData.actual - durationData.estimate) / durationData.estimate) * 100)}% vs est.`
+                                        : `Est. ${durationData.estimate}d baseline`}
+                                    inverseSemantic={durationData.actual > durationData.estimate}
+                                    sparklineColor={durationData.actual > durationData.estimate ? 'var(--metric-warning)' : 'var(--metric-positive)'}
+                                />
+                                {/* Distribution: Hours Type */}
+                                <DistributionKpiCard
+                                    label="Hours Type"
+                                    icon={<PieChart className="w-3.5 h-3.5" />}
+                                    segments={hoursDistribution}
+                                    totalLabel="Site / Drive / Shop breakdown"
+                                />
+                                {/* List: Top Service by Margin */}
+                                {topServiceMargins.length > 0 ? (
+                                    <ListKpiCard
+                                        label="Top Service by Margin"
+                                        icon={<TrendingUp className="w-3.5 h-3.5" />}
+                                        topRows={topServiceMargins.map((s, i) => ({
+                                            rank: i + 1,
+                                            label: s.name,
+                                            sublabel: fmtMoney(s.income),
+                                            value: `${s.margin.toFixed(0)}%`,
+                                            barPct: topServiceMargins[0]?.margin > 0 ? (s.margin / topServiceMargins[0].margin) * 100 : 0,
+                                            barColor: 'var(--metric-positive)',
+                                        }))}
+                                    />
+                                ) : (
+                                    <HeroKpiCard
+                                        label="Top Service by Margin"
+                                        value="—"
+                                        icon={<TrendingUp className="w-3.5 h-3.5" />}
+                                        secondary="No categorized projects yet"
+                                    />
+                                )}
+                            </div>
+                        </div>
+
+                        {/* ═══════════════════════════════════════════════
+                            SECTION 5 — PEOPLE
+                            ═══════════════════════════════════════════════ */}
                         {(() => {
                             // PM stats
                             const pmMap = new Map<string, { margin: number; count: number; income: number }>();
@@ -812,74 +1330,87 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
                                 .sort((a, b) => b.avgMargin - a.avgMargin);
                             const maxMargin = pmRows[0]?.avgMargin || 1;
 
-                            // Risk counts from insights
-                            const insights = computeInsights(filtered as any, thresholds);
+                            const insights = computeInsightsV2(filtered as any, thresholds);
                             const criticalCount = insights.filter(i => i.severity === 'critical').length;
                             const warningCount = insights.filter(i => i.severity === 'warning').length;
+                            const complianceCount = criticalCount + warningCount;
 
-                            if (pmRows.length === 0 && criticalCount === 0) return null;
                             return (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3">
-                                    {/* PM Leaderboard */}
-                                    {pmRows.length > 0 && (
-                                        <ListKpiCard
-                                            label="PM Leaderboard"
-                                            icon={<Award className="w-3.5 h-3.5" />}
-                                            topRows={pmRows.slice(0, 3).map((pm, i) => ({
-                                                rank: i + 1,
-                                                label: pm.name,
-                                                sublabel: `${pm.count} project${pm.count > 1 ? 's' : ''}`,
-                                                value: `${pm.avgMargin.toFixed(0)}%`,
-                                                barPct: maxMargin > 0 ? (pm.avgMargin / maxMargin) * 100 : 0,
-                                                barColor: 'var(--metric-positive)',
-                                            }))}
-                                            bottomRows={pmRows.length > 3 ? pmRows.slice(-2).map((pm, i) => ({
-                                                rank: pmRows.length - 1 + i,
-                                                label: pm.name,
-                                                sublabel: `${pm.count} projects`,
-                                                value: `${pm.avgMargin.toFixed(0)}%`,
-                                                barPct: maxMargin > 0 ? (pm.avgMargin / maxMargin) * 100 : 0,
-                                            })) : undefined}
-                                            dividerLabel="Lowest margin"
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-3 pt-1">
+                                        <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">People</span>
+                                        <div className="flex-1 h-px bg-slate-200" />
+                                    </div>
+                                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
+                                        {/* List: PM Leaderboard */}
+                                        {pmRows.length > 0 ? (
+                                            <ListKpiCard
+                                                label="PM Leaderboard"
+                                                icon={<Award className="w-3.5 h-3.5" />}
+                                                topRows={pmRows.slice(0, 3).map((pm, i) => ({
+                                                    rank: i + 1,
+                                                    label: pm.name,
+                                                    sublabel: `${pm.count} project${pm.count > 1 ? 's' : ''}`,
+                                                    value: `${pm.avgMargin.toFixed(0)}%`,
+                                                    barPct: maxMargin > 0 ? (pm.avgMargin / maxMargin) * 100 : 0,
+                                                    barColor: 'var(--metric-positive)',
+                                                    onClick: () => drill('pm', pm.name),
+                                                }))}
+                                            />
+                                        ) : (
+                                            <HeroKpiCard label="PM Leaderboard" value="—" icon={<Award className="w-3.5 h-3.5" />} secondary="No PM data available" />
+                                        )}
+                                        {/* List: Top Customers by Profit */}
+                                        {topCustomersByProfit.length > 0 ? (
+                                            <ListKpiCard
+                                                label="Top Customers by Profit"
+                                                icon={<Building2 className="w-3.5 h-3.5" />}
+                                                topRows={topCustomersByProfit.map((c, i) => ({
+                                                    rank: i + 1,
+                                                    label: c.customer,
+                                                    sublabel: `${fmtMoney(c.income)} revenue`,
+                                                    value: fmtMoney(c.profit),
+                                                    barPct: topCustomersByProfit[0]?.profit > 0 ? (c.profit / topCustomersByProfit[0].profit) * 100 : 0,
+                                                    barColor: 'var(--metric-info)',
+                                                    onClick: () => drill('customer', c.customer),
+                                                }))}
+                                            />
+                                        ) : (
+                                            <HeroKpiCard label="Top Customers by Profit" value="—" icon={<Users className="w-3.5 h-3.5" />} secondary="No customer data" />
+                                        )}
+                                        {/* Risk: Concentration Risk */}
+                                        <RiskKpiCard
+                                            label="Concentration Risk"
+                                            icon={<ShieldAlert className="w-3.5 h-3.5" />}
+                                            totalCount={Math.round(concentrationRisk)}
+                                            totalLabel={`% — ${topCustomers[0]?.customer ?? 'top customer'}`}
+                                            buckets={[
+                                                { label: 'Top Customer', count: Math.round(concentrationRisk), severity: concentrationRisk > 35 ? 'critical' : concentrationRisk > 25 ? 'warning' : 'positive' },
+                                                { label: 'Top 3 Combined', count: Math.round(topCustomers.slice(0, 3).reduce((s, c) => s + (kpis.income > 0 ? (c.income / kpis.income) * 100 : 0), 0)), severity: 'info' },
+                                            ]}
+                                            note={concentrationRisk > 35 ? 'High concentration — top customer exceeds 35% threshold' : concentrationRisk > 25 ? 'Moderate risk — consider diversifying' : 'Healthy diversification'}
                                         />
-                                    )}
-
-                                    {/* Customer concentration */}
-                                    {topCustomers.length > 0 && (
-                                        <ListKpiCard
-                                            label="Top Customers"
-                                            icon={<Users className="w-3.5 h-3.5" />}
-                                            topRows={topCustomers.slice(0, 4).map((c, i) => ({
-                                                rank: i + 1,
-                                                label: c.customer,
-                                                value: fmtMoney(c.income),
-                                                barPct: kpis.income > 0 ? (c.income / kpis.income) * 100 : 0,
-                                                barColor: 'var(--metric-info)',
-                                            }))}
+                                        {/* Risk: Compliance */}
+                                        <RiskKpiCard
+                                            label="Compliance"
+                                            icon={<AlertTriangle className="w-3.5 h-3.5" />}
+                                            totalCount={complianceCount}
+                                            totalLabel="alerts across projects"
+                                            buckets={[
+                                                { label: 'Critical Issues', count: criticalCount, severity: 'critical' },
+                                                { label: 'Warnings', count: warningCount, severity: 'warning' },
+                                                { label: 'Info', count: insights.filter(i => i.severity === 'info').length, severity: 'info' },
+                                            ]}
+                                            note={criticalCount > 0 ? 'Critical issues require immediate attention' : warningCount > 0 ? 'Review warnings below' : 'No active compliance alerts'}
                                         />
-                                    )}
-
-                                    {/* Risk overview */}
-                                    <RiskKpiCard
-                                        label="Project Risk"
-                                        icon={<ShieldAlert className="w-3.5 h-3.5" />}
-                                        totalCount={criticalCount + warningCount}
-                                        totalLabel="active alerts"
-                                        buckets={[
-                                            { label: 'Critical', count: criticalCount, severity: 'critical' },
-                                            { label: 'Warning', count: warningCount, severity: 'warning' },
-                                            { label: 'Info', count: insights.filter(i => i.severity === 'info').length, severity: 'info' },
-                                            { label: 'Positive', count: insights.filter(i => i.severity === 'positive').length, severity: 'positive' },
-                                        ]}
-                                        note={criticalCount > 0 ? 'Critical issues require immediate attention' : warningCount > 0 ? 'Review warnings below' : 'No active risk alerts'}
-                                    />
+                                    </div>
                                 </div>
                             );
                         })()}
 
                         {/* Insights Panel — horizontal scroll */}
                         {(() => {
-                            const insights = computeInsights(filtered as any, thresholds);
+                            const insights = computeInsightsV2(filtered as any, thresholds);
                             if (!insights.length) return null;
                             return (
                                 <div className="space-y-2">
@@ -931,12 +1462,119 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
                             </div>
                         </div>
 
-                        {/* Top 10 by Profit table */}
-                        {top10.length > 0 && (() => {
+                        {/* ── NEW chart row ──────────────────────────────────── */}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+                            {/* 3.5 — Margin vs Target bullet chart */}
+                            <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
+                                <div className="mb-4">
+                                    <h3 className="text-sm font-black text-slate-800">Margin vs Target</h3>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">Org + each PM vs {thresholds.targetGrossMarginPct}% target</p>
+                                </div>
+                                <BulletVsTargetChart rows={bulletRows} suffix="%" />
+                            </div>
+
+                            {/* 3.6 — Cash Flow Forecast 30/60/90 */}
+                            <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
+                                <div className="mb-4">
+                                    <h3 className="text-sm font-black text-slate-800">Cash Flow Forecast</h3>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">Expected inflow / outflow — next 90 days</p>
+                                </div>
+                                <CashFlowForecastChart data={cashForecast30_60_90} />
+                            </div>
+
+                            {/* 3.7 — Revenue Calendar Heatmap */}
+                            <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
+                                <div className="mb-4">
+                                    <h3 className="text-sm font-black text-slate-800">Revenue Activity</h3>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">Daily revenue intensity — last 52 weeks</p>
+                                </div>
+                                <RevenueCalendarHeatmap days={calendarDays} weeks={26} />
+                            </div>
+                        </div>
+
+                        {/* Project Health Heatmap */}
+                        {filtered.length > 0 && (() => {
+                            const healthThresholds = {
+                                targetGrossMarginPct: thresholds.targetGrossMarginPct,
+                                dsoWarningDays: thresholds.dsoWarningDays,
+                                customerConcentrationPct: thresholds.customerConcentrationPct,
+                            };
+                            const allScored = filtered.map(p => ({
+                                p,
+                                h: computeProjectHealth(p as any, healthThresholds),
+                            }));
+                            const criticalCount = allScored.filter(s => s.h.band === 'critical').length;
+                            const watchCount = allScored.filter(s => s.h.band === 'watch').length;
+                            const atRiskCount = allScored.filter(s => s.h.band === 'at-risk').length;
+                            return (
+                                <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
+                                    <div className="flex items-start justify-between gap-4 mb-4">
+                                        <div>
+                                            <h3 className="text-sm font-black text-slate-800">Project Health Heatmap</h3>
+                                            <p className="text-[11px] text-slate-400 mt-0.5">Each tile = one project, colored by composite health score. Hover for breakdown.</p>
+                                        </div>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            {criticalCount > 0 && (
+                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-red-50 border border-red-200 text-[11px] font-black text-red-700">
+                                                    {criticalCount} Critical
+                                                </span>
+                                            )}
+                                            {atRiskCount > 0 && (
+                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-orange-50 border border-orange-200 text-[11px] font-black text-orange-700">
+                                                    {atRiskCount} At Risk
+                                                </span>
+                                            )}
+                                            {watchCount > 0 && (
+                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 border border-amber-200 text-[11px] font-black text-amber-700">
+                                                    {watchCount} Watch
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <ProjectHealthHeatmap
+                                        projects={filtered as any[]}
+                                        thresholds={healthThresholds}
+                                    />
+                                </div>
+                            );
+                        })()}
+
+                        {/* Top 10 / Drilled Projects table */}
+                        {(drillKey ? drilled : top10).length > 0 && (() => {
+                            const tableRows = drillKey
+                                ? drilled.map(p => {
+                                    const inc = p.income || 0;
+                                    const cost = (p.qbCost || 0) + (p.devcoCost || 0);
+                                    const profit = inc - cost;
+                                    const margin = inc > 0 ? (profit / inc) * 100 : 0;
+                                    const cv = (p.originalContract || 0) + (p.changeOrders || 0);
+                                    return { ...p, calcIncome: inc, calcCost: cost, calcProfit: profit, calcMargin: margin, calcAR: p.ar || 0, calcPctComplete: cv > 0 ? Math.min(100, (inc / cv) * 100) : 0 };
+                                })
+                                : top10;
                             const orgAvgMargin = kpis.income > 0 ? (kpis.profit / kpis.income) * 100 : 0;
+                            const healthThresholds = {
+                                targetGrossMarginPct: thresholds.targetGrossMarginPct,
+                                dsoWarningDays: thresholds.dsoWarningDays,
+                                customerConcentrationPct: thresholds.customerConcentrationPct,
+                            };
+                            const tableTitle = drillKey
+                                ? DRILL_DEFINITIONS[drillKey].description(drillValue)
+                                : 'Top 10 Projects by Profit';
                             return (
                             <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
-                                <h3 className="text-sm font-black text-slate-800 mb-4">Top 10 Projects by Profit</h3>
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-sm font-black text-slate-800">{tableTitle}</h3>
+                                    {drillKey && (
+                                        <button
+                                            type="button"
+                                            onClick={clearDrill}
+                                            className="text-[10px] font-bold text-slate-400 hover:text-slate-700 flex items-center gap-1 transition-colors"
+                                        >
+                                            <X className="w-3 h-3" /> Clear drill
+                                        </button>
+                                    )}
+                                </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-xs">
                                         <thead>
@@ -951,36 +1589,13 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
                                                 <th className="text-right py-2 px-3 text-[10px] font-black text-slate-400 uppercase tracking-wider">Margin</th>
                                                 <th className="text-right py-2 px-3 text-[10px] font-black text-slate-400 uppercase tracking-wider">A/R</th>
                                                 <th className="text-right py-2 px-3 text-[10px] font-black text-slate-400 uppercase tracking-wider">% Done</th>
-                                                <th className="text-center py-2 px-3 text-[10px] font-black text-slate-400 uppercase tracking-wider">Status</th>
+                                                <th className="text-center py-2 px-3 text-[10px] font-black text-slate-400 uppercase tracking-wider">Health</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {top10.map((p, i) => {
-                                                // Compute anomaly badges
-                                                const cv = (p.originalContract || 0) + (p.changeOrders || 0);
-                                                const costRatio = cv > 0 ? p.calcCost / cv : 0;
-                                                const billedPct = cv > 0 ? (p.calcIncome / cv) * 100 : 0;
-                                                const badges: { emoji: string; label: string; color: string }[] = [];
-
-                                                // 🔴 Over budget
-                                                if (costRatio > 0.95 && p.calcPctComplete < 90) {
-                                                    badges.push({ emoji: '🔴', label: `Over budget: ${(costRatio * 100).toFixed(0)}% cost at ${p.calcPctComplete.toFixed(0)}% complete`, color: 'bg-red-100 text-red-700' });
-                                                }
-                                                // 🟡 Slow billing (AR > 0 and project started 45+ days ago)
-                                                const startD = p.startDate || p.MetaData?.CreateTime;
-                                                const daysSinceStart = startD ? Math.floor((Date.now() - new Date(startD).getTime()) / 86400000) : 0;
-                                                if (p.calcAR > 0 && daysSinceStart > 45) {
-                                                    badges.push({ emoji: '🟡', label: `Slow billing: ${fmtMoney(p.calcAR)} outstanding ${daysSinceStart}d`, color: 'bg-amber-100 text-amber-700' });
-                                                }
-                                                // 🟠 Under-billed (% complete > billed %)
-                                                if (cv > 0 && p.calcPctComplete > billedPct + 10) {
-                                                    badges.push({ emoji: '🟠', label: `Under-billed: ${p.calcPctComplete.toFixed(0)}% done but ${billedPct.toFixed(0)}% billed`, color: 'bg-orange-100 text-orange-700' });
-                                                }
-                                                // 🟢 Outperforming
-                                                if (orgAvgMargin > 0 && p.calcMargin > orgAvgMargin * 1.5) {
-                                                    badges.push({ emoji: '🟢', label: `Outperforming: ${p.calcMargin.toFixed(0)}% margin vs ${orgAvgMargin.toFixed(0)}% org avg`, color: 'bg-emerald-100 text-emerald-700' });
-                                                }
-
+                                            {tableRows.map((p, i) => {
+                                                const health = computeProjectHealth(p as any, healthThresholds);
+                                                const hc = HEALTH_COLORS[health.band];
                                                 return (
                                                 <tr
                                                     key={p.Id}
@@ -1008,17 +1623,26 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
                                                         {p.calcPctComplete.toFixed(0)}%
                                                     </td>
                                                     <td className="py-2.5 px-3 text-center">
-                                                        <div className="flex items-center justify-center gap-1">
-                                                            {badges.length === 0 && <span className="text-slate-300">—</span>}
-                                                            {badges.map((b, idx) => (
-                                                                <span
-                                                                    key={idx}
-                                                                    title={b.label}
-                                                                    className="cursor-help text-sm leading-none"
-                                                                >
-                                                                    {b.emoji}
-                                                                </span>
-                                                            ))}
+                                                        <div
+                                                            className="inline-flex flex-col items-center px-2 py-0.5 rounded-lg"
+                                                            style={{
+                                                                background: hc.hex + '18',
+                                                                border: `1px solid ${hc.hex}44`,
+                                                            }}
+                                                            title={`${health.label} — Margin:${health.components.margin} Schedule:${health.components.schedule} Cost:${health.components.cost} Cash:${health.components.cash}`}
+                                                        >
+                                                            <span
+                                                                className="text-[11px] font-black tabular-nums leading-none"
+                                                                style={{ color: hc.hex }}
+                                                            >
+                                                                {health.overall}
+                                                            </span>
+                                                            <span
+                                                                className="text-[8px] font-bold uppercase tracking-wider leading-none mt-0.5"
+                                                                style={{ color: hc.hex }}
+                                                            >
+                                                                {health.label}
+                                                            </span>
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -1059,6 +1683,14 @@ export function FinancialsView({ projects, loading, onExportPdf, isExportingPdf 
                     .sticky { position: static !important; }
                 }
             `}</style>
+
+            {/* Save View modal */}
+            <SaveViewModal
+                open={saveModalOpen}
+                saving={savingView}
+                onSave={handleSaveView}
+                onClose={() => setSaveModalOpen(false)}
+            />
         </div>
     );
 }

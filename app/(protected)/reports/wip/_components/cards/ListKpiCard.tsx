@@ -11,6 +11,8 @@ export interface ListKpiRow {
     barPct: number;
     barColor?: string;
     isBottom?: boolean;
+    /** Per-row click handler for drill-down */
+    onClick?: () => void;
 }
 
 interface ListKpiCardProps {
@@ -79,7 +81,13 @@ function ListRow({ row, isBottom = false }: { row: ListKpiRow; isBottom?: boolea
         ?? (isBottom ? 'var(--metric-negative)' : 'var(--metric-positive)');
 
     return (
-        <div className="flex flex-col gap-0.5">
+        <div
+            className={`flex flex-col gap-0.5 rounded-lg transition-colors ${row.onClick ? 'cursor-pointer hover:bg-slate-50 px-1 -mx-1' : ''}`}
+            onClick={row.onClick}
+            role={row.onClick ? 'button' : undefined}
+            tabIndex={row.onClick ? 0 : undefined}
+            onKeyDown={row.onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') row.onClick!(); } : undefined}
+        >
             <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 min-w-0">
                     <span
