@@ -763,6 +763,10 @@ export default function WIPReportClient({
         const matchesDateRange = isWithinDateRange(project.MetaData?.CreateTime);
         
         return matchesSearch && matchesDateRange;
+    }).sort((a: any, b: any) => {
+        const aDate = new Date(a.MetaData?.CreateTime || a.startDate || 0).getTime();
+        const bDate = new Date(b.MetaData?.CreateTime || b.startDate || 0).getTime();
+        return bDate - aDate;
     });
 
     const totalIncome = filteredProjects.reduce((acc, p) => acc + (p.income || 0), 0);
