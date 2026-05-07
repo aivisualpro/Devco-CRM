@@ -2295,9 +2295,57 @@ export default function WIPReportClient({
                                                                             onClick={(e) => e.stopPropagation()}
                                                                         >
                                                                             <button 
-                                                                                onClick={(e) => {
+                                                                                onClick={async (e) => {
                                                                                     e.stopPropagation();
-                                                                                    syncIndividualProject(project.Id);
+                                                                                    const costTypes = ['Expense', 'Check', 'Payroll Check', 'Bill'];
+                                                                                    setSyncingProjectId(project.Id);
+                                                                                    try {
+                                                                                        // 1. Sync project to MongoDB
+                                                                                        const syncRes = await fetch('/api/quickbooks/sync', {
+                                                                                            method: 'POST',
+                                                                                            headers: { 'Content-Type': 'application/json' },
+                                                                                            body: JSON.stringify({ projectId: project.Id })
+                                                                                        });
+                                                                                        const syncData = await syncRes.json();
+                                                                                        if (!syncData.success) { toast.error(syncData.error || 'Sync failed'); return; }
+
+                                                                                        // 2. Fetch live transactions (same as detail page)
+                                                                                        const txRes = await fetch(`/api/quickbooks/projects/${project.Id}/transactions?refresh=true`);
+                                                                                        const txData = await txRes.json();
+                                                                                        const txs: any[] = Array.isArray(txData) ? txData : [];
+
+                                                                                        // 3. Compute values using same formulas as detail page boxes
+                                                                                        const income = txs.filter((tx: any) => tx.type === 'Invoice').reduce((s: number, tx: any) => s + (tx.amount || 0), 0);
+                                                                                        const qbCost = txs.filter((tx: any) => costTypes.includes(tx.type)).reduce((s: number, tx: any) => s + (tx.amount || 0), 0);
+                                                                                        const payment = txs.filter((tx: any) => tx.type === 'Invoice' && (tx.status || '').trim().toLowerCase() === 'paid').reduce((s: number, tx: any) => s + Math.abs(tx.amount || 0), 0);
+                                                                                        const ar = Math.max(0, income - payment);
+                                                                                        const ap = txs.filter((tx: any) => { const s = (tx.status || 'open').trim().toLowerCase(); return costTypes.includes(tx.type) && (s === 'open' || s === 'overdue'); }).reduce((s: number, tx: any) => s + Math.abs(tx.amount || 0), 0);
+
+                                                                                        // 4. Fetch updated project data for non-transaction fields
+                                                                                        const projRes = await fetch('/api/quickbooks/projects?refresh=true');
+                                                                                        const projData = await projRes.json();
+                                                                                        const updated = Array.isArray(projData) ? projData.find((p: any) => p.Id === project.Id) : null;
+
+                                                                                        // 5. Merge: use API data + override financials with live-transaction values
+                                                                                        setProjects(prev => prev.map(p => p.Id === project.Id ? {
+                                                                                            ...p,
+                                                                                            ...(updated || {}),
+                                                                                            income,
+                                                                                            cost: qbCost + (updated?.devcoCost || p.devcoCost || 0),
+                                                                                            qbCost,
+                                                                                            ar,
+                                                                                            ap,
+                                                                                            profitMargin: income > 0 ? Math.round(((income - qbCost - (updated?.devcoCost || p.devcoCost || 0)) / income) * 100) : 0,
+                                                                                            startDate: formatDateOnly(updated?.MetaData?.CreateTime || p.startDate),
+                                                                                            endDate: formatDateOnly(new Date(new Date(updated?.MetaData?.CreateTime || p.startDate || new Date()).getTime() + 86400000 * 30).toISOString()),
+                                                                                        } : p));
+                                                                                        toast.success('Project synced successfully');
+                                                                                    } catch (err) {
+                                                                                        console.error('Row sync error:', err);
+                                                                                        toast.error('Sync failed');
+                                                                                    } finally {
+                                                                                        setSyncingProjectId(null);
+                                                                                    }
                                                                                 }}
                                                                                 disabled={syncingProjectId === project.Id}
                                                                                 className="p-1 hover:bg-slate-100 rounded text-slate-400 disabled:opacity-50"
