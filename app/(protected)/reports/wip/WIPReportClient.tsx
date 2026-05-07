@@ -88,12 +88,9 @@ export default function WIPReportClient({
             endDate: formatDateOnly(new Date(new Date(p.MetaData?.CreateTime || p.startDate || new Date()).getTime() + 86400000 * 30).toISOString()),
             isFavorite: Math.random() > 0.8
         })).sort((a: any, b: any) => {
-            const aNum = a.proposalNumber || '';
-            const bNum = b.proposalNumber || '';
-            if (!aNum && !bNum) return 0;
-            if (!aNum) return 1;
-            if (!bNum) return -1;
-            return bNum.localeCompare(aNum, undefined, { numeric: true });
+            const aDate = new Date(a.MetaData?.CreateTime || a.startDate || 0).getTime();
+            const bDate = new Date(b.MetaData?.CreateTime || b.startDate || 0).getTime();
+            return bDate - aDate;
         });
     });
     const [loading, setLoading] = useState(false);
@@ -291,14 +288,9 @@ export default function WIPReportClient({
                     endDate: formatDateOnly(new Date(new Date(p.MetaData.CreateTime).getTime() + 86400000 * 30).toISOString()),
                     isFavorite: Math.random() > 0.8
                 })).sort((a: any, b: any) => {
-                    // Sort by Proposal # descending (newest to oldest)
-                    // Projects without a proposal number go to the bottom
-                    const aNum = a.proposalNumber || '';
-                    const bNum = b.proposalNumber || '';
-                    if (!aNum && !bNum) return 0;
-                    if (!aNum) return 1;
-                    if (!bNum) return -1;
-                    return bNum.localeCompare(aNum, undefined, { numeric: true });
+                    const aDate = new Date(a.MetaData?.CreateTime || a.startDate || 0).getTime();
+                    const bDate = new Date(b.MetaData?.CreateTime || b.startDate || 0).getTime();
+                    return bDate - aDate;
                 });
                 
                 setProjects(enhanced);
@@ -527,12 +519,9 @@ export default function WIPReportClient({
                                     endDate: formatDateOnly(new Date(new Date(p.MetaData.CreateTime).getTime() + 86400000 * 30).toISOString()),
                                     isFavorite: false
                                 })).sort((a: any, b: any) => {
-                                    const aNum = a.proposalNumber || '';
-                                    const bNum = b.proposalNumber || '';
-                                    if (!aNum && !bNum) return 0;
-                                    if (!aNum) return 1;
-                                    if (!bNum) return -1;
-                                    return bNum.localeCompare(aNum, undefined, { numeric: true });
+                                    const aDate = new Date(a.MetaData?.CreateTime || a.startDate || 0).getTime();
+                                    const bDate = new Date(b.MetaData?.CreateTime || b.startDate || 0).getTime();
+                                    return bDate - aDate;
                                 });
                                 setProjects(enhanced);
                             }
