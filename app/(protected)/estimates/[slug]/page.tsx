@@ -45,6 +45,11 @@ const EstimateAerialLayoutCard = dynamic(
     () => import('./components/EstimateAerialLayoutCard').then(m => m.EstimateAerialLayoutCard),
     { ssr: false, loading: () => <SkeletonAccordion /> }
 );
+
+const CommunicationSection = dynamic(
+    () => import('./components/CommunicationSection').then(m => m.CommunicationSection),
+    { ssr: false, loading: () => <SkeletonAccordion /> }
+);
 import {
     getLaborBreakdown,
     getFringeRate,
@@ -293,6 +298,7 @@ export default function EstimateViewPage() {
     const DEFAULT_SECTIONS = {
         aerialLayout: true,
         estimateDocs: false,
+        communication: true,
         lineItems: true,
         proposal: true,
         schedules: true,
@@ -465,14 +471,26 @@ export default function EstimateViewPage() {
                 if (userEmail) {
                     const emp = employeesData.find((e: any) => e._id === userEmail || e.email === userEmail);
                     // If settings exist, apply them. If not, we stick with defaults.
-                    if (emp && Array.isArray(emp.estimateSettings)) {
+                    if (emp && Array.isArray(emp.estimateSettings) && emp.estimateSettings.length > 0) {
+                        // The saved array only contains labels for sections that were ON.
+                        // For NEW sections added after the user last saved, we must
+                        // preserve the DEFAULT value (not force false).
+                        //
+                        // Heuristic: if the save was made BEFORE Communication existed,
+                        // the array won't contain the '__v2' migration marker.
+                        // Legacy saves only had: Job Docs, Line Items, Proposal, Schedules, Timesheet, Aerial Layout
+                        const isLegacySave = !emp.estimateSettings.includes('__v2');
+
                         setVisibleSections({
                             estimateDocs: emp.estimateSettings.includes('Job Docs'),
+                            communication: isLegacySave
+                                ? DEFAULT_SECTIONS.communication  // Keep default for new section
+                                : emp.estimateSettings.includes('Communication'),
                             lineItems: emp.estimateSettings.includes('Line Items'),
                             proposal: emp.estimateSettings.includes('Proposal'),
                             schedules: emp.estimateSettings.includes('Schedules'),
                             timesheet: emp.estimateSettings.includes('Timesheet'),
-                            aerialLayout: emp.estimateSettings.includes('Aerial Layout')
+                            aerialLayout: emp.estimateSettings.includes('Aerial Layout'),
                         });
                     }
                 }
@@ -492,8 +510,9 @@ export default function EstimateViewPage() {
             const userEmail = globalCurrentUser?.email;
             if (!userEmail) return;
 
-            const settings = [];
+            const settings = ['__v2']; // Version marker — load path uses this to detect legacy saves
             if (visibleSections.estimateDocs) settings.push('Job Docs');
+            if (visibleSections.communication) settings.push('Communication');
             if (visibleSections.lineItems) settings.push('Line Items');
             if (visibleSections.proposal) settings.push('Proposal');
             if (visibleSections.schedules) settings.push('Schedules');
@@ -504,10 +523,7 @@ export default function EstimateViewPage() {
                 await fetch(`/api/employees/${userEmail}`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                            id: userEmail,
-                            item: { estimateSettings: settings }
-                        })
+                    body: JSON.stringify({ estimateSettings: settings })
                 });
             } catch (err) {
                 console.error('Failed to save settings', err);
@@ -2192,6 +2208,7 @@ export default function EstimateViewPage() {
                                     positionMode="bottom"
                                     options={[
                                         { id: 'aerialLayout', label: 'Aerial Layout', value: 'aerialLayout' },
+                                        { id: 'communication', label: 'Communication', value: 'communication' },
                                         { id: 'estimateDocs', label: 'Job Docs', value: 'estimateDocs' },
                                         { id: 'schedules', label: 'Schedules', value: 'schedules' },
                                         { id: 'timesheet', label: 'Timesheet', value: 'timesheet' },
@@ -2313,6 +2330,20 @@ export default function EstimateViewPage() {
                                     setUnsavedChanges(true);
                                 }}
                                 schedules={schedules}
+                            />
+                        </div>
+                    )}
+
+                    {/* Communication Section */}
+                    {visibleSections.communication && (
+                        <div className="mt-4 lg:mt-6 mb-2 animation-fade-in">
+                            <CommunicationSection
+                                slug={slug}
+                                formData={formData}
+                                employees={employeesData}
+                                currentUser={currentUser}
+                                planningOptions={planningOptions}
+                                onTaskMutate={() => { /* refresh project tasks if needed */ }}
                             />
                         </div>
                     )}

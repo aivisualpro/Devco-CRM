@@ -494,7 +494,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                             </button>
                                         </div>
                                         <div className="px-4 py-2.5 border-t border-slate-100 bg-slate-50/30">
-                                            <p className="text-[10px] font-bold text-slate-400 text-center tracking-wider uppercase">Devco CRM — v1.41</p>
+                                            <p className="text-[10px] font-bold text-slate-400 text-center tracking-wider uppercase">Devco CRM — v1.42</p>
                                         </div>
                                     </div>
                                 )}

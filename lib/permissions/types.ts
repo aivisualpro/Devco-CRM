@@ -43,6 +43,9 @@ export const MODULES = {
     RECEIPTS_COSTS: 'receipts_costs',
     VEHICLE_EQUIPMENT: 'vehicle_equipment',
     
+    // COMMUNICATION
+    TASKS: 'tasks',
+    
     // MISC
     CONSTANTS: 'constants',
     CHAT: 'chat',
@@ -222,6 +225,7 @@ export const DEFAULT_ROLES: Partial<IRole>[] = [
             { module: MODULES.SCHEDULES, actions: [ACTIONS.VIEW], dataScope: DATA_SCOPE.SELF },
             { module: MODULES.TIME_CARDS, actions: [ACTIONS.VIEW, ACTIONS.CREATE, ACTIONS.EDIT], dataScope: DATA_SCOPE.SELF },
             { module: MODULES.CHAT, actions: [ACTIONS.VIEW, ACTIONS.CREATE], dataScope: DATA_SCOPE.SELF },
+            { module: MODULES.TASKS, actions: [ACTIONS.VIEW, ACTIONS.CREATE, ACTIONS.EDIT], dataScope: DATA_SCOPE.SELF },
             { module: MODULES.COMPANY_DOCS, actions: [ACTIONS.VIEW], dataScope: DATA_SCOPE.ALL },
         ],
     },
@@ -287,6 +291,7 @@ export const MODULE_FIELDS: Record<ModuleKey, string[]> = {
     [MODULES.RECEIPTS_COSTS]: ['vendor', 'date', 'cost', 'description', 'category', 'status', 'approvalStatus'],
     [MODULES.VEHICLE_EQUIPMENT]: ['unit', 'unitNumber', 'vinSerialNumber', 'documents'],
     [MODULES.CONSTANTS]: ['name', 'value', 'category', 'description'],
+    [MODULES.TASKS]: ['task', 'dueDate', 'assignees', 'status', 'estimate', 'linkedFollowupId'],
     [MODULES.CHAT]: ['message', 'attachments'],
     [MODULES.COMPANY_DOCS]: ['title', 'url', 'status'],
     [MODULES.REPORTS_PAYROLL]: [],
@@ -307,7 +312,7 @@ export const PERMISSION_GROUPS = {
     },
     JOBS: {
         label: 'Jobs & Projects',
-        modules: [MODULES.CATALOGUE, MODULES.TEMPLATES, MODULES.ESTIMATES, MODULES.SCHEDULES, MODULES.TIME_CARDS],
+        modules: [MODULES.CATALOGUE, MODULES.TEMPLATES, MODULES.ESTIMATES, MODULES.SCHEDULES, MODULES.TIME_CARDS, MODULES.TASKS],
         color: '#ea580c',
     },
     DOCS: {
@@ -361,6 +366,7 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
     [MODULES.RECEIPTS_COSTS]: 'Receipts & Costs',
     [MODULES.VEHICLE_EQUIPMENT]: 'Vehicle Equipment',
     [MODULES.CONSTANTS]: 'Constants',
+    [MODULES.TASKS]: 'Tasks & Followups',
     [MODULES.CHAT]: 'Chat',
     [MODULES.COMPANY_DOCS]: 'Company Docs',
     [MODULES.REPORTS_PAYROLL]: 'Payroll Report',

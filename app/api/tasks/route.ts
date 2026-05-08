@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/db';
-import { DevcoTask, Employee, Constant, Notification } from '@/lib/models';
+import { DevcoTask, Employee, Constant, Notification, Followup } from '@/lib/models';
 import { Resend } from 'resend';
 import { getUserFromRequest } from '@/lib/permissions/middleware';
 import { isSuperAdmin } from '@/lib/permissions/service';
@@ -30,6 +30,11 @@ export async function GET(req: NextRequest) {
             query.assignees = assignee;
         }
 
+        const estimate = searchParams.get('estimate');
+        if (estimate) {
+            query.estimate = estimate;
+        }
+
         // By default, exclude archived tasks
         if (!includeArchived) {
             query.archived = { $ne: true };
@@ -45,7 +50,7 @@ export async function GET(req: NextRequest) {
         }
         
         const appliedSort = sort || { createdAt: -1 };
-        const selectedFields = '_id task dueDate assignees status customerId customerName estimate jobAddress createdBy createdAt lastUpdatedBy lastUpdatedAt remindersCount lastReminderAt archived';
+        const selectedFields = '_id task dueDate assignees status customerId customerName estimate jobAddress createdBy createdAt lastUpdatedBy lastUpdatedAt remindersCount lastReminderAt archived linkedFollowupId';
         
         // Fetch tasks + total + per-status counts in parallel
         const baseFilter: any = {};
@@ -268,6 +273,42 @@ export async function PATCH(req: NextRequest) {
                 link: `/dashboard`,
                 metadata: { taskId: updatedTask._id.toString() }
             }).catch(err => console.error('[notif]', err));
+
+            // ── Followup ↔ Task bi-directional sync ──
+            // When a linked task is marked 'done', auto-complete the associated Followup
+            if ((updatedTask as any).linkedFollowupId && updatedTask.status === 'done') {
+                try {
+                    const linkedFollowup = await Followup.findByIdAndUpdate(
+                        (updatedTask as any).linkedFollowupId,
+                        {
+                            status: 'completed',
+                            completedAt: new Date().toISOString(),
+                            completedBy: user.email,
+                            $push: {
+                                auditLog: {
+                                    at: new Date().toISOString(),
+                                    by: user.email,
+                                    action: 'completed',
+                                    details: 'Auto-completed via linked task done',
+                                },
+                            },
+                        },
+                        { new: true }
+                    ).lean();
+                    if (linkedFollowup) {
+                        revalidateTag(`followups-estimate-${(linkedFollowup as any).estimateNumber}`, 'default');
+                        revalidateTag('followups-list', 'default');
+                        broadcast('private-org-followups', 'followup-completed', {
+                            followupId: (updatedTask as any).linkedFollowupId,
+                            estimateNumber: (linkedFollowup as any).estimateNumber,
+                            actor: user.email,
+                        });
+                        console.log(`[Tasks] Auto-completed linked followup ${(updatedTask as any).linkedFollowupId}`);
+                    }
+                } catch (followupErr) {
+                    console.error('[Tasks] Failed to auto-complete linked followup:', followupErr);
+                }
+            }
         }
         return NextResponse.json({ success: true, task: updatedTask });
     } catch (error: any) {

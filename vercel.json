@@ -14,6 +14,10 @@
     "app/api/cron/task-reminders/route.ts": {
       "memory": 1024,
       "maxDuration": 120
+    },
+    "app/api/cron/followup-reminders/route.ts": {
+      "memory": 1024,
+      "maxDuration": 120
     }
   },
   "crons": [
@@ -23,6 +27,10 @@
     },
     {
       "path": "/api/cron/task-reminders",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/followup-reminders",
       "schedule": "0 * * * *"
     }
   ]

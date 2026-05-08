@@ -19,10 +19,13 @@ export async function POST(req: NextRequest) {
   const channel = formData.get('channel_name') as string;
 
   // Allow access to org-wide and per-user channels.
+  const sanitizedEmail = user.email.toLowerCase().replace(/[^a-z0-9]/g, '-');
   const allowedChannels = new Set([
     'private-org-tasks',
     'private-org-chat',
-    `private-notifications-${user.email.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+    'private-org-followups',
+    `private-notifications-${sanitizedEmail}`,
+    `private-user-${sanitizedEmail}`,
   ]);
 
   if (!allowedChannels.has(channel)) {

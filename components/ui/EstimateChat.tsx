@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Send, Trash2, Pencil, Reply, X, MessageSquare, Forward } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, MyDropDown } from '@/components/ui';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, MyDropDown, ConfirmModal } from '@/components/ui';
 import useSWR from 'swr';
 
 interface EstimateChatProps {
@@ -13,6 +13,7 @@ interface EstimateChatProps {
     employees?: any[];
     className?: string;
     height?: string;
+    chromeless?: boolean;  // When true, hides the built-in header so CommunicationPanel can wrap it
 }
 
 export const EstimateChat: React.FC<EstimateChatProps> = ({
@@ -20,7 +21,8 @@ export const EstimateChat: React.FC<EstimateChatProps> = ({
     currentUserEmail,
     employees = [],
     className = '',
-    height = '500px'
+    height = '500px',
+    chromeless = false
 }) => {
     const [newChatMessage, setNewChatMessage] = useState('');
     const [mentionQuery, setMentionQuery] = useState('');
@@ -165,10 +167,10 @@ export const EstimateChat: React.FC<EstimateChatProps> = ({
         }
     };
 
+    const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
     const handleDeleteMessage = (id: string) => {
-        if (window.confirm('Are you sure you want to delete this message?')) {
-             deleteMessage(id);
-        }
+        setDeleteConfirm(id);
     };
 
     const deleteMessage = async (id: string) => {
@@ -219,8 +221,9 @@ export const EstimateChat: React.FC<EstimateChatProps> = ({
 
     return (
         <TooltipProvider>
-        <div className={`space-y-4 ${className}`}>
-             <div className="flex items-center gap-3 mb-2">
+        <div className={`${chromeless ? 'h-full flex flex-col' : 'space-y-4'} ${className}`}>
+            {!chromeless && (
+              <div className="flex items-center gap-3 mb-2">
                 <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-slate-700 to-slate-800 text-white flex items-center justify-center shadow-md">
                     <MessageSquare className="w-4 h-4" />
                 </div>
@@ -228,9 +231,10 @@ export const EstimateChat: React.FC<EstimateChatProps> = ({
                 <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-bold">
                     #{estimateId}
                 </span>
-            </div>
+              </div>
+            )}
 
-            <div className={`p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] flex flex-col relative`} style={{ height }}>
+            <div className={`${chromeless ? 'flex-1 min-h-0' : ''} p-4 ${chromeless ? '' : 'rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff]'} flex flex-col relative`} style={chromeless ? undefined : { height }}>
                 <div 
                     className="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-thin scrollbar-thumb-slate-200"
                     ref={chatScrollRef}
@@ -601,6 +605,17 @@ export const EstimateChat: React.FC<EstimateChatProps> = ({
                 </div>
             </div>
         </div>
+
+        {/* Delete message confirmation */}
+        <ConfirmModal
+          isOpen={!!deleteConfirm}
+          onClose={() => setDeleteConfirm(null)}
+          onConfirm={() => { if (deleteConfirm) deleteMessage(deleteConfirm); }}
+          title="Delete Message"
+          message="Are you sure you want to delete this message? This action cannot be undone."
+          confirmText="Delete"
+          variant="danger"
+        />
         </TooltipProvider>
     );
 };

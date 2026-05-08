@@ -15,6 +15,7 @@ export interface IDevcoTask extends Document {
     lastUpdatedAt?: Date;
     remindersCount?: number;
     lastReminderAt?: Date;
+    linkedFollowupId?: string;
 }
 
 const DevcoTaskSchema = new Schema({
@@ -36,7 +37,8 @@ const DevcoTaskSchema = new Schema({
     lastUpdatedAt: { type: Date, default: Date.now },
     remindersCount: { type: Number, default: 0 },
     lastReminderAt: { type: Date },
-    archived: { type: Boolean, default: false }
+    archived: { type: Boolean, default: false },
+    linkedFollowupId: { type: String, index: true }
 }, {
     collection: 'devcoTasks'
 });

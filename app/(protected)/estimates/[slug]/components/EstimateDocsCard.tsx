@@ -3,7 +3,7 @@
 import { cld } from '@/lib/cld';
 import Image from 'next/image';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { FileText, Shield, ChevronRight, ChevronLeft, Loader2, Download, Upload, Layout, FileCheck, Receipt, Plus, Trash2, Calendar, DollarSign, Paperclip, X, Image as ImageIcon, Check, Pencil, User, ChevronDown, MessageSquare, Send, Reply, Forward, AlertTriangle, Clipboard, MapPin, HardHat, Eye, ExternalLink } from 'lucide-react';
+import { FileText, Shield, ChevronRight, ChevronLeft, Loader2, Download, Upload, Layout, FileCheck, Receipt, Plus, Trash2, Calendar, DollarSign, Paperclip, X, Image as ImageIcon, Check, Pencil, User, ChevronDown, Send, AlertTriangle, Clipboard, MapPin, HardHat, Eye, ExternalLink } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Modal, Input, Button, ConfirmModal, MyDropDown, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, FileDropZone } from '@/components/ui';
 import type { UploadedFile } from '@/components/ui';
@@ -1428,6 +1428,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     const [isReleaseTypeOpen, setIsReleaseTypeOpen] = useState(false);
     const [editingReleaseIndex, setEditingReleaseIndex] = useState<number | null>(null);
     const [releaseToDelete, setReleaseToDelete] = useState<number | null>(null);
+    const [signaturePopup, setSignaturePopup] = useState<{ name: string; signature: string } | null>(null);
     const [newRelease, setNewRelease] = useState({
         documentType: '',
         date: format(new Date(), 'yyyy-MM-dd'),
@@ -1990,7 +1991,11 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             billingTerms: safeBillingTerms as any, // Cast to match strict union type
             otherBillingTerms: safeOtherBillingTerms,
             uploads: item.uploads || [],
-            titleDescriptions: item.titleDescriptions?.length ? item.titleDescriptions : [{ title: '', description: '' }],
+            titleDescriptions: item.titleDescriptions?.length
+                ? item.titleDescriptions
+                : (item.title || item.description)
+                    ? [{ title: item.title || '', description: item.description || '' }]
+                    : [{ title: '', description: '' }],
             lumpSum: safeLumpSum,
             createdBy: Array.isArray(item.createdBy) ? item.createdBy.join(', ') : (item.createdBy || '')
         });
@@ -2177,207 +2182,12 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         }));
     };
 
-    // Chat States for Estimate
-    const [chatMessages, setChatMessages] = useState<any[]>([]);
-    const [newChatMessage, setNewChatMessage] = useState('');
-    const [isChatLoading, setIsChatLoading] = useState(false);
-    const [mentionQuery, setMentionQuery] = useState('');
-    const [showMentions, setShowMentions] = useState(false);
-    const [chatAssignees, setChatAssignees] = useState<string[]>([]);
-    const [cursorPosition, setCursorPosition] = useState(0);
-    const chatInputRef = React.useRef<HTMLInputElement>(null);
-    const chatScrollRef = React.useRef<HTMLDivElement>(null);
 
-    const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
-    const [editingMsgText, setEditingMsgText] = useState('');
-    const [replyingTo, setReplyingTo] = useState<any>(null);
-    const [deleteMsgId, setDeleteMsgId] = useState<string | null>(null);
 
-    // Fetch Chat Messages for this Estimate
-    React.useEffect(() => {
-        if (!formData?.estimate) return;
 
-        const fetchChat = async () => {
-            try {
-                // Fetch messages specifically for this estimate
-                const res = await fetch(`/api/chat?limit=50&estimate=${encodeURIComponent(formData.estimate)}`);
-                if (!res.ok) {
-                    console.warn(`Chat fetch failed with status: ${res.status}`);
-                    return;
-                }
-                const data = await res.json();
-                if (data.success) {
-                    setChatMessages(data.messages);
-                    // Scroll to bottom
-                    setTimeout(() => {
-                        if (chatScrollRef.current) {
-                            chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
-                        }
-                    }, 100);
-                }
-            } catch (error) {
-                console.error('Failed to fetch estimate chat', error);
-            }
-        };
-
-        fetchChat();
-        const interval = setInterval(fetchChat, 10000); // Poll every 10s
-        return () => clearInterval(interval);
-    }, [formData?.estimate]); // Re-run if estimate ID changes
-
-    const handleChatInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const val = e.target.value;
-        setNewChatMessage(val);
-
-        const cursor = e.target.selectionStart || 0;
-        setCursorPosition(cursor);
-
-        // Check for trigger at cursor
-        const textBefore = val.slice(0, cursor);
-        const words = textBefore.split(/\s+/);
-        const lastWord = words[words.length - 1];
-
-        if (lastWord.startsWith('@')) {
-            setMentionQuery(lastWord.slice(1));
-            setShowMentions(true);
-        } else {
-            setShowMentions(false);
-        }
-    };
-
-    const handleSendChatMessage = async (e?: React.FormEvent) => {
-        if (e) e.preventDefault();
-        if (!newChatMessage.trim() || !formData?.estimate) return;
-
-        const messageText = newChatMessage;
-
-        // Build assignees with name lookup (chatAssignees is string[] of emails here)
-        const safeAssignees = chatAssignees.map(email => {
-            const emp = employees.find((e: any) =>
-                String(e.value || e.email || '').toLowerCase() === String(email || '').toLowerCase()
-            );
-            return {
-                email,
-                name: emp?.label || `${emp?.firstName || ''} ${emp?.lastName || ''}`.trim() || email
-            };
-        }).filter(a => a.email);
-
-        const optimisticMsg = {
-            _id: `temp-${Date.now()}`,
-            sender: currentUser?.email || 'Me',
-            senderName: currentUser?.email || 'Me',
-            message: messageText,
-            assignees: safeAssignees.map(a => a.email), // Keep as string[] for chat renderer
-            createdAt: new Date().toISOString()
-        };
-
-        setChatMessages(prev => [...prev, optimisticMsg]);
-        setNewChatMessage('');
-        setChatAssignees([]);
-
-        // Reset height
-        if (chatInputRef.current) {
-            // chatInputRef.current.style.height = 'auto'; // if using textarea
-        }
-
-        try {
-            await fetch('/api/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    message: optimisticMsg.message,
-                    estimate: formData.estimate,
-                    assignees: safeAssignees,
-                    replyTo: replyingTo ? {
-                        _id: replyingTo._id,
-                        sender: replyingTo.sender,
-                        message: replyingTo.message
-                    } : undefined
-                })
-            });
-            setReplyingTo(null);
-
-            // Auto-create a To Do task if employees were tagged (same as Dashboard)
-            if (process.env.NODE_ENV !== 'production') console.log('[EstimateChat] safeAssignees:', safeAssignees, 'chatAssignees raw:', chatAssignees);
-            if (safeAssignees.length > 0) {
-                if (process.env.NODE_ENV !== 'production') console.log('[EstimateChat] Creating task for assignees:', safeAssignees);
-                try {
-                    const taskRes = await fetch('/api/tasks', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            task: messageText.replace(/@\S+/g, '').replace(/#\S+/g, '').trim() || messageText,
-                            status: 'todo',
-                            assignees: safeAssignees.map((a: any) => a.email),
-                            createdBy: currentUser?.email || 'System',
-                            estimate: formData.estimate,
-                            customerId: formData.customerId || '',
-                            customerName: formData.customerName || '',
-                            jobAddress: formData.jobAddress || ''
-                        })
-                    });
-                    if (taskRes.ok) {
-                        const taskData = await taskRes.json();
-                        if (taskData.task) {
-                            toast.success('Task created for assigned employees');
-                        }
-                    }
-                } catch (taskErr) {
-                    console.error('Auto-task creation failed:', taskErr);
-                }
-            }
-        } catch (error) {
-            console.error('Failed to send', error);
-            toast.error('Failed to send message');
-        }
-    };
-
-    const handleUpdateMessage = async (id: string, text: string) => {
-        if (!text.trim()) return;
-        try {
-            const res = await fetch(`/api/chat/${id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: text })
-            });
-            const data = await res.json();
-            if (data.success) {
-                setChatMessages(prev => prev.map(m => m._id === id ? { ...m, message: text } : m));
-                setEditingMsgId(null);
-                setEditingMsgText('');
-                toast.success('Message updated');
-            } else {
-                toast.error(data.error || 'Failed to update');
-            }
-        } catch (error) {
-            toast.error('Operation failed');
-        }
-    };
-
-    const handleDeleteMessage = (id: string) => {
-        setDeleteMsgId(id);
-    };
-
-    const confirmDeleteMessage = async () => {
-        if (!deleteMsgId) return;
-        try {
-            const res = await fetch(`/api/chat/${deleteMsgId}`, { method: 'DELETE' });
-            const data = await res.json();
-            if (data.success) {
-                setChatMessages(prev => prev.filter(m => m._id !== deleteMsgId));
-                toast.success('Message deleted');
-            } else {
-                toast.error(data.error || 'Failed to delete');
-            }
-        } catch (error) {
-            console.error('Failed to delete', error);
-            toast.error('Failed to delete message');
-        } finally {
-            setDeleteMsgId(null);
-        }
-    };
 
     const getEmployeeData = (idOrEmail: any) => {
+
         if (!idOrEmail) return null;
         // Handle arrays (e.g. createdBy could be an array)
         const raw = Array.isArray(idOrEmail) ? idOrEmail[0] : idOrEmail;
@@ -2397,17 +2207,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         };
     };
 
-    const employeeOptions = useMemo(() => {
-        return employees.map(emp => {
-            const label = emp.label || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.email || emp._id;
-            return {
-                id: emp._id,
-                label: label,
-                value: emp.email || emp._id || emp.value,
-                profilePicture: emp.image || emp.profilePicture
-            };
-        }).sort((a, b) => String(a.label || '').localeCompare(String(b.label || '')));
-    }, [employees]);
+
 
     // Admin-only employees for "Paid By" dropdown
     const adminEmployeeOptions = useMemo(() => {
@@ -2424,11 +2224,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             }).sort((a, b) => String(a.label || '').localeCompare(String(b.label || '')));
     }, [employees]);
 
-    const filteredChatOptions = useMemo(() => {
-        const source = employeeOptions;
-        if (!mentionQuery) return source.slice(0, 100);
-        return source.filter(e => String(e.label || '').toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 50);
-    }, [mentionQuery, employeeOptions]);
+
 
 
     // Robust employee finder - handles arrays, case-insensitive, matches _id or email
@@ -2816,402 +2612,13 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         <div className={`bg-[#eef2f6] rounded-2xl lg:rounded-[40px] p-2 lg:p-4 ${className || ''}`}>
 
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 pb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 pb-6">
 
 
 
 
-                {/* Column 0: Estimate Chat */}
-                <div className="space-y-4">
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-slate-700 to-slate-800 text-white flex items-center justify-center shadow-md">
-                            <MessageSquare className="w-4 h-4" />
-                        </div>
-                        <h4 className="text-sm font-bold text-slate-700">Estimate Chat</h4>
-                        {formData?.estimate && (
-                            <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-bold">
-                                #{formData.estimate}
-                            </span>
-                        )}
-                    </div>
 
-
-                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] flex flex-col h-[400px] md:h-[500px] relative">
-
-                        <div
-                            className="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-thin scrollbar-thumb-slate-200"
-                            ref={chatScrollRef}
-                        >
-                            {chatMessages.length === 0 ? (
-                                <div className="text-center py-12">
-                                    <p className="text-[10px] text-slate-400 font-bold">No messages for this estimate yet.</p>
-                                </div>
-                            ) : (
-                                chatMessages.map((msg, idx) => {
-                                    // Determine if I am the sender
-                                    // Use currentUser from usePermissions or fallback to basic check
-                                    const isMe = (currentUser?.email && msg.sender?.toLowerCase() === currentUser.email?.toLowerCase()) ||
-                                        msg.senderName === 'Me' ||
-                                        msg.sender === formData?.proposalWriter;
-
-                                    // Find sender employee for avatar
-                                    const senderEmp = employees.find(e =>
-                                        String(e.email || '').toLowerCase() === String(msg.sender || '').toLowerCase() ||
-                                        e._id === msg.sender ||
-                                        String(e.value || '').toLowerCase() === String(msg.sender || '').toLowerCase()
-                                    );
-                                    const senderLabel = senderEmp?.label || senderEmp?.firstName || msg.senderName || msg.sender || 'U';
-                                    const senderInitials = senderLabel.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
-
-                                    const renderMessage = (text: string) => {
-                                        const parts = text.split(/(@[\w.@]+)/g);
-                                        return parts.map((part, i) => {
-                                            if (part.startsWith('@')) {
-                                                const label = part.slice(1);
-                                                // Check if this person is already an assignee (hide them from text if they are)
-                                                const isAssignee = msg.assignees?.some((assignee: any) => {
-                                                    // Handle both string (email) and object ({email, name}) formats
-                                                    const email = typeof assignee === 'string' ? assignee : assignee?.email || '';
-                                                    const emp = employees.find(e =>
-                                                        String(e.email || '').toLowerCase() === String(email || '').toLowerCase() ||
-                                                        e._id === email ||
-                                                        String(e.value || '').toLowerCase() === String(email || '').toLowerCase()
-                                                    );
-                                                    return (emp?.label === label || emp?.firstName === label) || email === label;
-                                                });
-
-                                                if (isAssignee) return null;
-                                                return <span key={i} className={`font-bold ${isMe ? 'text-blue-200' : 'text-blue-600'}`}>{part}</span>;
-                                            }
-                                            return part;
-                                        });
-                                    };
-
-                                    const HeaderContent = () => {
-                                        const AssigneesAvatars = (
-                                            <div className="flex -space-x-1.5 overflow-hidden">
-                                                {msg.assignees && msg.assignees.length > 0 ? (
-                                                    msg.assignees.map((assignee: any, aIdx: number) => {
-                                                        // Handle both string (email) and object ({email, name}) formats
-                                                        const email = typeof assignee === 'string' ? assignee : assignee?.email || '';
-                                                        const assEmp = employees.find(e =>
-                                                            String(e.email || '').toLowerCase() === String(email || '').toLowerCase() ||
-                                                            e._id === email ||
-                                                            String(e.value || '').toLowerCase() === String(email || '').toLowerCase()
-                                                        );
-                                                        const assName = assEmp?.label || assEmp?.firstName || (typeof assignee === 'object' ? assignee?.name : null) || email || 'U';
-                                                        return (
-                                                            <Tooltip key={aIdx}>
-                                                                <TooltipTrigger asChild>
-                                                                    <Avatar className="w-5 h-5 border-[1.5px] border-white/20 shrink-0">
-                                                                        <AvatarImage src={assEmp?.image || assEmp?.profilePicture} />
-                                                                        <AvatarFallback className="text-[8px] bg-slate-200 font-extrabold text-[#0F4C75]">
-                                                                            {assName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
-                                                                        </AvatarFallback>
-                                                                    </Avatar>
-                                                                </TooltipTrigger>
-                                                                <TooltipContent>
-                                                                    <p className="text-[10px] font-bold">{assName}</p>
-                                                                </TooltipContent>
-                                                            </Tooltip>
-                                                        );
-                                                    })
-                                                ) : null}
-                                            </div>
-                                        );
-
-                                        const SenderAvatar = (
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <Avatar className={`w-6 h-6 border-[1.5px] shrink-0 ${isMe ? 'border-white/20' : 'border-white'}`}>
-                                                        <AvatarImage src={senderEmp?.image || senderEmp?.profilePicture} />
-                                                        <AvatarFallback className={`text-[9px] font-black ${isMe ? 'bg-[#112D4E] text-white' : 'bg-slate-300 text-slate-700'}`}>
-                                                            {isMe ? 'ME' : senderInitials}
-                                                        </AvatarFallback>
-                                                    </Avatar>
-                                                </TooltipTrigger>
-                                                <TooltipContent>
-                                                    <p className="text-[10px] font-bold">{isMe ? 'You' : senderLabel}</p>
-                                                </TooltipContent>
-                                            </Tooltip>
-                                        );
-
-                                        if (isMe) {
-                                            return (
-                                                <div className="flex items-center justify-between mb-2 gap-2">
-                                                    {AssigneesAvatars}
-                                                    {SenderAvatar}
-                                                </div>
-                                            );
-                                        } else {
-                                            return (
-                                                <div className="flex items-center justify-between mb-2 flex-row-reverse gap-2">
-                                                    {AssigneesAvatars}
-                                                    {SenderAvatar}
-                                                </div>
-                                            );
-                                        }
-                                    };
-
-                                    return (
-                                        <div key={idx} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group mb-1 items-end gap-2`}>
-                                            {isMe && !editingMsgId && (
-                                                <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity pb-1">
-                                                    <button
-                                                        onClick={() => {
-                                                            setReplyingTo(msg);
-                                                            chatInputRef.current?.focus();
-                                                        }}
-                                                        className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-green-600 transition-colors"
-                                                        title="Reply"
-                                                    >
-                                                        <Reply size={12} />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => {
-                                                            const cleanText = msg.message.replace(/(@[\w.@]+)/g, '').trim();
-                                                            setNewChatMessage(prev => `Fwd: ${cleanText}\n` + prev);
-                                                            chatInputRef.current?.focus();
-                                                        }}
-                                                        className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 transition-colors"
-                                                        title="Forward"
-                                                    >
-                                                        <Forward size={12} />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => { setEditingMsgId(msg._id); setEditingMsgText(msg.message); }}
-                                                        className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 transition-colors"
-                                                        title="Edit"
-                                                    >
-                                                        <Pencil size={12} />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDeleteMessage(msg._id)}
-                                                        className="p-1 hover:bg-red-50 rounded-full text-slate-400 hover:text-red-500 transition-colors"
-                                                        title="Delete"
-                                                    >
-                                                        <Trash2 size={12} />
-                                                    </button>
-                                                </div>
-                                            )}
-
-                                            <div id={msg._id} className={`rounded-2xl p-1 min-w-[160px] max-w-[85%] shadow-sm relative ${isMe
-                                                ? 'bg-[#526D82] text-white rounded-br-none'
-                                                : 'bg-white text-slate-700 rounded-bl-none border border-slate-200'
-                                                }`}>
-                                                <HeaderContent />
-
-                                                {/* Reply Citation */}
-                                                {msg.replyTo && (
-                                                    <div
-                                                        onClick={() => document.getElementById(msg.replyTo._id)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
-                                                        className={`mb-2 mx-1 p-1.5 rounded-lg text-[10px] cursor-pointer hover:opacity-80 transition-opacity ${isMe
-                                                            ? 'bg-white/10 border-l-2 border-white/40 text-white/80'
-                                                            : 'bg-slate-50 border-l-2 border-slate-300 text-slate-500'
-                                                            }`}
-                                                    >
-                                                        <p className="font-bold opacity-75 mb-0.5">{msg.replyTo.sender?.split('@')[0]}</p>
-                                                        <p className="truncate line-clamp-1 italic opacity-90">{msg.replyTo.message}</p>
-                                                    </div>
-                                                )}
-
-                                                {editingMsgId === msg._id ? (
-                                                    <div className="px-1 py-1 space-y-2">
-                                                        <textarea
-                                                            autoFocus
-                                                            className="w-full bg-white/10 border border-white/20 rounded-lg p-2 text-[11px] text-white focus:outline-none focus:ring-1 focus:ring-white/50 min-h-[60px] resize-none"
-                                                            value={editingMsgText}
-                                                            onChange={(e) => setEditingMsgText(e.target.value)}
-                                                            onKeyDown={(e) => {
-                                                                if (e.key === 'Enter' && !e.shiftKey) {
-                                                                    e.preventDefault();
-                                                                    handleUpdateMessage(msg._id, editingMsgText);
-                                                                } else if (e.key === 'Escape') {
-                                                                    setEditingMsgId(null);
-                                                                }
-                                                            }}
-                                                        />
-                                                        <div className="flex justify-end gap-2">
-                                                            <button onClick={() => setEditingMsgId(null)} className="text-[9px] font-bold uppercase hover:underline">Cancel</button>
-                                                            <button onClick={() => handleUpdateMessage(msg._id, editingMsgText)} className="text-[9px] font-bold uppercase hover:underline">Save</button>
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <p className="text-[11px] leading-relaxed break-words px-1">
-                                                        {renderMessage(msg.message)}
-                                                    </p>
-                                                )}
-
-                                                <div className={`flex items-center justify-between mt-1 pt-1 px-1 gap-2 ${isMe ? 'flex-row' : 'flex-row-reverse'}`}>
-                                                    <div />
-                                                    <div className="flex items-center gap-2">
-                                                        <span className={`text-[8px] uppercase tracking-widest font-black opacity-60 shrink-0 ${isMe ? 'text-white' : 'text-slate-400'}`}>
-                                                            {new Date(msg.createdAt).toLocaleString([], {
-                                                                month: 'short',
-                                                                day: 'numeric',
-                                                                year: 'numeric',
-                                                                hour: '2-digit',
-                                                                minute: '2-digit',
-                                                                hour12: true
-                                                            })}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {!isMe && !editingMsgId && (
-                                                <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity pb-1">
-                                                    <button
-                                                        onClick={() => {
-                                                            setReplyingTo(msg);
-                                                            chatInputRef.current?.focus();
-                                                        }}
-                                                        className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-green-600 transition-colors"
-                                                        title="Reply"
-                                                    >
-                                                        <Reply size={12} />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => {
-                                                            const cleanText = msg.message.replace(/(@[\w.@]+)/g, '').trim();
-                                                            setNewChatMessage(prev => `Fwd: ${cleanText}\n` + prev);
-                                                            chatInputRef.current?.focus();
-                                                        }}
-                                                        className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 transition-colors"
-                                                        title="Forward"
-                                                    >
-                                                        <Forward size={12} />
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })
-                            )}
-                        </div>
-                        {replyingTo && (
-                            <div className="mb-2 mx-1 p-2 bg-slate-50 border-l-4 border-blue-500 rounded flex items-center justify-between animate-in slide-in-from-bottom-2">
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-[10px] font-bold text-blue-600 uppercase tracking-tight mb-0.5">Replying to {replyingTo.sender?.split('@')[0]}</p>
-                                    <p className="text-[10px] text-slate-500 truncate italic">{replyingTo.message}</p>
-                                </div>
-                                <button onClick={() => setReplyingTo(null)} className="p-1 hover:bg-slate-200 rounded-full transition-colors ml-2">
-                                    <X className="w-3 h-3 text-slate-400" />
-                                </button>
-                            </div>
-                        )}
-                        {/* Chat Input Area */}
-                        {/* Chat Input Area */}
-                        <div className="mt-3 pt-3 border-t border-slate-200/50 relative" id="estimate-chat-input-container">
-                            <MyDropDown
-                                isOpen={showMentions}
-                                onClose={() => setShowMentions(false)}
-                                options={filteredChatOptions}
-                                selectedValues={chatAssignees}
-                                onSelect={(val) => {
-                                    if (!chatAssignees.includes(val)) {
-                                        setChatAssignees(prev => [...prev, val]);
-                                    } else {
-                                        setChatAssignees(prev => prev.filter(v => v !== val));
-                                    }
-
-                                    // Remove trigger text
-                                    const text = newChatMessage;
-                                    const before = text.slice(0, cursorPosition);
-                                    const lastAt = before.lastIndexOf('@');
-                                    if (lastAt >= 0) {
-                                        const newText = before.slice(0, lastAt) + text.slice(cursorPosition);
-                                        setNewChatMessage(newText);
-
-                                        setTimeout(() => {
-                                            if (chatInputRef.current) {
-                                                chatInputRef.current.focus();
-                                                const newPos = lastAt;
-                                                chatInputRef.current.setSelectionRange(newPos, newPos);
-                                                setCursorPosition(newPos);
-                                            }
-                                        }, 0);
-                                    }
-                                }}
-                                multiSelect={true}
-                                anchorId="estimate-chat-input-container"
-                                width="w-64"
-                                showSearch={false}
-                            />
-
-                            <form
-                                onSubmit={handleSendChatMessage}
-                                className="flex flex-col gap-2"
-                            >
-                                {chatAssignees.length > 0 && (
-                                    <div className="flex items-center gap-2 mb-1 px-1">
-                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Assigning:</span>
-                                        <div className="flex -space-x-1.5 overflow-hidden">
-                                            {chatAssignees.map((val: string, i: number) => {
-                                                // Find employee by val (id or value)
-                                                // employeeOptions has { id, label, value, profilePicture }
-                                                const emp = employeeOptions.find(e => e.value === val || e.id === val);
-                                                return (
-                                                    <div
-                                                        key={i}
-                                                        className="cursor-pointer hover:scale-110 transition-transform"
-                                                        onClick={() => setChatAssignees(prev => prev.filter(v => v !== val))}
-                                                        title={emp?.label || val}
-                                                    >
-                                                        <Avatar className="w-5 h-5 border border-white shrink-0 shadow-sm">
-                                                            <AvatarImage src={emp?.profilePicture} />
-                                                            <AvatarFallback className="text-[8px] bg-slate-200">
-                                                                {(emp?.label || val)[0].toUpperCase()}
-                                                            </AvatarFallback>
-                                                        </Avatar>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => setChatAssignees([])}
-                                            className="text-[9px] text-red-500 font-bold hover:underline ml-1"
-                                        >
-                                            Clear
-                                        </button>
-                                    </div>
-                                )}
-
-                                <div className="flex items-end gap-2">
-                                    <div className="relative flex-1">
-                                        <textarea
-                                            ref={chatInputRef as any}
-                                            placeholder="Message team... (@ to mention)"
-                                            className="w-full px-4 py-2.5 bg-white/50 border border-slate-200 focus:bg-white rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-slate-400 resize-none min-h-[42px] max-h-32 overflow-y-auto"
-                                            rows={1}
-                                            value={newChatMessage}
-                                            onInput={(e: any) => {
-                                                const target = e.target;
-                                                target.style.height = 'auto';
-                                                target.style.height = `${Math.min(target.scrollHeight, 128)}px`;
-                                            }}
-                                            onChange={(e: any) => handleChatInput(e)}
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter' && !e.shiftKey) {
-                                                    e.preventDefault();
-                                                    handleSendChatMessage();
-                                                }
-                                            }}
-                                        />
-                                    </div>
-                                    <button
-                                        type="submit"
-                                        disabled={!newChatMessage.trim()}
-                                        className="w-10 h-10 bg-[#526D82] text-white rounded-xl flex items-center justify-center hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md shrink-0 mb-0.5"
-                                    >
-                                        <Send className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
+                {/* Row 1: Legal & Financial Documents */}
 
                 {/* Column 1: Prelims */}
                 <div className="space-y-4">
@@ -3797,10 +3204,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                 {(!item.billingTerms || item.billingTerms === 'Other') ? (item.otherBillingTerms || item.billingTerms || 'BILLING TICKET') : item.billingTerms}
                                             </span>
                                             {item.date && (
-                                                <div className="flex items-center gap-1.5">
-                                                    <span className="text-[10px] uppercase tracking-widest text-slate-400 font-black">Date:</span>
-                                                    <span className="text-sm font-bold text-slate-600">{safeFormatDate(item.date)}</span>
-                                                </div>
+                                                <span className="text-sm font-bold text-slate-600">{safeFormatDate(item.date)}</span>
                                             )}
                                         </div>
                                         {(item.lumpSum || item.amount) && (
@@ -3811,15 +3215,24 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     </div>
 
                                     {/* Row 2: Title / Description */}
-                                    {item.titleDescriptions?.length > 0 && (
+                                    {(item.titleDescriptions?.length > 0 || item.title || item.description) && (
                                         <div className="text-sm text-slate-700 italic bg-amber-50/50 p-2.5 rounded-lg border border-amber-100/50 overflow-y-auto max-h-28 mt-1">
-                                            {item.titleDescriptions.map((td: any, tIdx: number) => (
-                                                <div key={tIdx} className="mb-1 last:mb-0">
-                                                    <span className="font-semibold">{td.title}</span>
-                                                    {td.title && td.description && <span>: </span>}
-                                                    <span>{td.description}</span>
-                                                </div>
-                                            ))}
+                                            {item.titleDescriptions?.length > 0
+                                                ? item.titleDescriptions.map((td: any, tIdx: number) => (
+                                                    <div key={tIdx} className="mb-1 last:mb-0">
+                                                        <span className="font-semibold">{td.title}</span>
+                                                        {td.title && td.description && <span>: </span>}
+                                                        <span>{td.description}</span>
+                                                    </div>
+                                                ))
+                                                : (
+                                                    <div>
+                                                        {item.title && <span className="font-semibold">{item.title}</span>}
+                                                        {item.title && item.description && <span>: </span>}
+                                                        {item.description && <span>{item.description}</span>}
+                                                    </div>
+                                                )
+                                            }
                                         </div>
                                     )}
 
@@ -3981,11 +3394,13 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
                     <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto">
                         <div className="grid grid-cols-1 gap-3">
-                            {releases.length > 0 ? releases.map((item: any, idx: number) => (
+                            {releases.length > 0 ? releases.map((item: any, idx: number) => {
+                                const code = getReleaseCode(item.documentType);
+                                return (
                                 <div
                                     key={idx}
                                     onClick={(e) => handleEditRelease(idx, e)}
-                                    className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-white/80 hover:shadow-md transition-all duration-300 overflow-hidden"
+                                    className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm relative group cursor-pointer hover:bg-slate-50 hover:shadow-md hover:border-slate-300 transition-all duration-300 flex flex-col gap-3 overflow-hidden"
                                 >
                                     {generatingDoc === item.documentType && generatingIndex === idx && (
                                         <div className="absolute bottom-0 left-0 right-0 h-1 bg-slate-100/50">
@@ -3999,60 +3414,153 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                             </div>
                                         </div>
                                     )}
-                                    <div className="flex justify-between items-start mb-2">
-                                        <div className="flex-1 min-w-0 pr-6">
-                                            <span className="inline-block text-[8px] font-black uppercase tracking-tighter px-1.5 py-0.5 rounded-md bg-cyan-100 text-cyan-600 mb-1.5 truncate max-w-full">
-                                                {item.documentType}
-                                            </span>
+
+                                    {/* Row 1: Through Date + Amount (Billing Ticket style) */}
+                                    <div className="flex justify-between items-center">
+                                        <div className="flex items-center gap-3 max-w-[60%]">
                                             {item.date && (
-                                                <p className="text-[10px] font-bold text-slate-500">Date: {safeFormatDate(item.date)}</p>
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="text-[10px] uppercase tracking-widest text-slate-400 font-black">Through:</span>
+                                                    <span className="text-sm font-bold text-slate-600">{safeFormatDate(item.date)}</span>
+                                                </div>
                                             )}
                                         </div>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setReleaseToDelete(idx);
-                                            }}
-                                            className="p-1 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 absolute top-2 right-2"
+                                        {['CP', 'CF'].includes(code) && item.amountOfCheck && (
+                                            <span className="shrink-0 text-2xl font-black text-slate-900 tracking-tight">
+                                                ${parseFloat(String(item.amountOfCheck || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {/* Row 2: Document Type — code pill + name */}
+                                    <div className="flex items-center gap-2">
+                                        <span
+                                            className="shrink-0 text-[10px] font-black px-2 py-0.5 rounded-md text-white"
+                                            style={{ backgroundColor: ({ CP: '#6E1A37', CF: '#134E8E', UP: '#FF6500', UF: '#35858E' } as Record<string, string>)[code] || '#64748b' }}
                                         >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
+                                            {code || '—'}
+                                        </span>
+                                        <span className="text-xs font-extrabold text-[#0F4C75] leading-tight">
+                                            {item.documentType?.replace(/^(CP|CF|UP|UF)\s*[-–—]?\s*\(?/i, '').replace(/\)\s*$/, '').trim() || item.documentType}
+                                        </span>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-2 border-t border-slate-100/50 pt-2">
-                                        {/* Dynamic content summary */}
-                                        {['CP', 'CF'].includes(getReleaseCode(item.documentType)) && item.amountOfCheck && (
-                                            <div>
-                                                <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest block">Check Amt</span>
-                                                <span className="text-[10px] font-black text-green-600">
-                                                    ${parseFloat(String(item.amountOfCheck || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                </span>
+
+                                    {/* Row 3: 2 columns — Left: Waiver Dates + Unpaid Amounts | Right: Signature */}
+                                    {(() => {
+                                        const waiverDates = item.DatesOfWaiverRelease || [];
+                                        const unpaidAmts = item.amountsOfUnpaidProgressPayment || [];
+                                        const maxLen = Math.max(waiverDates.length, unpaidAmts.length);
+                                        const creator = findEmployeeByIdOrEmail(item.createdBy);
+                                        const creatorName = creator ? `${creator.firstName || ''} ${creator.lastName || ''}`.trim() : (item.createdBy || 'Unknown');
+                                        const sig = creator?.signature;
+                                        const recvPayments = item.receivedProgressPayments || [];
+                                        const hasContent = maxLen > 0 || (['UF', 'CF'].includes(code) && item.disputedClaims) || (code === 'UP' && recvPayments.length > 0) || sig;
+                                        if (!hasContent) return null;
+                                        return (
+                                            <div className="border-t border-slate-100 pt-2 grid grid-cols-[1fr_auto] gap-4 items-start">
+                                                {/* Left: Waiver Dates + Unpaid Amounts */}
+                                                <div className="space-y-1.5 min-w-0">
+                                                    {maxLen > 0 && (
+                                                        <>
+                                                            <div className="grid grid-cols-2 gap-2">
+                                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Waiver Date</span>
+                                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Unpaid Amount</span>
+                                                            </div>
+                                                            {Array.from({ length: maxLen }).map((_, i) => (
+                                                                <div key={i} className="grid grid-cols-2 gap-2">
+                                                                    <span className="text-[11px] font-bold text-slate-600">
+                                                                        {waiverDates[i] ? safeFormatDate(waiverDates[i]) : '—'}
+                                                                    </span>
+                                                                    <span className="text-[11px] font-bold text-green-600">
+                                                                        {unpaidAmts[i] ? `$${parseFloat(String(unpaidAmts[i] || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}
+                                                                    </span>
+                                                                </div>
+                                                            ))}
+                                                        </>
+                                                    )}
+                                                    {['UF', 'CF'].includes(code) && item.disputedClaims && (
+                                                        <div className="flex items-center gap-2 pt-1">
+                                                            <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Disputed</span>
+                                                            <span className="text-sm font-black text-red-600">
+                                                                ${parseFloat(String(item.disputedClaims || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                    {code === 'UP' && recvPayments.length > 0 && (
+                                                        <div className="space-y-1.5">
+                                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Received Progress Payment(s)</span>
+                                                            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                                                                {recvPayments.map((p: string, i: number) => (
+                                                                    <span key={i} className="text-sm font-black text-slate-800">
+                                                                        {/^\d/.test(String(p)) ? `$${parseFloat(String(p || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : p}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                {/* Right: Signature */}
+                                                <div className="flex flex-col items-center shrink-0">
+                                                    {sig ? (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); setSignaturePopup({ name: creatorName, signature: sig }); }}
+                                                            className="w-20 h-12 rounded-lg border border-slate-200 bg-white p-1 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer"
+                                                            title={`View ${creatorName}'s signature`}
+                                                        >
+                                                            <img src={sig} alt="Signature" className="w-full h-full object-contain" />
+                                                        </button>
+                                                    ) : (
+                                                        <div className="w-20 h-12 rounded-lg border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center">
+                                                            <span className="text-[8px] text-slate-300 font-bold">No Signature</span>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
-                                        )}
-                                        {['UF', 'CF'].includes(getReleaseCode(item.documentType)) && item.disputedClaims && (
-                                            <div>
-                                                <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest block">Disputed</span>
-                                                <span className="text-[10px] font-black text-red-600">
-                                                    ${parseFloat(String(item.disputedClaims || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        );
+                                    })()}
+
+                                    {/* Footer: CreatedBy + CreatedAt + Actions (matches Billing Tickets) */}
+                                    <div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-between">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            {(() => {
+                                                const creator = getEmployeeData(item.createdBy);
+                                                return (
+                                                    <div className="relative w-6 h-6 rounded-full border border-slate-200 bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600 shadow-sm overflow-hidden shrink-0">
+                                                        {creator?.image ? <Image fill sizes="24px" alt="" src={cld(creator.image, { w: 128, q: 'auto' })} className="object-cover w-full h-full" /> : (String(item.createdBy || 'U')[0]?.toUpperCase() || 'U')}
+                                                    </div>
+                                                );
+                                            })()}
+                                            <span className="text-xs font-bold text-slate-500 truncate">{getEmployeeData(item.createdBy)?.label || item.createdBy || 'Unknown'}</span>
+                                            {item.createdAt && (
+                                                <span className="text-[10px] font-bold text-slate-400 tracking-wider ml-1 shrink-0">
+                                                    {safeFormatDate(item.createdAt)}
                                                 </span>
-                                            </div>
-                                        )}
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleDocClick(item.documentType, idx); }}
+                                                className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 shadow-sm text-slate-500 hover:text-cyan-600 hover:border-cyan-300 hover:bg-cyan-50 transition-all flex items-center justify-center"
+                                                title="Download PDF"
+                                                disabled={generatingDoc === item.documentType && generatingIndex === idx}
+                                            >
+                                                {generatingDoc === item.documentType && generatingIndex === idx
+                                                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                    : <Download className="w-3.5 h-3.5" />
+                                                }
+                                            </button>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setReleaseToDelete(idx); }}
+                                                className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 shadow-sm text-slate-500 hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition-all flex items-center justify-center"
+                                                title="Delete"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
                                     </div>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDocClick(item.documentType, idx);
-                                        }}
-                                        className="absolute bottom-2 right-2 p-1.5 rounded-lg text-cyan-700 hover:text-white hover:bg-cyan-600 transition-all duration-200"
-                                        title="Download PDF"
-                                    >
-                                        {generatingDoc === item.documentType && generatingIndex === idx ? (
-                                            <Loader2 className="w-4 h-4 animate-spin" />
-                                        ) : (
-                                            <Download className="w-4 h-4" />
-                                        )}
-                                    </button>
                                 </div>
-                            )) : (
+                                );
+                            }) : (
                                 <p className="text-[10px] text-slate-400 font-bold text-center py-4">No release docs</p>
                             )}
                         </div>
@@ -4425,6 +3933,8 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
                 </div>
 
+                {/* Row 2: Project Management */}
+
                 {/* Column 5: Planning */}
                 <PlanningCard
                     planningDocs={jobPlanningDocs}
@@ -4453,11 +3963,72 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     currentUserEmail={currentUser?.email || ''}
                 />
 
-            </div>
 
+                {/* Column: Vendor & Subs */}
+                <div className="space-y-4">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-white flex items-center justify-center shadow-md">
+                            <User className="w-4 h-4" />
+                        </div>
+                        <h4 className="text-sm font-bold text-amber-700">Vendor &amp; Subs</h4>
+                        <span className="text-[10px] bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full font-bold">
+                            {vendorSubsDocs.length}
+                        </span>
+                        <button
+                            onClick={() => { setNewVendorSubs({ type: '', vendorSubName: '', fileName: '', files: [] }); setIsVendorSubsModalOpen(true); }}
+                            className="ml-auto w-6 h-6 rounded-lg bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center transition-colors shadow-sm"
+                            title="Add Vendor/Sub Record"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
 
-            {/* Field Documents Section */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 pb-6">
+                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto">
+                        <div className="grid grid-cols-1 gap-3">
+                            {loadingJobDocs ? (
+                                <div className="flex items-center justify-center py-8">
+                                    <Loader2 className="w-5 h-5 animate-spin text-amber-500" />
+                                </div>
+                            ) : vendorSubsDocs.length > 0 ? vendorSubsDocs.map((doc: any, idx: number) => (
+                                <div
+                                    key={doc._id || idx}
+                                    onClick={() => setSelectedVendorSubsDoc(doc)}
+                                    className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-amber-50/60 hover:shadow-md hover:border-amber-200 transition-all duration-300"
+                                >
+                                    <div className="flex justify-between items-start mb-1">
+                                        <div className="flex-1 min-w-0">
+                                            <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-100">
+                                                {doc.type}
+                                            </span>
+                                            <p className="text-xs font-black text-slate-800 truncate mt-1">{doc.vendorSubName}</p>
+                                            <p className="text-[10px] text-slate-500 truncate">{doc.fileName}</p>
+                                        </div>
+                                        <Eye className="w-3.5 h-3.5 text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity ml-2 shrink-0" />
+                                    </div>
+                                    <div className="flex items-center gap-1.5 mt-1.5">
+                                        {doc.files?.length > 0 && (
+                                            <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-slate-100">
+                                                {doc.files.length} file{doc.files.length !== 1 ? 's' : ''}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100/50">
+                                        <span className="text-[10px] text-slate-400 font-bold truncate">{doc.createdBy || '-'}</span>
+                                        <button
+                                            onClick={e => { e.stopPropagation(); setVendorSubsToDelete(doc._id); }}
+                                            className="opacity-0 group-hover:opacity-100 w-5 h-5 rounded-full bg-red-50 text-red-400 hover:bg-red-100 flex items-center justify-center transition-all"
+                                        >
+                                            <Trash2 className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                </div>
+                            )) : (
+                                <p className="text-[10px] text-slate-400 font-bold text-center py-4">No vendor/sub records</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+                {/* Row 3: Field Documents */}
 
                 {/* Column: JHA */}
                 <div className="space-y-4">
@@ -4646,70 +4217,6 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     </div>
                 </div>
 
-                {/* Column: Vendor & Subs */}
-                <div className="space-y-4">
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-white flex items-center justify-center shadow-md">
-                            <User className="w-4 h-4" />
-                        </div>
-                        <h4 className="text-sm font-bold text-amber-700">Vendor &amp; Subs</h4>
-                        <span className="text-[10px] bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full font-bold">
-                            {vendorSubsDocs.length}
-                        </span>
-                        <button
-                            onClick={() => { setNewVendorSubs({ type: '', vendorSubName: '', fileName: '', files: [] }); setIsVendorSubsModalOpen(true); }}
-                            className="ml-auto w-6 h-6 rounded-lg bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center transition-colors shadow-sm"
-                            title="Add Vendor/Sub Record"
-                        >
-                            <Plus className="w-3.5 h-3.5" />
-                        </button>
-                    </div>
-
-                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto">
-                        <div className="grid grid-cols-1 gap-3">
-                            {loadingJobDocs ? (
-                                <div className="flex items-center justify-center py-8">
-                                    <Loader2 className="w-5 h-5 animate-spin text-amber-500" />
-                                </div>
-                            ) : vendorSubsDocs.length > 0 ? vendorSubsDocs.map((doc: any, idx: number) => (
-                                <div
-                                    key={doc._id || idx}
-                                    onClick={() => setSelectedVendorSubsDoc(doc)}
-                                    className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-amber-50/60 hover:shadow-md hover:border-amber-200 transition-all duration-300"
-                                >
-                                    <div className="flex justify-between items-start mb-1">
-                                        <div className="flex-1 min-w-0">
-                                            <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-100">
-                                                {doc.type}
-                                            </span>
-                                            <p className="text-xs font-black text-slate-800 truncate mt-1">{doc.vendorSubName}</p>
-                                            <p className="text-[10px] text-slate-500 truncate">{doc.fileName}</p>
-                                        </div>
-                                        <Eye className="w-3.5 h-3.5 text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity ml-2 shrink-0" />
-                                    </div>
-                                    <div className="flex items-center gap-1.5 mt-1.5">
-                                        {doc.files?.length > 0 && (
-                                            <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-slate-100">
-                                                {doc.files.length} file{doc.files.length !== 1 ? 's' : ''}
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100/50">
-                                        <span className="text-[10px] text-slate-400 font-bold truncate">{doc.createdBy || '-'}</span>
-                                        <button
-                                            onClick={e => { e.stopPropagation(); setVendorSubsToDelete(doc._id); }}
-                                            className="opacity-0 group-hover:opacity-100 w-5 h-5 rounded-full bg-red-50 text-red-400 hover:bg-red-100 flex items-center justify-center transition-all"
-                                        >
-                                            <Trash2 className="w-3 h-3" />
-                                        </button>
-                                    </div>
-                                </div>
-                            )) : (
-                                <p className="text-[10px] text-slate-400 font-bold text-center py-4">No vendor/sub records</p>
-                            )}
-                        </div>
-                    </div>
-                </div>
 
             </div>
 
@@ -5171,22 +4678,38 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             <button
                                 id="release-type-trigger"
                                 onClick={() => setIsReleaseTypeOpen(!isReleaseTypeOpen)}
-                                className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none flex items-center justify-between"
+                                className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none flex items-center justify-between gap-2"
                             >
-                                <span className={newRelease.documentType ? "text-slate-700 font-medium" : "text-slate-400"}>
-                                    {newRelease.documentType || "Select Document Type"}
-                                </span>
-                                <ChevronDown className="w-4 h-4 text-slate-400" />
+                                {newRelease.documentType ? (
+                                    <span className="flex items-center gap-2 text-slate-700 font-medium">
+                                        <span
+                                            className="shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded text-white"
+                                            style={{ backgroundColor: ({ CP: '#6E1A37', CF: '#134E8E', UP: '#FF6500', UF: '#35858E' } as Record<string, string>)[getReleaseCode(newRelease.documentType)] || '#64748b' }}
+                                        >
+                                            {getReleaseCode(newRelease.documentType) || '—'}
+                                        </span>
+                                        {newRelease.documentType.replace(/^(CP|CF|UP|UF)\s*[-–—]?\s*\(?/i, '').replace(/\)\s*$/, '').trim()}
+                                    </span>
+                                ) : (
+                                    <span className="text-slate-400">Select Document Type</span>
+                                )}
+                                <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
                             </button>
                             <MyDropDown
                                 isOpen={isReleaseTypeOpen}
                                 onClose={() => setIsReleaseTypeOpen(false)}
                                 anchorId="release-type-trigger"
-                                options={releasesConstants.map((c: any) => ({
-                                    id: c._id,
-                                    label: c.value,
-                                    value: c.value
-                                }))}
+                                options={releasesConstants.map((c: any) => {
+                                    const rc = getReleaseCode(c.value);
+                                    const colorMap: Record<string, string> = { CP: '#6E1A37', CF: '#134E8E', UP: '#FF6500', UF: '#35858E' };
+                                    const bgColor = colorMap[rc] || '#64748b';
+                                    return {
+                                        id: c._id,
+                                        label: c.value?.replace(/^(CP|CF|UP|UF)\s*[-–—]?\s*\(?/i, '').replace(/\)\s*$/, '').trim() || c.value,
+                                        value: c.value,
+                                        icon: <div className="w-full h-full rounded-full flex items-center justify-center text-white text-[10px] font-black" style={{ backgroundColor: bgColor }}>{rc || '—'}</div>,
+                                    };
+                                })}
                                 selectedValues={newRelease.documentType ? [newRelease.documentType] : []}
                                 onSelect={(val) => {
                                     setNewRelease(prev => ({ ...prev, documentType: val }));
@@ -5251,7 +4774,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             {/* amountsOfUnpaidProgressPayment Array */}
                             <div className="space-y-2 pt-2 border-t border-slate-100">
                                 <div className="flex items-center justify-between">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Unpaid Progress Ammounts</label>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Unpaid Progress Amounts</label>
                                     <button
                                         onClick={() => setNewRelease(prev => ({ ...prev, amountsOfUnpaidProgressPayment: [...prev.amountsOfUnpaidProgressPayment, ''] }))}
                                         className="text-[10px] text-blue-600 font-bold hover:underline"
@@ -5368,6 +4891,38 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 confirmText="Remove"
                 variant="danger"
             />
+
+            {/* Signature Popup */}
+            {signaturePopup && (
+                <div
+                    className="fixed inset-0 z-[20000] flex items-center justify-center transition-all duration-200"
+                    onClick={() => setSignaturePopup(null)}
+                >
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+                    <div
+                        className="relative bg-white rounded-3xl shadow-2xl max-w-md w-full mx-4 p-6 transform animate-in fade-in zoom-in-95 duration-200"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <button
+                            onClick={() => setSignaturePopup(null)}
+                            className="absolute top-4 right-4 p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                        <div className="text-center">
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Signature</span>
+                            <h3 className="text-lg font-bold text-slate-800 mt-1 mb-4">{signaturePopup.name}</h3>
+                        </div>
+                        <div className="bg-slate-50 rounded-2xl border border-slate-200 p-6 flex items-center justify-center min-h-[140px]">
+                            <img
+                                src={signaturePopup.signature}
+                                alt={`${signaturePopup.name}'s signature`}
+                                className="max-w-full max-h-[120px] object-contain"
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Intent to Lien Delete Confirm Modal */}
             <ConfirmModal
@@ -5785,29 +5340,40 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             </div>
                         )}
                         {newBillingTicket.uploads.length > 0 ? (
-                            <div className="flex flex-wrap gap-2">
-                                {newBillingTicket.uploads.map((file, i) => (
-                                    <div key={i} className="relative group">
-                                        {file.type?.startsWith('image') ? (
-                                            <div className="relative w-16 h-16 rounded-lg overflow-hidden"><Image fill sizes="(max-width: 768px) 100vw, 33vw"
-                                                src={file.thumbnailUrl || file.url}
-                                                alt={file.name}
-                                                className="object-cover rounded-lg border border-slate-200 w-full h-full"
-                                            /></div>
-                                        ) : (
-                                            <div className="w-16 h-16 bg-slate-100 rounded-lg border border-slate-200 flex items-center justify-center">
-                                                <FileText className="w-6 h-6 text-slate-400" />
+                            <div className="flex flex-wrap gap-3">
+                                {newBillingTicket.uploads.map((file, i) => {
+                                    const url = file.url || '';
+                                    const name = file.name || `File ${i + 1}`;
+                                    const isImg = file.type?.startsWith('image') || /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(url) || url.startsWith('data:image/');
+                                    const thumbUrl = file.thumbnailUrl || (isImg ? url : null);
+                                    return (
+                                        <div key={i} className="relative group w-[140px]">
+                                            <div className="w-full flex flex-col items-center p-2 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white hover:border-slate-300 transition-all shadow-sm overflow-hidden">
+                                                {thumbUrl ? (
+                                                    <div className="w-full h-24 mb-2 rounded-lg bg-slate-100 overflow-hidden relative border border-slate-200/50">
+                                                        <Image fill sizes="140px" src={cld(thumbUrl, { w: 300, q: 'auto' })} alt={name} className="object-cover w-full h-full" />
+                                                    </div>
+                                                ) : (
+                                                    <div className="w-full h-24 mb-2 rounded-lg bg-indigo-50/50 border border-indigo-100/50 flex items-center justify-center">
+                                                        <FileText className="w-8 h-8 text-indigo-300" />
+                                                    </div>
+                                                )}
+                                                <div className="w-full flex items-center gap-1.5 overflow-hidden">
+                                                    <div className="shrink-0 w-5 h-5 rounded bg-indigo-100/50 flex items-center justify-center">
+                                                        {isImg ? <ImageIcon className="w-3 h-3 text-indigo-600" /> : <FileText className="w-3 h-3 text-indigo-600" />}
+                                                    </div>
+                                                    <span className="text-[10px] font-bold text-slate-700 truncate flex-1" title={name}>{name}</span>
+                                                </div>
                                             </div>
-                                        )}
-                                        <button
-                                            onClick={() => removeBillingTicketUpload(i)}
-                                            className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                        >
-                                            <X className="w-3 h-3" />
-                                        </button>
-                                        <span className="text-[8px] text-slate-500 truncate block max-w-[64px] text-center">{file.name}</span>
-                                    </div>
-                                ))}
+                                            <button
+                                                onClick={() => removeBillingTicketUpload(i)}
+                                                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm z-10"
+                                            >
+                                                <X className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         ) : (
                             <p className="text-[10px] text-slate-400 italic">No files uploaded</p>
@@ -5856,15 +5422,6 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 </div>
             </Modal>
 
-            <ConfirmModal
-                isOpen={deleteMsgId !== null}
-                onClose={() => setDeleteMsgId(null)}
-                onConfirm={confirmDeleteMessage}
-                title="Delete Message"
-                message="Are you sure you want to delete this message? This action cannot be undone."
-                confirmText="Delete"
-                variant="danger"
-            />
 </div>
     );
 };
