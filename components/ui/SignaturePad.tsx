@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useEffect, useState } from 'react';
-import { Eraser, Check, PenTool, Trash2 } from 'lucide-react';
+import { Eraser, Check, PenTool, Trash2, Upload, Pen } from 'lucide-react';
 
 interface SignaturePadProps {
     value?: string;
@@ -12,16 +12,21 @@ interface SignaturePadProps {
 
 export const SignaturePad: React.FC<SignaturePadProps> = ({ value, onChange, className, label = 'Signature' }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
     const [hasSignature, setHasSignature] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     
-    // Mode: 'view' (showing existing image) or 'edit' (drawing new one)
+    // Mode: 'view' (showing existing image) or 'edit' (drawing/uploading new one)
     const [isEditing, setIsEditing] = useState(!value);
+    // Tab: 'draw' or 'upload'
+    const [activeTab, setActiveTab] = useState<'draw' | 'upload'>('draw');
+    // Uploaded image preview
+    const [uploadedImage, setUploadedImage] = useState<string | null>(null);
 
     useEffect(() => {
-        // Initialize canvas when entering edit mode
-        if (isEditing) {
+        // Initialize canvas when entering edit mode with draw tab
+        if (isEditing && activeTab === 'draw') {
             const canvas = canvasRef.current;
             if (canvas) {
                 // Set resolution matching display size
@@ -37,7 +42,7 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ value, onChange, cla
                 }
             }
         }
-    }, [isEditing]);
+    }, [isEditing, activeTab]);
 
     const getTouchPos = (canvasDom: HTMLCanvasElement, touchEvent: React.TouchEvent) => {
         const rect = canvasDom.getBoundingClientRect();
@@ -106,25 +111,68 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ value, onChange, cla
         }
     };
 
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            alert('Please select an image file');
+            return;
+        }
+
+        // Validate file size (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            alert('File size must be less than 5MB');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const dataUrl = event.target?.result as string;
+            setUploadedImage(dataUrl);
+            setHasSignature(true);
+        };
+        reader.readAsDataURL(file);
+    };
+
     const handleSave = async () => {
-        const canvas = canvasRef.current;
-        if (canvas && hasSignature) {
-            setIsSaving(true);
-            const dataUrl = canvas.toDataURL('image/png');
-            try {
-                await onChange(dataUrl);
+        setIsSaving(true);
+        try {
+            if (activeTab === 'upload' && uploadedImage) {
+                await onChange(uploadedImage);
                 setIsEditing(false);
-            } catch (err) {
-                console.error("Error saving signature", err);
-            } finally {
-                setIsSaving(false);
+                setUploadedImage(null);
+            } else if (activeTab === 'draw') {
+                const canvas = canvasRef.current;
+                if (canvas && hasSignature) {
+                    const dataUrl = canvas.toDataURL('image/png');
+                    await onChange(dataUrl);
+                    setIsEditing(false);
+                }
             }
+        } catch (err) {
+            console.error("Error saving signature", err);
+        } finally {
+            setIsSaving(false);
         }
     };
 
     const handleCancel = () => {
         setIsEditing(false);
         setHasSignature(false);
+        setUploadedImage(null);
+        setActiveTab('draw');
+    };
+
+    const handleTabSwitch = (tab: 'draw' | 'upload') => {
+        setActiveTab(tab);
+        setHasSignature(false);
+        setUploadedImage(null);
+        if (tab === 'draw') {
+            // Clear canvas on next tick after render
+            setTimeout(() => clearCanvas(), 50);
+        }
     };
 
     // View Mode: Show existing signature
@@ -146,6 +194,7 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ value, onChange, cla
                     type="button"
                     onClick={() => {
                         setIsEditing(true);
+                        setActiveTab('draw');
                         // We reset signature on edit start so user draws a new one
                         // If you wanted to edit existing, you'd need to drawImage onto canvas
                         // but usually signatures are re-drawn.
@@ -159,27 +208,102 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ value, onChange, cla
         );
     }
 
-    // Edit Mode: Drawing Canvas (Matches JHA style)
+    // Edit Mode: Draw or Upload
     return (
         <div className={`bg-white rounded-xl border border-slate-200 p-4 shadow-sm w-full max-w-md ${className || ''}`}>
-            <h4 className="text-sm font-bold text-slate-700 mb-2">{label}</h4>
-            <div className="relative w-full h-40 bg-slate-50 border border-slate-300 rounded-lg overflow-hidden touch-none">
-                <canvas
-                    ref={canvasRef}
-                    className="w-full h-full cursor-crosshair"
-                    onMouseDown={startDrawing}
-                    onMouseMove={draw}
-                    onMouseUp={stopDrawing}
-                    onMouseLeave={stopDrawing}
-                    onTouchStart={startDrawing}
-                    onTouchMove={draw}
-                    onTouchEnd={stopDrawing}
-                />
+            <h4 className="text-sm font-bold text-slate-700 mb-3">{label}</h4>
+
+            {/* Draw / Upload Tabs */}
+            <div className="flex p-0.5 bg-slate-100 rounded-lg mb-3">
+                <button
+                    type="button"
+                    onClick={() => handleTabSwitch('draw')}
+                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-xs font-bold transition-all ${
+                        activeTab === 'draw'
+                            ? 'bg-white text-slate-800 shadow-sm'
+                            : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                >
+                    <Pen size={13} />
+                    Draw
+                </button>
+                <button
+                    type="button"
+                    onClick={() => handleTabSwitch('upload')}
+                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-xs font-bold transition-all ${
+                        activeTab === 'upload'
+                            ? 'bg-white text-slate-800 shadow-sm'
+                            : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                >
+                    <Upload size={13} />
+                    Upload
+                </button>
             </div>
+
+            {/* Draw Tab */}
+            {activeTab === 'draw' && (
+                <div className="relative w-full h-40 bg-slate-50 border border-slate-300 rounded-lg overflow-hidden touch-none">
+                    <canvas
+                        ref={canvasRef}
+                        className="w-full h-full cursor-crosshair"
+                        onMouseDown={startDrawing}
+                        onMouseMove={draw}
+                        onMouseUp={stopDrawing}
+                        onMouseLeave={stopDrawing}
+                        onTouchStart={startDrawing}
+                        onTouchMove={draw}
+                        onTouchEnd={stopDrawing}
+                    />
+                </div>
+            )}
+
+            {/* Upload Tab */}
+            {activeTab === 'upload' && (
+                <div className="relative w-full h-40 border border-dashed border-slate-300 rounded-lg overflow-hidden flex items-center justify-center bg-slate-50">
+                    {uploadedImage ? (
+                        <div className="relative w-full h-full flex items-center justify-center p-2">
+                            <img
+                                src={uploadedImage}
+                                alt="Uploaded signature"
+                                className="max-w-full max-h-full object-contain"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => { setUploadedImage(null); setHasSignature(false); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                                className="absolute top-2 right-2 w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center text-slate-400 hover:text-red-500 hover:border-red-200 transition-colors shadow-sm"
+                            >
+                                <Trash2 size={12} />
+                            </button>
+                        </div>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="flex flex-col items-center gap-2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                        >
+                            <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center">
+                                <Upload size={20} className="text-slate-400" />
+                            </div>
+                            <span className="text-xs font-bold">Click to upload signature image</span>
+                            <span className="text-[10px] text-slate-300">PNG, JPG up to 5MB</span>
+                        </button>
+                    )}
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                    />
+                </div>
+            )}
+
+            {/* Action Buttons */}
             <div className="flex justify-between gap-3 mt-3">
                 <button
                     type="button"
-                    onClick={value ? handleCancel : clearCanvas}
+                    onClick={value ? handleCancel : (activeTab === 'draw' ? clearCanvas : () => { setUploadedImage(null); setHasSignature(false); })}
                     className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs font-bold text-slate-500 hover:text-red-500 bg-slate-100 rounded-lg transition-colors"
                 >
                     <Eraser size={14} />
