@@ -111,6 +111,7 @@ export default function EstimatesTable({ initialData }: { initialData?: any[] })
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
     const [isFetchingMore, setIsFetchingMore] = useState(false);
+    const [totalEstimates, setTotalEstimates] = useState(0);
 
     // Use refs for scroll handler so it always sees latest values without re-attaching
     const hasMoreRef = useRef(hasMore);
@@ -137,7 +138,7 @@ export default function EstimatesTable({ initialData }: { initialData?: any[] })
 
         try {
             const params = new URLSearchParams({
-                limit: '30',
+                limit: '50',
                 page: pageToFetch.toString(),
                 filter: activeFilter,
                 sortKey: sortConfig.key,
@@ -174,7 +175,8 @@ export default function EstimatesTable({ initialData }: { initialData?: any[] })
                     setFilterCounts(data.filterCounts);
                 }
 
-                setHasMore(newEstimates.length >= 30);
+                if (data.total !== undefined) setTotalEstimates(data.total);
+                setHasMore(newEstimates.length >= 50);
                 setPage(pageToFetch);
             } else {
                 toastError('Failed to fetch estimates');
@@ -818,10 +820,13 @@ export default function EstimatesTable({ initialData }: { initialData?: any[] })
                                 <Table
                                     containerClassName="h-full"
                                     footer={
-                                        <div className="flex flex-col items-center justify-center p-2 text-xs text-gray-500 w-full">
-                                            <span>
-                                                Showing {paginatedEstimates.length} records {hasMore ? '(Loading more...)' : ''}
+                                        <div className="py-2 px-4 border-t border-slate-50 flex items-center justify-between bg-white w-full">
+                                            <span className="text-[10px] font-bold text-slate-500">
+                                                Showing <span className="text-slate-900">{paginatedEstimates.length}</span> of <span className="text-slate-900">{totalEstimates}</span> records
                                             </span>
+                                            {isFetchingMore && (
+                                                <span className="text-[10px] font-bold text-blue-500 animate-pulse">Loading...</span>
+                                            )}
                                         </div>
                                     }
                                 >

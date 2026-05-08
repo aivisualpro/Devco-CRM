@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
-import { Estimate, DevcoQuickBooks, Activity, Constant } from '@/lib/models';
+import { Estimate, DevcoQuickBooks, Constant } from '@/lib/models';
 import { serializeEstimate } from '@/lib/serializers/estimate';
 import { QBO_OWNED_FIELDS, DEVCO_OWNED_FIELDS } from '@/lib/qbo-sync-contract';
 
@@ -193,33 +193,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             console.log(`[Estimate Bot] No status change detected. updated=${!!updated}, estimateUpdates.status=${estimateUpdates.status}, currentEst.status=${currentEst.status}`);
         }
 
-        // Log Activity
+        // Sync Shared Fields to Siblings
         if (updated) {
-            try {
-                const activityId = new Types.ObjectId().toString();
-                // await Activity.create({
-                //                     _id: activityId,
-                //                     user: (() => {
-                //                         const u = estimateUpdates.proposalWriter ||
-                //                             estimateUpdates.createdBy ||
-                //                             updated?.proposalWriter ||
-                //                             'System';
-                //                         return Array.isArray(u) ? u.join(', ') : String(u);
-                //                     })(),
-                //                     action: 'updated_estimate',
-                //                     type: 'estimate',
-                //                     title: `Updated Estimate #${updated.estimate}`,
-                //                     entityId: updated.estimate, 
-                //                     metadata: { estimate_id: updated._id },
-                //                     createdAt: new Date()
-                //                 });
-            } catch (e) {
-                console.error('Failed to log activity:', e);
-            }
-
-
-            
-            // Sync Shared Fields to Siblings
             const SHARED_FIELDS = [
                 'projectName', 'jobAddress', 'contactAddress', 'customerId', 'customerName',
                 'contactName', 'contactEmail', 'contactPhone', 'contactId',
@@ -252,8 +227,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
                     { $set: { ...sharedUpdate, updatedAt: new Date() } }
                 );
             }
-            
-
         }
 
         // 5. Call revalidateTag

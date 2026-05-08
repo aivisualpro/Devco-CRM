@@ -4,6 +4,15 @@ import { Client, Estimate, Employee } from '@/lib/models';
 import { parsePagination, parseSearch, buildPaginationResponse } from '@/lib/api/pagination';
 import { getUserFromRequest } from '@/lib/permissions/middleware';
 import { createNotifications } from '@/lib/notifications';
+import { atlasSearch, atlasSearchCount, AtlasSearchField } from '@/lib/atlasSearch';
+
+const CLIENT_SEARCH_FIELDS: AtlasSearchField[] = [
+    { path: 'name', boost: 5 },
+    { path: 'contacts.name', boost: 3 },
+    { path: 'contacts.email', boost: 2 },
+    { path: 'contacts.phone', boost: 1 },
+    { path: 'businessEmail', boost: 2 },
+];
 
 export async function GET(req: NextRequest) {
     try {
@@ -20,71 +29,77 @@ export async function GET(req: NextRequest) {
 
         const q = searchParams.get('q');
         const status = searchParams.get('status');
+        const hasSearch = q && q.trim() !== '';
+        const trimmed = hasSearch ? q.trim() : '';
 
-        let baseQuery: any = { status: { $ne: 'deleted' } };
-        let useTextSearch = false;
-
-        if (q && q.trim() !== '') {
-            const trimmed = q.trim();
-            if (trimmed.length >= 3) {
-                // Use $text index for efficient full-text search
-                baseQuery.$text = { $search: trimmed };
-                useTextSearch = true;
-            } else {
-                // Fallback to $regex for very short queries (1-2 chars)
-                const searchRegex = { $regex: trimmed, $options: 'i' };
-                baseQuery.$or = [
-                    { name: searchRegex },
-                    { 'contacts.name': searchRegex },
-                    { 'contacts.email': searchRegex },
-                    { 'contacts.phone': searchRegex }
-                ];
-            }
-        }
-
-        let query = { ...baseQuery };
+        // Build status filter (applied as postFilter in Atlas Search, or merged in regex)
+        const statusFilter: any = { status: { $ne: 'deleted' } };
         if (status) {
             if (status === 'Active') {
-                query.status = 'Active';
+                statusFilter.status = 'Active';
             } else if (status === 'Inactive') {
-                query.status = { $nin: ['Active', 'deleted'] };
+                statusFilter.status = { $nin: ['Active', 'deleted'] };
             } else {
-                query.status = status;
+                statusFilter.status = status;
             }
         }
 
-        const appliedSort: any = useTextSearch
-            ? { score: { $meta: 'textScore' as const }, ...(sort || { name: 1 }) }
-            : (sort || { name: 1 });
-        // Ensure stable sorting by appending _id if not present
-        if (!appliedSort._id) {
-            appliedSort._id = 1;
+        const appliedSort: any = sort || { name: 1 };
+        if (!appliedSort._id) appliedSort._id = 1;
+
+        const isLite = searchParams.get('lite') === 'true';
+        const selectFields = isLite
+            ? { name: 1, _id: 1 }
+            : undefined; // full doc
+
+        let items: any[];
+        let total: number;
+
+        if (hasSearch) {
+            // Use Atlas Search (with automatic regex fallback)
+            const [searchResult, countResult] = await Promise.all([
+                atlasSearch({
+                    model: Client,
+                    query: trimmed,
+                    fields: CLIENT_SEARCH_FIELDS,
+                    postFilter: statusFilter,
+                    project: selectFields,
+                    limit,
+                    skip,
+                    sort: appliedSort,
+                    fuzzyMaxEdits: 1,
+                }),
+                atlasSearchCount(Client, trimmed, CLIENT_SEARCH_FIELDS, statusFilter),
+            ]);
+            items = searchResult.items;
+            total = countResult;
+        } else {
+            // No search query — standard find
+            const query = { ...statusFilter };
+            let findQuery = Client.find(query);
+            if (isLite) findQuery = findQuery.select('name _id');
+
+            [items, total] = await Promise.all([
+                findQuery.sort(appliedSort).skip(skip).limit(limit).lean(),
+                Client.countDocuments(query),
+            ]);
         }
 
-        let findQuery = Client.find(query);
-        if (searchParams.get('lite') === 'true') {
-            findQuery = findQuery.select('name _id');
-        }
-        
-        if (useTextSearch) {
-            findQuery = findQuery.select({ score: { $meta: 'textScore' } });
-        }
+        // Count active/inactive for tabs (use base filter without status)
+        const baseCountFilter: any = hasSearch
+            ? undefined // skip expensive counts during search
+            : { status: { $ne: 'deleted' } };
 
-        const [items, total, totalActive, totalInactive] = await Promise.all([
-            findQuery
-                .sort(appliedSort as any)
-                .skip(skip)
-                .limit(limit)
-                .lean(),
-            Client.countDocuments(baseQuery),
-            Client.countDocuments({ ...baseQuery, status: 'Active' }),
-            Client.countDocuments({ ...baseQuery, status: { $nin: ['Active', 'deleted'] } })
-        ]);
+        const [totalActive, totalInactive] = baseCountFilter
+            ? await Promise.all([
+                Client.countDocuments({ ...baseCountFilter, status: 'Active' }),
+                Client.countDocuments({ ...baseCountFilter, status: { $nin: ['Active', 'deleted'] } }),
+            ])
+            : [0, 0];
 
         let finalItems = items;
         
         // Skip expensive estimate counting if lite mode is requested
-        const isLite = searchParams.get('lite') === 'true';
         
         if (!isLite) {
             // Fetch unique estimates count for each client

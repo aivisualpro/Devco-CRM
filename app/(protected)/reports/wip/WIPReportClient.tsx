@@ -1200,11 +1200,11 @@ export default function WIPReportClient({
                                                         <div className="grid grid-cols-6 xl:flex gap-2 items-stretch">
                                                             {/* Income */}
                                                             <div onClick={() => handleCardClick('income')} className={`col-span-3 order-1 xl:order-1 flex-1 relative rounded-xl shadow-sm cursor-pointer transition-all duration-200 ${ring('income')}`}>
-                                                                <div className="absolute inset-0 overflow-hidden rounded-xl bg-emerald-50 border border-emerald-200" />
+                                                                <div className="absolute inset-0 overflow-hidden rounded-xl bg-emerald-800 border border-emerald-900" />
                                                                 <div className="relative p-3 pointer-events-none flex justify-between items-center h-full">
                                                                     <div className="flex flex-col justify-center">
-                                                                        <p className="text-xs font-black text-emerald-600 uppercase tracking-wider mb-1">Income</p>
-                                                                        {loadingTransactions ? <Skeleton className="h-6 w-24 rounded-md" /> : <p className="text-xl font-black text-emerald-950 tracking-tight leading-none">{fmt(income)}</p>}
+                                                                        <p className="text-xs font-black text-emerald-200 uppercase tracking-wider mb-1">Income</p>
+                                                                        {loadingTransactions ? <Skeleton className="h-6 w-24 rounded-md" /> : <p className="text-xl font-black text-white tracking-tight leading-none">{fmt(income)}</p>}
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -1259,15 +1259,15 @@ export default function WIPReportClient({
 
                                                             {/* Payment */}
                                                             <div onClick={() => handleCardClick('payment')} className={`col-span-2 order-5 xl:order-6 flex-1 relative rounded-xl shadow-sm cursor-pointer transition-all duration-200 ${ring('payment')}`}>
-                                                                <div className="absolute inset-0 overflow-hidden rounded-xl bg-teal-50 border border-teal-200" />
+                                                                <div className="absolute inset-0 overflow-hidden rounded-xl bg-blue-900 border border-blue-950" />
                                                                 <div className="relative p-3 pointer-events-none flex justify-between items-center h-full">
                                                                     <div className="flex flex-col justify-center">
-                                                                        <p className="text-xs font-black text-teal-600 uppercase tracking-wider mb-1">Payment</p>
-                                                                        {loadingTransactions ? <Skeleton className="h-6 w-24 rounded-md" /> : <p className="text-xl font-black text-teal-950 tracking-tight leading-none">{fmt(payment)}</p>}
+                                                                        <p className="text-xs font-black text-blue-200 uppercase tracking-wider mb-1">Payment</p>
+                                                                        {loadingTransactions ? <Skeleton className="h-6 w-24 rounded-md" /> : <p className="text-xl font-black text-white tracking-tight leading-none">{fmt(payment)}</p>}
                                                                     </div>
                                                                     {loadingTransactions ? <Skeleton className="h-5 w-8 xl:h-7 xl:w-12 rounded-md ml-1.5 xl:ml-2 shrink-0" /> : (
-                                                                        <div className="bg-teal-100 rounded-md px-1.5 py-0.5 xl:px-2 xl:py-1 flex items-center justify-center shrink-0 ml-1.5 xl:ml-2">
-                                                                            <span className="text-[10px] xl:text-sm font-bold text-teal-700">{income > 0 ? ((payment / income) * 100).toFixed(0) : 0}%</span>
+                                                                        <div className="bg-blue-800 rounded-md px-1.5 py-0.5 xl:px-2 xl:py-1 flex items-center justify-center shrink-0 ml-1.5 xl:ml-2">
+                                                                            <span className="text-[10px] xl:text-sm font-bold text-blue-200">{income > 0 ? ((payment / income) * 100).toFixed(0) : 0}%</span>
                                                                         </div>
                                                                     )}
                                                                 </div>
@@ -1353,20 +1353,15 @@ export default function WIPReportClient({
                                                     >
                                                         <div className="absolute inset-0 overflow-hidden rounded-xl bg-gradient-to-br from-indigo-50 to-violet-50 border border-indigo-200" />
                                                         <div className="relative p-3 flex justify-between items-center h-full">
-                                                            <div className="flex flex-col justify-center">
-                                                                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-wider mb-1 flex items-center gap-1.5">
-                                                                    <CalendarClock className="w-3.5 h-3.5" />
-                                                                    Schedules
-                                                                </p>
-                                                                {loadingSchedules ? (
-                                                                    <Skeleton className="h-7 w-10 rounded-md" />
-                                                                ) : (
-                                                                    <p className="text-2xl font-black text-indigo-950 tracking-tight leading-none">{schedCount}</p>
-                                                                )}
-                                                            </div>
-                                                            <div className="bg-indigo-100 group-hover:bg-indigo-200 rounded-lg p-2 transition-colors">
-                                                                <CalendarClock className="w-5 h-5 text-indigo-500" />
-                                                            </div>
+                                                            <p className="text-xs font-black text-indigo-600 uppercase tracking-wider flex items-center gap-2">
+                                                                <CalendarClock className="w-5 h-5" />
+                                                                Schedules
+                                                            </p>
+                                                            {loadingSchedules ? (
+                                                                <Skeleton className="h-8 w-12 rounded-md" />
+                                                            ) : (
+                                                                <p className="text-3xl font-black text-indigo-950 tracking-tight leading-none">{schedCount}</p>
+                                                            )}
                                                         </div>
                                                     </div>
 
@@ -1382,27 +1377,22 @@ export default function WIPReportClient({
                                                     >
                                                         <div className="absolute inset-0 overflow-hidden rounded-xl bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-200" />
                                                         <div className="relative p-3 flex justify-between items-center h-full">
-                                                            <div className="flex flex-col justify-center">
-                                                                <p className="text-[10px] font-black text-orange-600 uppercase tracking-wider mb-1 flex items-center gap-1.5">
-                                                                    <Shield className="w-3.5 h-3.5" />
-                                                                    JHAs
-                                                                </p>
-                                                                {loadingJHAs ? (
-                                                                    <Skeleton className="h-7 w-10 rounded-md" />
-                                                                ) : (
-                                                                    <div className="flex items-end gap-2">
-                                                                        <p className="text-2xl font-black text-orange-950 tracking-tight leading-none">{jhaCount}</p>
-                                                                        {schedCount > 0 && (
-                                                                            <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md leading-none ${
-                                                                                jhaPct >= 100 ? 'bg-emerald-100 text-emerald-700' : jhaPct >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'
-                                                                            }`}>{jhaPct}%</span>
-                                                                        )}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                            <div className="bg-orange-100 group-hover:bg-orange-200 rounded-lg p-2 transition-colors">
-                                                                <Shield className="w-5 h-5 text-orange-500" />
-                                                            </div>
+                                                            <p className="text-xs font-black text-orange-600 uppercase tracking-wider flex items-center gap-2">
+                                                                <Shield className="w-5 h-5" />
+                                                                JHAs
+                                                            </p>
+                                                            {loadingJHAs ? (
+                                                                <Skeleton className="h-8 w-12 rounded-md" />
+                                                            ) : (
+                                                                <div className="flex flex-col items-end">
+                                                                    <p className="text-3xl font-black text-orange-950 tracking-tight leading-none">{jhaCount}</p>
+                                                                    {schedCount > 0 && (
+                                                                        <span className={`text-xs font-black mt-1 ${
+                                                                            jhaPct >= 100 ? 'text-emerald-700' : jhaPct >= 50 ? 'text-amber-700' : 'text-rose-700'
+                                                                        }`}>{jhaPct}%</span>
+                                                                    )}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
 
@@ -1413,22 +1403,17 @@ export default function WIPReportClient({
                                                     >
                                                         <div className="absolute inset-0 overflow-hidden rounded-xl bg-gradient-to-br from-teal-50 to-cyan-50 border border-teal-200" />
                                                         <div className="relative p-3 flex justify-between items-center h-full">
-                                                            <div className="flex flex-col justify-center">
-                                                                <p className="text-[10px] font-black text-teal-600 uppercase tracking-wider mb-1 flex items-center gap-1.5">
-                                                                    <FileText className="w-3.5 h-3.5" />
-                                                                    Tickets
-                                                                </p>
-                                                                <div className="flex items-end gap-2">
-                                                                    <p className="text-2xl font-black text-teal-950 tracking-tight leading-none">{ticketCount}</p>
-                                                                    {schedCount > 0 && (
-                                                                        <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md leading-none ${
-                                                                            ticketPct >= 100 ? 'bg-emerald-100 text-emerald-700' : ticketPct >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'
-                                                                        }`}>{ticketPct}%</span>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                            <div className="bg-teal-100 group-hover:bg-teal-200 rounded-lg p-2 transition-colors">
-                                                                <FileText className="w-5 h-5 text-teal-500" />
+                                                            <p className="text-xs font-black text-teal-600 uppercase tracking-wider flex items-center gap-2">
+                                                                <FileText className="w-5 h-5" />
+                                                                Tickets
+                                                            </p>
+                                                            <div className="flex flex-col items-end">
+                                                                <p className="text-3xl font-black text-teal-950 tracking-tight leading-none">{ticketCount}</p>
+                                                                {schedCount > 0 && (
+                                                                    <span className={`text-xs font-black mt-1 ${
+                                                                        ticketPct >= 100 ? 'text-emerald-700' : ticketPct >= 50 ? 'text-amber-700' : 'text-rose-700'
+                                                                    }`}>{ticketPct}%</span>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -1439,34 +1424,29 @@ export default function WIPReportClient({
                                                         className="relative rounded-xl shadow-sm cursor-pointer transition-all duration-200 hover:scale-[1.02] hover:shadow-md group"
                                                     >
                                                         <div className="absolute inset-0 overflow-hidden rounded-xl bg-gradient-to-br from-purple-50 to-fuchsia-50 border border-purple-200" />
-                                                        <div className="relative p-3 flex justify-between items-start h-full">
-                                                            <div className="flex flex-col justify-center flex-1 min-w-0">
-                                                                <p className="text-[10px] font-black text-purple-600 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                                                                    <Clock className="w-3.5 h-3.5" />
-                                                                    Hours
-                                                                </p>
-                                                                {loadingSchedules ? (
-                                                                    <Skeleton className="h-7 w-20 rounded-md" />
-                                                                ) : (
-                                                                    <div className="space-y-1">
-                                                                        <div className="flex items-center justify-between gap-2">
-                                                                            <span className="text-[9px] font-bold text-slate-500 uppercase">Site</span>
-                                                                            <span className="text-xs font-black text-emerald-700 tabular-nums">{siteHrs.toFixed(1)}h</span>
-                                                                        </div>
-                                                                        <div className="flex items-center justify-between gap-2">
-                                                                            <span className="text-[9px] font-bold text-slate-500 uppercase">Drive</span>
-                                                                            <span className="text-xs font-black text-blue-700 tabular-nums">{driveHrs.toFixed(1)}h</span>
-                                                                        </div>
-                                                                        <div className="border-t border-purple-200 pt-1 flex items-center justify-between gap-2">
-                                                                            <span className="text-[9px] font-black text-purple-600 uppercase">Total</span>
-                                                                            <span className="text-sm font-black text-purple-950 tabular-nums">{totalHrs.toFixed(1)}h</span>
-                                                                        </div>
+                                                        <div className="relative p-3 flex flex-col justify-center h-full">
+                                                            <p className="text-xs font-black text-purple-600 uppercase tracking-wider mb-2 flex items-center gap-2">
+                                                                <Clock className="w-5 h-5" />
+                                                                Hours
+                                                            </p>
+                                                            {loadingSchedules ? (
+                                                                <Skeleton className="h-7 w-20 rounded-md" />
+                                                            ) : (
+                                                                <div className="space-y-1.5">
+                                                                    <div className="flex items-center justify-between gap-3">
+                                                                        <span className="text-[11px] font-bold text-slate-500 uppercase">Site</span>
+                                                                        <span className="text-sm font-black text-emerald-700 tabular-nums">{siteHrs.toFixed(1)}h</span>
                                                                     </div>
-                                                                )}
-                                                            </div>
-                                                            <div className="bg-purple-100 group-hover:bg-purple-200 rounded-lg p-2 transition-colors shrink-0 ml-2">
-                                                                <Clock className="w-5 h-5 text-purple-500" />
-                                                            </div>
+                                                                    <div className="flex items-center justify-between gap-3">
+                                                                        <span className="text-[11px] font-bold text-slate-500 uppercase">Drive</span>
+                                                                        <span className="text-sm font-black text-blue-700 tabular-nums">{driveHrs.toFixed(1)}h</span>
+                                                                    </div>
+                                                                    <div className="border-t border-purple-200 pt-1.5 flex items-center justify-between gap-3">
+                                                                        <span className="text-[11px] font-black text-purple-600 uppercase">Total</span>
+                                                                        <span className="text-lg font-black text-purple-950 tabular-nums">{totalHrs.toFixed(1)}h</span>
+                                                                    </div>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
 
@@ -1475,34 +1455,29 @@ export default function WIPReportClient({
                                                         className="relative rounded-xl shadow-sm transition-all duration-200 group"
                                                     >
                                                         <div className="absolute inset-0 overflow-hidden rounded-xl bg-gradient-to-br from-slate-50 to-zinc-50 border border-slate-300" />
-                                                        <div className="relative p-3 flex justify-between items-start h-full">
-                                                            <div className="flex flex-col justify-center flex-1 min-w-0">
-                                                                <p className="text-[10px] font-black text-slate-600 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                                                                    <DollarSign className="w-3.5 h-3.5" />
-                                                                    Avg Cost/Hr
-                                                                </p>
-                                                                {loadingSchedules || loadingTransactions ? (
-                                                                    <Skeleton className="h-7 w-20 rounded-md" />
-                                                                ) : (
-                                                                    <div className="space-y-1">
-                                                                        <div className="flex items-center justify-between gap-2">
-                                                                            <span className="text-[9px] font-bold text-slate-500 uppercase">Labor</span>
-                                                                            <span className="text-[10px] font-black text-slate-700 tabular-nums">${laborCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                                                                        </div>
-                                                                        <div className="flex items-center justify-between gap-2">
-                                                                            <span className="text-[9px] font-bold text-slate-500 uppercase">Hours</span>
-                                                                            <span className="text-[10px] font-black text-slate-700 tabular-nums">{totalHrs.toFixed(1)}h</span>
-                                                                        </div>
-                                                                        <div className="border-t border-slate-300 pt-1 flex items-center justify-between gap-2">
-                                                                            <span className="text-[9px] font-black text-slate-600 uppercase">Rate</span>
-                                                                            <span className={`text-sm font-black tabular-nums ${avgCostPerHr > 100 ? 'text-rose-700' : avgCostPerHr > 85 ? 'text-amber-700' : 'text-emerald-700'}`}>${avgCostPerHr.toFixed(2)}</span>
-                                                                        </div>
+                                                        <div className="relative p-3 flex flex-col justify-center h-full">
+                                                            <p className="text-xs font-black text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-2">
+                                                                <DollarSign className="w-5 h-5" />
+                                                                Avg Cost/Hr
+                                                            </p>
+                                                            {loadingSchedules || loadingTransactions ? (
+                                                                <Skeleton className="h-7 w-20 rounded-md" />
+                                                            ) : (
+                                                                <div className="space-y-1.5">
+                                                                    <div className="flex items-center justify-between gap-3">
+                                                                        <span className="text-[11px] font-bold text-slate-500 uppercase">Labor</span>
+                                                                        <span className="text-sm font-black text-slate-700 tabular-nums">${laborCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                                                                     </div>
-                                                                )}
-                                                            </div>
-                                                            <div className="bg-slate-200 group-hover:bg-slate-300 rounded-lg p-2 transition-colors shrink-0 ml-2">
-                                                                <DollarSign className="w-5 h-5 text-slate-500" />
-                                                            </div>
+                                                                    <div className="flex items-center justify-between gap-3">
+                                                                        <span className="text-[11px] font-bold text-slate-500 uppercase">Hours</span>
+                                                                        <span className="text-sm font-black text-slate-700 tabular-nums">{totalHrs.toFixed(1)}h</span>
+                                                                    </div>
+                                                                    <div className="border-t border-slate-300 pt-1.5 flex items-center justify-between gap-3">
+                                                                        <span className="text-[11px] font-black text-slate-600 uppercase">Rate</span>
+                                                                        <span className={`text-lg font-black tabular-nums ${avgCostPerHr > 100 ? 'text-rose-700' : avgCostPerHr > 85 ? 'text-amber-700' : 'text-emerald-700'}`}>${avgCostPerHr.toFixed(2)}</span>
+                                                                    </div>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1715,8 +1690,8 @@ export default function WIPReportClient({
                                                                                 <td className="px-1.5 py-2 text-[11px] font-medium text-slate-900 whitespace-nowrap">{formatDateOnly(tx.date)}</td>
                                                                                 <td className="px-1.5 py-2 text-[11px] font-medium whitespace-nowrap">
                                                                                     <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider ${
-                                                                                        tx.type === 'Payment' ? 'bg-teal-50 text-teal-700 border border-teal-200/50' : 
-                                                                                        tx.type === 'Invoice' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50' : 
+                                                                                        tx.type === 'Payment' ? 'bg-blue-900 text-white border border-blue-950/30' : 
+                                                                                        tx.type === 'Invoice' ? 'bg-emerald-800 text-white border border-emerald-900/30' : 
                                                                                         tx.type === 'Bill' ? 'bg-orange-50 text-orange-700 border border-orange-200/50' : 
                                                                                         'bg-blue-50 text-blue-700 border border-blue-200/50'
                                                                                     }`}>

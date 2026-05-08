@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { connectToDatabase } from '@/lib/db';
-import { Schedule, DevcoTask, Activity, Estimate } from '@/lib/models';
+import { Schedule, DevcoTask, Estimate } from '@/lib/models';
 import { getUserFromRequest } from '@/lib/permissions/middleware';
 
 export const revalidate = 60;
@@ -155,10 +155,8 @@ export async function GET(request: NextRequest) {
                 ])
                 : Promise.resolve([]);
 
-            // 5. Activities
-            const activitiesPromise = (section === 'all' || section === 'activities')
-                ? Activity.find().limit(20).sort({ createdAt: -1 }).lean()
-                : Promise.resolve([]);
+            // 5. Activities — disabled (collection removed)
+            const activitiesPromise = Promise.resolve([]);
 
             const [schedules, timecardSchedules, rawEstimateStats, tasks, timesheetAgg, activities] = await Promise.all([
                 schedulesPromise,

@@ -90,7 +90,7 @@ export default function JHAPageClient({ initialJhas = [], initialTotal = 0 }: { 
     // UI State
     const [search, setSearch] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 20;
+    const itemsPerPage = 40;
 
     // View/Edit Modal State
     const [isJHAModalOpen, setIsJHAModalOpen] = useState(false);
@@ -125,7 +125,9 @@ export default function JHAPageClient({ initialJhas = [], initialTotal = 0 }: { 
     };
 
     // ── Phase 1: JHA records (fast — renders cards immediately) ──
+    const fetchIdRef = useRef(0); // dedup concurrent fetches
     const fetchJHAs = async () => {
+        const id = ++fetchIdRef.current;
         setLoading(true);
         try {
             const res = await fetch('/api/jha', {
@@ -137,15 +139,15 @@ export default function JHAPageClient({ initialJhas = [], initialTotal = 0 }: { 
                 })
             });
             const data = await res.json();
-            if (data?.success) {
+            if (data?.success && id === fetchIdRef.current) {
                 setJhas(data.result.jhas);
                 setTotalJHAs(data.result.total);
             }
         } catch (err) {
             console.error('Error fetching JHAs:', err);
-            error('Failed to load JHA records');
+            if (id === fetchIdRef.current) error('Failed to load JHA records');
         }
-        setLoading(false);
+        if (id === fetchIdRef.current) setLoading(false);
     };
 
     // ── Phase 2: Supporting data (lazy — only loads when create/edit modal needs it) ──
@@ -169,25 +171,20 @@ export default function JHAPageClient({ initialJhas = [], initialTotal = 0 }: { 
         }
     };
 
+    // Single effect for fetching — covers mount, page changes, and search changes
+    const isFirstMount = useRef(true);
     useEffect(() => {
-        // Skip initial fetch if we have server-provided data and it's page 1 with no search
-        if (initialJhas.length > 0 && currentPage === 1 && !search) return;
-        fetchJHAs();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentPage]);
-
-    // Search Debounce
-    useEffect(() => {
+        // On first mount, skip if server already provided data
+        if (isFirstMount.current) {
+            isFirstMount.current = false;
+            if (initialJhas.length > 0 && currentPage === 1 && !search) return;
+        }
         const timer = setTimeout(() => {
-            if (currentPage !== 1) {
-                setCurrentPage(1); // Reset to page 1 on search
-            } else {
-                fetchJHAs();
-            }
-        }, 500);
+            fetchJHAs();
+        }, search ? 400 : 0); // debounce only for search
         return () => clearTimeout(timer);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [search]);
+    }, [currentPage, search]);
 
     // Helper to get client name
     const getClientName = (schedule: Schedule | undefined) => {

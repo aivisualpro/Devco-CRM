@@ -18,7 +18,7 @@ export { default as GlobalCustomVariable } from './GlobalCustomVariable';
 export { default as Schedule } from './Schedule';
 export { default as Role, UserPermissionOverride, PermissionAuditLog, Department } from './Role';
 export { default as JHA } from './JHA';
-export { default as Activity } from './Activity';
+
 export { default as DailyJobTicket } from './DailyJobTicket';
 export { default as DevcoQuickBooks } from './DevcoQuickBooks';
 export { default as DevcoTask } from './DevcoTask';

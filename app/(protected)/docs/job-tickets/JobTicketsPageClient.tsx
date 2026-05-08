@@ -97,7 +97,7 @@ export default function JobTicketPageClient({ initialDjts = [], initialTotal = 0
     // UI State
     const [search, setSearch] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 20;
+    const itemsPerPage = 40;
 
     // View/Edit Modal State
     const [isDJTModalOpen, setIsDJTModalOpen] = useState(false);
@@ -130,7 +130,9 @@ export default function JobTicketPageClient({ initialDjts = [], initialTotal = 0
     };
 
     // ── Phase 1: DJT records (fast — renders cards immediately) ──
+    const fetchIdRef = useRef(0); // dedup concurrent fetches
     const fetchDJTs = async (page: number = 1, append: boolean = false) => {
+        const id = ++fetchIdRef.current;
         if (page === 1) setLoading(true);
         else setLoadingMore(true);
         try {
@@ -143,7 +145,7 @@ export default function JobTicketPageClient({ initialDjts = [], initialTotal = 0
                 })
             });
             const data = await res.json();
-            if (data?.success) {
+            if (data?.success && id === fetchIdRef.current) {
                 const newDjts = data.result.djts || [];
                 setDjts(prev => append ? [...prev, ...newDjts] : newDjts);
                 setTotalDJTs(data.result.total);
@@ -151,10 +153,12 @@ export default function JobTicketPageClient({ initialDjts = [], initialTotal = 0
             }
         } catch (err) {
             console.error('Error fetching DJTs:', err);
-            error('Failed to load Job Tickets');
+            if (id === fetchIdRef.current) error('Failed to load Job Tickets');
         }
-        setLoading(false);
-        setLoadingMore(false);
+        if (id === fetchIdRef.current) {
+            setLoading(false);
+            setLoadingMore(false);
+        }
     };
 
     // ── Phase 2: Supporting data (lazy — only loads when create/edit modal needs it) ──
@@ -179,21 +183,20 @@ export default function JobTicketPageClient({ initialDjts = [], initialTotal = 0
         }
     };
 
+    // Single effect for fetching — covers mount, page changes, and search changes
+    const isFirstMount = useRef(true);
     useEffect(() => {
-        // Skip initial fetch if we have server-provided data and it's page 1 with no search
-        if (initialDjts.length > 0 && currentPage === 1 && !search) return;
-        fetchDJTs(currentPage, currentPage > 1);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentPage]);
-
-    useEffect(() => {
+        // On first mount, skip if server already provided data
+        if (isFirstMount.current) {
+            isFirstMount.current = false;
+            if (initialDjts.length > 0 && currentPage === 1 && !search) return;
+        }
         const timer = setTimeout(() => {
-            setCurrentPage(1);
-            fetchDJTs(1, false);
-        }, 500);
+            fetchDJTs(currentPage, currentPage > 1);
+        }, search ? 400 : 0); // debounce only for search
         return () => clearTimeout(timer);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [search]);
+    }, [currentPage, search]);
 
     // Infinite scroll: auto-load when sentinel is visible
     useEffect(() => {

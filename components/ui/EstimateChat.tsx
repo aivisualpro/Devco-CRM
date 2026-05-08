@@ -208,7 +208,6 @@ export const EstimateChat: React.FC<EstimateChatProps> = ({
 
     // Filter chat options for mentions - formatted for MyDropDown (matches original EstimateDocsCard)
     const filteredChatOptions = React.useMemo(() => {
-        if (process.env.NODE_ENV !== 'production') console.log('[EstimateChat] employeeOptions:', employeeOptions?.length, 'mentionQuery:', mentionQuery, 'showMentions:', showMentions);
         
         const source = employeeOptions;
         if (!mentionQuery) {

@@ -2,8 +2,59 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import { Client, Employee, Estimate, Schedule } from '@/lib/models';
 import { getUserFromRequest } from '@/lib/permissions/middleware';
+import { atlasSearch, AtlasSearchField } from '@/lib/atlasSearch';
 
 const ALLOWED_TYPES = ['clients', 'employees', 'estimates', 'schedules'];
+
+/**
+ * Search field definitions per entity type.
+ * Boost values control relevance ranking (higher = more important).
+ */
+const SEARCH_CONFIGS: Record<string, {
+    model: any;
+    fields: AtlasSearchField[];
+    project: Record<string, any>;
+}> = {
+    clients: {
+        model: Client,
+        fields: [
+            { path: 'name', boost: 5 },
+            { path: 'contacts.email', boost: 2 },
+            { path: 'businessEmail', boost: 2 },
+            { path: 'contacts.name', boost: 3 },
+        ],
+        project: { name: 1, businessEmail: 1, status: 1, 'contacts.email': 1 },
+    },
+    employees: {
+        model: Employee,
+        fields: [
+            { path: 'firstName', boost: 5 },
+            { path: 'lastName', boost: 5 },
+            { path: 'email', boost: 3 },
+        ],
+        project: { firstName: 1, lastName: 1, email: 1, appRole: 1, companyPosition: 1, profilePicture: 1 },
+    },
+    estimates: {
+        model: Estimate,
+        fields: [
+            { path: 'estimate', boost: 5 },
+            { path: 'projectName', boost: 3 },
+            { path: 'projectTitle', boost: 3 },
+            { path: 'customerName', boost: 3 },
+        ],
+        project: { projectName: 1, projectTitle: 1, estimate: 1, status: 1, customerName: 1 },
+    },
+    schedules: {
+        model: Schedule,
+        fields: [
+            { path: 'title', boost: 4 },
+            { path: 'estimate', boost: 3 },
+            { path: 'customerName', boost: 3 },
+            { path: 'description', boost: 1 },
+        ],
+        project: { title: 1, description: 1, status: 1, fromDate: 1, toDate: 1, customerName: 1 },
+    },
+};
 
 export async function GET(req: NextRequest) {
     console.time('Search API Total');
@@ -46,71 +97,34 @@ export async function GET(req: NextRequest) {
             }
         }
         
-        // 5. Short queries use regex, others use $text
-        const useRegex = queryTerm.length < 3;
-        
         const results: Record<string, any[]> = {};
         ALLOWED_TYPES.forEach(t => results[t] = []); // Initialize all keys
         
         const timing: Record<string, number> = {};
+        let anyUsedAtlas = false;
         
         const searchPromises = types.map(async (type) => {
             console.time(`Search API Type - ${type}`);
             const typeStartTime = performance.now();
-            let items: any[] = [];
             
             try {
-                let model: any;
-                let regexFields: string[] = [];
-                let selectFields: any = {};
-                
-                switch (type) {
-                    case 'clients':
-                        model = Client;
-                        regexFields = ['name', 'contacts.email', 'businessEmail'];
-                        selectFields = { name: 1, businessEmail: 1, status: 1, 'contacts.email': 1 };
-                        break;
-                    case 'employees':
-                        model = Employee;
-                        regexFields = ['firstName', 'lastName', 'email'];
-                        selectFields = { firstName: 1, lastName: 1, email: 1, appRole: 1, companyPosition: 1, profilePicture: 1 };
-                        break;
-                    case 'estimates':
-                        model = Estimate;
-                        regexFields = ['projectName', 'projectTitle', 'notes', 'estimate'];
-                        selectFields = { projectName: 1, projectTitle: 1, estimate: 1, status: 1, customerName: 1 };
-                        break;
-                    case 'schedules':
-                        model = Schedule;
-                        regexFields = ['title', 'description', 'estimate'];
-                        selectFields = { title: 1, description: 1, status: 1, fromDate: 1, toDate: 1, customerName: 1 };
-                        break;
-                }
-                
-                if (model) {
-                    if (useRegex) {
-                        const regex = { $regex: queryTerm, $options: 'i' };
-                        const orConditions = regexFields.map(field => ({ [field]: regex }));
-                        
-                        items = await model.find({ $or: orConditions }, selectFields)
-                            .limit(limit)
-                            .lean();
-                    } else {
-                        // $text with textScore projection + sort
-                        const projection = { ...selectFields, score: { $meta: "textScore" } };
-                        const sort = { score: { $meta: "textScore" } as any };
-                        
-                        items = await model.find({ $text: { $search: queryTerm } }, projection)
-                            .sort(sort)
-                            .limit(limit)
-                            .lean();
-                    }
+                const config = SEARCH_CONFIGS[type];
+                if (config) {
+                    const { items, usedAtlasSearch } = await atlasSearch({
+                        model: config.model,
+                        query: queryTerm,
+                        fields: config.fields,
+                        project: config.project,
+                        limit,
+                        fuzzyMaxEdits: 1,
+                    });
+                    results[type] = items;
+                    if (usedAtlasSearch) anyUsedAtlas = true;
                 }
             } catch (err: any) {
                 console.error(`[Search API] Error searching ${type}:`, err);
             }
             
-            results[type] = items;
             timing[type] = performance.now() - typeStartTime;
             console.timeEnd(`Search API Type - ${type}`);
         });
@@ -124,6 +138,7 @@ export async function GET(req: NextRequest) {
             q: queryTerm,
             types,
             results,
+            engine: anyUsedAtlas ? 'atlas' : 'regex',
             timing: {
                 totalMs,
                 perType: timing

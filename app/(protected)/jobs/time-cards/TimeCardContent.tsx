@@ -353,6 +353,7 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
     const [includeDriveTime, setIncludeDriveTime] = useState(true);
     const [includeSiteTime, setIncludeSiteTime] = useState(true);
     const [sidebarEmployeeFilter, setSidebarEmployeeFilter] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
     const [employeeDropdownOpen, setEmployeeDropdownOpen] = useState(false);
     const [groupingStats, setGroupingStats] = useState<any[]>([]);
     const [isStatsLoading, setIsStatsLoading] = useState(true);
@@ -546,10 +547,11 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
         setFilEmployee('');
         setFilEstimate('');
         setFilType('');
+        setSearchQuery('');
         setVisibleCount(50);
     };
 
-    const hasFilters = filEmployee || filEstimate || filType || sidebarEmployeeFilter;
+    const hasFilters = filEmployee || filEstimate || filType || sidebarEmployeeFilter || searchQuery;
 
     const allRecords = useMemo(() => {
         const flat: TimesheetEntry[] = [];
@@ -772,7 +774,24 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
     // --- Derived Data & Tree Structure ---
 
     const filteredRecords = useMemo(() => {
+        // Pre-compute search tokens once
+        const searchLower = searchQuery.trim().toLowerCase();
+        const searchTokens = searchLower ? searchLower.split(/\s+/) : [];
+
         return allRecords.filter(r => {
+            // ── Global search ──
+            if (searchTokens.length > 0) {
+                const empName = (employeesMap[r.employee]?.label || r.employee || '').toLowerCase();
+                const estimate = (r.estimate || '').toLowerCase();
+                const projectName = (r.projectName || '').toLowerCase();
+                const type = (r.type || '').toLowerCase();
+                const comments = (r.comments || '').toLowerCase();
+                const dateStr = r.clockIn ? formatDateOnly(r.clockIn).toLowerCase() : '';
+                const haystack = `${empName} ${estimate} ${projectName} ${type} ${comments} ${dateStr}`;
+                const matches = searchTokens.every(t => haystack.includes(t));
+                if (!matches) return false;
+            }
+
             // Mobile specific filtering
             if (isMobile) {
                 // Only restrict to own records if data scope is 'self'
@@ -810,7 +829,7 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
 
             return true;
         });
-    }, [allRecords, filEmployee, filEstimate, filType, isMobile, currentUser, weekRange, selectedNode, includeDriveTime, includeSiteTime, sidebarEmployeeFilter, canViewAll]);
+    }, [allRecords, filEmployee, filEstimate, filType, isMobile, currentUser, weekRange, selectedNode, includeDriveTime, includeSiteTime, sidebarEmployeeFilter, canViewAll, searchQuery, employeesMap]);
 
     const timeCardTotals = useMemo(() => {
         let drive = 0;
@@ -1792,6 +1811,25 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
                         </div>
                     </div>
 
+                    {/* Mobile Search */}
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                        <input
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search employee, estimate, project..."
+                            className="w-full pl-9 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#0F4C75]/40 focus:border-[#0F4C75] shadow-sm transition-all placeholder:text-slate-400"
+                        />
+                        {searchQuery && (
+                            <button
+                                onClick={() => setSearchQuery('')}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                            >
+                                <X size={14} />
+                            </button>
+                        )}
+                    </div>
+
                     {/* Drive Time Group */}
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                         <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
@@ -1994,7 +2032,25 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
             <Header
                 hideLogo={false}
                 rightContent={
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
+                        {/* Global Search */}
+                        <div className="relative hidden md:block">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                            <input
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Search employee, estimate, project..."
+                                className="w-[260px] lg:w-[320px] pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-full text-sm outline-none focus:ring-2 focus:ring-[#0F4C75]/40 focus:border-[#0F4C75] shadow-sm transition-all placeholder:text-slate-400"
+                            />
+                            {searchQuery && (
+                                <button
+                                    onClick={() => setSearchQuery('')}
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                                >
+                                    <X size={14} />
+                                </button>
+                            )}
+                        </div>
                         {canCreate && (
                             <Tooltip>
                                 <TooltipTrigger asChild>
@@ -2030,7 +2086,6 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
                     {!isActuallyEmbedded && (
                     <div className="w-[280px] bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col overflow-hidden shrink-0">
                         <div className="p-3 border-b border-slate-100 bg-slate-50/50">
-                            <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-2">Grouping</h3>
 
                             {/* Inline Filters Row */}
                             <div className="flex items-center gap-1.5">
@@ -2280,46 +2335,46 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
 
                     {/* Right Content - Table */}
                     <div className="flex-1 bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col relative z-20">
-                        <div className="px-4 py-1 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 rounded-t-3xl relative z-30">
-                            <div className="flex items-baseline gap-3">
-                                <h2 className="text-sm font-black text-slate-700 uppercase tracking-widest">
-                                    {isActuallyEmbedded ? 'Timesheet' : 'Records'}
-                                </h2>
-                                <p className="text-xs text-slate-400 font-bold">
-                                    {tableData.length} entries
-                                </p>
-                            </div>
-
-                            <div className="flex items-center gap-4">
-                                <div className="flex flex-col items-end">
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">Drive Time</span>
-                                    <span className="text-sm font-black text-blue-600">{desktopTableTotals.drive.toFixed(2)} hrs</span>
-                                </div>
-                                <div className="w-px h-6 bg-slate-200" />
-                                <div className="flex flex-col items-end">
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">Site Time</span>
-                                    <span className="text-sm font-black text-emerald-600">{desktopTableTotals.site.toFixed(2)} hrs</span>
-                                </div>
-                            </div>
-                        </div>
-
                         <div className="flex-1 flex flex-col min-h-0 p-0 rounded-b-3xl">
-                            <Table containerClassName="flex-1 h-full !min-h-0 border-none rounded-none w-full !bg-transparent custom-scrollbar">
-                                <TableHead className="bg-white/80 backdrop-blur-md shadow-sm">
-                                    <TableRow>
-                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 w-[140px] text-left">Employee</TableHeader>
-                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[80px]">Date</TableHeader>
-                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[80px]">Sched. Date</TableHeader>
-                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[50px]">Type</TableHeader>
-                                        {!isActuallyEmbedded && <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[90px]">Estimate #</TableHeader>}
-                                        {!isActuallyEmbedded && <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-left w-[200px]">Project</TableHeader>}
-                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[90px]">In</TableHeader>
-                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[90px]">Out</TableHeader>
-                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-left w-[70px]">Dist (Mi)</TableHeader>
-                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-left w-[55px]">Hrs</TableHeader>
-                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-left w-[100px]">Created By</TableHeader>
-                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-center w-[40px]">Sched</TableHeader>
-                                        <TableHeader className="text-[11px] uppercase font-bold text-slate-400 text-right w-[90px]">Actions</TableHeader>
+                            <Table
+                                containerClassName="flex-1 h-full !min-h-0 border-none rounded-none w-full !bg-transparent custom-scrollbar"
+                                footer={
+                                    <div className="py-2 px-4 border-t border-slate-100 flex items-center justify-between bg-white w-full">
+                                        <span className="text-[10px] font-bold text-slate-500">
+                                            Showing <span className="text-slate-900">{paginatedData.length}</span> of <span className="text-slate-900">{tableData.length}</span> records
+                                        </span>
+                                        <div className="flex items-center gap-4">
+                                            {visibleCount < tableData.length && (
+                                                <span className="text-[10px] font-bold text-blue-500 animate-pulse">Loading...</span>
+                                            )}
+                                            <div className="flex items-center gap-1">
+                                                <span className="text-[10px] font-bold text-slate-400">Drive</span>
+                                                <span className="text-[11px] font-black text-blue-600">{desktopTableTotals.drive.toFixed(2)}h</span>
+                                            </div>
+                                            <div className="w-px h-3.5 bg-slate-200" />
+                                            <div className="flex items-center gap-1">
+                                                <span className="text-[10px] font-bold text-slate-400">Site</span>
+                                                <span className="text-[11px] font-black text-emerald-600">{desktopTableTotals.site.toFixed(2)}h</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            >
+                                <TableHead className="!bg-slate-800 !border-slate-700">
+                                    <TableRow className="hover:!bg-transparent !border-none">
+                                        <TableHeader className="text-[10px] uppercase font-black !text-slate-200 !bg-slate-800 tracking-wider w-[140px] text-left">Employee</TableHeader>
+                                        <TableHeader className="text-[10px] uppercase font-black !text-slate-200 !bg-slate-800 tracking-wider text-center w-[80px]">Date</TableHeader>
+                                        <TableHeader className="text-[10px] uppercase font-black !text-slate-200 !bg-slate-800 tracking-wider text-center w-[80px]">Sched. Date</TableHeader>
+                                        <TableHeader className="text-[10px] uppercase font-black !text-slate-200 !bg-slate-800 tracking-wider text-center w-[50px]">Type</TableHeader>
+                                        {!isActuallyEmbedded && <TableHeader className="text-[10px] uppercase font-black !text-slate-200 !bg-slate-800 tracking-wider text-center w-[90px]">Estimate #</TableHeader>}
+                                        {!isActuallyEmbedded && <TableHeader className="text-[10px] uppercase font-black !text-slate-200 !bg-slate-800 tracking-wider text-left w-[200px]">Project</TableHeader>}
+                                        <TableHeader className="text-[10px] uppercase font-black !text-slate-200 !bg-slate-800 tracking-wider text-center w-[90px]">In</TableHeader>
+                                        <TableHeader className="text-[10px] uppercase font-black !text-slate-200 !bg-slate-800 tracking-wider text-center w-[90px]">Out</TableHeader>
+                                        <TableHeader className="text-[10px] uppercase font-black !text-slate-200 !bg-slate-800 tracking-wider text-left w-[70px]">Dist (Mi)</TableHeader>
+                                        <TableHeader className="text-[10px] uppercase font-black !text-slate-200 !bg-slate-800 tracking-wider text-left w-[55px]">Hrs</TableHeader>
+                                        <TableHeader className="text-[10px] uppercase font-black !text-slate-200 !bg-slate-800 tracking-wider text-left w-[100px]">Created By</TableHeader>
+                                        <TableHeader className="text-[10px] uppercase font-black !text-slate-200 !bg-slate-800 tracking-wider text-center w-[40px]">Sched</TableHeader>
+                                        <TableHeader className="text-[10px] uppercase font-black !text-slate-200 !bg-slate-800 tracking-wider text-right w-[90px]">Actions</TableHeader>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
@@ -2653,14 +2708,6 @@ export function TimeCardContent({ estimateFilter, isEmbedded }: { estimateFilter
                                 </TableBody>
                             </Table>
                         </div>
-
-                        {visibleCount < tableData.length && (
-                            <div className="p-4 text-center">
-                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center justify-center gap-2">
-                                    <Loader2 size={12} className="animate-spin" /> Loading more records...
-                                </span>
-                            </div>
-                        )}
                     </div>
                 </div>
             </main>

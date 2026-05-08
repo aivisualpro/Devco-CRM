@@ -1,9 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
-import { Estimate, Activity } from '@/lib/models';
+import { Estimate } from '@/lib/models';
+import { atlasSearch, atlasSearchCount, AtlasSearchField } from '@/lib/atlasSearch';
 
 import { revalidateTag } from 'next/cache';
 import { Types } from 'mongoose';
+
+const ESTIMATE_SEARCH_FIELDS: AtlasSearchField[] = [
+    { path: 'estimate', boost: 5 },
+    { path: 'customerName', boost: 4 },
+    { path: 'projectName', boost: 3 },
+    { path: 'projectTitle', boost: 3 },
+    { path: 'proposalNo', boost: 3 },
+    { path: 'proposalWriter', boost: 2 },
+    { path: 'services', boost: 1 },
+    { path: 'jobAddress', boost: 2 },
+    { path: 'contactName', boost: 1 },
+    { path: 'status', boost: 1 },
+];
 
 export async function POST(req: NextRequest) {
     try {
@@ -71,19 +85,7 @@ export async function POST(req: NextRequest) {
 
         try {
             const activityId = new Types.ObjectId().toString();
-            // await Activity.create({
-            //                 _id: activityId,
-            //                 user: (() => {
-            //                     const u = (estimateData as any).proposalWriter || (estimateData as any).createdBy || '';
-            //                     return Array.isArray(u) ? u.join(', ') : String(u);
-            //                 })(),
-            //                 action: 'created_estimate',
-            //                 type: 'estimate',
-            //                 title: `Created Estimate #${est.estimate}`,
-            //                 entityId: est.estimate,
-            //                 metadata: { estimate_id: est._id },
-            //                 createdAt: new Date()
-            //             });
+            // await Activity.create(...)
         } catch (e) {
             console.error('Failed to log activity:', e);
         }
@@ -132,33 +134,17 @@ export async function GET(req: NextRequest) {
         const useCollation = ['estimate', 'customerName', 'projectName', 'status', 'proposalWriter', 'fringe', 'certifiedPayroll'].includes(sortKey);
         const collationOptions = useCollation ? { locale: 'en', numericOrdering: true } : undefined;
 
-        let searchOrConditions: any[] | undefined;
-        if (search) {
-            const regex = { $regex: search, $options: 'i' };
-            searchOrConditions = [
-                { estimate: regex }, { customerName: regex }, { projectTitle: regex },
-                { projectName: regex }, { proposalNo: regex }, { contactName: regex },
-                { status: regex }, { fringe: regex }, { certifiedPayroll: regex },
-                { proposalWriter: regex }, { services: regex }, { date: regex },
-                { bidMarkUp: regex }, { jobAddress: regex }, { customerJobNumber: regex },
-            ];
-            const numericSearch = parseFloat(search.replace(/[$,%\s]/g, ''));
-            if (!isNaN(numericSearch)) {
-                searchOrConditions.push({ grandTotal: numericSearch }, { subTotal: numericSearch }, { margin: numericSearch });
-            }
-        }
+        const hasSearch = search.length > 0;
 
-        const baseQuery: any = { status: { $ne: 'deleted' } };
-        if (customerId) baseQuery.customerId = customerId;
-        if (searchOrConditions) baseQuery.$or = searchOrConditions;
-
-        const query: any = { ...baseQuery };
+        // Build status/filter conditions
+        const statusFilter: any = { status: { $ne: 'deleted' } };
+        if (customerId) statusFilter.customerId = customerId;
         if (f !== 'all' && !['thismonth', 'lastmonth'].includes(f)) {
-            if (f === 'active') query.status = { $nin: ['Lost', 'Won', 'Completed', 'Confirmed', 'lost', 'won', 'completed', 'confirmed'] };
-            else if (f === 'pending') query.status = 'Pending';
-            else if (f === 'completed') query.status = { $in: ['Completed', 'Confirmed', 'completed', 'confirmed'] };
-            else if (f === 'lost') query.status = { $in: ['Lost', 'lost'] };
-            else if (f === 'won') query.status = { $in: ['Won', 'Confirmed', 'won', 'confirmed'] };
+            if (f === 'active') statusFilter.status = { $nin: ['Lost', 'Won', 'Completed', 'Confirmed', 'lost', 'won', 'completed', 'confirmed'] };
+            else if (f === 'pending') statusFilter.status = 'Pending';
+            else if (f === 'completed') statusFilter.status = { $in: ['Completed', 'Confirmed', 'completed', 'confirmed'] };
+            else if (f === 'lost') statusFilter.status = { $in: ['Lost', 'lost'] };
+            else if (f === 'won') statusFilter.status = { $in: ['Won', 'Confirmed', 'won', 'confirmed'] };
         }
 
         const isLite = url.searchParams.get('lite') === 'true';
@@ -170,15 +156,61 @@ export async function GET(req: NextRequest) {
             selectFields = 'estimate customerName customerId jobAddress projectName projectTitle status';
         }
 
-        const dataQuery = Estimate.find(query).select(selectFields).sort(mongoSort).skip(skip).limit(limit);
-        if (collationOptions) dataQuery.collation(collationOptions);
+        let estimates: any[];
+        let total: number;
 
-        const [estimates, total] = await Promise.all([
-            dataQuery.lean(),
-            Estimate.countDocuments(query)
-        ]);
+        if (hasSearch) {
+            // Use Atlas Search (with automatic regex fallback)
+            const [searchResult, countResult] = await Promise.all([
+                atlasSearch({
+                    model: Estimate,
+                    query: search,
+                    fields: ESTIMATE_SEARCH_FIELDS,
+                    postFilter: statusFilter,
+                    limit,
+                    skip,
+                    sort: mongoSort,
+                    fuzzyMaxEdits: 1,
+                }),
+                atlasSearchCount(Estimate, search, ESTIMATE_SEARCH_FIELDS, statusFilter),
+            ]);
+            estimates = searchResult.items;
+            total = countResult;
+        } else {
+            // No search — standard find
+            const dataQuery = Estimate.find(statusFilter).select(selectFields).sort(mongoSort).skip(skip).limit(limit);
+            if (collationOptions) dataQuery.collation(collationOptions);
 
-        return NextResponse.json({ success: true, result: estimates, total, page, limit });
+            [estimates, total] = await Promise.all([
+                dataQuery.lean(),
+                Estimate.countDocuments(statusFilter)
+            ]);
+        }
+
+        // Compute filter counts on page 1 only (avoid re-computing on scroll loads)
+        let filterCounts: Record<string, number> | undefined;
+        if (page === 1) {
+            const now = new Date();
+            const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+
+            const baseFilter: any = { status: { $ne: 'deleted' } };
+            if (customerId) baseFilter.customerId = customerId;
+
+            const [all, pending, completed, won, lost, thisMonthCount, lastMonthCount] = await Promise.all([
+                Estimate.countDocuments(baseFilter),
+                Estimate.countDocuments({ ...baseFilter, status: 'Pending' }),
+                Estimate.countDocuments({ ...baseFilter, status: { $in: ['Completed', 'Confirmed', 'completed', 'confirmed'] } }),
+                Estimate.countDocuments({ ...baseFilter, status: { $in: ['Won', 'Confirmed', 'won', 'confirmed'] } }),
+                Estimate.countDocuments({ ...baseFilter, status: { $in: ['Lost', 'lost'] } }),
+                Estimate.countDocuments({ ...baseFilter, createdAt: { $gte: thisMonthStart } }),
+                Estimate.countDocuments({ ...baseFilter, createdAt: { $gte: lastMonthStart, $lte: lastMonthEnd } }),
+            ]);
+            filterCounts = { all, pending, completed, won, lost, thisMonth: thisMonthCount, lastMonth: lastMonthCount };
+        }
+
+        return NextResponse.json({ success: true, result: estimates, total, page, limit, ...(filterCounts ? { filterCounts } : {}) });
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
