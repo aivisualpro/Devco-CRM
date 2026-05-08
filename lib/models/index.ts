@@ -33,3 +33,4 @@ export { default as Notification } from './Notification';
 export { WebVital } from './WebVital';
 export { default as DevcoFringeCost } from './DevcoFringeCost';
 export { default as Followup } from './Followup';
+export { ChartConfig } from './ChartConfig';

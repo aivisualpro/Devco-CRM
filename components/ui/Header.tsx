@@ -24,7 +24,7 @@ interface MenuItem {
     href?: string;
 }
 
-const IMPLEMENTED_ROUTES = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/contacts', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/reports/workers-comp', '/reports/fringe-benefits', '/reports/wip', '/roles', '/constants', '/dashboard', '/docs/jha', '/docs/job-tickets', '/settings/imports', '/settings/general', '/settings/fringe-costs', '/docs/receipts-costs', '/docs/billing-tickets', '/docs/company-docs', '/docs/vehicle-equipment', '/docs/pothole-logs', '/docs/pre-bore-logs', '/docs/usa-811-tickets', '/docs/equipment-inspection', '/trainings'];
+const IMPLEMENTED_ROUTES = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/contacts', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/reports/workers-comp', '/reports/fringe-benefits', '/reports/wip', '/reports/charts', '/roles', '/constants', '/dashboard', '/docs/jha', '/docs/job-tickets', '/settings/imports', '/settings/general', '/settings/fringe-costs', '/docs/receipts-costs', '/docs/billing-tickets', '/docs/company-docs', '/docs/vehicle-equipment', '/docs/pothole-logs', '/docs/pre-bore-logs', '/docs/usa-811-tickets', '/docs/equipment-inspection', '/trainings'];
 
 const menuStructure: MenuItem[] = [
     {
@@ -67,6 +67,7 @@ const menuStructure: MenuItem[] = [
             { label: 'Fringe Benefits', href: '/reports/fringe-benefits', icon: <DollarSign className="w-5 h-5" />, description: 'Benefits analysis', colorClass: 'text-purple-600' },
             { label: 'Workers Comp', href: '/reports/workers-comp', icon: <FileCheck className="w-5 h-5" />, description: 'Insurance and compensation', colorClass: 'text-blue-700' },
             { label: 'Work in Progress', href: '/reports/wip', icon: <BarChart className="w-5 h-5" />, description: 'Live QuickBooks project financials', colorClass: 'text-emerald-500' },
+            { label: 'Atlas Charts', href: '/reports/charts', icon: <Activity className="w-5 h-5" />, description: 'Embedded MongoDB analytics dashboards', colorClass: 'text-violet-500' },
 
         ]
     },
