@@ -381,34 +381,42 @@ export function EmployeeHeaderCard({ employee, onUpdate, animate, onEditSignatur
                         </div>
                     </div>
                     
-                    {/* Signature Option */}
+                    {/* Signature Option - 2 Column */}
                     <div className="mt-1 pt-3 border-t border-gray-100/50">
-                         <div className="flex items-center justify-between">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                Signature
-                            </label>
-                            <button
-                                onClick={onEditSignature}
-                                className="text-[10px] text-indigo-600 font-bold hover:underline"
-                            >
-                                {employee.signature ? 'Edit' : 'Add'}
-                            </button>
+                         <div className="grid grid-cols-[auto_1fr] gap-3 items-center">
+                            {/* Left: Title + Edit */}
+                            <div className="flex flex-col gap-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                    Signature
+                                </label>
+                                <button
+                                    onClick={onEditSignature}
+                                    className="text-[10px] text-indigo-600 font-bold hover:underline text-left"
+                                >
+                                    {employee.signature ? 'Edit' : 'Add'}
+                                </button>
+                            </div>
+                            {/* Right: Signature Display */}
+                            {employee.signature ? (
+                                <div 
+                                    onClick={onEditSignature}
+                                    className="border border-dashed border-slate-300 rounded-lg flex items-center justify-center bg-white/50 cursor-pointer hover:bg-white transition-colors p-1"
+                                >
+                                    <img 
+                                        src={cld(employee.signature, { crop: 'fit' })} 
+                                        alt="Signature" 
+                                        className="max-w-full max-h-[60px] object-contain" 
+                                    />
+                                </div>
+                            ) : (
+                                <div 
+                                    onClick={onEditSignature}
+                                    className="py-2 text-center text-xs text-slate-400 italic cursor-pointer hover:text-indigo-500 transition-colors"
+                                >
+                                    No signature on file
+                                </div>
+                            )}
                          </div>
-                         {employee.signature ? (
-                             <div 
-                                onClick={onEditSignature}
-                                className="relative mt-2 h-12 border border-dashed border-slate-300 rounded-lg flex items-center justify-center bg-white/50 cursor-pointer hover:bg-white transition-colors"
-                             >
-                                 <div className="relative w-full h-full"><Image priority fill sizes="(max-width: 768px) 100vw, 33vw" src={cld(employee.signature, { w: 1200 })} alt="Signature" className="w-full h-full object-contain" /></div>
-                             </div>
-                         ) : (
-                             <div 
-                                onClick={onEditSignature}
-                                className="mt-2 py-2 text-center text-xs text-slate-400 italic cursor-pointer hover:text-indigo-500 transition-colors"
-                             >
-                                 No signature on file
-                             </div>
-                         )}
                     </div>
                 </div>
 

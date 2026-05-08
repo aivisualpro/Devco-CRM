@@ -1,7 +1,7 @@
 import { uploadToR2 } from '@/lib/s3';
 import cloudinary from '@/lib/cloudinary';
 
-export async function uploadImage(imageString: string, publicId: string): Promise<string | null> {
+export async function uploadImage(imageString: string, publicId: string, isSignature = false): Promise<string | null> {
     if (!imageString || !imageString.startsWith('data:image')) return imageString;
 
     try {
@@ -9,10 +9,20 @@ export async function uploadImage(imageString: string, publicId: string): Promis
         const uploadResult = await cloudinary.uploader.upload(imageString, {
             public_id: `employees/${safeId}`,
             overwrite: true,
-            transformation: [
-                { width: 500, height: 500, crop: "fill", gravity: "face" },
-                { quality: "auto", fetch_format: "auto" }
-            ]
+            ...(isSignature
+                ? {
+                    // Signatures are landscape — preserve full image, no cropping
+                    transformation: [
+                        { quality: "auto", fetch_format: "auto" }
+                    ]
+                  }
+                : {
+                    transformation: [
+                        { width: 500, height: 500, crop: "fill", gravity: "face" },
+                        { quality: "auto", fetch_format: "auto" }
+                    ]
+                  }
+            )
         });
         return uploadResult.secure_url;
     } catch (error) {

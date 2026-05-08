@@ -34,7 +34,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
                     if (uploaded) updateData.profilePicture = uploaded;
                 }
                 if (empItem.signature && empItem.signature.startsWith('data:image')) {
-                    const uploaded = await uploadImage(empItem.signature, `${empId}_signature`);
+                    const uploaded = await uploadImage(empItem.signature, `${empId}_signature`, true);
                     if (uploaded) updateData.signature = uploaded;
                 }
                 // Upload any base64 files in sub-document arrays to R2
