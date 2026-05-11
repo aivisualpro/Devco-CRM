@@ -279,11 +279,11 @@ function KanbanColumn({
 
 // ── TaskFormModal ─────────────────────────────────────────────────────────────────
 export function TaskFormModal({
-    isOpen, onClose, onSave, editingTask, employees, clients, estimates, currentUserEmail, isSuperAdmin,
+    isOpen, onClose, onSave, editingTask, employees, clients, estimates, currentUserEmail, isSuperAdmin, hideClientEstimate,
 }: {
     isOpen: boolean; onClose: () => void; onSave: (data: Partial<TodoItem>) => Promise<void>;
     editingTask?: TodoItem | null; employees: any[]; clients: any[]; estimates: any[];
-    currentUserEmail: string; isSuperAdmin: boolean;
+    currentUserEmail: string; isSuperAdmin: boolean; hideClientEstimate?: boolean;
 }) {
     const isEditing = !!editingTask?._id;
     const canEdit = !isEditing || editingTask?.createdBy === currentUserEmail || isSuperAdmin;
@@ -326,7 +326,7 @@ export function TaskFormModal({
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={editingTask ? 'Edit Task' : 'Add New Task'}>
             <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                <div className={`grid grid-cols-1 ${hideClientEstimate ? '' : 'md:grid-cols-2'} gap-6 items-start`}>
                     {/* Left Column */}
                     <div className="flex flex-col gap-6">
                         <div className="space-y-2">
@@ -385,7 +385,8 @@ export function TaskFormModal({
                         </div>
                     </div>
 
-                    {/* Right Column */}
+                    {/* Right Column — hidden when used from estimate detail */}
+                    {!hideClientEstimate && (
                     <div className="flex flex-col gap-6">
                         <div className="space-y-2">
                             <SearchableSelect
@@ -442,6 +443,7 @@ export function TaskFormModal({
                             </div>
                         )}
                     </div>
+                    )}
                 </div>
 
                 <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">

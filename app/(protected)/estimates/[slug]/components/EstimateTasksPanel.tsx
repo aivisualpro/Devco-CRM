@@ -1,8 +1,9 @@
 'use client';
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import useSWR from 'swr';
-import { CheckCircle2, Plus, ChevronDown, ChevronRight, Link as LinkIcon, Loader2, Activity as ActivityIcon, Trash2, Edit } from 'lucide-react';
-import { Button, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui';
+import { CheckCircle2, Plus, ChevronDown, ChevronRight, Link as LinkIcon, Loader2, Trash2, Play, RotateCcw, Check, User } from 'lucide-react';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { CommunicationPanel } from './CommunicationPanel';
 import { getPusherClient } from '@/lib/realtime/pusher-client';
 import { formatWallDate } from '@/lib/format/date';
@@ -39,10 +40,10 @@ interface EstimateTasksPanelProps {
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
-  todo: { label: 'To Do', color: 'text-slate-600', dot: 'bg-slate-400' },
-  'in progress': { label: 'In Progress', color: 'text-blue-600', dot: 'bg-blue-500' },
-  done: { label: 'Done', color: 'text-emerald-600', dot: 'bg-emerald-500' },
+const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string; bg: string }> = {
+  todo: { label: 'To Do', color: 'text-slate-600', dot: 'bg-slate-400', bg: 'bg-slate-50' },
+  'in progress': { label: 'In Progress', color: 'text-blue-600', dot: 'bg-blue-500', bg: 'bg-blue-50' },
+  done: { label: 'Done', color: 'text-emerald-600', dot: 'bg-emerald-500', bg: 'bg-emerald-50' },
 };
 
 const STATUS_CYCLE: Record<string, TaskItem['status']> = {
@@ -53,9 +54,10 @@ const STATUS_CYCLE: Record<string, TaskItem['status']> = {
 export const EstimateTasksPanel: React.FC<EstimateTasksPanelProps> = ({
   estimateNumber, customerId, customerName, currentUser, employees, onTaskMutate,
 }) => {
-  const [openSections, setOpenSections] = useState<Set<string>>(new Set(['todo']));
+  const [openSections, setOpenSections] = useState<Set<string>>(new Set(['todo', 'in progress']));
   const [createOpen, setCreateOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<TaskItem | null>(null);
+  const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const { isSuperAdmin } = usePermissions();
 
   // SWR — filter by estimate
@@ -65,7 +67,6 @@ export const EstimateTasksPanel: React.FC<EstimateTasksPanelProps> = ({
   });
 
   const tasks: TaskItem[] = data?.items || [];
-  const statusCounts = data?.statusCounts || {};
 
   // Group by status
   const grouped = useMemo(() => ({
@@ -76,7 +77,7 @@ export const EstimateTasksPanel: React.FC<EstimateTasksPanelProps> = ({
 
   const totalCount = tasks.filter(t => !t.archived).length;
 
-  // Fetch clients & estimates for the TaskFormModal (same data the dashboard provides)
+  // Fetch clients & estimates for the TaskFormModal
   const { data: clientsData } = useSWR('/api/clients?limit=500', fetcher, {
     dedupingInterval: 60000, revalidateOnFocus: false,
   });
@@ -118,11 +119,20 @@ export const EstimateTasksPanel: React.FC<EstimateTasksPanelProps> = ({
     return () => { ch.unbind_all(); };
   }, [mutate]);
 
-  // Resolve employee name
-  const empName = useCallback((email: string) => {
-    const e = employees.find((emp: any) => String(emp.email || '').toLowerCase() === String(email || '').toLowerCase());
-    if (e) return `${e.firstName || ''} ${e.lastName || ''}`.trim() || email;
-    return email?.split('@')[0] || 'Unknown';
+  // Resolve employee data
+  const getEmployeeData = useCallback((emailOrId: string) => {
+    const safeVal = String(emailOrId || '').toLowerCase();
+    const emp = employees.find((e: any) =>
+      String(e.email || '').toLowerCase() === safeVal ||
+      e._id === emailOrId ||
+      String(e.value || '').toLowerCase() === safeVal
+    );
+    if (!emp) return null;
+    return {
+      label: emp.label || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emailOrId,
+      image: emp.profilePicture || emp.image || '',
+      initials: ((emp.firstName?.[0] || '') + (emp.lastName?.[0] || '')).toUpperCase() || emailOrId?.[0]?.toUpperCase() || 'U',
+    };
   }, [employees]);
 
   // Toggle section
@@ -130,10 +140,16 @@ export const EstimateTasksPanel: React.FC<EstimateTasksPanelProps> = ({
     setOpenSections(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
   };
 
+  // Toggle expanded task description
+  const toggleExpanded = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpandedTasks(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  };
+
   // Status change
-  const handleStatusChange = useCallback(async (task: TaskItem) => {
+  const handleStatusChange = useCallback(async (task: TaskItem, e: React.MouseEvent) => {
+    e.stopPropagation();
     const newStatus = STATUS_CYCLE[task.status];
-    // Optimistic
     mutate((prev: any) => {
       if (!prev?.items) return prev;
       return { ...prev, items: prev.items.map((t: any) => t._id === task._id ? { ...t, status: newStatus } : t) };
@@ -156,15 +172,9 @@ export const EstimateTasksPanel: React.FC<EstimateTasksPanelProps> = ({
     else toast.error(json.error || 'Failed');
   }, [mutate, onTaskMutate]);
 
-  // Create / Edit — open the full TaskFormModal
-  const openCreate = () => {
-    setEditingTask(null);
-    setCreateOpen(true);
-  };
-  const openEdit = (task: TaskItem) => {
-    setEditingTask(task);
-    setCreateOpen(true);
-  };
+  // Create / Edit
+  const openCreate = () => { setEditingTask(null); setCreateOpen(true); };
+  const openEdit = (task: TaskItem) => { setEditingTask(task); setCreateOpen(true); };
 
   // Save handler for TaskFormModal
   const handleSave = useCallback(async (formData: Partial<TodoItem>) => {
@@ -176,7 +186,6 @@ export const EstimateTasksPanel: React.FC<EstimateTasksPanelProps> = ({
             ...formData,
             createdBy: currentUser?.email,
             status: formData.status || 'todo',
-            // Auto-inject estimate/customer context when creating from estimate view
             estimate: formData.estimate || estimateNumber,
             customerId: formData.customerId || customerId,
             customerName: formData.customerName || customerName,
@@ -201,10 +210,9 @@ export const EstimateTasksPanel: React.FC<EstimateTasksPanelProps> = ({
     }
   }, [editingTask, currentUser?.email, estimateNumber, customerId, customerName, mutate, onTaskMutate]);
 
-  // Pre-fill editingTask with estimate context when creating a new task
+  // Pre-fill editingTask with estimate context
   const editingTaskWithContext = useMemo(() => {
     if (editingTask) return editingTask as TodoItem;
-    // For new tasks, return a pre-filled context so the form starts with estimate/customer
     return {
       _id: '',
       task: '',
@@ -215,27 +223,19 @@ export const EstimateTasksPanel: React.FC<EstimateTasksPanelProps> = ({
     } as TodoItem;
   }, [editingTask, estimateNumber, customerId, customerName]);
 
+  // Status action button config
+  const getStatusAction = (status: string) => {
+    const next = STATUS_CYCLE[status];
+    if (next === 'in progress') return { label: 'Start', icon: Play, color: 'text-blue-600 hover:bg-blue-50 border-blue-200 hover:border-blue-300' };
+    if (next === 'done') return { label: 'Done', icon: Check, color: 'text-emerald-600 hover:bg-emerald-50 border-emerald-200 hover:border-emerald-300' };
+    return { label: 'Reopen', icon: RotateCcw, color: 'text-amber-600 hover:bg-amber-50 border-amber-200 hover:border-amber-300' };
+  };
+
   return (
     <CommunicationPanel
       icon={<CheckCircle2 size={16} />}
       iconBg="from-rose-500 to-rose-600"
       title="Tasks"
-      subtitle={
-        <>
-          {(['todo', 'in progress', 'done'] as const).map(s => {
-            const cnt = s === 'done' ? (statusCounts['done'] ?? grouped.done.length) : grouped[s].length;
-            const cfg = STATUS_CONFIG[s];
-            return (
-              <span key={s} className={`text-[9px] font-black px-1.5 py-0.5 rounded-full tabular-nums flex items-center gap-1 ${
-                s === 'in progress' ? 'text-blue-700 bg-blue-50' : s === 'done' ? 'text-emerald-700 bg-emerald-50' : 'text-slate-500 bg-slate-100'
-              }`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
-                {cnt}
-              </span>
-            );
-          })}
-        </>
-      }
       actions={
         <button onClick={openCreate}
           className="p-1.5 px-2 bg-rose-100 text-rose-600 rounded-[10px] hover:bg-rose-200 shadow-[inset_0_1px_2px_rgba(255,255,255,0.7)] transition-colors shrink-0 flex items-center justify-center">
@@ -250,7 +250,7 @@ export const EstimateTasksPanel: React.FC<EstimateTasksPanelProps> = ({
         ) : totalCount === 0 ? (
           <div className="text-center py-10">
             <p className="text-xs text-slate-400 font-bold">No tasks for this estimate.</p>
-            <p className="text-[10px] text-slate-400 mt-1">Click &quot;+ New&quot; to create one.</p>
+            <p className="text-[10px] text-slate-400 mt-1">Click &quot;+&quot; to create one.</p>
           </div>
         ) : (['todo', 'in progress', 'done'] as const).map(status => {
           const items = grouped[status];
@@ -268,49 +268,133 @@ export const EstimateTasksPanel: React.FC<EstimateTasksPanelProps> = ({
               </button>
 
               {isOpen && (
-                <div className="ml-3 pl-3 border-l border-slate-200 space-y-1.5 mt-1 mb-2">
+                <div className="ml-3 pl-3 border-l border-slate-200 space-y-2.5 mt-1 mb-2">
                   {items.map(task => {
-                    const isOwner = task.createdBy?.toLowerCase() === currentUser?.email?.toLowerCase();
+                    const creator = getEmployeeData(task.createdBy || '');
+                    const isExpanded = expandedTasks.has(task._id);
+                    const statusAction = getStatusAction(task.status);
+                    const StatusIcon = statusAction.icon;
+                    const assignees = (task.assignees || []).map(a => {
+                      const emp = getEmployeeData(String(a));
+                      return emp || { label: String(a).split('@')[0], image: '', initials: String(a)[0]?.toUpperCase() || 'U' };
+                    });
+
                     return (
                       <div key={task._id}
-                        className={`p-2.5 rounded-xl bg-white border border-slate-100 shadow-sm transition-all hover:shadow-md cursor-pointer ${task.status === 'done' ? 'opacity-60' : ''}`}
-                        onClick={() => openEdit(task)}>
-                        {/* Title row */}
-                        <div className="flex items-start gap-1.5">
-                          <p className={`text-[11px] font-semibold leading-snug flex-1 truncate ${task.status === 'done' ? 'line-through text-slate-400' : 'text-slate-700'}`}>
-                            {task.task}
-                          </p>
-                          {task.linkedFollowupId && (
+                        onClick={() => openEdit(task)}
+                        className={`bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm cursor-pointer hover:shadow-md hover:border-slate-300 transition-all duration-300 flex flex-col gap-2.5 overflow-hidden ${task.status === 'done' ? 'opacity-60' : ''}`}
+                      >
+                        {/* Row 1: CreatedBy avatar + name  ·  Due date */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 min-w-0">
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <LinkIcon className="w-3 h-3 text-violet-400 shrink-0 mt-0.5" />
+                                  <div className="relative w-6 h-6 rounded-full border border-slate-200 bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600 shadow-sm overflow-hidden shrink-0">
+                                    {creator?.image ? (
+                                      <img src={creator.image} alt={creator.label} className="w-full h-full object-cover" />
+                                    ) : (
+                                      <span>{creator?.initials || 'U'}</span>
+                                    )}
+                                  </div>
                                 </TooltipTrigger>
-                                <TooltipContent><p className="text-[10px]">Linked to followup</p></TooltipContent>
+                                <TooltipContent><p className="text-[10px]">Created by {creator?.label || task.createdBy}</p></TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
+                            <span className="text-xs font-bold text-slate-500 truncate">{creator?.label || task.createdBy?.split('@')[0] || 'Unknown'}</span>
+                            {task.createdAt && (
+                              <>
+                                <div className="w-1 h-1 rounded-full bg-slate-300 shrink-0" />
+                                <span className="text-[10px] font-bold text-slate-400 shrink-0">{formatWallDate(task.createdAt)}</span>
+                              </>
+                            )}
+                          </div>
+                          {task.dueDate && (
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-md shrink-0 ${
+                              new Date(task.dueDate) < new Date() && task.status !== 'done'
+                                ? 'bg-red-50 text-red-600 border border-red-100'
+                                : 'bg-slate-50 text-slate-500 border border-slate-100'
+                            }`}>
+                              Due {formatWallDate(task.dueDate)}
+                            </span>
                           )}
                         </div>
 
-                        {/* Meta row */}
-                        <div className="flex items-center gap-2 mt-1.5 text-[10px] text-slate-400 font-medium">
-                          {task.dueDate && <span>Due: {formatWallDate(task.dueDate)}</span>}
-                          {task.createdBy && <span className="truncate max-w-[100px]">{empName(task.createdBy)}</span>}
-                        </div>
-
-                        {/* Actions */}
-                        <div className="flex items-center gap-1 mt-2 pt-1.5 border-t border-slate-50">
-                          <button onClick={e => { e.stopPropagation(); handleStatusChange(task); }}
-                            className="px-2 py-1 rounded-md text-[10px] font-bold bg-slate-50 text-slate-600 hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center gap-1">
-                            <ActivityIcon className="w-2.5 h-2.5" />{STATUS_CYCLE[task.status] === 'done' ? 'Done' : STATUS_CYCLE[task.status] === 'in progress' ? 'Start' : 'Reopen'}
-                          </button>
-                          <span className="flex-1" />
-                          {isOwner && (
-                            <button onClick={e => handleDelete(task._id, e)}
-                              className="w-6 h-6 rounded-md flex items-center justify-center hover:bg-red-50 text-slate-300 hover:text-red-500 transition-colors">
-                              <Trash2 className="w-3 h-3" />
+                        {/* Row 2: Task description — 2 lines, expandable */}
+                        <div>
+                          <p className={`text-[13px] font-semibold leading-relaxed text-slate-800 ${
+                            task.status === 'done' ? 'line-through text-slate-400' : ''
+                          } ${isExpanded ? '' : 'line-clamp-2'}`}>
+                            {task.task}
+                          </p>
+                          {task.task.length > 80 && (
+                            <button
+                              onClick={(e) => toggleExpanded(task._id, e)}
+                              className="text-[10px] font-bold text-blue-500 hover:text-blue-700 mt-0.5 transition-colors"
+                            >
+                              {isExpanded ? 'Show less' : 'Show more'}
                             </button>
                           )}
+                        </div>
+
+                        {/* Linked followup badge */}
+                        {task.linkedFollowupId && (
+                          <div className="flex items-center gap-1.5">
+                            <LinkIcon className="w-3 h-3 text-violet-400" />
+                            <span className="text-[9px] font-bold text-violet-500">Linked to followup</span>
+                          </div>
+                        )}
+
+                        {/* Footer: Assignees + Status Action + Delete */}
+                        <div className="mt-auto pt-2.5 border-t border-slate-100 flex items-center justify-between">
+                          {/* Assignee avatars */}
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <div className="flex -space-x-1.5">
+                              {assignees.length > 0 ? assignees.slice(0, 4).map((a, i) => (
+                                <TooltipProvider key={i}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className="relative w-6 h-6 rounded-full border-2 border-white bg-slate-200 flex items-center justify-center text-[9px] font-bold text-slate-600 shadow-sm overflow-hidden shrink-0">
+                                        {a.image ? (
+                                          <img src={a.image} alt={a.label} className="w-full h-full object-cover" />
+                                        ) : (
+                                          <span>{a.initials}</span>
+                                        )}
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent><p className="text-[10px] font-bold">{a.label}</p></TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )) : (
+                                <div className="w-6 h-6 rounded-full border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center">
+                                  <User className="w-3 h-3 text-slate-300" />
+                                </div>
+                              )}
+                              {assignees.length > 4 && (
+                                <div className="w-6 h-6 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[8px] font-black text-slate-500 shrink-0">
+                                  +{assignees.length - 4}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Status action + delete */}
+                          <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                            <button
+                              onClick={(e) => handleStatusChange(task, e)}
+                              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-bold bg-white border shadow-sm transition-all ${statusAction.color}`}
+                            >
+                              <StatusIcon className="w-3 h-3" />
+                              <span>{statusAction.label}</span>
+                            </button>
+                            <button
+                              onClick={e => handleDelete(task._id, e)}
+                              className="px-2 py-1.5 rounded-lg bg-white border border-slate-200 shadow-sm text-slate-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition-all flex items-center justify-center"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -333,6 +417,7 @@ export const EstimateTasksPanel: React.FC<EstimateTasksPanelProps> = ({
         estimates={estimatesList}
         currentUserEmail={currentUser?.email || ''}
         isSuperAdmin={!!isSuperAdmin}
+        hideClientEstimate={true}
       />
     </CommunicationPanel>
   );
