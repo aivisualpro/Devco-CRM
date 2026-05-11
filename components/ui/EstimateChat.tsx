@@ -196,15 +196,24 @@ export const EstimateChat: React.FC<EstimateChatProps> = ({
         }
     };
 
+    // Normalize employees: ensure email is always a string to prevent .toLowerCase() crashes
+    const safeEmployees = React.useMemo(() =>
+        (employees || []).map((e: any) => ({
+            ...e,
+            email: e.email != null ? String(e.email) : '',
+            value: e.value != null ? String(e.value) : (e.email != null ? String(e.email) : e._id || ''),
+        })),
+    [employees]);
+
     // Employee options for assignees display - Build this first for use in filteredChatOptions
     const employeeOptions = React.useMemo(() => {
-        return (employees || []).map(e => ({
+        return safeEmployees.map(e => ({
             id: e._id || e.id || e.email,
             label: e.label || `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.email || 'Unknown',
             value: e.email || e.id || e._id,
             profilePicture: e.image || e.profilePicture
         })).sort((a, b) => a.label.localeCompare(b.label));
-    }, [employees]);
+    }, [safeEmployees]);
 
     // Filter chat options for mentions - formatted for MyDropDown (matches original EstimateDocsCard)
     const filteredChatOptions = React.useMemo(() => {
@@ -247,12 +256,12 @@ export const EstimateChat: React.FC<EstimateChatProps> = ({
                             const isMe = (currentUserEmail && msg.sender?.toLowerCase() === currentUserEmail.toLowerCase()) || msg.senderName === 'Me';
                             
                             // Find sender employee
-                            const senderEmp = employees.find(e => 
+                            const senderEmp = safeEmployees.find(e => 
                                 e.email?.toLowerCase() === msg.sender?.toLowerCase() || 
                                 e._id === msg.sender ||
                                 e.value?.toLowerCase() === msg.sender?.toLowerCase()
                             );
-                            const senderLabel = senderEmp?.label || senderEmp?.firstName || msg.senderName || msg.sender || 'U';
+                            const senderLabel = String(senderEmp?.label || senderEmp?.firstName || msg.senderName || msg.sender || 'U');
                             const senderInitials = senderLabel.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
 
                             const renderMessage = (text: string) => {
@@ -261,11 +270,12 @@ export const EstimateChat: React.FC<EstimateChatProps> = ({
                                     if (part.startsWith('@')) {
                                         const label = part.slice(1);
                                         // Check if this person is already an assignee (hide them from text if they are)
-                                        const isAssignee = msg.assignees?.some((email: string) => {
-                                            const emp = employees.find(e => 
-                                                e.email?.toLowerCase() === email?.toLowerCase() ||
+                                        const isAssignee = msg.assignees?.some((rawEmail: any) => {
+                                            const email = String(rawEmail || '');
+                                            const emp = safeEmployees.find(e => 
+                                                e.email?.toLowerCase() === email.toLowerCase() ||
                                                 e._id === email ||
-                                                e.value?.toLowerCase() === email?.toLowerCase()
+                                                e.value?.toLowerCase() === email.toLowerCase()
                                             );
                                             return (emp?.label === label || emp?.firstName === label) || email === label;
                                         });
@@ -281,13 +291,14 @@ export const EstimateChat: React.FC<EstimateChatProps> = ({
                                 const AssigneesAvatars = (
                                     <div className="flex -space-x-1.5 overflow-hidden">
                                         {msg.assignees && msg.assignees.length > 0 ? (
-                                            msg.assignees.map((email: string, aIdx: number) => {
-                                                const assEmp = employees.find(e => 
-                                                    e.email?.toLowerCase() === email?.toLowerCase() || 
+                                            msg.assignees.map((rawEmail: any, aIdx: number) => {
+                                                const email = String(rawEmail || '');
+                                                const assEmp = safeEmployees.find(e => 
+                                                    e.email?.toLowerCase() === email.toLowerCase() || 
                                                     e._id === email ||
-                                                    e.value?.toLowerCase() === email?.toLowerCase()
+                                                    e.value?.toLowerCase() === email.toLowerCase()
                                                 );
-                                                const assName = assEmp?.label || assEmp?.firstName || email || 'U';
+                                                const assName = String(assEmp?.label || assEmp?.firstName || email || 'U');
                                                 return (
                                                     <Tooltip key={aIdx}>
                                                         <TooltipTrigger asChild>

@@ -2,11 +2,13 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import useSWR from 'swr';
 import { CheckCircle2, Plus, ChevronDown, ChevronRight, Link as LinkIcon, Loader2, Activity as ActivityIcon, Trash2, Edit } from 'lucide-react';
-import { Modal, Button, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui';
+import { Button, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui';
 import { CommunicationPanel } from './CommunicationPanel';
 import { getPusherClient } from '@/lib/realtime/pusher-client';
 import { formatWallDate } from '@/lib/format/date';
 import toast from 'react-hot-toast';
+import { TaskFormModal, TodoItem } from '@/app/(protected)/dashboard/_components/TaskList';
+import { usePermissions } from '@/hooks/usePermissions';
 
 // ── Types ──
 interface TaskItem {
@@ -20,6 +22,10 @@ interface TaskItem {
   lastUpdatedAt?: string;
   linkedFollowupId?: string;
   archived?: boolean;
+  customerId?: string;
+  customerName?: string;
+  estimate?: string;
+  jobAddress?: string;
 }
 
 interface EstimateTasksPanelProps {
@@ -50,10 +56,7 @@ export const EstimateTasksPanel: React.FC<EstimateTasksPanelProps> = ({
   const [openSections, setOpenSections] = useState<Set<string>>(new Set(['todo']));
   const [createOpen, setCreateOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<TaskItem | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [formTask, setFormTask] = useState('');
-  const [formDueDate, setFormDueDate] = useState('');
-  const [formStatus, setFormStatus] = useState<TaskItem['status']>('todo');
+  const { isSuperAdmin } = usePermissions();
 
   // SWR — filter by estimate
   const swrKey = estimateNumber ? `/api/tasks?estimate=${encodeURIComponent(estimateNumber)}&limit=200` : null;
@@ -73,6 +76,36 @@ export const EstimateTasksPanel: React.FC<EstimateTasksPanelProps> = ({
 
   const totalCount = tasks.filter(t => !t.archived).length;
 
+  // Fetch clients & estimates for the TaskFormModal (same data the dashboard provides)
+  const { data: clientsData } = useSWR('/api/clients?limit=500', fetcher, {
+    dedupingInterval: 60000, revalidateOnFocus: false,
+  });
+  const { data: estimatesData } = useSWR('/api/estimates?limit=500&fields=estimate,projectName,customerId,jobAddress', fetcher, {
+    dedupingInterval: 60000, revalidateOnFocus: false,
+  });
+
+  const clientsList = useMemo(() => clientsData?.items || clientsData?.result || [], [clientsData]);
+  const estimatesList = useMemo(() => {
+    const raw = estimatesData?.items || estimatesData?.result || [];
+    return raw.map((e: any) => ({
+      estimate: e.estimate || e.proposalNo,
+      projectName: e.projectName || e.jobName || '',
+      customerId: e.customerId,
+      jobAddress: e.jobAddress || '',
+    }));
+  }, [estimatesData]);
+
+  // Map employees for TaskFormModal
+  const mappedEmployees = useMemo(() =>
+    (employees || []).map((emp: any) => ({
+      _id: emp._id,
+      email: emp.email || '',
+      firstName: emp.firstName || emp.name?.split(' ')[0] || '',
+      lastName: emp.lastName || emp.name?.split(' ').slice(1).join(' ') || '',
+      profilePicture: emp.profilePicture || emp.image || '',
+    })),
+  [employees]);
+
   // Pusher
   useEffect(() => {
     const pusher = getPusherClient();
@@ -87,7 +120,7 @@ export const EstimateTasksPanel: React.FC<EstimateTasksPanelProps> = ({
 
   // Resolve employee name
   const empName = useCallback((email: string) => {
-    const e = employees.find((emp: any) => (emp.email || '').toLowerCase() === email?.toLowerCase());
+    const e = employees.find((emp: any) => String(emp.email || '').toLowerCase() === String(email || '').toLowerCase());
     if (e) return `${e.firstName || ''} ${e.lastName || ''}`.trim() || email;
     return email?.split('@')[0] || 'Unknown';
   }, [employees]);
@@ -123,36 +156,64 @@ export const EstimateTasksPanel: React.FC<EstimateTasksPanelProps> = ({
     else toast.error(json.error || 'Failed');
   }, [mutate, onTaskMutate]);
 
-  // Create / Edit
+  // Create / Edit — open the full TaskFormModal
   const openCreate = () => {
-    setEditingTask(null); setFormTask(''); setFormDueDate(''); setFormStatus('todo'); setCreateOpen(true);
+    setEditingTask(null);
+    setCreateOpen(true);
   };
   const openEdit = (task: TaskItem) => {
-    setEditingTask(task); setFormTask(task.task); setFormDueDate(task.dueDate?.slice(0, 10) || ''); setFormStatus(task.status); setCreateOpen(true);
+    setEditingTask(task);
+    setCreateOpen(true);
   };
 
-  const handleSave = async () => {
-    if (!formTask.trim()) { toast.error('Task description required'); return; }
-    setSubmitting(true);
+  // Save handler for TaskFormModal
+  const handleSave = useCallback(async (formData: Partial<TodoItem>) => {
+    const isEditing = !!editingTask?._id;
     try {
-      const isEditing = !!editingTask;
-      const body: any = isEditing
-        ? { id: editingTask._id, task: formTask, dueDate: formDueDate || undefined, status: formStatus, lastUpdatedBy: currentUser?.email }
-        : { task: formTask, dueDate: formDueDate || undefined, status: formStatus, assignees: [currentUser?.email], createdBy: currentUser?.email, estimate: estimateNumber, customerName, customerId };
+      const payload = isEditing
+        ? { ...formData, id: editingTask._id, lastUpdatedBy: currentUser?.email }
+        : {
+            ...formData,
+            createdBy: currentUser?.email,
+            status: formData.status || 'todo',
+            // Auto-inject estimate/customer context when creating from estimate view
+            estimate: formData.estimate || estimateNumber,
+            customerId: formData.customerId || customerId,
+            customerName: formData.customerName || customerName,
+          };
 
       const res = await fetch('/api/tasks', {
         method: isEditing ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(isEditing ? 'Updated' : 'Task created');
-        mutate(); setCreateOpen(false); onTaskMutate?.();
-      } else toast.error(json.error || 'Failed');
-    } catch { toast.error('Network error'); }
-    setSubmitting(false);
-  };
+        toast.success(isEditing ? 'Task updated' : 'Task created');
+        mutate();
+        setCreateOpen(false);
+        onTaskMutate?.();
+      } else {
+        toast.error(json.error || 'Failed to save task');
+      }
+    } catch {
+      toast.error('Network error');
+    }
+  }, [editingTask, currentUser?.email, estimateNumber, customerId, customerName, mutate, onTaskMutate]);
+
+  // Pre-fill editingTask with estimate context when creating a new task
+  const editingTaskWithContext = useMemo(() => {
+    if (editingTask) return editingTask as TodoItem;
+    // For new tasks, return a pre-filled context so the form starts with estimate/customer
+    return {
+      _id: '',
+      task: '',
+      status: 'todo' as const,
+      estimate: estimateNumber,
+      customerId: customerId || '',
+      customerName: customerName || '',
+    } as TodoItem;
+  }, [editingTask, estimateNumber, customerId, customerName]);
 
   return (
     <CommunicationPanel
@@ -261,39 +322,18 @@ export const EstimateTasksPanel: React.FC<EstimateTasksPanelProps> = ({
         })}
       </div>
 
-      {/* Create / Edit Modal */}
-      <Modal isOpen={createOpen} onClose={() => setCreateOpen(false)} title={editingTask ? 'Edit Task' : 'New Task'}>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-[11px] font-bold text-slate-600 mb-1">Task Description <span className="text-red-400">*</span></label>
-            <textarea value={formTask} onChange={e => setFormTask(e.target.value)} rows={3} placeholder="What needs to be done?"
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-rose-300 outline-none resize-none" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">Due Date</label>
-              <input type="date" value={formDueDate} onChange={e => setFormDueDate(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-rose-300 outline-none" />
-            </div>
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">Status</label>
-              <select value={formStatus} onChange={e => setFormStatus(e.target.value as TaskItem['status'])}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-rose-300 outline-none">
-                <option value="todo">To Do</option>
-                <option value="in progress">In Progress</option>
-                <option value="done">Done</option>
-              </select>
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="ghost" onClick={() => setCreateOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={submitting || !formTask.trim()}
-              className="bg-rose-600 hover:bg-rose-700 text-white font-bold">
-              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : editingTask ? 'Update' : 'Create Task'}
-            </Button>
-          </div>
-        </div>
-      </Modal>
+      {/* Dashboard's TaskFormModal — same form as the main dashboard */}
+      <TaskFormModal
+        isOpen={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onSave={handleSave}
+        editingTask={createOpen ? editingTaskWithContext : null}
+        employees={mappedEmployees}
+        clients={clientsList}
+        estimates={estimatesList}
+        currentUserEmail={currentUser?.email || ''}
+        isSuperAdmin={!!isSuperAdmin}
+      />
     </CommunicationPanel>
   );
 };

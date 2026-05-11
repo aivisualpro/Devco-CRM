@@ -15,7 +15,7 @@ import { cld } from '@/lib/cld';
 import { formatWallDate } from '@/lib/format/date';
 
 // ── Types ────────────────────────────────────────────────────────────────────────
-interface TodoItem {
+export interface TodoItem {
     _id: string;
     task: string;
     dueDate?: string;
@@ -278,7 +278,7 @@ function KanbanColumn({
 }
 
 // ── TaskFormModal ─────────────────────────────────────────────────────────────────
-function TaskFormModal({
+export function TaskFormModal({
     isOpen, onClose, onSave, editingTask, employees, clients, estimates, currentUserEmail, isSuperAdmin,
 }: {
     isOpen: boolean; onClose: () => void; onSave: (data: Partial<TodoItem>) => Promise<void>;
@@ -475,12 +475,18 @@ export function TaskList({
     initialData,
     className,
     onTaskMutate,
+    estimateFilter,
+    customerIdFilter,
+    customerNameFilter,
 }: {
     week: string;
     scope: 'all' | 'self';
     initialData?: any;
     className?: string;
     onTaskMutate?: () => void;
+    estimateFilter?: string;
+    customerIdFilter?: string;
+    customerNameFilter?: string;
 }) {
     const { user, isSuperAdmin, can } = usePermissions();
     const currentUser = useCurrentUser();
@@ -510,6 +516,7 @@ export function TaskList({
     function buildTasksUrl(pg: number, q: string) {
         let url = `/api/tasks?page=${pg}&limit=${LIMIT}`;
         if (q) url += `&q=${encodeURIComponent(q)}`;
+        if (estimateFilter) url += `&estimate=${encodeURIComponent(estimateFilter)}`;
         return url;
     }
 
@@ -658,10 +665,22 @@ export function TaskList({
     const handleSaveTask = useCallback(async (formData: Partial<TodoItem>) => {
         const isEditing = !!editingTask?._id;
         try {
+            // When creating from estimate context, auto-inject estimate/customer
+            const createPayload = isEditing
+                ? { ...formData, id: editingTask._id }
+                : {
+                    ...formData,
+                    createdBy: userEmail,
+                    status: formData.status || 'todo',
+                    ...(estimateFilter && !formData.estimate ? { estimate: estimateFilter } : {}),
+                    ...(customerIdFilter && !formData.customerId ? { customerId: customerIdFilter } : {}),
+                    ...(customerNameFilter && !formData.customerName ? { customerName: customerNameFilter } : {}),
+                };
+
             const res = await fetch('/api/tasks', {
                 method: isEditing ? 'PATCH' : 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(isEditing ? { ...formData, id: editingTask._id } : { ...formData, createdBy: userEmail, status: formData.status || 'todo' }),
+                body: JSON.stringify(createPayload),
             });
             const dataRes = await res.json();
             
@@ -678,7 +697,7 @@ export function TaskList({
                 onTaskMutate?.();
             }
         } catch { toast.error('Failed to save task'); }
-    }, [editingTask, userEmail, onTaskMutate]);
+    }, [editingTask, userEmail, onTaskMutate, estimateFilter, customerIdFilter, customerNameFilter]);
 
     const handleCopyTask = useCallback((item: TodoItem, e: React.MouseEvent) => {
         e.stopPropagation();
