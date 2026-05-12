@@ -45,7 +45,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             _id: newId,
             isChangeOrder: true,
             parentVersionId: sourceId,
-            status: 'In Progress',
+            status: 'Pending',
             // Initialize empty arrays
             labor: [],
             equipment: [],
