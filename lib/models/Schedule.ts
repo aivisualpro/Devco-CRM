@@ -88,6 +88,8 @@ export interface ISchedule extends Document {
     changeOfScope?: IChangeOfScope[];
 
     isDayOffApproved?: boolean;
+    isRequiredDJT?: boolean;
+    isRequiredJHA?: boolean;
     historyLog?: IHistoryLog[];
 }
 
@@ -312,6 +314,8 @@ const ScheduleSchema = new Schema({
     },
 
     isDayOffApproved: { type: Boolean, default: false },
+    isRequiredDJT: { type: Boolean, default: true },
+    isRequiredJHA: { type: Boolean, default: true },
     hasJHA: { type: Boolean, default: false },
     hasDJT: { type: Boolean, default: false },
     historyLog: {

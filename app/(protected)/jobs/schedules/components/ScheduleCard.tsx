@@ -52,6 +52,8 @@ export interface ScheduleItem {
     changeOfScope?: any[];
 
     isDayOffApproved?: boolean;
+    isRequiredDJT?: boolean;
+    isRequiredJHA?: boolean;
 }
 
 interface ScheduleCardProps {
@@ -375,6 +377,7 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                     <div className={`flex items-center justify-between mt-auto pt-2 border-t border-slate-100 ${item.item === 'Day Off' ? 'hidden' : ''}`}>
                         <div className="flex items-center gap-2 sm:gap-1">
                             {/* JHA */}
+                            {(item.isRequiredJHA !== false) && (
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <div 
@@ -389,8 +392,10 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                                 </TooltipTrigger>
                                 <TooltipContent><p>{item.hasJHA ? 'View JHA' : 'Create JHA'}</p></TooltipContent>
                             </Tooltip>
+                            )}
 
                             {/* DJT */}
+                            {(item.isRequiredDJT !== false) && (
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <div 
@@ -405,6 +410,7 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                                 </TooltipTrigger>
                                 <TooltipContent><p>{(item.hasDJT || (item.djt && Object.keys(item.djt).length > 0)) ? 'View DJT' : 'Create DJT'}</p></TooltipContent>
                             </Tooltip>
+                            )}
 
                             {/* Change of Scope */}
                             <Tooltip>

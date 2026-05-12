@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
                 const baseEstimate = String(estimateNumber).includes('-') ? String(estimateNumber).split('-').slice(0, 2).join('-') : String(estimateNumber);
                 const results = await Schedule.find({ estimate: { $regex: new RegExp(`^${baseEstimate}`, 'i') } })
                     .sort({ fromDate: 1, createdAt: 1 })
-                    .select('_id title estimate fromDate toDate customerName customerId jobLocation projectManager foremanName assignees description service item fringe certifiedPayroll notifyAssignees perDiem aerialImage siteLayout hasJHA hasDJT timesheet todayObjectives preBore')
+                    .select('_id title estimate fromDate toDate customerName customerId jobLocation projectManager foremanName assignees description service item fringe certifiedPayroll notifyAssignees perDiem aerialImage siteLayout hasJHA hasDJT isRequiredDJT isRequiredJHA timesheet todayObjectives preBore')
                     .lean();
                 return NextResponse.json({ success: true, result: results });
             }
@@ -1723,6 +1723,7 @@ export async function POST(request: NextRequest) {
                                         // JHASignatures: 0, 
                                         // DJTSignatures: 0,
                                         todayObjectives: 1, isDayOffApproved: 1,
+                                        isRequiredDJT: 1, isRequiredJHA: 1,
                                         changeOfScope: 1,
                                         createdAt: 1, updatedAt: 1,
                                         hasTimesheet: { $gt: [{ $size: { $ifNull: ['$timesheet', []] } }, 0] },

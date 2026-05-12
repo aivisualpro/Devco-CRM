@@ -150,13 +150,19 @@ export function StatsCards({
     }, [jobs]);
 
     // JHA and DJT counts for jobs
-    const { jhaCount, djtCount } = useMemo(() => {
-        let jCount = 0, dCount = 0;
+    const { jhaCount, djtCount, jhaRequired, djtRequired } = useMemo(() => {
+        let jCount = 0, dCount = 0, jReq = 0, dReq = 0;
         jobs.forEach((sc: any) => {
-            if (sc.hasJHA) jCount++;
-            if (sc.hasDJT || sc.djt || (sc.DJTSignatures && sc.DJTSignatures.length > 0)) dCount++;
+            if (sc.isRequiredJHA !== false) {
+                jReq++;
+                if (sc.hasJHA) jCount++;
+            }
+            if (sc.isRequiredDJT !== false) {
+                dReq++;
+                if (sc.hasDJT || sc.djt || (sc.DJTSignatures && sc.DJTSignatures.length > 0)) dCount++;
+            }
         });
-        return { jhaCount: jCount, djtCount: dCount };
+        return { jhaCount: jCount, djtCount: dCount, jhaRequired: jReq, djtRequired: dReq };
     }, [jobs]);
 
     if (!canField(MODULES.DASHBOARD, 'widget_weekly_snapshot', 'view')) return null;
@@ -211,9 +217,9 @@ export function StatsCards({
                     className="lg:col-span-3 min-h-[180px]"
                 >
                     <div className="flex items-center gap-2 mt-auto bg-white px-3 py-1.5 rounded-xl w-max shadow-sm border border-white/60">
-                        <span className={`text-[11px] font-black tracking-wider ${jhaCount < jobs.length ? 'text-[#ef4444]' : 'text-slate-700'}`}>{jhaCount} JHA</span>
+                        <span className={`text-[11px] font-black tracking-wider ${jhaCount < jhaRequired ? 'text-[#ef4444]' : 'text-slate-700'}`}>{jhaCount}/{jhaRequired} JHA</span>
                         <div className="w-1 h-1 rounded-full bg-slate-300" />
-                        <span className={`text-[11px] font-black tracking-wider ${djtCount < jobs.length ? 'text-[#ef4444]' : 'text-slate-700'}`}>{djtCount} DJT</span>
+                        <span className={`text-[11px] font-black tracking-wider ${djtCount < djtRequired ? 'text-[#ef4444]' : 'text-slate-700'}`}>{djtCount}/{djtRequired} DJT</span>
                     </div>
                 </KpiCard>
                 

@@ -82,17 +82,19 @@ export async function GET(req: NextRequest) {
             { $group: {
                 _id: null,
                 total:    { $sum: 1 },
-                withJHA:  { $sum: { $cond: [{ $eq: ['$hasJHA', true] }, 1, 0] } },
-                withDJT:  { $sum: { $cond: [{ $eq: ['$hasDJT', true] }, 1, 0] } },
-                withBoth: { $sum: { $cond: [{ $and: [{ $eq: ['$hasJHA', true] }, { $eq: ['$hasDJT', true] }] }, 1, 0] } },
+                withJHA:  { $sum: { $cond: [{ $and: [{ $eq: ['$hasJHA', true] }, { $ne: ['$isRequiredJHA', false] }] }, 1, 0] } },
+                withDJT:  { $sum: { $cond: [{ $and: [{ $eq: ['$hasDJT', true] }, { $ne: ['$isRequiredDJT', false] }] }, 1, 0] } },
+                withBoth: { $sum: { $cond: [{ $and: [{ $eq: ['$hasJHA', true] }, { $eq: ['$hasDJT', true] }, { $ne: ['$isRequiredJHA', false] }, { $ne: ['$isRequiredDJT', false] }] }, 1, 0] } },
+                totalRequiringJHA: { $sum: { $cond: [{ $ne: ['$isRequiredJHA', false] }, 1, 0] } },
+                totalRequiringDJT: { $sum: { $cond: [{ $ne: ['$isRequiredDJT', false] }, 1, 0] } },
             }}
         ]);
 
-        const pm = scheduleStats[0] || { total: 0, withJHA: 0, withDJT: 0, withBoth: 0 };
+        const pm = scheduleStats[0] || { total: 0, withJHA: 0, withDJT: 0, withBoth: 0, totalRequiringJHA: 0, totalRequiringDJT: 0 };
         const isPM   = pm.total > 0;
-        const jhaRate  = pm.total > 0 ? (pm.withJHA  / pm.total) * 100 : 0;
-        const djtRate  = pm.total > 0 ? (pm.withDJT  / pm.total) * 100 : 0;
-        const bothRate = pm.total > 0 ? (pm.withBoth / pm.total) * 100 : 0;
+        const jhaRate  = pm.totalRequiringJHA > 0 ? (pm.withJHA  / pm.totalRequiringJHA) * 100 : 0;
+        const djtRate  = pm.totalRequiringDJT > 0 ? (pm.withDJT  / pm.totalRequiringDJT) * 100 : 0;
+        const bothRate = Math.min(pm.totalRequiringJHA, pm.totalRequiringDJT) > 0 ? (pm.withBoth / Math.min(pm.totalRequiringJHA, pm.totalRequiringDJT)) * 100 : 0;
 
         // ══════════════════════════════════════════════════════════════════════
         // PART C: Assignee — JHA & DJT signing compliance

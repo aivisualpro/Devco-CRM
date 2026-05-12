@@ -40,9 +40,11 @@ export async function GET() {
                 { $group: {
                     _id: '$projectManager',
                     total:    { $sum: 1 },
-                    withJHA:  { $sum: { $cond: [{ $eq: ['$hasJHA', true] }, 1, 0] } },
-                    withDJT:  { $sum: { $cond: [{ $eq: ['$hasDJT', true] }, 1, 0] } },
-                    withBoth: { $sum: { $cond: [{ $and: [{ $eq: ['$hasJHA', true] }, { $eq: ['$hasDJT', true] }] }, 1, 0] } },
+                    withJHA:  { $sum: { $cond: [{ $and: [{ $eq: ['$hasJHA', true] }, { $ne: ['$isRequiredJHA', false] }] }, 1, 0] } },
+                    withDJT:  { $sum: { $cond: [{ $and: [{ $eq: ['$hasDJT', true] }, { $ne: ['$isRequiredDJT', false] }] }, 1, 0] } },
+                    withBoth: { $sum: { $cond: [{ $and: [{ $eq: ['$hasJHA', true] }, { $eq: ['$hasDJT', true] }, { $ne: ['$isRequiredJHA', false] }, { $ne: ['$isRequiredDJT', false] }] }, 1, 0] } },
+                    totalRequiringJHA: { $sum: { $cond: [{ $ne: ['$isRequiredJHA', false] }, 1, 0] } },
+                    totalRequiringDJT: { $sum: { $cond: [{ $ne: ['$isRequiredDJT', false] }, 1, 0] } },
                 }},
             ]),
             // 2. Estimates for writer mapping
@@ -63,9 +65,10 @@ export async function GET() {
         const pmScoreMap = new Map<string, number>();
         pmStats.forEach((pm: any) => {
             if (!pm._id || pm.total === 0) return;
-            const jhaRate  = (pm.withJHA  / pm.total) * 100;
-            const djtRate  = (pm.withDJT  / pm.total) * 100;
-            const bothRate = (pm.withBoth / pm.total) * 100;
+            const jhaRate  = pm.totalRequiringJHA > 0 ? (pm.withJHA  / pm.totalRequiringJHA) * 100 : 0;
+            const djtRate  = pm.totalRequiringDJT > 0 ? (pm.withDJT  / pm.totalRequiringDJT) * 100 : 0;
+            const bothBase = Math.min(pm.totalRequiringJHA || 0, pm.totalRequiringDJT || 0);
+            const bothRate = bothBase > 0 ? (pm.withBoth / bothBase) * 100 : 0;
             pmScoreMap.set(pm._id, Math.round(bothRate * 0.60 + jhaRate * 0.20 + djtRate * 0.20));
         });
 

@@ -141,6 +141,11 @@ export function ScheduleFormModal({ isOpen, onClose, schedule, initialData, onSa
                                         const updates: any = { item: val };
                                         if (val === 'Day Off') {
                                             updates.title = 'Day Off';
+                                            updates.isRequiredDJT = false;
+                                            updates.isRequiredJHA = false;
+                                        } else {
+                                            updates.isRequiredDJT = true;
+                                            updates.isRequiredJHA = true;
                                         }
                                         setEditingItem((prev: any) => ({ ...prev, ...updates }));
                                     }}
@@ -373,6 +378,44 @@ export function ScheduleFormModal({ isOpen, onClose, schedule, initialData, onSa
                             </div>
                         )}
                     </div>
+
+                    {/* isRequired DJT / JHA Toggles — only for non-Day Off */}
+                    {editingItem?.item !== 'Day Off' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <label className="flex items-center gap-3 cursor-pointer select-none bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 hover:bg-slate-100 transition-colors">
+                                <div className="relative">
+                                    <input
+                                        type="checkbox"
+                                        className="sr-only peer"
+                                        checked={editingItem?.isRequiredJHA !== false}
+                                        onChange={(e) => setEditingItem((prev: any) => prev ? { ...prev, isRequiredJHA: e.target.checked } : null)}
+                                    />
+                                    <div className="w-11 h-6 bg-slate-300 peer-checked:bg-orange-500 rounded-full transition-colors" />
+                                    <div className="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform peer-checked:translate-x-5" />
+                                </div>
+                                <div>
+                                    <span className="text-sm font-bold text-slate-800">Require JHA</span>
+                                    <p className="text-[11px] text-slate-500">Include in JHA compliance tracking</p>
+                                </div>
+                            </label>
+                            <label className="flex items-center gap-3 cursor-pointer select-none bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 hover:bg-slate-100 transition-colors">
+                                <div className="relative">
+                                    <input
+                                        type="checkbox"
+                                        className="sr-only peer"
+                                        checked={editingItem?.isRequiredDJT !== false}
+                                        onChange={(e) => setEditingItem((prev: any) => prev ? { ...prev, isRequiredDJT: e.target.checked } : null)}
+                                    />
+                                    <div className="w-11 h-6 bg-slate-300 peer-checked:bg-indigo-500 rounded-full transition-colors" />
+                                    <div className="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform peer-checked:translate-x-5" />
+                                </div>
+                                <div>
+                                    <span className="text-sm font-bold text-slate-800">Require DJT</span>
+                                    <p className="text-[11px] text-slate-500">Include in DJT compliance tracking</p>
+                                </div>
+                            </label>
+                        </div>
+                    )}
 
                     {editingItem?.item !== 'Day Off' && (
                         <>
