@@ -41,7 +41,7 @@ export async function GET(
             const [overheads, schedules] = await Promise.all([
                 OverheadItem.find({}).lean(),
                 Schedule.find({ estimate: proposalNumber })
-                    .select('_id fromDate djt.equipmentUsed djt._id djt.dailyJobDescription djt.customerPrintName djt.createdAt djt.djtCost')
+                    .select('_id fromDate title customerName estimate djt')
                     .lean()
             ]);
 
@@ -58,7 +58,7 @@ export async function GET(
             const standaloneDjts = await DailyJobTicket.find({
                 schedule_id: { $in: scheduleIds }
             })
-            .select('_id schedule_id equipmentUsed date createdAt dailyJobDescription customerPrintName djtCost')
+            .select('_id schedule_id equipmentUsed date createdAt dailyJobDescription customerPrintName customerSignature djtCost djtimages signatures createdBy')
             .lean();
 
             const t3 = Date.now();
@@ -92,11 +92,18 @@ export async function GET(
                     totalCost: finalTotal,
                     djtData: {
                         _id: djt._id,
+                        schedule_id: String(s._id),
+                        fromDate: s.fromDate,
                         dailyJobDescription: djt.dailyJobDescription,
                         customerPrintName: djt.customerPrintName,
+                        customerSignature: djt.customerSignature,
                         equipmentUsed: djt.equipmentUsed,
+                        djtCost: djt.djtCost || finalTotal,
+                        djtimages: djt.djtimages || [],
+                        signatures: djt.signatures || [],
+                        createdBy: djt.createdBy,
                         createdAt: djt.createdAt,
-                        scheduleRef: { _id: s._id, fromDate: s.fromDate }
+                        scheduleRef: { _id: s._id, fromDate: s.fromDate, title: s.title, customerName: s.customerName, estimate: s.estimate }
                     }
                 };
             }).filter(Boolean).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());

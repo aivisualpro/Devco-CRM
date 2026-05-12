@@ -23,6 +23,7 @@ import { ScheduleCard } from '../../jobs/schedules/components/ScheduleCard';
 import { ScheduleDetailsPopup } from '@/components/ui/ScheduleDetailsPopup';
 import { JHACard } from '../../docs/jha/components/JHACard';
 import { JHAModal } from '../../jobs/schedules/components/JHAModal';
+import { DJTCard } from '../../docs/job-tickets/components/DJTCard';
 import { formatDateOnly, calculateTimesheetData } from '@/lib/timeCardUtils';
 import { getLocalNowISO } from '@/lib/scheduleUtils';
 import { formatWallDate } from '@/lib/format/date';
@@ -2588,50 +2589,45 @@ export default function WIPReportClient({
                                 <p className="text-sm font-medium">No job tickets found for this project.</p>
                             </div>
                         ) : (
-                            <div className="overflow-auto max-h-[70vh] rounded-xl border border-slate-200">
-                                <table className="w-full text-left">
-                                    <thead className="sticky top-0 bg-slate-50 z-10 border-b border-slate-200">
-                                        <tr className="h-9">
-                                            <th className="px-3 py-0 text-[10px] font-black text-slate-200 uppercase tracking-wider w-28 align-middle">Date</th>
-                                            <th className="px-3 py-0 text-[10px] font-black text-slate-200 uppercase tracking-wider align-middle">Description</th>
-                                            <th className="px-3 py-0 text-[10px] font-black text-slate-200 uppercase tracking-wider w-28 align-middle">Equipment</th>
-                                            <th className="px-3 py-0 text-[10px] font-black text-slate-200 uppercase tracking-wider w-28 align-middle">Overhead</th>
-                                            <th className="px-3 py-0 text-[10px] font-black text-slate-200 uppercase tracking-wider w-28 text-right align-middle">Total Cost</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100 bg-white">
-                                        {(selectedProject?.jobTickets || []).map((ticket: any, idx: number) => (
-                                            <tr
-                                                key={idx}
-                                                className="hover:bg-slate-50 transition-colors cursor-pointer group"
-                                                onClick={() => {
-                                                    if (ticket.djtData) {
-                                                        const djtWithSigs = {
-                                                            ...ticket.djtData,
-                                                            signatures: ticket.djtData.signatures || [],
-                                                            schedule_id: ticket.schedule_id
-                                                        };
-                                                        setSelectedDJT(djtWithSigs);
-                                                        setIsDjtEditMode(false);
-                                                        setDjtModalOpen(true);
-                                                    }
-                                                }}
-                                            >
-                                                <td className="px-3 py-2.5 text-xs font-medium text-slate-600 group-hover:text-[#0F4C75] whitespace-nowrap">{formatDateOnly(ticket.date)}</td>
-                                                <td className="px-3 py-2.5 text-xs font-medium text-slate-600 truncate max-w-[300px]">{ticket.djtData?.dailyJobDescription || '—'}</td>
-                                                <td className="px-3 py-2.5 text-xs font-bold text-slate-700">
-                                                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(ticket.equipmentCost || 0)}
-                                                </td>
-                                                <td className="px-3 py-2.5 text-xs font-bold text-slate-700">
-                                                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(ticket.overheadCost || 0)}
-                                                </td>
-                                                <td className="px-3 py-2.5 text-xs font-black text-[#0F4C75] text-right">
-                                                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(ticket.totalCost || 0)}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 max-h-[70vh] overflow-y-auto">
+                                {(selectedProject?.jobTickets || []).map((ticket: any, idx: number) => {
+                                    const djt = ticket.djtData || {};
+                                    const schedule = djt.scheduleRef || { _id: ticket.schedule_id, fromDate: ticket.date };
+                                    const clientName = schedule?.customerName || selectedProject?.CompanyName || selectedProject?.DisplayName || '-';
+                                    return (
+                                        <DJTCard
+                                            key={`${djt._id || ticket.id || 'djt'}-${idx}`}
+                                            djt={djt}
+                                            schedule={schedule}
+                                            clientName={clientName}
+                                            employees={employees.map(e => ({
+                                                value: e.email,
+                                                label: e.displayName || `${e.firstName} ${e.lastName}`.trim() || e.email,
+                                                image: e.profilePicture,
+                                                email: e.email,
+                                            }))}
+                                            equipmentItems={equipmentMachines.map((m: any) => ({
+                                                value: m._id,
+                                                label: m.equipmentMachine || m.name || m._id,
+                                                dailyCost: m.dailyCost,
+                                            }))}
+                                            canViewEstimates={true}
+                                            canEdit={false}
+                                            canDelete={false}
+                                            onView={(viewDjt) => {
+                                                const djtWithSigs = {
+                                                    ...viewDjt,
+                                                    signatures: viewDjt.signatures || [],
+                                                    schedule_id: viewDjt.schedule_id || ticket.schedule_id
+                                                };
+                                                setSelectedDJT(djtWithSigs);
+                                                setIsDjtEditMode(false);
+                                                setDjtModalOpen(true);
+                                            }}
+                                            router={router}
+                                        />
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
