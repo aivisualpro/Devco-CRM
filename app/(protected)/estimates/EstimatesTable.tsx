@@ -425,6 +425,11 @@ export default function EstimatesTable({ initialData }: { initialData?: any[] })
     const filteredEstimates = useMemo(() => {
         let filtered = [...estimates];
 
+        // Filter out change orders unless the toggle is on
+        if (!showChangeOrders) {
+            filtered = filtered.filter(est => !est.isChangeOrder);
+        }
+
         // When Finals toggle is ON, only show the highest version of each estimate
         if (showFinals) {
             // Group estimates by their base estimate number
@@ -438,26 +443,37 @@ export default function EstimatesTable({ initialData }: { initialData?: any[] })
                 groupedByEstimate.get(baseEstimate)!.push(est);
             });
 
-            // For each group, keep only the highest version number
+            // For each group, keep only the highest version number (excluding change orders)
             filtered = [];
             groupedByEstimate.forEach(group => {
                 if (group.length === 1) {
                     filtered.push(group[0]);
                 } else {
-                    // Find the one with the highest version number
-                    const highest = group.reduce((max, current) => {
-                        const maxVersion = max.versionNumber || 1;
-                        const currentVersion = current.versionNumber || 1;
-                        return currentVersion > maxVersion ? current : max;
-                    });
-                    filtered.push(highest);
+                    // Separate base versions from change orders
+                    const baseVersions = group.filter(e => !e.isChangeOrder);
+                    const changeOrders = group.filter(e => e.isChangeOrder);
+
+                    // Pick the highest base version (non-change-order)
+                    if (baseVersions.length > 0) {
+                        const highest = baseVersions.reduce((max, current) => {
+                            const maxVersion = max.versionNumber || 1;
+                            const currentVersion = current.versionNumber || 1;
+                            return currentVersion > maxVersion ? current : max;
+                        });
+                        filtered.push(highest);
+                    }
+
+                    // If showChangeOrders is on, also include the change orders
+                    if (showChangeOrders && changeOrders.length > 0) {
+                        filtered.push(...changeOrders);
+                    }
                 }
             });
         }
 
         // Sorting is now handled server-side, no client-side sort needed
         return filtered;
-    }, [estimates, showFinals]);
+    }, [estimates, showFinals, showChangeOrders]);
 
     const handleSort = (key: string) => {
         setSortConfig(current => ({
